@@ -1,0 +1,50 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.env
+.venv
+env/
+venv/
+
+# Packaging / build
+build/
+dist/
+.eggs/
+*.egg-info/
+*.egg
+pip-wheel-metadata/
+*.manifest
+*.spec
+
+# Logs / reports
+*.log
+coverage.*
+htmlcov/
+.cache/
+.pytest_cache/
+data/
+
+# IDE / tooling
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Django / Flask / etc.
+db.sqlite3
+instance/
+*.db
+
+# Jupyter
+.ipynb_checkpoints
+
+# OS
+.DS_Store
+Thumbs.db
+
+# exe
+output/
+builds/

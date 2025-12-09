@@ -1,0 +1,38 @@
+<RCC>
+  <qresource prefix="resource">
+    <file>icons/removeEmptyLines.png</file>
+    <file>icons/removeSpaces.png</file>
+    <file>icons/number.png</file>
+    <file>icons/arc.png</file>
+    <file>icons/stat.png</file>
+    <file>icons/lathe.png</file>
+    <file>icons/logo.png</file>
+    <file>icons/grid.png</file>
+    <file>icons/step_backward.png</file>
+    <file>icons/step_forward.png</file>
+    <file>icons/export.png</file>
+    <file>icons/zoom-in.png</file>
+    <file>icons/zoom-out.png</file>
+    <file>icons/export.png</file>
+    <file>icons/3D.png</file>
+    <file>icons/front.png</file>
+    <file>icons/left.png</file>
+    <file>icons/top.png</file>
+    <file>icons/about.png</file>
+    <file>icons/copy.png</file>
+    <file>icons/cut.png</file>
+    <file>icons/exit.png</file>
+    <file>icons/find-replace.png</file>
+    <file>icons/new.png</file>
+    <file>icons/open.png</file>
+    <file>icons/paste.png</file>
+    <file>icons/play.png</file>
+    <file>icons/redo.png</file>
+    <file>icons/refresh.png</file>
+    <file>icons/save.png</file>
+    <file>icons/save-as.png</file>
+    <file>icons/select-all.png</file>
+    <file>icons/stop.png</file>
+    <file>icons/undo.png</file>
+  </qresource>
+</RCC>

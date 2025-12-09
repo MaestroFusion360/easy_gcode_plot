@@ -1,0 +1,43 @@
+[MASTER]
+ignore-paths=.venv
+
+[MESSAGES CONTROL]
+disable=
+    import-error,
+    no-name-in-module,
+    too-many-lines,
+    too-many-instance-attributes,
+    too-many-public-methods,
+    too-few-public-methods,
+    too-many-branches,
+    too-many-statements,
+    too-many-locals,
+    too-many-arguments,
+    too-many-positional-arguments,
+    invalid-name,
+    attribute-defined-outside-init,
+    unused-argument,
+    expression-not-assigned,
+    unnecessary-lambda,
+    consider-using-enumerate,
+    consider-using-f-string,
+    consider-using-in,
+    consider-using-min-builtin,
+    simplifiable-if-statement,
+    no-else-return,
+    use-implicit-booleaness-not-comparison,
+    singleton-comparison,
+    implicit-str-concat,
+    broad-exception-caught,
+    redefined-builtin,
+    inconsistent-return-statements
+
+[FORMAT]
+max-line-length=120
+
+[BASIC]
+argument-naming-style=any
+attr-naming-style=any
+variable-naming-style=any
+function-naming-style=any
+method-naming-style=any
