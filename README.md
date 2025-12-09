@@ -7,7 +7,6 @@
 <p align="center">
   <div style="text-align: center;">
     <img src="assets/img1.png" alt="Image 1">
-    <p>Image 1</p>
   </div>
 </p>
 
@@ -140,14 +139,14 @@ Easy G-Code Plotter is a comprehensive desktop application for viewing, editing,
 1. Clone the repository:
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
    cd easy-gcode-plotter
    ```
 
 2. Install required packages:
 
    ```bash
-   pip install PyQt5 pyqtgraph QScintilla numpy
+   pip install -r scripts/requirements.txt
    ```
 
 3. Run the application:
@@ -346,11 +345,9 @@ The application creates a `main.log` file for debugging:
 # Install development dependencies
 pip install -r scripts/requirements.txt
 
-# Run tests
-python -m pytest tests/
-
 # Create executable (optional)
-pyinstaller main.spec
+pip install pyinstaller
+pyinstaller main.py --name easy_gcode_plot --onefile
 ```
 
 ### Code Structure
