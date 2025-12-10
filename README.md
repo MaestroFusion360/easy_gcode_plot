@@ -1,4 +1,4 @@
-# Easy G-Code Plotter
+# Easy G-Code Plot
 
 <!-- markdownlint-disable MD033 -->
 <details>
@@ -64,7 +64,7 @@
 
 ## Overview
 
-Easy G-Code Plotter is a comprehensive desktop application for viewing, editing, and analyzing G-code files. It provides a rich set of features including 3D visualization, code editing with syntax highlighting, export functionality with multiple output formats, and various code manipulation tools.
+Easy G-Code Plot is a comprehensive desktop application for viewing, editing, and analyzing G-code files. It provides a rich set of features including 3D visualization, code editing with syntax highlighting, export functionality with multiple output formats, and various code manipulation tools.
 
 ## Features
 
