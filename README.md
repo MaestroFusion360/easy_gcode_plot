@@ -1,5 +1,9 @@
 # Easy G-Code Plot
 
+[![Windows build](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/windows-release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/windows-release.yml)
+
+Download the current standalone Windows executable from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). The packaged application does not require a separate Python installation.
+
 <!-- markdownlint-disable MD033 -->
 <details>
   <summary><h2>Screenshot</h2></summary>
@@ -128,11 +132,8 @@ Easy G-Code Plot is a comprehensive desktop application for viewing, editing, an
 
 ### Prerequisites
 
-- Python 3.7+
-- PyQt5
-- PyQtGraph
-- QScintilla2
-- NumPy
+- Python 3.11+
+- [uv](https://docs.astral.sh/uv/)
 
 ### Installation Steps
 
@@ -143,16 +144,16 @@ Easy G-Code Plot is a comprehensive desktop application for viewing, editing, an
    cd easy-gcode-plotter
    ```
 
-2. Install required packages:
+2. Create/update the project environment from `pyproject.toml` and `uv.lock`:
 
    ```bash
-   pip install -r scripts/requirements.txt
+   uv sync
    ```
 
 3. Run the application:
 
    ```bash
-   python main.py
+   uv run python main.py
    ```
 
 ## Usage
@@ -258,7 +259,11 @@ Access via File → Export Options:
 
 ### Settings File
 
-The application saves configuration to `config.ini` in the following sections:
+The application saves configuration to `config.ini` **outside the program
+directory**, in the per-user config location (on Windows:
+`%LOCALAPPDATA%\easy-gcode-plot\config.ini`). On the first run a legacy
+`config.ini` found next to the launcher is copied there once. The file stores
+the following sections:
 
 #### Plot Settings
 
@@ -320,7 +325,7 @@ The application creates a `main.log` file for debugging:
 
 ### Architecture
 
-- **Frontend**: PyQt5 with custom OpenGL visualization
+- **Frontend**: PyQt6 with custom OpenGL visualization
 - **Editor**: QScintilla with custom G-code lexer
 - **Plotting**: PyQtGraph OpenGL implementation
 - **Configuration**: QSettings with INI file storage
@@ -342,22 +347,58 @@ The application creates a `main.log` file for debugging:
 ### Building from Source
 
 ```bash
-# Install development dependencies
-pip install -r scripts/requirements.txt
+# Install runtime and default development dependencies
+uv sync
 
-# Create executable (optional)
-pip install pyinstaller
-pyinstaller main.py --name easy_gcode_plot --onefile
+# Run tests and code-quality checks
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+
+# Create the release-compatible Windows executable
+./scripts/build.ps1
 ```
 
 ### Code Structure
 
-- `main.py`: Main application window
-- `main_ui.py`: Qt Designer generated UI
-- `find_replace.py`: Find/replace dialog
-- `export.py`: Export options dialog
-- `block_num.py`: Block numbering dialog
-- `files_res.py`: Resource file (icons, etc.)
+```
+main.py                        Thin entry point (python main.py or python -m app)
+app/
+├─ __init__.py                 App version source (get_version())
+├─ application.py              Qt bootstrap: builds QApplication and shows the window
+├─ main_window.py              MainWindow: editing, parsing and plotting logic
+├─ settings.py                 Per-user config location (see below)
+├─ gcode/
+│  ├─ core.py                  Pure parsing/metrics helpers (no Qt)
+│  └─ exporter.py              G-code export logic
+├─ ui/
+│  ├─ dialogs.py               BlockNum, Export and Find dialog controllers
+│  ├─ lexer.py                 G-code syntax highlighting lexer
+│  └─ generated/               Files generated/hand-maintained from Qt Designer sources
+│     ├─ main_ui.py            Main window UI (+ Editor/PlotView widgets)
+│     ├─ block_num.py/.ui      Block numbering dialog
+│     ├─ export.py/.ui         Export options dialog
+│     └─ find_replace.py/.ui   Find/replace dialog
+└─ resources/
+   ├─ files_res.py/.qrc        Compiled Qt resources (icons)
+   └─ icons/                   Icon sources
+tests/                         pytest suite
+scripts/                       Dev tooling (build, lint, sync, start, test)
+assets/                        Screenshots for this README
+```
+
+Run the application from the project root with either `uv run python main.py` or
+`uv run python -m app`.
+
+To regenerate the Designer output after editing a `.ui` file, use the `pyuic6`
+tool shipped with PyQt6:
+
+```bash
+uv run pyuic6 app/ui/generated/export.ui -o app/ui/generated/export.py
+```
+
+> Note: PyQt6 wheels no longer bundle `pyrcc6`. `app/resources/files_res.py` is
+> committed pre-generated; edit it only together with `files_res.qrc`.
 
 ### Adding Features
 

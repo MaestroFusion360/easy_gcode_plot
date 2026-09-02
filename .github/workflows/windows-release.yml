@@ -1,0 +1,118 @@
+---
+name: Windows build and release
+
+"on":
+  push:
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build Windows EXE
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install uv and Python
+        # astral-sh/setup-uv v9.0.0
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.12.9"
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Install locked dependencies
+        shell: pwsh
+        run: uv sync --locked --group dev --group build
+
+      - name: Run tests
+        shell: pwsh
+        run: ./scripts/test.ps1
+
+      - name: Run static checks
+        shell: pwsh
+        run: ./scripts/lint.ps1
+
+      - name: Verify release tag matches project version
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        run: |
+          $version = uv version --short
+          if ("v$version" -ne "${{ github.ref_name }}") {
+            throw (
+              "Tag ${{ github.ref_name }} does not match " +
+              "pyproject version v$version"
+            )
+          }
+
+      - name: Build executable
+        shell: pwsh
+        run: ./scripts/build.ps1 -SkipTests
+
+      - name: Give executable a versioned name
+        shell: pwsh
+        run: |
+          $version = uv version --short
+          $releaseExe = "dist/Easy-G-Code-Plot-$version-Windows-x64.exe"
+          Copy-Item dist/easy_gcode_plot.exe $releaseExe
+          $hash = (Get-FileHash $releaseExe -Algorithm SHA256).Hash.ToLower()
+          "$hash  $(Split-Path $releaseExe -Leaf)" |
+            Set-Content dist/SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload executable artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Easy-G-Code-Plot-Windows-x64
+          path: |
+            dist/Easy-G-Code-Plot-*-Windows-x64.exe
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: windows-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        # actions/checkout v7.0.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Download executable artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Easy-G-Code-Plot-Windows-x64
+          path: dist
+
+      - name: Create release or replace its executable
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $asset = (
+            Get-ChildItem dist/Easy-G-Code-Plot-*-Windows-x64.exe `
+              -File -ErrorAction Stop
+          ).FullName
+          $checksum = (Resolve-Path dist/SHA256SUMS.txt).Path
+
+          if (gh release view $tag 2>$null) {
+            gh release upload $tag $asset $checksum --clobber
+          } else {
+            gh release create $tag $asset $checksum `
+              --verify-tag --generate-notes --title "Easy G-Code Plot $tag"
+          }

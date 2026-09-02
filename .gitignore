@@ -48,3 +48,8 @@ Thumbs.db
 # exe
 output/
 builds/
+
+# uv / Ruff
+.ruff_cache/
+
+tmp/

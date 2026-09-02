@@ -1,4 +1,4 @@
-"""Easy G-code Plot entry point."""
+"""Allow running the application with ``python -m app``."""
 
 from app.application import run
 
