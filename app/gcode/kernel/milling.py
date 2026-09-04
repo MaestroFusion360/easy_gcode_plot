@@ -117,6 +117,40 @@ def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion"
     )
 
 
+def _machine_coordinate_motion(block, state: MillState, words, *, wcs_offsets) -> TraceMotion | None:
+    """Execute a non-modal G53 move directly in machine coordinates."""
+    start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    end_m = list(start_m)
+    for index, letter in enumerate(("X", "Y", "Z")):
+        if letter not in words:
+            continue
+        value = words[letter] * state.unit_scale
+        end_m[index] = value if state.absolute else start_m[index] + value
+
+    end = (end_m[0], end_m[1], end_m[2])
+    ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
+    state.x, state.y, state.z = end[0] - ox, end[1] - oy, end[2] - oz
+    if start_m == end:
+        return None
+    return TraceMotion(
+        move=state.move,
+        start_x=start_m[0],
+        start_y=start_m[1],
+        start_z=start_m[2],
+        end_x=end[0],
+        end_y=end[1],
+        end_z=end[2],
+        feed=(None if state.move == 0 else state.feed),
+        source_block=block.index,
+        source_nlabel=block.nlabel,
+        source_raw=block.raw,
+        source_kind="g53",
+        plane=state.plane,
+        compensation_mode=state.cutter_comp,
+        compensation_applied=False,
+    )
+
+
 def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
     # Modal XY location + Z/R/Q parameters.  Logical cycle expansion is kept as
     # a small set of machine motions; no render sampling occurs here.
@@ -216,6 +250,7 @@ def execute_milling(
         42,
         43,
         49,
+        53,
         54,
         55,
         56,
@@ -235,6 +270,7 @@ def execute_milling(
         98,
         99,
     }
+    recognized_m = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 98, 99}
     index = build_program_execution_index(program)
 
     instructions = []
@@ -312,13 +348,24 @@ def execute_milling(
 
             for g in gcodes:
                 if g not in recognized:
-                    has_pos = any(k in words for k in ("X", "Y", "Z"))
                     diagnostics.append(
                         Diagnostic(
                             "UNSUPPORTED_G_CODE",
-                            f"G{g} is not modeled for fanuc_mill",
-                            "error" if has_pos else "warning",
-                            "unsupported" if has_pos else "unverified",
+                            f"G{g} is not modeled for fanuc_mill; ignored for trace execution",
+                            "warning",
+                            "unverified",
+                            block.index + 1,
+                            block.raw,
+                        )
+                    )
+            for m in codes.all_m:
+                if 0 <= m <= 199 and m not in recognized_m:
+                    diagnostics.append(
+                        Diagnostic(
+                            "UNSUPPORTED_M_CODE",
+                            f"M{m} is not modeled for fanuc_mill; ignored for trace execution",
+                            "warning",
+                            "unverified",
                             block.index + 1,
                             block.raw,
                         )
@@ -348,12 +395,9 @@ def execute_milling(
                         )
                     )
 
-            if any(d.severity == "error" for d in diagnostics):
-                return ExecutionResult(False, program, tuple(instructions), (), tuple(diagnostics), tuple(executed))
-
             action_g = None
             for g in gcodes:
-                if g in (0, 1, 2, 3, 28, 80, 81, 82, 83, 84, 85, 86):
+                if g in (0, 1, 2, 3, 28, 53, 80, 81, 82, 83, 84, 85, 86):
                     action_g = g
             if action_g is not None and action_g not in (80, 81, 82, 83, 84, 85, 86):
                 # Match CncKernelCli: an explicit motion/reference command ends
@@ -396,7 +440,11 @@ def execute_milling(
             if "F" in words:
                 state.feed = words["F"] * state.unit_scale
 
-            if 28 in gcodes:
+            if 53 in gcodes:
+                m = _machine_coordinate_motion(block, state, words, wcs_offsets=wcs_offsets)
+                if m:
+                    motions.append(m)
+            elif 28 in gcodes:
                 mid = _xyz(words, state)
                 sm = _machine((state.x, state.y, state.z), state, wcs_offsets)
                 mm = _machine(mid, state, wcs_offsets)

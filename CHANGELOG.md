@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.2 - Unreleased
+
+- Fixed FANUC milling `G53` handling. `G53` is now executed as a non-modal move in machine coordinates instead of being treated as an unsupported G-code.
+- Preserved the currently active `G54-G59` work coordinate system across `G53`; subsequent milling moves return to the active WCS normally.
+- Fixed milling diagnostics so unsupported or currently unmodeled G-codes no longer discard an otherwise valid Motion Trace.
+- Changed unknown milling G-codes to informational `UNVERIFIED` warnings instead of fatal execution errors where safe to continue.
+- Made unknown `M00-M199` codes non-fatal for visualization and trace execution; unsupported M-codes are reported without breaking the remaining program plot.
+- Preserved all successfully resolved motions before and after unsupported controller words instead of returning an empty trace.
+- Added regression coverage for `G53` machine-coordinate motion and tolerant handling of unknown G/M codes.
+
 ## 1.2.1 - 2026-09-04
 
 - Updated application icons `app/resources/icons/logo.png` and `logo.ico`.

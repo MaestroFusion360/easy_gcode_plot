@@ -177,3 +177,54 @@ M30
     assert compensated.compensation_mode == mode
     assert compensated.compensation_applied is False
     assert cancelled.compensation_mode == 40
+
+
+def test_milling_g53_uses_machine_coordinates_without_changing_active_wcs():
+    source = """\
+G90 G17 G54
+G0 X10 Y20 Z30
+G53 G0 X0 Y0 Z0
+G1 X5 Y6 Z7 F100
+M30
+"""
+    result = execute(
+        source,
+        language="fanuc_mill",
+        wcs_offsets={54: (100.0, 200.0, 300.0)},
+    )
+
+    assert result.ok, result.diagnostics
+    assert len(result.motions) == 3
+    assert (result.motions[0].end_x, result.motions[0].end_y, result.motions[0].end_z) == pytest.approx(
+        (110.0, 220.0, 330.0)
+    )
+    assert result.motions[1].source_kind == "g53"
+    assert (result.motions[1].end_x, result.motions[1].end_y, result.motions[1].end_z) == pytest.approx((0.0, 0.0, 0.0))
+    assert (result.motions[2].end_x, result.motions[2].end_y, result.motions[2].end_z) == pytest.approx(
+        (105.0, 206.0, 307.0)
+    )
+
+
+def test_milling_unknown_g_and_m_codes_are_informational_and_do_not_drop_trace():
+    source = """\
+G90 G17
+G0 X0 Y0 Z5
+G64
+M123
+G1 X10 Y0 Z5 F100
+M30
+"""
+    result = execute(source, language="fanuc_mill")
+
+    assert result.ok
+    assert len(result.motions) == 2
+    diagnostics = {(item.code, item.line): item for item in result.diagnostics}
+    g_diag = diagnostics[("UNSUPPORTED_G_CODE", 3)]
+    m_diag = diagnostics[("UNSUPPORTED_M_CODE", 4)]
+    assert g_diag.severity == "warning"
+    assert g_diag.status == "unverified"
+    assert m_diag.severity == "warning"
+    assert m_diag.status == "unverified"
+    assert (result.motions[-1].end_x, result.motions[-1].end_y, result.motions[-1].end_z) == pytest.approx(
+        (10.0, 0.0, 5.0)
+    )
