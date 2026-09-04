@@ -2,11 +2,11 @@
 
 import re
 import time
-from math import floor, sqrt
+from math import floor
 
 from PyQt6.Qsci import QsciScintilla
-from PyQt6.QtCore import QBasicTimer, QFile, QFileInfo, QSize, Qt, QTextStream, QTimer, QUrl
-from PyQt6.QtGui import QColor, QFont, QIcon, QQuaternion, QVector3D
+from PyQt6.QtCore import QBasicTimer, QEvent, QFile, QFileInfo, QObject, QSize, Qt, QTextStream, QTimer, QUrl
+from PyQt6.QtGui import QColor, QFont, QIcon, QQuaternion, QVector3D, QVector4D
 from PyQt6.QtWidgets import (
     QFileDialog,
     QLabel,
@@ -22,11 +22,12 @@ from app import get_version
 from app.gcode.core import (
     calculate_scene_geometry,
     format_gcode_number,
-    has_motion,
     last_index,
 )
 from app.gcode.exporter import export_pgm
-from app.gcode.processing import GcodeProcessingMixin
+from app.gcode.kernel import execute
+from app.gcode.trace_tools import render_trace, trace_statistics
+from app.plot_grid import adaptive_grid_geometry
 from app.settings import get_settings
 from app.ui.dialogs import BlockNum, Export, Find
 from app.ui.generated.main_ui import Ui_MainWindow
@@ -42,9 +43,95 @@ AUTO_REFRESH_MAX_LINES = 5000
 AUTO_REFRESH_MAX_POINTS = 20000
 # Delay (ms) between the last edit and the automatic scene refresh.
 AUTO_REFRESH_DELAY_MS = 500
+RECENT_FILES_LIMIT = 5
+PICK_DISTANCE_PX = 8.0
+CURSOR_SIZE_PX = 7.0
+RAPID_COLOR = "#d02020"
 
 
-class MainWindow(GcodeProcessingMixin, QMainWindow):
+def _normalized_recent_files(paths, limit=RECENT_FILES_LIMIT):
+    """Return a stable, case-insensitive MRU list without empty values."""
+    out = []
+    seen = set()
+    for value in paths or []:
+        path = str(value).strip()
+        key = path.casefold()
+        if not path or key in seen:
+            continue
+        out.append(path)
+        seen.add(key)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _point_segment_distance(px, py, ax, ay, bx, by):
+    """Return the 2D distance from a point to a line segment."""
+    dx = bx - ax
+    dy = by - ay
+    if dx == 0.0 and dy == 0.0:
+        return ((px - ax) ** 2 + (py - ay) ** 2) ** 0.5
+    t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
+    t = max(0.0, min(1.0, t))
+    qx = ax + t * dx
+    qy = ay + t * dy
+    return ((px - qx) ** 2 + (py - qy) ** 2) ** 0.5
+
+
+class PlotNavigation(QObject):
+    """CAD-like viewport navigation matching the CNCEditor OpenTK controls."""
+
+    def __init__(self, view, on_view_changed=None, on_pick=None):
+        super().__init__(view)
+        self.view = view
+        self.on_view_changed = on_view_changed or (lambda: None)
+        self.on_pick = on_pick or (lambda _pos: None)
+        self._drag_pos = None
+
+    def eventFilter(self, watched, event):
+        if watched is not self.view:
+            return False
+
+        event_type = event.type()
+        if event_type == QEvent.Type.MouseButtonPress:
+            if event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+                self._drag_pos = None
+                self.on_pick(event.position())
+                return True
+            if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+                self._drag_pos = event.position()
+                return True
+        elif event_type == QEvent.Type.MouseButtonRelease:
+            if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+                self._drag_pos = None
+                return True
+        elif event_type == QEvent.Type.MouseMove and self._drag_pos is not None:
+            pos = event.position()
+            diff = pos - self._drag_pos
+            self._drag_pos = pos
+
+            if event.buttons() & Qt.MouseButton.LeftButton:
+                self.view.pan(diff.x(), diff.y(), 0, relative="view")
+                QTimer.singleShot(0, self.on_view_changed)
+                return True
+            if event.buttons() & Qt.MouseButton.MiddleButton:
+                if self.view.opts["rotationMethod"] == "euler":
+                    self.view.orbit(-diff.x(), diff.y())
+                else:
+                    self.view.pan(diff.x(), diff.y(), 0, relative="view")
+                    QTimer.singleShot(0, self.on_view_changed)
+                return True
+
+        elif event_type == QEvent.Type.Wheel:
+            # GLViewWidget applies its zoom after event filters have run.
+            QTimer.singleShot(0, self.on_view_changed)
+        elif event_type == QEvent.Type.Resize:
+            QTimer.singleShot(0, self.on_view_changed)
+
+        return False
+
+
+class MainWindow(QMainWindow):
     """Main application window for editing, validating, plotting, and exporting G-code."""
 
     def __init__(self):
@@ -52,6 +139,8 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self._plot_navigation = PlotNavigation(self.ui.graphicsView, self._update_adaptive_grid, self._pick_trace_at)
+        self.ui.graphicsView.installEventFilter(self._plot_navigation)
 
         icon = QIcon()
         icon.addFile(":/resource/icons/logo.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
@@ -72,6 +161,10 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         # logging.basicConfig(level=logging.DEBUG, filename="main.log")
 
         self.settings = get_settings()
+        recent = self.settings.value("FILE/RECENT_FILES", [])
+        if isinstance(recent, str):
+            recent = [recent]
+        self.recentFiles = _normalized_recent_files(recent)
 
         # Plot
         self.dist = 100
@@ -244,6 +337,7 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
             self.settings.setValue("START_POS_X", self.pos().x())
             self.settings.setValue("START_POS_Y", self.pos().y())
         self.settings.endGroup()
+        self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
 
     def updateStatusBar(self):
         """Update status bar with text length and cursor position."""
@@ -264,6 +358,7 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         """Connect UI actions, menu items, and widgets to their handlers."""
         self.ui.actionNew.triggered.connect(self.newFile)
         self.ui.actionOpen.triggered.connect(self.openFile)
+        self._setup_recent_files_menu()
         self.ui.actionSave.triggered.connect(self.save)
         self.ui.actionSaveAs.triggered.connect(self.saveAs)
         self.ui.actionExportData.triggered.connect(lambda: self.exportDlg.show())
@@ -386,40 +481,36 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
             self.scheduleAutoUpdate()
 
     def zoomIn(self):
-        """Zoom in on the 3D plot."""
+        """Zoom in on the plot."""
         dist = self.ui.graphicsView.opts["distance"]
         self.ui.graphicsView.setCameraPosition(distance=dist * 0.9)
+        self._update_adaptive_grid()
 
     def zoomOut(self):
-        """Zoom out on the 3D plot."""
+        """Zoom out on the plot."""
         dist = self.ui.graphicsView.opts["distance"]
         self.ui.graphicsView.setCameraPosition(distance=dist * 1.1)
+        self._update_adaptive_grid()
 
     def timerEvent(self, event):
-        """Advance playback cursor while animating through the program."""
-        if self.step >= self.ui.editor.lines():
-            self.timer.stop()
-            self.step = 0
-            self.ui.actionPlay.setChecked(False)
+        """Advance playback by logical CNC motion, not editor line."""
+        del event
+        maximum = self.ui.horizontalSlider.maximum()
+        value = self.ui.horizontalSlider.value()
+        if maximum <= 0 or value >= maximum:
+            self.stop()
             return
-        self.step = self.step + 1
-        self.ui.editor.setCursorPosition(self.step - 1, 0)
+        self.ui.horizontalSlider.setValue(value + 1)
 
     def backward(self):
-        """Move cursor one line up in the editor, if possible."""
-        line = self.ui.editor.getCursorPosition()[0]
-        if line > 1:
-            self.ui.editor.setCursorPosition(line - 1, 0)
-        else:
-            self.ui.editor.setCursorPosition(0, 0)
+        """Move one logical motion backward."""
+        value = self.ui.horizontalSlider.value()
+        self.ui.horizontalSlider.setValue(max(self.ui.horizontalSlider.minimum(), value - 1))
 
     def forward(self):
-        """Move cursor one line down in the editor, if possible."""
-        line = self.ui.editor.getCursorPosition()[0]
-        if line < self.ui.editor.lines() - 1:
-            self.ui.editor.setCursorPosition(line + 1, 0)
-        else:
-            self.ui.editor.setCursorPosition(self.ui.editor.lines(), 0)
+        """Move one logical motion forward."""
+        value = self.ui.horizontalSlider.value()
+        self.ui.horizontalSlider.setValue(min(self.ui.horizontalSlider.maximum(), value + 1))
 
     def play(self):
         """Start or pause playback of toolpath highlighting."""
@@ -429,29 +520,27 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
             self.timer.stop()
 
     def stop(self):
-        """Stop playback and reset the playback step."""
+        """Stop logical-motion playback and return to the first motion."""
         self.ui.actionPlay.setChecked(False)
         self.timer.stop()
         self.step = 0
+        if self.ui.horizontalSlider.maximum() >= 1:
+            self.ui.horizontalSlider.setValue(1)
 
     def sliderDrag(self):
-        """Jump to the line that corresponds to the slider position."""
+        """Synchronize editor cursor with the selected logical motion."""
         if self.ui.actionPlay.isChecked():
             self.timer.stop()
             self.ui.actionPlay.setChecked(False)
-        if len(self.lst_block) > 1:
-            num = int(self.lst_block[self.ui.horizontalSlider.value() - 1])
-            self.step = num
-            self.ui.editor.setCursorPosition(num, 0)
+        self._sync_editor_to_motion(self.ui.horizontalSlider.value() - 1)
 
     def gridChecked(self):
         """Toggle plot grid visibility and refresh the view."""
-        val = self.ui.horizontalSlider.value()
-        if self.ui.actionGrid.isChecked():
-            self.plotGrid = True
-        else:
-            self.plotGrid = False
-        self.valueHandler(val)
+        self.plotGrid = self.ui.actionGrid.isChecked()
+        self.loadPlot()
+        self._create_trace_items()
+        if self.execution_result is not None and self.execution_result.motions:
+            self.valueHandler(self.ui.horizontalSlider.value())
 
     def plotContextMenu(self, point):
         """Show context menu for plot view controls."""
@@ -478,6 +567,58 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         menu.addAction(self.ui.actionPaste)
         menu.addAction(self.ui.actionSelectAll)
         menu.exec(self.ui.editor.mapToGlobal(point))
+
+    def _setup_recent_files_menu(self):
+        """Create the File -> Recent Files menu without changing the generated UI."""
+        self.recentFilesMenu = QMenu("Recent Files", self.ui.menu_File)
+        separator = next((action for action in self.ui.menu_File.actions() if action.isSeparator()), None)
+        if separator is None:
+            self.ui.menu_File.addMenu(self.recentFilesMenu)
+        else:
+            self.ui.menu_File.insertMenu(separator, self.recentFilesMenu)
+        self._update_recent_files_menu()
+
+    def _update_recent_files_menu(self):
+        self.recentFilesMenu.clear()
+        self.recentFiles = _normalized_recent_files(self.recentFiles)
+        if not self.recentFiles:
+            action = self.recentFilesMenu.addAction("(Empty)")
+            action.setEnabled(False)
+            return
+        for index, path in enumerate(self.recentFiles, start=1):
+            action = self.recentFilesMenu.addAction(f"{index}. {path}")
+            action.triggered.connect(lambda _checked=False, p=path: self._open_recent_file(p))
+        self.recentFilesMenu.addSeparator()
+        self.recentFilesMenu.addAction("Clear Recent", self._clear_recent_files)
+
+    def _persist_recent_files(self):
+        self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
+        self.settings.sync()
+
+    def _add_recent_file(self, path):
+        absolute = QFileInfo(str(path)).absoluteFilePath()
+        self.recentFiles = _normalized_recent_files([absolute, *self.recentFiles])
+        self._update_recent_files_menu()
+        self._persist_recent_files()
+
+    def _remove_recent_file(self, path):
+        key = str(path).casefold()
+        self.recentFiles = [item for item in self.recentFiles if item.casefold() != key]
+        self._update_recent_files_menu()
+        self._persist_recent_files()
+
+    def _clear_recent_files(self):
+        self.recentFiles = []
+        self._update_recent_files_menu()
+        self._persist_recent_files()
+
+    def _open_recent_file(self, path):
+        if not QFileInfo(path).exists():
+            QMessageBox.warning(self, "Easy G-code Plot", f"File not found:\n{path}")
+            self._remove_recent_file(path)
+            return
+        if self.maybeSave():
+            self.loadFile(path)
 
     def newFile(self):
         """Clear editor contents and reset state for a new document."""
@@ -555,6 +696,7 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         self.setCurrentFile(fileName)
         self.changeLang(self.ui.langCombo.currentIndex())
         self.scheduleAutoUpdate()
+        self._add_recent_file(fileName)
 
     def saveFile(self, fileName):
         """Write editor contents to disk."""
@@ -571,6 +713,7 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         outf << self.ui.editor.text()
 
         self.setCurrentFile(fileName)
+        self._add_recent_file(fileName)
         return True
 
     def setCurrentFile(self, fileName):
@@ -604,23 +747,31 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         """Toggle lathe visualization mode and refresh plot accordingly."""
         if self.ui.actionLatheMode.isChecked():
             self.latheMode = True
+            self._view_mode = "lathe"
             self.ui.action3D.setEnabled(False)
             self.ui.actionTop.setEnabled(False)
             self.ui.actionFront.setEnabled(False)
             self.ui.actionLeft.setEnabled(False)
+            self.ui.actionGrid.setEnabled(True)
             self.updateData()
             self.ui.graphicsView.opts["fov"] = 0.01
             self.ui.graphicsView.opts["rotationMethod"] = "quaternion"
             self.ui.graphicsView.setCameraPosition(distance=self.dist * 6000, rotation=QQuaternion(0.5, 0.5, 0.5, 0.5))
+            self._update_adaptive_grid()
         else:
             self.latheMode = False
+            self._view_mode = "3d"
             self.ui.action3D.setEnabled(True)
             self.ui.actionTop.setEnabled(True)
             self.ui.actionFront.setEnabled(True)
             self.ui.actionLeft.setEnabled(True)
+            self.ui.actionGrid.setEnabled(False)
             self.ui.graphicsView.opts["rotationMethod"] = "euler"
             self.updateData()
             self.view3d()
+
+        if hasattr(self, "exportDlg"):
+            self.exportDlg.set_expanded_turn_available(self.latheMode)
 
     def export(self):
         """Export current program to a chosen file path."""
@@ -715,95 +866,175 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         self.autoUpdateTimer.stop()
         self.autoUpdateTimer.start()
 
-    def autoUpdate(self):
-        """Refresh the scene automatically once edits have settled.
+    def _execute_editor_source(self, *, show_errors=True):
+        source = self.ui.editor.text()
+        language = "fanuc_turn" if self.latheMode else "fanuc_mill"
+        result = execute(
+            source,
+            language=language,
+            home_x=self.xPosMach,
+            home_y=self.yPosMach,
+            home_z=self.zPosMach,
+            emulate_g28_home=True,
+        )
+        if not result.ok and show_errors:
+            message = "\n".join(f"{d.code}: {d.message}" for d in result.diagnostics) or "Unable to execute G-code"
+            QMessageBox.warning(self, "Easy G-code Plot", message)
+        elif result.diagnostics and show_errors:
+            self.ui.statusbar.showMessage("; ".join(f"{d.code}: {d.message}" for d in result.diagnostics), 10000)
+        return result
 
-        Only programs whose estimated toolpath is small are refreshed. The size
-        is measured in generated points (arcs and drilling cycles expand into
-        many points), so a file with few lines but many G2/G3 stays manual.
-        """
+    def _create_trace_items(self):
+        self._rapid_item = GLLinePlotItem(pos=[], color=QColor(RAPID_COLOR), width=0.3, antialias=True, mode="lines")
+        self._drawing_item = GLLinePlotItem(
+            pos=[], color=QColor(self.plotLineColor), width=0.3, antialias=True, mode="lines"
+        )
+        self._cursor_item = GLScatterPlotItem(
+            pos=[], color=QColor(self.plotLineColor), size=CURSOR_SIZE_PX, pxMode=True
+        )
+        self._cursor_item.setGLOptions("translucent")
+        self.ui.graphicsView.addItem(self._rapid_item)
+        self.ui.graphicsView.addItem(self._drawing_item)
+        self.ui.graphicsView.addItem(self._cursor_item)
+
+    def _trace_segment_vertices(self, end):
+        """Split the rendered prefix into rapid and cutting line-segment vertices."""
+        result = self.execution_result
+        points = self.render_points[:end]
+        rapid = []
+        cutting = []
+        if result is None or len(points) < 2:
+            return rapid, cutting
+        for previous, current in zip(points, points[1:]):
+            motion_index = current.motion_index
+            if not 0 <= motion_index < len(result.motions):
+                continue
+            target = rapid if result.motions[motion_index].move == 0 else cutting
+            target.extend(
+                [
+                    (previous.x, previous.y, previous.z),
+                    (current.x, current.y, current.z),
+                ]
+            )
+        return rapid, cutting
+
+    def _project_world_to_screen(self, x, y, z):
+        """Project one world point to GLViewWidget pixel coordinates."""
+        view = self.ui.graphicsView
+        viewport = view.getViewport()
+        try:
+            projection = view.projectionMatrix(viewport, viewport)
+        except TypeError:  # pyqtgraph < 0.14 compatibility
+            projection = view.projectionMatrix(viewport)  # pylint: disable=no-value-for-parameter
+        clip = projection * view.viewMatrix() * QVector4D(float(x), float(y), float(z), 1.0)
+        w = clip.w()
+        if abs(w) < 1e-12:
+            return None
+        ndc_x = clip.x() / w
+        ndc_y = clip.y() / w
+        vx, vy, vw, vh = viewport
+        return (
+            vx + (ndc_x + 1.0) * 0.5 * vw,
+            vy + (1.0 - (ndc_y + 1.0) * 0.5) * vh,
+        )
+
+    def _pick_trace_at(self, position):
+        """Select the nearest trajectory segment on Shift+Click in a 2D view."""
+        view_mode = "lathe" if self.latheMode else getattr(self, "_view_mode", "3d")
+        if view_mode not in {"lathe", "top", "front", "left"} or not self.render_points:
+            return False
+
+        px = float(position.x())
+        py = float(position.y())
+        best_distance = PICK_DISTANCE_PX
+        best_motion = None
+        projected_previous = self._project_world_to_screen(
+            self.render_points[0].x, self.render_points[0].y, self.render_points[0].z
+        )
+        for current in self.render_points[1:]:
+            projected_current = self._project_world_to_screen(current.x, current.y, current.z)
+            if projected_previous is not None and projected_current is not None:
+                distance = _point_segment_distance(
+                    px, py, projected_previous[0], projected_previous[1], projected_current[0], projected_current[1]
+                )
+                if distance <= best_distance:
+                    best_distance = distance
+                    best_motion = current.motion_index
+            projected_previous = projected_current
+
+        result = self.execution_result
+        if result is None or best_motion is None or not 0 <= best_motion < len(result.motions):
+            return False
+        self.ui.horizontalSlider.setValue(best_motion + 1)
+        self._sync_editor_to_motion(best_motion)
+        source_block = result.motions[best_motion].source_block
+        if source_block is not None:
+            self.ui.statusbar.showMessage(
+                f"Trajectory source: line {source_block + 1}, motion {best_motion + 1} (Shift+Click)", 5000
+            )
+        return True
+
+    def _sync_editor_to_motion(self, idx):
+        result = self.execution_result
+        if result is None or not 0 <= idx < len(result.motions):
+            return
+        block = result.motions[idx].source_block
+        if block is None or block < 0 or block >= self.ui.editor.lines():
+            return
+        if self.ui.editor.getCursorPosition()[0] == block:
+            return
+        self._syncing_cursor = True
+        try:
+            self.ui.editor.setCursorPosition(block, 0)
+        finally:
+            self._syncing_cursor = False
+
+    def _countProgramPoints(self):
+        result = self.execution_result or self._execute_editor_source(show_errors=False)
+        if result is None or not result.motions:
+            return 0
+        return len(render_trace(result, lathe_radius_view=self.latheMode, arc_type=self.arc_type))
+
+    def autoUpdate(self):
+        """Debounced refresh for programs whose sampled render path is small."""
         if self.ui.editor.lines() > AUTO_REFRESH_MAX_LINES:
             return
-
-        try:
-            self.convert()
-        except Exception:
+        result = self._execute_editor_source(show_errors=False)
+        if result is None or not result.motions:
             return
-
-        if not has_motion(self.lstCoord_X, self.lstCoord_Y, self.lstCoord_Z):
+        points = render_trace(result, lathe_radius_view=self.latheMode, arc_type=self.arc_type)
+        if len(points) > AUTO_REFRESH_MAX_POINTS:
             return
-        if self._countProgramPoints() > AUTO_REFRESH_MAX_POINTS:
-            return
-
-        self._finishDataUpdate()
+        self._finishDataUpdate(result, points)
 
     def clearPlot(self):
-        """Reset all plotting data structures and UI controls."""
-
-        # clear lst for self.addmotion
-        self.x_axis = []
-        self.y_axis = []
-        self.z_axis = []
-        self.i_axis = []
-        self.j_axis = []
-        self.k_axis = []
-        self.lst_points = []
-        self.lst_block = []
-        self.lst_feed = []
-
-        # clear lst for self.convert
-        self.lstMove = []
-        self.lstCoord_X = []
-        self.lstCoord_Y = []
-        self.lstCoord_Z = []
-        self.lstX_incr = []
-        self.lstY_incr = []
-        self.lstZ_incr = []
-        self.lstCoord_I = []
-        self.lstCoord_J = []
-        self.lstCoord_K = []
-        self.lstCoord_R = []
-        self.lstCenter_X = []
-        self.lstCenter_Y = []
-        self.lstCycleDrill = []
-        self.lstCycleZ = []
-        self.lstCycleP = []
-        self.lstCycleQ = []
-        self.lstRadius = []
-        self.lstTool = []
-        self.lstSpeed = []
-        self.lstFeed = []
-        self.lstComment = []
-        self.lstPosMode = []
-        self.lstArcPlane = []
-        self.lstWcs = []
-        self.lstHomePos = []
-        self.lstCorLen = []
-        self.lstCorRad = []
-        self.lstCorH = []
-        self.lstCorD = []
-        self.lstPgmStop = []
-        self.lstSpeedCode = []
-        self.lstToolChange = []
-        self.lstCoolant = []
-        self.lstUnknownWords = []
-        self.lstProgram = []
-
-        # reset timer
+        """Reset authoritative execution and render/playback state."""
+        self.execution_result = None
+        self.render_points = []
+        self._motion_render_end = []
+        self._source_motion_index = {}
+        self._syncing_cursor = False
+        self._drawing_item = None
+        self._rapid_item = None
+        self._cursor_item = None
+        self._lathe_grid_item = None
+        self._lathe_grid_center = (0.0, 0.0)
+        self._milling_grid_item = None
+        self._milling_grid_center = (0.0, 0.0, 0.0)
         self.timer.stop()
         self.step = 0
-
-        # clear displayed axis
-        self.ui.lineEditX.clear()
-        self.ui.lineEditY.clear()
-        self.ui.lineEditZ.clear()
-        self.ui.lineEdit_I.clear()
-        self.ui.lineEdit_J.clear()
-        self.ui.lineEdit_K.clear()
-        self.ui.lineEditFeed.clear()
-
-        # clear other
+        for widget in (
+            self.ui.lineEditX,
+            self.ui.lineEditY,
+            self.ui.lineEditZ,
+            self.ui.lineEdit_I,
+            self.ui.lineEdit_J,
+            self.ui.lineEdit_K,
+            self.ui.lineEditFeed,
+        ):
+            widget.clear()
         self.ui.horizontalSlider.setMinimum(1)
+        self.ui.horizontalSlider.setMaximum(1)
         self.ui.horizontalSlider.setValue(1)
         self.ui.actionStep_Backward.setEnabled(False)
         self.ui.actionStep_Forward.setEnabled(False)
@@ -813,69 +1044,43 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         self.loadPlot()
 
     def valueHandler(self, value):
-        """Update plot and info panes to reflect the current slider value."""
-        self.loadPlot()
-        try:
-            if self.x_axis == [] or self.y_axis == [] or self.z_axis == []:
-                return
-
-            if value == 1:
-                self.loadPlot()
-                self.ui.editor.setCursorPosition(0, 0)
-                return
-
-            self.ui.lineEditX.setText(str(round(self.x_axis[value - 1], 3)))
-            self.ui.lineEditY.setText(str(round(self.y_axis[value - 1], 3)))
-            self.ui.lineEditZ.setText(str(round(self.z_axis[value - 1], 3)))
-            if self.i_axis[value - 1] == None:
-                self.ui.lineEdit_I.setText("")
-            else:
-                self.ui.lineEdit_I.setText(str(round(self.i_axis[value - 1], 3)))
-            if self.j_axis[value - 1] == None:
-                self.ui.lineEdit_J.setText("")
-            else:
-                self.ui.lineEdit_J.setText(str(round(self.j_axis[value - 1], 3)))
-            if self.k_axis[value - 1] == None:
-                self.ui.lineEdit_K.setText("")
-            else:
-                self.ui.lineEdit_K.setText(str(round(self.k_axis[value - 1], 3)))
-            if self.lst_feed[value - 1] == self.rapidFeed:
-                self.ui.lineEditFeed.setText("Rapid")
-            else:
-                self.ui.lineEditFeed.setText(str(self.lst_feed[value - 1]))
-
-            point = GLScatterPlotItem(
-                pos=(
-                    self.lst_points[value - 1][0],
-                    self.lst_points[value - 1][1],
-                    self.lst_points[value - 1][2],
-                ),
-                color=QColor(self.plotLineColor),
-                size=0.4,
-                pxMode=False,
-            )
-            point.setGLOptions("translucent")
-            self.ui.graphicsView.addItem(point)
-            drawing = GLLinePlotItem(
-                pos=self.lst_points[:value],
-                color=QColor(self.plotLineColor),
-                width=0.3,
-                antialias=True,
-            )
-            # line = [(self.lst_points[value-1][0], self.lst_points[value-1][1],
-            #             self.lst_points[value-1][2]), (self.lst_points[value-1][0],
-            #             self.lst_points[value-1][1], self.lst_points[value-1][2] + 10)]
-            # tool = GLLinePlotItem(pos = line, color=QColor(self.plotLineColor), width = 1, antialias = True)
-            # self.ui.graphicsView.addItem(tool)
-            self.ui.graphicsView.addItem(drawing)
-
-        except Exception as e:
-            # logging.exception(str(e))
-            QMessageBox.warning(self, "Easy G-code Plot", str(e))
+        """Display one logical motion and draw the sampled prefix efficiently."""
+        result = self.execution_result
+        if result is None or not result.motions:
+            return
+        idx = max(0, min(len(result.motions) - 1, value - 1))
+        motion = result.motions[idx]
+        scale_x = 0.5 if self.latheMode else 1.0
+        self.ui.lineEditX.setText(str(round(motion.end_x * scale_x, 3)))
+        self.ui.lineEditY.setText(str(round(motion.end_y, 3)))
+        self.ui.lineEditZ.setText(str(round(motion.end_z, 3)))
+        self.ui.lineEdit_I.setText("" if motion.i is None else str(round(motion.i, 3)))
+        self.ui.lineEdit_J.setText("" if motion.j is None else str(round(motion.j, 3)))
+        self.ui.lineEdit_K.setText("" if motion.k is None else str(round(motion.k, 3)))
+        self.ui.lineEditFeed.setText("Rapid" if motion.move == 0 else ("" if motion.feed is None else str(motion.feed)))
+        end = self._motion_render_end[idx] if idx < len(self._motion_render_end) else len(self.render_points)
+        xyz = [(p.x, p.y, p.z) for p in self.render_points[:end]]
+        if self._drawing_item is None or self._rapid_item is None or self._cursor_item is None:
+            self._create_trace_items()
+        rapid_xyz, cutting_xyz = self._trace_segment_vertices(end)
+        self._rapid_item.setData(pos=rapid_xyz, color=QColor(RAPID_COLOR), width=0.3, antialias=True, mode="lines")
+        self._drawing_item.setData(
+            pos=cutting_xyz, color=QColor(self.plotLineColor), width=0.3, antialias=True, mode="lines"
+        )
+        if xyz:
+            self._cursor_item.setData(pos=[xyz[-1]], color=QColor(self.plotLineColor), size=CURSOR_SIZE_PX, pxMode=True)
+        self._sync_editor_to_motion(idx)
 
     def loadPlot(self):
-        """Redraw axes, background, and optional grid before plotting points."""
+        """Redraw axes, background, and the active orthographic grid."""
         self.ui.graphicsView.clear()
+        self._drawing_item = None
+        self._rapid_item = None
+        self._cursor_item = None
+        self._lathe_grid_item = None
+        self._lathe_grid_center = (0.0, 0.0)
+        self._milling_grid_item = None
+        self._milling_grid_center = (0.0, 0.0, 0.0)
         self.ui.graphicsView.setBackgroundColor(self.plotBackground)
         line1 = [(0, 0, 0), (5, 0, 0)]
         line2 = [(0, 0, 0), (0, 5, 0)]
@@ -884,59 +1089,142 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         axisY = GLLinePlotItem(pos=line2, color="g", width=3, antialias=True)
         axisZ = GLLinePlotItem(pos=line3, color="y", width=3, antialias=True)
         if self.plotGrid:
-            xGrid = GLGridItem()
-            yGrid = GLGridItem()
-            zGrid = GLGridItem()
-            xGrid.setSize(self.plotGridSize, self.plotGridSize)
-            xGrid.setSpacing(self.plotGridSpacing, self.plotGridSpacing)
-            xGrid.setColor(QColor(self.plotGridColor))
-            yGrid.setSize(self.plotGridSize, self.plotGridSize)
-            yGrid.setSpacing(self.plotGridSpacing, self.plotGridSpacing)
-            yGrid.setColor(QColor(self.plotGridColor))
-            zGrid.setSize(self.plotGridSize, self.plotGridSize)
-            zGrid.setSpacing(self.plotGridSpacing, self.plotGridSpacing)
-            zGrid.setColor(QColor(self.plotGridColor))
-            self.ui.graphicsView.addItem(xGrid)
-            self.ui.graphicsView.addItem(yGrid)
-            self.ui.graphicsView.addItem(zGrid)
-            xGrid.rotate(90, 0, 1, 0)
-            yGrid.rotate(90, 1, 0, 0)
+            if self.latheMode:
+                self._lathe_grid_item = GLGridItem()
+                self._lathe_grid_item.setColor(QColor(self.plotGridColor))
+                self._lathe_grid_item.rotate(90, 1, 0, 0)
+                self.ui.graphicsView.addItem(self._lathe_grid_item)
+            elif getattr(self, "_view_mode", "3d") in {"top", "front", "left"}:
+                self._milling_grid_item = GLGridItem()
+                self._milling_grid_item.setColor(QColor(self.plotGridColor))
+                if self._view_mode == "front":
+                    self._milling_grid_item.rotate(90, 1, 0, 0)
+                elif self._view_mode == "left":
+                    self._milling_grid_item.rotate(90, 0, 1, 0)
+                self.ui.graphicsView.addItem(self._milling_grid_item)
+            self._update_adaptive_grid()
 
         self.ui.graphicsView.addItem(axisX)
         self.ui.graphicsView.addItem(axisY)
         self.ui.graphicsView.addItem(axisZ)
 
-    def plotCurLine(self):
-        """Sync slider position with the current editor cursor line."""
-        num = self.ui.editor.getCursorPosition()[0]
-        if num == 0:
-            self.ui.horizontalSlider.setValue(1)
+    def _adaptive_grid_size(self):
+        view = self.ui.graphicsView
+        return adaptive_grid_geometry(
+            view.opts["distance"], view.opts["fov"], view.height(), viewport_width=view.width()
+        )
+
+    def _update_adaptive_grid(self):
+        """Update the active 2D/orthographic grid after zoom, pan, or resize."""
+        if self.latheMode:
+            self._update_lathe_grid()
         else:
-            idx = self.list_rindex(self.lst_block, num)
-            if idx:
-                self.ui.horizontalSlider.setValue(idx + 1)
+            self._update_milling_grid()
+
+    def _update_lathe_grid(self):
+        """Adapt the single XZ lathe grid to the current camera zoom."""
+        grid = getattr(self, "_lathe_grid_item", None)
+        if grid is None or not self.latheMode or not self.plotGrid:
+            return
+        spacing, size = self._adaptive_grid_size()
+        grid.setSize(size, size)
+        grid.setSpacing(spacing, spacing)
+        center = self.ui.graphicsView.opts["center"]
+        snapped_x = round(center.x() / spacing) * spacing
+        snapped_z = round(center.z() / spacing) * spacing
+        old_x, old_z = getattr(self, "_lathe_grid_center", (0.0, 0.0))
+        grid.translate(snapped_x - old_x, 0.0, snapped_z - old_z)
+        self._lathe_grid_center = (snapped_x, snapped_z)
+
+    def _update_milling_grid(self):
+        """Adapt the active milling grid in Top, Front, and Left views only."""
+        grid = getattr(self, "_milling_grid_item", None)
+        view_mode = getattr(self, "_view_mode", "3d")
+        if grid is None or self.latheMode or not self.plotGrid or view_mode not in {"top", "front", "left"}:
+            return
+
+        spacing, size = self._adaptive_grid_size()
+        grid.setSize(size, size)
+        grid.setSpacing(spacing, spacing)
+        center = self.ui.graphicsView.opts["center"]
+        if view_mode == "top":
+            snapped = (round(center.x() / spacing) * spacing, round(center.y() / spacing) * spacing, 0.0)
+        elif view_mode == "front":
+            snapped = (round(center.x() / spacing) * spacing, 0.0, round(center.z() / spacing) * spacing)
+        else:
+            snapped = (0.0, round(center.y() / spacing) * spacing, round(center.z() / spacing) * spacing)
+
+        old = getattr(self, "_milling_grid_center", (0.0, 0.0, 0.0))
+        grid.translate(snapped[0] - old[0], snapped[1] - old[1], snapped[2] - old[2])
+        self._milling_grid_center = snapped
+
+    def plotCurLine(self):
+        """Map the current source line to its last logical motion."""
+        if self._syncing_cursor:
+            return
+        line = self.ui.editor.getCursorPosition()[0]
+        idx = self._source_motion_index.get(line)
+        if idx is not None:
+            self.ui.horizontalSlider.setValue(idx + 1)
 
     def list_rindex(self, li, x):
         """Return the last index of x in list li."""
         return last_index(li, x)
 
     def updateData(self):
-        """Parse code, rebuild motion arrays, and refresh controls."""
-        res = self.checkCode()
-        if res:
-            self._finishDataUpdate()
+        """Execute editor source through the single authoritative CNC kernel."""
+        result = self._execute_editor_source(show_errors=True)
+        if result is None or not result.motions:
+            self.clearPlot()
+            return False
+        self._finishDataUpdate(result)
+        return True
 
-    def _finishDataUpdate(self):
-        """Build the toolpath from the parsed data and enable playback controls."""
-        self.addMotion()
+    def _finishDataUpdate(self, result=None, points=None):
+        """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
+        if result is not None:
+            self.execution_result = result
+        result = self.execution_result
+        if result is None:
+            return
+        self.render_points = (
+            points
+            if points is not None
+            else render_trace(result, lathe_radius_view=self.latheMode, arc_type=self.arc_type)
+        )
+        self._source_motion_index = {}
+        for idx, motion in enumerate(result.motions):
+            if motion.source_block is not None:
+                # A canned-cycle source block can expand to many motions.  An
+                # editor click should select the first generated motion, while
+                # playback still walks all generated motions normally.
+                self._source_motion_index.setdefault(motion.source_block, idx)
+
+        self._motion_render_end = [0] * len(result.motions)
+        for point_index, point in enumerate(self.render_points, start=1):
+            if 0 <= point.motion_index < len(self._motion_render_end):
+                self._motion_render_end[point.motion_index] = point_index
+        last = 0
+        for idx, end in enumerate(self._motion_render_end):
+            if end:
+                last = end
+            self._motion_render_end[idx] = last
         self.calcDist()
-        self.ui.actionStep_Backward.setEnabled(True)
-        self.ui.actionStep_Forward.setEnabled(True)
-        self.ui.actionPlay.setEnabled(True)
-        self.ui.actionStop.setEnabled(True)
-        self.ui.horizontalSlider.setMaximum(len(self.lst_block))
+        enabled = bool(result.motions)
+        self.ui.actionStep_Backward.setEnabled(enabled)
+        self.ui.actionStep_Forward.setEnabled(enabled)
+        self.ui.actionPlay.setEnabled(enabled)
+        self.ui.actionStop.setEnabled(enabled)
+        self.ui.horizontalSlider.blockSignals(True)
         self.ui.horizontalSlider.setMinimum(1)
-        self.ui.horizontalSlider.setPageStep(int(len(self.lst_block) / 10))
+        self.ui.horizontalSlider.setMaximum(max(1, len(result.motions)))
+        self.ui.horizontalSlider.setPageStep(max(1, len(result.motions) // 10))
+        self.ui.horizontalSlider.setValue(max(1, len(result.motions)))
+        self.ui.horizontalSlider.blockSignals(False)
+        self.loadPlot()
+        self._create_trace_items()
+        if result.motions:
+            self.valueHandler(len(result.motions))
 
     def setView(self, fov, elevation, azimuth, use_calc_dist=True, dist_scale=6000):
         """Set camera view with optional distance recalculation."""
@@ -947,120 +1235,113 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
             dist = self.dist
         self.ui.graphicsView.opts["fov"] = fov
         self.ui.graphicsView.setCameraPosition(distance=dist, elevation=elevation, azimuth=azimuth)
+        self._update_adaptive_grid()
+
+    def _refresh_view_plot(self):
+        self.loadPlot()
+        self._create_trace_items()
+        if self.execution_result is not None and self.execution_result.motions:
+            self.valueHandler(self.ui.horizontalSlider.value())
 
     def view3d(self):
-        """Set 3D camera angle for the plot view."""
+        """Set 3D camera angle with grid disabled."""
+        self._view_mode = "3d"
+        self.ui.actionGrid.setEnabled(False)
         self.setView(60, 30, -45, use_calc_dist=False, dist_scale=1)
+        self._refresh_view_plot()
 
     def viewTop(self):
         """Switch camera to a top-down orthographic view."""
+        self._view_mode = "top"
+        self.ui.actionGrid.setEnabled(True)
         self.setView(0.01, 90, -90)
+        self._refresh_view_plot()
 
     def viewFront(self):
         """Switch camera to a front orthographic view."""
+        self._view_mode = "front"
+        self.ui.actionGrid.setEnabled(True)
         self.setView(0.01, 0, -90)
+        self._refresh_view_plot()
 
     def viewLeft(self):
         """Switch camera to a left orthographic view."""
+        self._view_mode = "left"
+        self.ui.actionGrid.setEnabled(True)
         self.setView(0.01, 0, 180)
+        self._refresh_view_plot()
 
     def lstExport(self):
-        """Build filtered program data list used for exporting and stats."""
-
-        lst = list(
-            zip(
-                self.lstMove,
-                self.lstArcPlane,
-                self.lstPosMode,
-                self.lstCoord_X,
-                self.lstCoord_Y,
-                self.lstCoord_Z,
-                self.lstX_incr,
-                self.lstY_incr,
-                self.lstZ_incr,
-                self.lstCenter_X,
-                self.lstCenter_Y,
-                self.lstFeed,
-                self.lstWcs,
-                self.lstHomePos,
-                self.lstTool,
-                self.lstToolChange,
-                self.lstSpeed,
-                self.lstSpeedCode,
-                self.lstCoolant,
-                self.lstPgmStop,
-                self.lstCorLen,
-                self.lstCorH,
-                self.lstCorRad,
-                self.lstCorD,
-                self.lstComment,
-                self.lstCycleDrill,
-                self.lstCycleZ,
-                self.lstCoord_R,
-                self.lstCycleP,
-                self.lstCycleQ,
-            )
-        )
-
-        for i in range(len(lst)):
-            if self.lstUnknownWords[i] == None:
-                length = sqrt((lst[i][6]) ** 2 + (lst[i][7]) ** 2 + (lst[i][8]) ** 2)
-                lst1 = []
-                if lst[i][0] > 1 or length > 0 or lst[i][25] > 80 or lst[i][12] != None:
-                    for j in range(len(lst[i])):
-                        lst1.append(lst[i][j])
-                else:
-                    for j in range(len(lst[i])):
-                        if j < 11:
-                            lst1.append(None)
-                        else:
-                            lst1.append(lst[i][j])
-                self.lstProgram.append(lst1)
-
-        self.calcTime()
+        """Compatibility hook: export data now comes directly from ExecutionResult."""
+        return list(self.execution_result.motions) if self.execution_result is not None else []
 
     def toolPath(self):
-        """Return formatted toolpath length and estimated machining time."""
-        if not self.calcTime():
-            res = ""
-            return res
-        time_min = round(sum(self.lst_toolpathTime), 2)
-        time_hours = time_min / 60
+        """Return trace-based path length and estimated machining time."""
+        if self.execution_result is None or not self.execution_result.motions:
+            return ""
+        stats = trace_statistics(
+            self.execution_result,
+            lathe_radius_view=self.latheMode,
+            rapid_feed=self.rapidFeed,
+            arc_type=self.arc_type,
+        )
+        time_min = float(stats["total_time_min"])
         time_sec = time_min * 60
-        hours_part = floor(time_hours)
-        minutes_part = floor(time_min % 60)
-        seconds_part = floor(time_sec % 60)
-        res = (
+        return (
             self.co
-            + "Toolpath Length: {:.3f}".format((sum(self.lst_toolpath)))
+            + f"Toolpath Length: {float(stats['total_length']):.3f}"
             + self.ci
             + "\n"
             + self.co
-            + "Machining Time: {h:02}:{m:02}:{s:02}".format(h=hours_part, m=minutes_part, s=seconds_part)
+            + "Machining Time: {h:02}:{m:02}:{s:02}".format(
+                h=floor(time_min / 60), m=floor(time_min % 60), s=floor(time_sec % 60)
+            )
             + self.ci
             + "\n"
         )
-        return res
 
     def toolPathLimits(self):
-        """Return formatted min/max extents of the generated toolpath."""
-        if not self.calcTime():
-            res = ""
-            return res
-
+        """Return min/max extents from the authoritative trace."""
+        if self.execution_result is None or not self.execution_result.motions:
+            return ""
+        stats = trace_statistics(
+            self.execution_result,
+            lathe_radius_view=False,
+            rapid_feed=self.rapidFeed,
+            arc_type=self.arc_type,
+        )
+        bounds = stats["bounds"]
+        if bounds is None:
+            return ""
+        (xmin, xmax), (ymin, ymax), (zmin, zmax) = bounds
         if self.latheMode:
-            xmin = self.co + "X MIN: {}".format(round(min(self.x_axis) * 2, 3)) + self.ci + "\n"
-            xmax = self.co + "X MAX: {}".format(round(max(self.x_axis) * 2, 3)) + self.ci + "\n"
-        else:
-            xmin = self.co + "X MIN: {}".format(round(min(self.x_axis), 3)) + self.ci + "\n"
-            xmax = self.co + "X MAX: {}".format(round(max(self.x_axis), 3)) + self.ci + "\n"
-
-        ymin = self.co + "Y MIN: {}".format(round(min(self.y_axis), 3)) + self.ci + "\n"
-        zmin = self.co + "Z MIN: {}".format(round(min(self.z_axis), 3)) + self.ci + "\n"
-        ymax = self.co + "Y MAX: {}".format(round(max(self.y_axis), 3)) + self.ci + "\n"
-        zmax = self.co + "Z MAX: {}".format(round(max(self.z_axis), 3)) + self.ci
-        res = xmin + ymin + zmin + xmax + ymax + zmax
-        return res
+            # Kernel turning X is diameter-space already.
+            pass
+        return (
+            self.co
+            + f"X MIN: {round(xmin, 3)}"
+            + self.ci
+            + "\n"
+            + self.co
+            + f"Y MIN: {round(ymin, 3)}"
+            + self.ci
+            + "\n"
+            + self.co
+            + f"Z MIN: {round(zmin, 3)}"
+            + self.ci
+            + "\n"
+            + self.co
+            + f"X MAX: {round(xmax, 3)}"
+            + self.ci
+            + "\n"
+            + self.co
+            + f"Y MAX: {round(ymax, 3)}"
+            + self.ci
+            + "\n"
+            + self.co
+            + f"Z MAX: {round(zmax, 3)}"
+            + self.ci
+        )
 
     def statistics(self):
         """Display path length, machining time, and limits in a message box."""
@@ -1158,16 +1439,14 @@ class MainWindow(GcodeProcessingMixin, QMainWindow):
         self._process_selected_lines(handler)
 
     def calcDist(self):
-        """Calculate scene center and distance scaling based on toolpath extents."""
-        try:
-            if self.lst_points == []:
-                return
-
-            center, self.dist = calculate_scene_geometry(self.x_axis, self.y_axis, self.z_axis)
-            self.ui.graphicsView.opts["center"] = QVector3D(*center)
-        except Exception as e:
-            # logging.exception(str(e))
-            QMessageBox.warning(self, "Easy G-code Plot", str(e))
+        """Calculate camera center/distance from sampled render points."""
+        if not self.render_points:
+            return
+        xs = [p.x for p in self.render_points]
+        ys = [p.y for p in self.render_points]
+        zs = [p.z for p in self.render_points]
+        center, self.dist = calculate_scene_geometry(xs, ys, zs)
+        self.ui.graphicsView.opts["center"] = QVector3D(*center)
 
     def about(self):
         """Show application about dialog."""

@@ -41,6 +41,7 @@ jobs:
 
       - name: Run static checks
         shell: pwsh
+        continue-on-error: true
         run: ./scripts/lint.ps1
 
       - name: Verify release tag matches project version

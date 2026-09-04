@@ -3,6 +3,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QDialog
 
+from app.gcode.exporter import EXPANDED_MILL_PROGRAM_MODE, EXPANDED_TURN_PROGRAM_MODE
 from app.ui.generated.block_num import Ui_BlockNumberDlg
 from app.ui.generated.export import Ui_ExportOptDlg
 from app.ui.generated.find_replace import Ui_Find
@@ -57,11 +58,17 @@ class Export(QDialog):
         super().__init__(parent)
         self.ui = Ui_ExportOptDlg()
         self.ui.setupUi(self)
+        self._last_standard_lang = (
+            self.parent().lang
+            if self.parent().lang not in {EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE}
+            else 0
+        )
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
 
         self.loadSettings()
         self.connectActions()
+        self.set_expanded_turn_available(bool(self.parent().latheMode))
 
     def _set_parent_bool(self, combo, attr_name, true_index=1):
         """Update a boolean attribute on the parent using combo index."""
@@ -108,13 +115,34 @@ class Export(QDialog):
 
     def lang(self):
         """Update selected language and toggle related fields."""
-        self.parent().lang = self.ui.langCmbBox.currentIndex()
-        if self.ui.langCmbBox.currentIndex() == 4:
-            self.ui.forceCmbBox.setEnabled(False)
-            self.ui.incrCmbBox.setEnabled(False)
-        else:
-            self.ui.forceCmbBox.setEnabled(True)
-            self.ui.incrCmbBox.setEnabled(True)
+        index = self.ui.langCmbBox.currentIndex()
+        self.parent().lang = index
+        if index not in {EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE}:
+            self._last_standard_lang = index
+
+        trace_shape_locked = index in {4, EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE}
+        self.ui.forceCmbBox.setEnabled(not trace_shape_locked)
+        self.ui.incrCmbBox.setEnabled(not trace_shape_locked)
+
+    def set_expanded_turn_available(self, enabled: bool):
+        """Enable exactly the expanded-program mode matching the current machine mode."""
+        model = self.ui.langCmbBox.model()
+        turn_item = model.item(EXPANDED_TURN_PROGRAM_MODE) if hasattr(model, "item") else None
+        mill_item = model.item(EXPANDED_MILL_PROGRAM_MODE) if hasattr(model, "item") else None
+        if turn_item is not None:
+            turn_item.setEnabled(enabled)
+        if mill_item is not None:
+            mill_item.setEnabled(not enabled)
+
+        current = self.ui.langCmbBox.currentIndex()
+        invalid_expanded = (not enabled and current == EXPANDED_TURN_PROGRAM_MODE) or (
+            enabled and current == EXPANDED_MILL_PROGRAM_MODE
+        )
+        if invalid_expanded:
+            fallback = self._last_standard_lang
+            if fallback in {EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE} or fallback < 0:
+                fallback = 0
+            self.ui.langCmbBox.setCurrentIndex(fallback)
 
     def forceAdr(self, idx):
         """Toggle forced address formatting on export."""

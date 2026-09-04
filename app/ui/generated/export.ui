@@ -111,6 +111,16 @@
          <string>PLOT DATA</string>
         </property>
        </item>
+       <item>
+        <property name="text">
+         <string>EXPANDED TURN PROGRAM</string>
+        </property>
+       </item>
+       <item>
+        <property name="text">
+         <string>EXPANDED MILL PROGRAM</string>
+        </property>
+       </item>
       </widget>
      </item>
      <item row="8" column="0">

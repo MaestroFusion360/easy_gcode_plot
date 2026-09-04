@@ -53,3 +53,4 @@ builds/
 .ruff_cache/
 
 tmp/
+.omx/

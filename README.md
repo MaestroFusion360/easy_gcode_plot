@@ -18,7 +18,7 @@ Download the current standalone Windows executable from [GitHub Releases](https:
 
 ---
 
-- [Easy G-Code Plotter](#easy-g-code-plotter)
+- [Easy G-Code Plot](#easy-g-code-plot)
   - [Overview](#overview)
   - [Features](#features)
     - [📁 File Management](#-file-management)
@@ -68,7 +68,7 @@ Download the current standalone Windows executable from [GitHub Releases](https:
 
 ## Overview
 
-Easy G-Code Plot is a comprehensive desktop application for viewing, editing, and analyzing G-code files. It provides a rich set of features including 3D visualization, code editing with syntax highlighting, export functionality with multiple output formats, and various code manipulation tools.
+Easy G-Code Plot is a desktop G-code viewer, editor, analyzer and trace exporter. Version 1.2.0 introduces a native Python CNC kernel shared by the GUI and CLI: source is parsed into AST/semantic instructions and executed into one authoritative logical Motion Trace before rendering, statistics or export.
 
 ## Features
 
@@ -115,7 +115,10 @@ Easy G-Code Plot is a comprehensive desktop application for viewing, editing, an
 
 - **Multiple Output Languages**: Support for different G-code dialects
 - **Export Modes**:
-  - Absolute or incremental positioning
+  - Trace export from the authoritative logical Motion Trace
+  - `EXPANDED TURN PROGRAM` in Lathe Mode
+  - `EXPANDED MILL PROGRAM` in Milling Mode
+  - Absolute or incremental positioning for standard trace export
   - Force address output
   - Leading zero suppression
 - **Program Headers/Footers**: Customizable start and end program blocks
@@ -141,7 +144,7 @@ Easy G-Code Plot is a comprehensive desktop application for viewing, editing, an
 
    ```bash
    git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
-   cd easy-gcode-plotter
+   cd easy_gcode_plot
    ```
 
 2. Create/update the project environment from `pyproject.toml` and `uv.lock`:
@@ -155,6 +158,18 @@ Easy G-Code Plot is a comprehensive desktop application for viewing, editing, an
    ```bash
    uv run python main.py
    ```
+
+The same kernel is available without Qt through the CLI:
+
+```bash
+uv run python -m app parse program.nc --lang fanuc_turn
+uv run python -m app trace program.nc --lang fanuc_turn -o trace.json
+uv run python -m app analyze program.nc --lang fanuc_turn
+uv run python -m app export program.nc --lang fanuc_turn -o expanded.nc
+uv run python -m app export program.nc --lang fanuc_turn --mode program -o expanded-turn.nc
+uv run python -m app export program.nc --lang fanuc_mill --mode program -o expanded-mill.nc
+uv run python -m app export program.nc --lang fanuc_turn --mode cycles -o expanded-cycles.nc
+```
 
 ## Usage
 
@@ -199,61 +214,51 @@ Easy G-Code Plot is a comprehensive desktop application for viewing, editing, an
 
 Access via File → Export Options:
 
-1. **Language Selection**: Choose G-code dialect
-2. **Output Mode**: Absolute/Incremental
-3. **Address Forcing**: Always output G/M codes
-4. **Program Start/End**: Custom program headers/footers
-5. **Sequence Numbers**: Configure N-line numbering
-6. **Formatting**: Delimiters and zero suppression
+1. **Language Selection**: Choose G-code dialect or export mode
+2. **Expanded program modes**:
+   - `EXPANDED TURN PROGRAM` is available only in Lathe Mode.
+   - `EXPANDED MILL PROGRAM` is available only in Milling Mode.
+   - CLI `--mode program` is available for both `fanuc_turn` and `fanuc_mill`; `--mode cycles` is turning-only.
+3. **Output Mode**: Absolute/Incremental for standard trace export
+4. **Address Forcing**: Always output G/M codes
+5. **Program Start/End**: Custom program headers/footers
+6. **Sequence Numbers**: Configure N-line numbering
+7. **Formatting**: Delimiters and zero suppression
 
 ## Supported G-code Commands
 
-### Motion Commands
+The native kernel currently exposes two execution profiles: `fanuc_mill` and `fanuc_turn`. Both use the same AST, Macro B/control-flow foundation, diagnostics and logical Motion Trace.
 
-- `G00`: Rapid positioning
-- `G01`: Linear interpolation
-- `G02`: Circular interpolation (clockwise)
-- `G03`: Circular interpolation (counter-clockwise)
+### Common motion and execution
 
-### Plane Selection
+- `G00/G01/G02/G03`: rapid, linear and circular interpolation
+- `G17/G18/G19`: interpolation planes where applicable
+- `G20/G21`: units
+- `G28`: configured primary reference return; otherwise handled fail-closed
+- `G30`: secondary reference return is position-changing and remains fail-closed unless its reference is known
+- `G54-G59`: work coordinate systems
+- Macro B expressions and assignments, `IF/GOTO`, `WHILE/END`
+- `M98/M99`: subprogram execution
+- `M00/M01/M02/M03/M04/M05/M08/M09/M30`: machine signals/program control
 
-- `G17`: XY plane
-- `G18`: ZX plane
-- `G19`: YZ plane
+### FANUC milling
 
-### Coordinate Systems
+- XYZ absolute/incremental motion (`G90/G91`)
+- IJK/R arcs and helical interpolation
+- `G80/G81/G82/G83/G84` canned cycles
+- `G40/G41/G42` cutter-compensation modal state is tracked, but cutter-radius geometry is not applied; explicit G41/G42 blocks are reported as `UNVERIFIED`
+- `G43/G49` tool-length compensation state is tracked and preserved for export, but H-offset geometry is not applied; explicit G43 blocks are reported as `UNVERIFIED`
+- `G98/G99` canned-cycle return mode
 
-- `G54-G59`: Work coordinate systems
-- `G90`: Absolute positioning
-- `G91`: Incremental positioning
+### FANUC turning
 
-### Canned Cycles
-
-- `G80`: Cancel canned cycle
-- `G81`: Drilling cycle
-- `G82`: Spot drilling
-- `G83`: Peck drilling
-
-### Tool Compensation
-
-- `G40`: Cancel cutter compensation
-- `G41`: Cutter compensation left
-- `G42`: Cutter compensation right
-- `G43`: Tool length compensation positive
-- `G49`: Cancel tool length compensation
-
-### Miscellaneous
-
-- `M00`: Program stop
-- `M01`: Optional stop
-- `M02`: Program end
-- `M03`: Spindle clockwise
-- `M04`: Spindle counter-clockwise
-- `M05`: Spindle stop
-- `M06`: Tool change
-- `M08`: Coolant on
-- `M09`: Coolant off
-- `M30`: Program end and reset
+- X/Z and U/W programming, diameter/radius handling, I/K/R arcs
+- `G32/G33` threading motion
+- `G70-G76` finish/roughing/grooving/threading cycles
+- modal `G90/G92/G94` turning cycles
+- turning `G83/G84`
+- `G40/G41/G42` tool-nose compensation with tool-tip orientation support
+- controller-dependent or unknown position-changing semantics are reported as `UNVERIFIED`/fail-closed rather than guessed
 
 ## Configuration
 
@@ -325,16 +330,29 @@ The application creates a `main.log` file for debugging:
 
 ### Architecture
 
-- **Frontend**: PyQt6 with custom OpenGL visualization
-- **Editor**: QScintilla with custom G-code lexer
-- **Plotting**: PyQtGraph OpenGL implementation
-- **Configuration**: QSettings with INI file storage
+```text
+NC source
+   ↓
+Lexer / AST
+   ↓
+Semantic instructions
+   ↓
+FANUC resolver / modal execution
+   ↓
+ExecutionResult + logical TraceMotion + diagnostics/signals
+   ├─ CLI
+   ├─ statistics
+   ├─ trace-based exporter
+   └─ renderer sampling → PyQtGraph/OpenGL GUI
+```
+
+The CNC kernel under `app/gcode/kernel/` has no Qt, C#, `pythonnet` or subprocess bridge dependency. Arcs remain logical arcs in the kernel and are sampled only by the visualization/export adapters. The GUI no longer owns a second `lst*` execution model.
 
 ### Performance
 
-- Optimized for files up to 10,000 lines
-- Incremental plotting for large toolpaths
-- Background processing for export operations
+- Automatic scene refresh is enabled for editor contents up to 5,000 lines; larger files require an explicit **Refresh**
+- Arcs remain logical in the kernel and are sampled only by rendering/export adapters
+- GUI playback and statistics consume the same authoritative logical Motion Trace
 
 ### File Support
 
@@ -361,30 +379,28 @@ uv run ruff format --check .
 
 ### Code Structure
 
-```
-main.py                        Thin entry point (python main.py or python -m app)
+```text
+main.py
 app/
-├─ __init__.py                 App version source (get_version())
-├─ application.py              Qt bootstrap: builds QApplication and shows the window
-├─ main_window.py              MainWindow: editing, parsing and plotting logic
-├─ settings.py                 Per-user config location (see below)
+├─ __main__.py                 GUI/CLI dispatcher
+├─ cli.py                      parse/trace/analyze/export CLI
+├─ main_window.py              PyQt6/QScintilla/PyQtGraph consumer of ExecutionResult
 ├─ gcode/
-│  ├─ core.py                  Pure parsing/metrics helpers (no Qt)
-│  └─ exporter.py              G-code export logic
-├─ ui/
-│  ├─ dialogs.py               BlockNum, Export and Find dialog controllers
-│  ├─ lexer.py                 G-code syntax highlighting lexer
-│  └─ generated/               Files generated/hand-maintained from Qt Designer sources
-│     ├─ main_ui.py            Main window UI (+ Editor/PlotView widgets)
-│     ├─ block_num.py/.ui      Block numbering dialog
-│     ├─ export.py/.ui         Export options dialog
-│     └─ find_replace.py/.ui   Find/replace dialog
-└─ resources/
-   ├─ files_res.py/.qrc        Compiled Qt resources (icons)
-   └─ icons/                   Icon sources
-tests/                         pytest suite
-scripts/                       Dev tooling (build, lint, sync, start, test)
-assets/                        Screenshots for this README
+│  ├─ core.py                  formatting and generic UI-side helpers
+│  ├─ exporter.py              trace-based export; no source re-parsing
+│  ├─ trace_tools.py           logical arc geometry, sampling and statistics
+│  └─ kernel/
+│     ├─ api.py                public execute() facade
+│     ├─ ast.py / model.py     source and execution models
+│     ├─ execution.py          Macro B/control flow/subprogram execution
+│     ├─ interpreter.py        FANUC turning resolver
+│     ├─ milling.py            FANUC milling resolver
+│     ├─ cycles.py             turning cycles
+│     ├─ tool_compensation.py  turning tool-nose compensation
+│     └─ signals.py            machine signals/program end
+├─ ui/                         Qt dialogs, lexer and generated Designer files
+└─ resources/                  icons/resources
+tests/                         unit, regression, CLI and GUI-kernel contract tests
 ```
 
 Run the application from the project root with either `uv run python main.py` or
@@ -402,9 +418,9 @@ uv run pyuic6 app/ui/generated/export.ui -o app/ui/generated/export.py
 
 ### Adding Features
 
-1. New G-code commands: Update `convert()` method
-2. Visualization enhancements: Modify `addMotion()` method
-3. Export formats: Extend `exportPgm()` method
+- Add or extend CNC semantics in `app/gcode/kernel/` and cover them with logical-trace regression tests.
+- Keep rendering in `app/gcode/trace_tools.py`/GUI consumers; do not tessellate arcs in the kernel.
+- Extend export through `ExecutionResult`/`TraceMotion`; do not add a second parser or modal execution path.
 
 ## License
 

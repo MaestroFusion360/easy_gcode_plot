@@ -1,6 +1,13 @@
-"""Allow running the application with ``python -m app``."""
+"""Run the GUI without arguments, or the CNC CLI when a command is supplied."""
 
-from app.application import run
+import sys
 
 if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        from app.cli import main
+
+        raise SystemExit(main(sys.argv[1:]))
+
+    from app.application import run
+
     raise SystemExit(run())

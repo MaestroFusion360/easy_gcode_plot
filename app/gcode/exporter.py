@@ -1,898 +1,781 @@
-"""Export logic separated from main window."""
+"""Trace-based G-code export used by the GUI and CLI.
 
-from math import cos, pi, sin, sqrt
+The exporter consumes the authoritative :class:`ExecutionResult`.  It never
+re-parses source G-code or reconstructs modal state from legacy UI arrays.
+"""
 
-import numpy as np
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, replace
+
+from .core import format_gcode_number
+from .kernel import ExecutionResult, TraceMotion
+from .trace_tools import arc_geometry, sample_motion
 
 
-def export_pgm(self):
-    """Generate the exportable program text based on parsed toolpath data."""
+@dataclass(frozen=True)
+class ExportOptions:
+    # 0: relative IJK, 1: absolute IJK, 2: R arcs, 3: linearized arcs,
+    # 4: plot-data style (all logical motions emitted as point-to-point moves).
+    arc_mode: int = 0
+    source_arc_type: int = 1
+    incremental: bool = False
+    force_addresses: bool = False
+    sequence_numbers: bool = False
+    sequence_start: int = 1
+    sequence_increment: int = 1
+    sequence_spacing: bool = False
+    delimiter: bool = False
+    leading_zero: bool = False
+    start_program: str = ""
+    end_program: str = ""
+    safety_line: bool = False
+    analysis_banner: bool = True
 
-    self.lstExport()
-    lst = []
-    st = self.seqNumStart
-    incr = self.seqNumIncr
 
-    if self.seqNumSpacing == False:
-        seq_delim = ""
+def _g(move: int, leading_zero: bool) -> str:
+    return f"G{move:02d}" if leading_zero else f"G{move}"
+
+
+def _word(letter: str, value: float | None) -> str | None:
+    if value is None:
+        return None
+    return f"{letter}{format_gcode_number(value)}"
+
+
+def _axis_values(m: TraceMotion, options: ExportOptions) -> tuple[float, float, float]:
+    if options.incremental:
+        return m.end_x - m.start_x, m.end_y - m.start_y, m.end_z - m.start_z
+    return m.end_x, m.end_y, m.end_z
+
+
+def _center_words(m: TraceMotion, options: ExportOptions) -> list[str]:
+    geom = arc_geometry(m, arc_type=options.source_arc_type)
+
+    if options.arc_mode == 2:
+        if geom is not None:
+            *_, sweep, radius = geom
+            signed_radius = -radius if sweep > 3.141592653589793 + 1e-12 else radius
+            word = _word("R", signed_radius)
+            return [word] if word else []
+        if m.radius is not None:
+            word = _word("R", m.radius)
+            return [word] if word else []
+
+    if geom is not None:
+        center = geom[4]
+        if m.plane == 18:
+            absolute = (("I", center[0]), ("K", center[1]))
+            relative = (("I", center[0] - m.start_x), ("K", center[1] - m.start_z))
+        elif m.plane == 19:
+            absolute = (("J", center[0]), ("K", center[1]))
+            relative = (("J", center[0] - m.start_y), ("K", center[1] - m.start_z))
+        else:
+            absolute = (("I", center[0]), ("J", center[1]))
+            relative = (("I", center[0] - m.start_x), ("J", center[1] - m.start_y))
+        values = absolute if options.arc_mode == 1 else relative
+        return [word for letter, value in values if (word := _word(letter, value))]
+
+    if options.arc_mode == 1:
+        if m.plane == 18:
+            values = (("I", m.i), ("K", m.k))
+        elif m.plane == 19:
+            values = (("J", m.j), ("K", m.k))
+        else:
+            values = (("I", m.i), ("J", m.j))
+        return [word for letter, value in values if (word := _word(letter, value))]
+
+    return [word for letter, value in (("I", m.i), ("J", m.j), ("K", m.k)) if (word := _word(letter, value))]
+
+
+def motion_line(m: TraceMotion, options: ExportOptions, *, override_move: int | None = None) -> str:
+    move = m.move if override_move is None else override_move
+    x, y, z = _axis_values(m, options)
+    words: list[str] = [_g(move, options.leading_zero)]
+
+    show_y = options.force_addresses or abs(y) > 1e-12 or abs(m.start_y) > 1e-12 or abs(m.end_y) > 1e-12
+    axis_words = (
+        _word("X", x),
+        _word("Y", y if show_y else None),
+        _word("Z", z),
+    )
+    words.extend(word for word in axis_words if word)
+
+    if m.move in (2, 3) and move in (2, 3):
+        words.extend(_center_words(m, options))
+
+    if move != 0 and m.feed is not None:
+        feed_word = _word("F", m.feed)
+        if feed_word:
+            words.append(feed_word)
+
+    sep = " " if options.delimiter else ""
+    return sep.join(words)
+
+
+def _linearized_lines(
+    m: TraceMotion, options: ExportOptions, motion_index: int, *, all_moves: bool = False
+) -> list[str]:
+    if m.move not in (2, 3) and not all_moves:
+        return [motion_line(m, options)]
+
+    points = sample_motion(
+        m,
+        motion_index,
+        arc_points_per_circle=314,
+        arc_type=options.source_arc_type,
+    )
+    lines: list[str] = []
+    previous = (m.start_x, m.start_y, m.start_z)
+    linear_move = 0 if all_moves and m.move == 0 else 1
+    for point in points:
+        if options.incremental:
+            dx, dy, dz = point.x - previous[0], point.y - previous[1], point.z - previous[2]
+            temp = TraceMotion(
+                linear_move,
+                previous[0],
+                previous[2],
+                point.x,
+                point.z,
+                feed=m.feed,
+                start_y=previous[1],
+                end_y=point.y,
+                source_block=m.source_block,
+            )
+            # ``motion_line`` computes the same incremental delta from temp.
+            del dx, dy, dz
+        else:
+            temp = TraceMotion(
+                linear_move,
+                previous[0],
+                previous[2],
+                point.x,
+                point.z,
+                feed=m.feed,
+                start_y=previous[1],
+                end_y=point.y,
+                source_block=m.source_block,
+            )
+        lines.append(motion_line(temp, options, override_move=linear_move))
+        previous = (point.x, point.y, point.z)
+    return lines
+
+
+def _number_lines(lines: list[str], options: ExportOptions) -> list[str]:
+    if not options.sequence_numbers:
+        return lines
+    out: list[str] = []
+    seq = options.sequence_start
+    spacer = " " if options.sequence_spacing else ""
+    for line in lines:
+        if not line or line == "%" or line.startswith("("):
+            out.append(line)
+            continue
+        out.append(f"N{seq}{spacer}{line}")
+        seq += options.sequence_increment
+    return out
+
+
+def export_result(result: ExecutionResult, options: ExportOptions | None = None) -> str:
+    options = options or ExportOptions()
+    lines: list[str] = []
+    if options.analysis_banner:
+        lines.append("(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)")
+    if options.start_program.strip():
+        lines.extend(line for line in options.start_program.strip().splitlines() if line.strip())
+    if options.safety_line:
+        lines.append("G00 G17 G40 G49 G80 G90" if options.delimiter else "G00G17G40G49G80G90")
+    if options.incremental:
+        lines.append("G91")
+
+    for index, motion in enumerate(result.motions):
+        if options.arc_mode == 3 and motion.move in (2, 3):
+            lines.extend(_linearized_lines(motion, options, index))
+        elif options.arc_mode == 4:
+            lines.extend(_linearized_lines(motion, options, index, all_moves=True))
+        else:
+            lines.append(motion_line(motion, options))
+
+    if options.end_program.strip():
+        lines.extend(line for line in options.end_program.strip().splitlines() if line.strip())
     else:
-        seq_delim = " "
+        lines.append(result.program_end or "M30")
+    return "\n".join(_number_lines(lines, options)) + "\n"
 
-    if self.delim == False:
-        delim = ""
-    else:
-        delim = " "
 
-    if self.leadingZero:
-        g_fmt = "G0"
-        m_fmt = "M0"
-    else:
-        g_fmt = "G"
-        m_fmt = "M"
+EXPANDED_TURN_PROGRAM_MODE = 5
+EXPANDED_MILL_PROGRAM_MODE = 6
+_TURN_CYCLE_G_CODES = {70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92, 94}
+_TURN_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, 30, 32, 33, *_TURN_CYCLE_G_CODES}
+_MILL_CYCLE_G_CODES = {81, 82, 83, 84, 85, 86}
+_MILL_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, *_MILL_CYCLE_G_CODES}
+_TRAILER_RE = re.compile(r"M(?:0?2|30)(?=[A-Z]|\s|$)", re.IGNORECASE)
+_WORD_RE = re.compile(r"([A-Z])([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", re.IGNORECASE)
 
-    if self.safLine:
-        saf_line = g_fmt + "0" + delim + "G17" + delim + "G40" + delim + "G49" + delim + "G80" + delim + "G90"
-        lst.append(saf_line)
 
-    if self.lang < 4:
-        prevMove = 0
-        prevArcPlane = 17
-        prevMode = 90
-        prevX = 0
-        prevY = 0
-        prevZ = 0
-        prevTool = 0
-        prevSpeed = 0
-        prevFeed = 0
-        prevCorRad = 40
-        prevCycleDrill = 80
-        prevCycleZ = 0
-        prevCycleR = 0
-        prevCycleP = 0
-        prevCycleQ = 0
-        prevCorD = 0
-        first_move = True
+def _strip_comments(line: str) -> str:
+    out = line
+    while "(" in out and ")" in out:
+        start = out.find("(")
+        end = out.find(")", start + 1)
+        if end < 0:
+            break
+        out = out[:start] + out[end + 1 :]
+    if ";" in out:
+        out = out.split(";", 1)[0]
+    return out
 
-        for i in range(len(self.lstProgram)):
-            posMode = ""
-            toolchange = ""
-            self.progressBar.setValue(int((i * 100) / len(self.lstProgram)))
-            # Move
-            if self.lstProgram[i][0] != None and self.lstProgram[i][15] == None and self.lstProgram[i][25] == 80:
-                if self.forceAdr:
-                    move = g_fmt + str(self.lstProgram[i][0]) + delim
-                else:
-                    if prevMove != self.lstProgram[i][0] or first_move:
-                        prevMove = self.lstProgram[i][0]
-                        move = g_fmt + str(self.lstProgram[i][0]) + delim
-                    else:
-                        move = ""
-            else:
-                move = ""
 
-            # Arc Plane
-            if self.lstProgram[i][1] != None and self.lstProgram[i][15] == None and self.lstProgram[i][25] == 80:
-                if self.forceAdr:
-                    arcPlane = "G" + str(self.lstProgram[i][1]) + delim
-                else:
-                    if prevArcPlane != self.lstProgram[i][1] or first_move:
-                        prevArcPlane = self.lstProgram[i][1]
-                        arcPlane = "G" + str(prevArcPlane) + delim
-                    else:
-                        arcPlane = ""
-            else:
-                arcPlane = ""
+def _extract_comments(line: str) -> list[str]:
+    comments = [match.group(1).strip() for match in re.finditer(r"\((.*?)\)", line) if match.group(1).strip()]
+    semi = line.find(";")
+    if semi >= 0:
+        text = line[semi + 1 :].strip()
+        if text:
+            comments.append(text)
+    return comments
 
-            # ABS mode
-            if self.incrMode:
-                prevMode = 91
-                if self.lstProgram[i][2] != None and self.lstProgram[i][15] == None:
-                    if self.forceAdr:
-                        posMode = "G" + str(prevMode) + delim
-                    else:
-                        if first_move:
-                            posMode = "G" + str(prevMode) + delim
-                        else:
-                            posMode = ""
-            else:
-                if self.lstProgram[i][2] != None and self.lstProgram[i][15] == None:
-                    if self.forceAdr:
-                        posMode = "G" + str(self.lstProgram[i][2]) + delim
-                    else:
-                        if prevMode != self.lstProgram[i][2] or first_move:
-                            prevMode = self.lstProgram[i][2]
-                            posMode = "G" + str(prevMode) + delim
-                        else:
-                            posMode = ""
-                else:
-                    posMode = ""
 
-            # Cycle Drill
-            if self.lstProgram[i][25] > 80:
-                if self.forceAdr:
-                    prevCycleDrill = self.lstProgram[i][25]
-                    cycleDrill = "G" + str(prevCycleDrill) + delim
-                else:
-                    if prevCycleDrill != self.lstProgram[i][25]:
-                        prevCycleDrill = self.lstProgram[i][25]
-                        cycleDrill = "G" + str(prevCycleDrill) + delim
-                    else:
-                        cycleDrill = ""
-            else:
-                if prevCycleDrill != self.lstProgram[i][25]:
-                    prevCycleDrill = self.lstProgram[i][25]
-                    cycleDrill = "G" + str(prevCycleDrill) + delim
-                else:
-                    cycleDrill = ""
+def _format_comment(text: str) -> str:
+    body = text.strip()
+    return f"({body})" if body else ""
 
-            # X coord
-            if self.lstProgram[i][2] == 90 and self.incrMode == False:
-                if self.lstProgram[i][3] != None and self.lstProgram[i][15] == None:
-                    if self.forceAdr:
-                        x = "X" + self.floatToStr(self.lstProgram[i][3]) + delim
-                    else:
-                        if prevX != self.lstProgram[i][3] or first_move:
-                            prevX = self.lstProgram[i][3]
-                            x = "X" + self.floatToStr(self.lstProgram[i][3]) + delim
-                        else:
-                            x = ""
-                else:
-                    x = ""
-            else:
-                if self.lstProgram[i][6] != None and self.lstProgram[i][15] == None:
-                    if self.forceAdr:
-                        x = "X" + self.floatToStr(self.lstProgram[i][6]) + delim
-                    else:
-                        if self.lstProgram[i][6] != 0:
-                            x = "X" + self.floatToStr(self.lstProgram[i][6]) + delim
-                        else:
-                            x = ""
-                else:
-                    x = ""
 
-            # Y coord
-            if self.lstProgram[i][2] == 90 and self.incrMode == False:
-                if self.lstProgram[i][4] != None and self.lstProgram[i][15] == None:
-                    if self.forceAdr:
-                        y = "Y" + self.floatToStr(self.lstProgram[i][4]) + delim
-                    else:
-                        if prevY != self.lstProgram[i][4] or first_move:
-                            first_move = False
-                            prevY = self.lstProgram[i][4]
-                            y = "Y" + self.floatToStr(self.lstProgram[i][4]) + delim
-                        else:
-                            y = ""
-                else:
-                    y = ""
-            else:
-                if self.lstProgram[i][7] != None and self.lstProgram[i][15] == None:
-                    if self.forceAdr:
-                        y = "Y" + self.floatToStr(self.lstProgram[i][7]) + delim
-                    else:
-                        first_move = False
-                        if self.lstProgram[i][7] != 0:
-                            y = "Y" + self.floatToStr(self.lstProgram[i][7]) + delim
-                        else:
-                            y = ""
-                else:
-                    y = ""
+def _normalize_words_line(line: str) -> str:
+    return " ".join(_strip_comments(line).strip().upper().split())
 
-            # Z coord
-            if self.lstProgram[i][25] == 80:
-                if self.lstProgram[i][2] == 90 and self.incrMode == False:
-                    if self.lstProgram[i][5] != None and self.lstProgram[i][15] == None:
-                        if self.forceAdr:
-                            z = "Z" + self.floatToStr(self.lstProgram[i][5]) + delim
-                        else:
-                            if prevZ != self.lstProgram[i][5]:
-                                prevZ = self.lstProgram[i][5]
-                                z = "Z" + self.floatToStr(self.lstProgram[i][5]) + delim
-                            else:
-                                z = ""
-                    else:
-                        z = ""
-                else:
-                    if self.lstProgram[i][8] != None and self.lstProgram[i][15] == None:
-                        if self.forceAdr:
-                            z = "Z" + self.floatToStr(self.lstProgram[i][8]) + delim
-                        else:
-                            if self.lstProgram[i][8] != 0:
-                                z = "Z" + self.floatToStr(self.lstProgram[i][8]) + delim
-                            else:
-                                z = ""
-                    else:
-                        z = ""
-            else:
-                z = ""
 
-            # Cycle Z
-            if self.lstProgram[i][25] > 80:
-                if self.forceAdr:
-                    cycleZ = "Z" + self.floatToStr(self.lstProgram[i][26]) + delim
-                else:
-                    if prevCycleZ != self.lstProgram[i][26]:
-                        prevCycleZ = self.lstProgram[i][26]
-                        cycleZ = "Z" + self.floatToStr(prevCycleZ) + delim
-                    else:
-                        cycleZ = ""
-            else:
-                cycleZ = ""
+def _without_sequence_number(line: str) -> str:
+    return re.sub(r"^N[+\-]?\d+(?:\.\d+)?\s*", "", line, count=1, flags=re.IGNORECASE).strip()
 
-            # Cycle R
-            if self.lstProgram[i][27] != None and self.lstProgram[i][25] > 80:
-                if self.forceAdr:
-                    cycleR = "R" + self.floatToStr(self.lstProgram[i][27]) + delim
-                else:
-                    if prevCycleR != self.lstProgram[i][27]:
-                        prevCycleR = self.lstProgram[i][27]
-                        cycleR = "R" + self.floatToStr(prevCycleR) + delim
-                    else:
-                        cycleR = ""
-            else:
-                cycleR = ""
 
-            # Cycle P
-            if self.lstProgram[i][28] != None and self.lstProgram[i][25] > 81:
-                if self.forceAdr:
-                    cycleP = "P" + self.floatToStr(self.lstProgram[i][28]) + delim
-                else:
-                    if prevCycleP != self.lstProgram[i][28]:
-                        prevCycleP = self.lstProgram[i][28]
-                        cycleP = "P" + self.floatToStr(prevCycleP) + delim
-                    else:
-                        cycleP = ""
-            else:
-                cycleP = ""
+def _g_codes(line: str) -> set[int]:
+    values: set[int] = set()
+    for value in re.findall(r"G([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", line, flags=re.IGNORECASE):
+        try:
+            number = float(value)
+        except ValueError:
+            continue
+        if number.is_integer():
+            values.add(int(number))
+    return values
 
-            # Cycle Q
-            if self.lstProgram[i][29] != None and self.lstProgram[i][25] == 83:
-                if self.forceAdr:
-                    cycleQ = "Q" + self.floatToStr(self.lstProgram[i][29]) + delim
-                else:
-                    if prevCycleQ != self.lstProgram[i][29]:
-                        prevCycleQ = self.lstProgram[i][29]
-                        cycleQ = "Q" + self.floatToStr(prevCycleQ) + delim
-                    else:
-                        cycleQ = ""
-            else:
-                cycleQ = ""
 
-            # Feed
-            if self.lstProgram[i][11] != 0 and self.lstProgram[i][15] == None:
-                if self.forceAdr:
-                    feed = "F" + self.floatToStr(self.lstProgram[i][11]) + delim
-                else:
-                    if prevFeed != self.lstProgram[i][11]:
-                        prevFeed = self.lstProgram[i][11]
-                        feed = "F" + self.floatToStr(self.lstProgram[i][11]) + delim
-                    else:
-                        feed = ""
-            else:
-                feed = ""
+def _m_codes(line: str) -> set[int]:
+    values: set[int] = set()
+    for value in re.findall(r"M([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", line, flags=re.IGNORECASE):
+        try:
+            number = float(value)
+        except ValueError:
+            continue
+        if number.is_integer():
+            values.add(int(number))
+    return values
 
-            feed_cycle = feed
 
-            # WCS
-            if self.lstProgram[i][12] != None:
-                posWcs = "G" + str(self.lstProgram[i][12]) + delim
-            else:
-                posWcs = ""
+def _program_number(source_lines: list[str], options: ExportOptions) -> str:
+    for raw in source_lines:
+        clean = _normalize_words_line(raw)
+        match = re.match(r"^O(\d+)(?=\s|$)", clean)
+        if match:
+            return f"O{match.group(1)}"
+    match = re.search(r"\bO(\d+)\b", options.start_program.upper())
+    if match:
+        return f"O{match.group(1)}"
+    return "O0001"
 
-            # Tool number
-            if self.lstProgram[i][14] != 0 and prevTool != self.lstProgram[i][14]:
-                prevTool = self.lstProgram[i][14]
-                if self.leadingZero:
-                    tool = "T{:02d}".format(self.lstProgram[i][14]) + delim
-                else:
-                    tool = "T{:d}".format(self.lstProgram[i][14]) + delim
-            else:
-                tool = ""
 
-            # M6
-            toolchange = ""
-            if self.lstProgram[i][15] != None:
-                if tool != "":
-                    first_move = True
-                    toolchange = m_fmt + str(self.lstProgram[i][15]) + delim
+def _split_trailer(line: str) -> tuple[str | None, str]:
+    match = _TRAILER_RE.search(line)
+    if match is None:
+        return None, line
+    trailer = match.group(0).upper()
+    remainder = (line[: match.start()] + line[match.end() :]).strip()
+    return trailer, " ".join(remainder.split())
 
-            # Speed
-            if self.lstProgram[i][16] != 0:
-                if self.lstProgram[i][17] != None and self.lstProgram[i][17] < 5:
-                    prevSpeed = self.lstProgram[i][16]
-                    speed = "S{:d}".format(self.lstProgram[i][16]) + delim
-                else:
-                    if prevSpeed != self.lstProgram[i][16]:
-                        prevSpeed = self.lstProgram[i][16]
-                        speed = "S{:d}".format(self.lstProgram[i][16]) + delim
-                    else:
-                        speed = ""
-            else:
-                speed = ""
 
-            # Speed M code
-            if self.lstProgram[i][17] != None:
-                speed_code = m_fmt + str(self.lstProgram[i][17]) + delim
-            else:
-                speed_code = ""
+def _remove_g_codes(line: str, codes: set[int]) -> str:
+    if not codes:
+        return line
 
-            # Coolant
-            if self.lstProgram[i][18] != None:
-                coolant = m_fmt + str(self.lstProgram[i][18]) + delim
-            else:
-                coolant = ""
+    def repl(match: re.Match[str]) -> str:
+        try:
+            number = float(match.group(1))
+        except ValueError:
+            return match.group(0)
+        if number.is_integer() and int(number) in codes:
+            return ""
+        return match.group(0)
 
-            # Stop Program
-            if self.lstProgram[i][19] != None:
-                stopPrgm = m_fmt + str(self.lstProgram[i][19]) + delim
-            else:
-                stopPrgm = ""
+    return " ".join(re.sub(r"G([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", repl, line, flags=re.IGNORECASE).split())
 
-            # Correction Length
-            if self.lstProgram[i][20] != None:
-                corLen = "G" + str(self.lstProgram[i][20]) + delim
-                if self.lstProgram[i][5] == None:
-                    z = "Z" + self.floatToStr(prevZ) + delim
-            else:
-                corLen = ""
 
-            # CorH
-            if self.lstProgram[i][21] != None:
-                if self.leadingZero:
-                    corH = "H{:02d}".format(self.lstProgram[i][21]) + delim
-                else:
-                    corH = "H{:d}".format(self.lstProgram[i][21]) + delim
-            else:
-                corH = ""
-
-            # Correction Radius
-            if prevCorRad != self.lstProgram[i][22]:
-                prevCorRad = self.lstProgram[i][22]
-                corRad = "G" + str(prevCorRad) + delim
-            else:
-                corRad = ""
-
-            # CorD
-            if prevCorD != self.lstProgram[i][23]:
-                prevCorD = self.lstProgram[i][23]
-                if self.leadingZero:
-                    corD = "D{:02d}".format(prevCorD) + delim
-                else:
-                    corD = "D{:d}".format(prevCorD) + delim
-            else:
-                corD = ""
-
-            # Comment
-            if self.lstProgram[i][24] != None:
-                comment = self.co + self.lstProgram[i][24] + self.ci + delim
-            else:
-                comment = ""
-
-            # G28
-            if self.lstProgram[i][13] != None:
-                if self.lstProgram[i][13] == 1:
-                    g28line = "G28" + delim + "X0" + delim
-                elif self.lstProgram[i][13] == 2:
-                    g28line = "G28" + delim + "Y0" + delim
-                elif self.lstProgram[i][13] == 3:
-                    g28line = "G28" + delim + "Z0" + delim
-                elif self.lstProgram[i][13] == 4:
-                    g28line = "G28" + delim + "X0" + delim + "Y0" + delim
-                elif self.lstProgram[i][13] == 5:
-                    g28line = "G28" + delim + "X0" + delim + "Z0" + delim
-                elif self.lstProgram[i][13] == 6:
-                    g28line = "G28" + delim + "Y0" + delim + "Z0" + delim
-                elif self.lstProgram[i][13] == 7:
-                    g28line = "G28" + delim + "X0" + delim + "Y0" + delim + "Z0" + delim
-                else:
-                    g28line = ""
-
-                line = move + posMode + g28line + speed_code + comment + coolant + stopPrgm
-
-                if line != "":
-                    lst.append(line.rstrip())
+def _geometry_block_controls(
+    line: str,
+    *,
+    suppress_compensation: bool,
+    geometry_g_codes: set[int] | None = None,
+) -> str:
+    """Return only controller-state words that share a block with generated geometry."""
+    geometry_codes = _TURN_GEOMETRY_G_CODES if geometry_g_codes is None else geometry_g_codes
+    words: list[str] = []
+    for match in _WORD_RE.finditer(line):
+        letter = match.group(1).upper()
+        value = match.group(2)
+        token = f"{letter}{value}"
+        if letter in {"N", "O", "X", "Y", "Z", "U", "V", "W", "I", "J", "K", "R", "F", "P", "Q", "A", "C"}:
+            continue
+        if letter == "G":
+            try:
+                code = int(float(value))
+            except ValueError:
                 continue
+            if code in geometry_codes:
+                continue
+            if suppress_compensation and code in {40, 41, 42}:
+                continue
+        if letter == "M":
+            try:
+                code = int(float(value))
+            except ValueError:
+                continue
+            if code in {2, 30, 98, 99}:
+                continue
+        words.append(token)
+    return " ".join(words)
 
-            # Output line
-            if self.lstProgram[i][0] != None and self.lstProgram[i][0] == 0:
-                line = (
-                    move
-                    + arcPlane
-                    + corLen
-                    + corH
-                    + corRad
-                    + corD
-                    + cycleDrill
-                    + posWcs
-                    + posMode
-                    + x
-                    + y
-                    + z
-                    + cycleZ
-                    + cycleR
-                    + cycleP
-                    + cycleQ
-                    + feed_cycle
-                    + tool
-                    + toolchange
-                    + speed
-                    + speed_code
-                    + coolant
-                    + stopPrgm
-                    + comment
+
+def _turn_program_options(options: ExportOptions | None) -> ExportOptions:
+    base = options or ExportOptions()
+    return replace(
+        base,
+        arc_mode=2,
+        source_arc_type=1,
+        incremental=False,
+        force_addresses=False,
+        analysis_banner=False,
+    )
+
+
+def _scale_turn_motion(motion: TraceMotion, *, unit_scale: float, x_is_diameter: bool) -> TraceMotion:
+    scale = unit_scale if abs(unit_scale) > 1e-12 else 1.0
+    x_scale = scale if x_is_diameter else scale * 2.0
+    return replace(
+        motion,
+        start_x=motion.start_x / x_scale,
+        end_x=motion.end_x / x_scale,
+        start_y=motion.start_y / scale,
+        end_y=motion.end_y / scale,
+        start_z=motion.start_z / scale,
+        end_z=motion.end_z / scale,
+        radius=None if motion.radius is None else motion.radius / scale,
+        feed=None if motion.feed is None else motion.feed / scale,
+        i=None if motion.i is None else motion.i / x_scale,
+        j=None if motion.j is None else motion.j / scale,
+        k=None if motion.k is None else motion.k / scale,
+    )
+
+
+def _turn_motion_line(motion: TraceMotion, options: ExportOptions) -> str:
+    raw = (motion.source_raw or "").lstrip().upper()
+    if motion.move == 1:
+        if re.match(r"G32(?:\D|$)", raw):
+            return motion_line(motion, options, override_move=32)
+        if re.match(r"G33(?:\D|$)", raw):
+            return motion_line(motion, options, override_move=33)
+        if motion.cycle_generated and re.match(r"G(?:76|92)(?:\D|$)", raw):
+            return motion_line(motion, options, override_move=32)
+    return motion_line(motion, options)
+
+
+def _number_full_program_lines(lines: list[str], options: ExportOptions) -> list[str]:
+    numbered: list[str] = []
+    sequence = options.sequence_start
+    spacer = " " if options.sequence_spacing else ""
+    for line in lines:
+        stripped = line.strip()
+        structural = not stripped or stripped == "%" or stripped.startswith("O") or stripped.startswith("(")
+        output = line if options.delimiter or structural else line.replace(" ", "")
+        if not options.sequence_numbers or structural:
+            numbered.append(output)
+            continue
+        numbered.append(f"N{sequence}{spacer}{output}")
+        sequence += options.sequence_increment
+    return numbered
+
+
+def _execution_slices(result: ExecutionResult):
+    if result.program is None or not result.execution_steps:
+        raise ValueError("Expanded program export requires execution steps")
+    blocks = {block.index: block for block in result.program.blocks}
+    cursor = 0
+    for step in result.execution_steps:
+        block = blocks.get(step.source_block)
+        if block is None:
+            raise ValueError(f"Execution step references missing source block {step.source_block}")
+        end = cursor + step.emitted_count
+        if end > len(result.motions):
+            raise ValueError("Execution step motion counts do not match the trace")
+        motions = result.motions[cursor:end]
+        cursor = end
+        yield step, block, motions
+    if cursor != len(result.motions):
+        raise ValueError("Execution step motion counts do not consume the complete trace")
+
+
+def _append_motion_chunk(
+    lines: list[str],
+    motions: tuple[TraceMotion, ...],
+    *,
+    step,
+    options: ExportOptions,
+    previous_end_mm: tuple[float, float] | None,
+) -> tuple[float, float] | None:
+    for motion in motions:
+        start_mm = (motion.start_x, motion.start_z)
+        if previous_end_mm is not None and (
+            abs(previous_end_mm[0] - start_mm[0]) > 1e-6 or abs(previous_end_mm[1] - start_mm[1]) > 1e-6
+        ):
+            reposition = TraceMotion(
+                move=0,
+                start_x=previous_end_mm[0],
+                start_z=previous_end_mm[1],
+                end_x=motion.start_x,
+                end_z=motion.start_z,
+                plane=18,
+            )
+            lines.append(
+                motion_line(
+                    _scale_turn_motion(
+                        reposition,
+                        unit_scale=step.unit_scale,
+                        x_is_diameter=step.x_is_diameter,
+                    ),
+                    options,
                 )
-            elif self.lstProgram[i][0] != None and self.lstProgram[i][0] == 1:
-                line = (
-                    move
-                    + arcPlane
-                    + corLen
-                    + corH
-                    + corRad
-                    + corD
-                    + posWcs
-                    + posMode
-                    + x
-                    + y
-                    + z
-                    + tool
-                    + toolchange
-                    + speed
-                    + speed_code
-                    + feed
-                    + coolant
-                    + stopPrgm
-                    + comment
+            )
+        scaled = _scale_turn_motion(
+            motion,
+            unit_scale=step.unit_scale,
+            x_is_diameter=step.x_is_diameter,
+        )
+        lines.append(_turn_motion_line(scaled, options))
+        previous_end_mm = (motion.end_x, motion.end_z)
+    return previous_end_mm
+
+
+def export_full_program(
+    result: ExecutionResult,
+    source_lines: list[str],
+    options: ExportOptions | None = None,
+) -> str:
+    """Export one flattened FANUC turning program in actual execution order.
+
+    Source blocks provide controller state and comments. Geometry comes from the
+    authoritative trace. Execution-step boundaries keep G72/G73 profile provenance
+    separate from the block that invoked a cycle and also flatten M98/M99 calls
+    without reconstructing source order from ``TraceMotion.source_block``.
+    """
+    if not result.ok:
+        raise ValueError("Expanded turn program export requires a valid turning execution result")
+
+    options = _turn_program_options(options)
+    compensated_geometry = any(motion.compensation_applied for motion in result.motions)
+    steps = list(_execution_slices(result))
+    executed_unit_mode = any(_g_codes(_normalize_words_line(block.raw)) & {20, 21} for _, block, _ in steps)
+
+    safety = ["G18", "G80"]
+    if not executed_unit_mode:
+        safety.append("G21")
+    if compensated_geometry:
+        safety.append("G40")
+
+    lines: list[str] = ["%", _program_number(source_lines, options), " ".join(safety)]
+    lines.append(_format_comment("EXPANDED TURN PROGRAM"))
+    previous_end_mm: tuple[float, float] | None = None
+    trailer: str | None = None
+
+    for step, block, motions in steps:
+        raw = block.raw
+        clean = _without_sequence_number(_normalize_words_line(raw))
+        detected_trailer, clean = _split_trailer(clean)
+        if detected_trailer is not None:
+            trailer = detected_trailer
+
+        if not clean or clean == "%":
+            continue
+        if step.contour_definition:
+            continue
+
+        for comment in _extract_comments(raw):
+            lines.append(_format_comment(comment))
+
+        if block.olabel is not None and re.match(r"^O\d+(?=\s|$)", clean):
+            continue
+        if block.flow_node is not None:
+            continue
+        if _m_codes(clean) & {98, 99}:
+            continue
+
+        gcodes = _g_codes(clean)
+        if gcodes & {28, 30}:
+            source_reference = _remove_g_codes(clean, {40, 41, 42}) if compensated_geometry else clean
+            if source_reference:
+                lines.append(source_reference)
+            if motions:
+                previous_end_mm = (motions[-1].end_x, motions[-1].end_z)
+            continue
+
+        if not motions:
+            if block.cycle_node is not None:
+                continue
+            if 4 in gcodes or 50 in gcodes:
+                control = clean
+            elif block.motion_node is None:
+                control = clean
+            else:
+                control = _geometry_block_controls(clean, suppress_compensation=compensated_geometry)
+            if compensated_geometry:
+                control = _remove_g_codes(control, {40, 41, 42})
+            if control:
+                lines.append(control)
+            continue
+
+        controls = _geometry_block_controls(clean, suppress_compensation=compensated_geometry)
+        if controls:
+            lines.append(controls)
+
+        if any(motion.cycle_generated for motion in motions):
+            label = "FINISH CONTOUR" if 70 in gcodes else "EXPANDED TURN CYCLE"
+            source = clean or block.raw.strip()
+            lines.append(_format_comment(f"{label}: {source}"))
+
+        previous_end_mm = _append_motion_chunk(
+            lines,
+            motions,
+            step=step,
+            options=options,
+            previous_end_mm=previous_end_mm,
+        )
+
+    if trailer is None:
+        trailer = result.program_end or "M30"
+    lines.extend([trailer, "%"])
+    return "\n".join(_number_full_program_lines(lines, options)) + "\n"
+
+
+def _mill_program_options(options: ExportOptions | None) -> ExportOptions:
+    base = options or ExportOptions()
+    return replace(
+        base,
+        arc_mode=0,
+        incremental=False,
+        force_addresses=False,
+        analysis_banner=False,
+    )
+
+
+def _scale_mill_motion(motion: TraceMotion, *, unit_scale: float) -> TraceMotion:
+    scale = unit_scale if abs(unit_scale) > 1e-12 else 1.0
+    return replace(
+        motion,
+        start_x=motion.start_x / scale,
+        start_y=motion.start_y / scale,
+        start_z=motion.start_z / scale,
+        end_x=motion.end_x / scale,
+        end_y=motion.end_y / scale,
+        end_z=motion.end_z / scale,
+        radius=None if motion.radius is None else motion.radius / scale,
+        feed=None if motion.feed is None else motion.feed / scale,
+        i=None if motion.i is None else motion.i / scale,
+        j=None if motion.j is None else motion.j / scale,
+        k=None if motion.k is None else motion.k / scale,
+    )
+
+
+def _append_mill_motion_chunk(
+    lines: list[str],
+    motions: tuple[TraceMotion, ...],
+    *,
+    step,
+    options: ExportOptions,
+) -> None:
+    step_options = replace(options, incremental=not step.absolute)
+    for motion in motions:
+        lines.append(
+            motion_line(
+                _scale_mill_motion(motion, unit_scale=step.unit_scale),
+                step_options,
+            )
+        )
+
+
+def export_full_mill_program(
+    result: ExecutionResult,
+    source_lines: list[str],
+    options: ExportOptions | None = None,
+) -> str:
+    """Export one flattened FANUC milling program in actual execution order.
+
+    Source blocks retain controller state, comments, tools and auxiliary M/S/H
+    words. Geometry comes from the authoritative milling trace. Execution-step
+    order expands canned cycles and repeated M98/M99 subprogram calls without
+    using ``TraceMotion.source_block`` as a runtime sequence.
+    """
+    if not result.ok:
+        raise ValueError("Expanded mill program export requires a valid milling execution result")
+
+    options = _mill_program_options(options)
+    steps = list(_execution_slices(result))
+    executed_unit_mode = any(_g_codes(_normalize_words_line(block.raw)) & {20, 21} for _, block, _ in steps)
+
+    safety = ["G17", "G40", "G49", "G80", "G90"]
+    if not executed_unit_mode:
+        safety.append("G21")
+
+    lines: list[str] = ["%", _program_number(source_lines, options), " ".join(safety)]
+    lines.append(_format_comment("EXPANDED MILL PROGRAM"))
+    trailer: str | None = None
+
+    for step, block, motions in steps:
+        raw = block.raw
+        comments = _extract_comments(raw)
+        clean = _without_sequence_number(_normalize_words_line(raw))
+        detected_trailer, clean = _split_trailer(clean)
+        if detected_trailer is not None:
+            trailer = detected_trailer
+
+        for comment in comments:
+            lines.append(_format_comment(comment))
+
+        if not clean or clean == "%":
+            continue
+        if block.olabel is not None and re.match(r"^O\d+(?=\s|$)", clean):
+            continue
+        if block.flow_node is not None:
+            continue
+        if _m_codes(clean) & {98, 99}:
+            continue
+
+        if not motions:
+            gcodes = _g_codes(clean)
+            geometry_words = any(
+                match.group(1).upper() in {"X", "Y", "Z", "I", "J", "K", "R"} for match in _WORD_RE.finditer(clean)
+            )
+            if gcodes & _MILL_GEOMETRY_G_CODES or geometry_words:
+                controls = _geometry_block_controls(
+                    clean,
+                    suppress_compensation=False,
+                    geometry_g_codes=_MILL_GEOMETRY_G_CODES,
                 )
-            elif self.lstProgram[i][0] != None and self.lstProgram[i][0] > 1:
-                if i == 0:
-                    continue
-
-                if self.lstProgram[i][1] not in (17, 18, 19):
-                    continue
-
-                k = 0
-                radius = 0
-                p0 = p1 = p2 = p3 = None
-                adr_I = adr_J = adr_K = adr_I2 = adr_J2 = adr_K2 = ""
-
-                x1 = self.lstProgram[i - 1][3]
-                y1 = self.lstProgram[i - 1][4]
-                z1 = self.lstProgram[i - 1][5]
-
-                x2 = self.lstProgram[i][3]
-                y2 = self.lstProgram[i][4]
-                z2 = self.lstProgram[i][5]
-
-                if x1 is None:
-                    x1 = 0
-                if y1 is None:
-                    y1 = 0
-                if z1 is None:
-                    z1 = 0
-                if x2 is None:
-                    x2 = 0
-                if y2 is None:
-                    y2 = 0
-                if z2 is None:
-                    z2 = 0
-
-                if self.lstProgram[i][1] == 17:
-                    xc = self.lstProgram[i][9]
-                    yc = self.lstProgram[i][10]
-
-                    if xc is None:
-                        xc = 0
-                    if yc is None:
-                        yc = 0
-
-                    xc1 = xc - x1
-                    yc1 = yc - y1
-
-                    radius = sqrt((x1 - xc) ** 2 + (y1 - yc) ** 2)
-                    k = (z2 or 0) - (z1 or 0)
-
-                    p0 = [x1, y1]
-                    p1 = [xc, yc]
-                    p2 = [x2, y2]
-                    p3 = [xc + radius, yc]
-
-                    adr_I = "I" + self.floatToStr(xc) + delim
-                    adr_J = "J" + self.floatToStr(yc) + delim
-                    adr_K = ""
-                    adr_I2 = "I" + self.floatToStr(xc1) + delim
-                    adr_J2 = "J" + self.floatToStr(yc1) + delim
-                    adr_K2 = ""
-
-                elif self.lstProgram[i][1] == 18:
-                    xc = self.lstProgram[i][9]
-                    zc = self.lstProgram[i][10]
-
-                    if xc is None:
-                        xc = 0
-                    if zc is None:
-                        zc = 0
-
-                    xc1 = xc - x1
-                    zc1 = zc - z1
-
-                    radius = sqrt((x1 - xc) ** 2 + (z1 - zc) ** 2)
-                    k = y2 - y1
-
-                    p0 = [x1, z1]
-                    p1 = [xc, zc]
-                    p2 = [x2, z2]
-                    p3 = [xc + radius, zc]
-
-                    adr_I = "I" + self.floatToStr(xc) + delim
-                    adr_J = ""
-                    adr_K = "K" + self.floatToStr(zc) + delim
-                    adr_I2 = "I" + self.floatToStr(xc1) + delim
-                    adr_J2 = ""
-                    adr_K2 = "K" + self.floatToStr(zc1) + delim
-
-                elif self.lstProgram[i][1] == 19:
-                    yc = self.lstProgram[i][9]
-                    zc = self.lstProgram[i][10]
-
-                    if yc is None:
-                        yc = 0
-                    if zc is None:
-                        zc = 0
-
-                    yc1 = yc - y1
-                    zc1 = zc - z1
-
-                    radius = sqrt((y1 - yc) ** 2 + (z1 - zc) ** 2)
-                    k = x2 - x1
-
-                    p0 = [y1, z1]
-                    p1 = [yc, zc]
-                    p2 = [y2, z2]
-                    p3 = [yc + radius, zc]
-
-                    adr_I = ""
-                    adr_J = "J" + self.floatToStr(yc) + delim
-                    adr_K = "K" + self.floatToStr(zc) + delim
-                    adr_I2 = ""
-                    adr_J2 = "J" + self.floatToStr(yc1) + delim
-                    adr_K2 = "K" + self.floatToStr(zc1) + delim
-
-                if self.lang == 0:
-                    line = (
-                        move
-                        + arcPlane
-                        + posMode
-                        + corRad
-                        + corD
-                        + posWcs
-                        + x
-                        + y
-                        + z
-                        + adr_I2
-                        + adr_J2
-                        + adr_K2
-                        + speed
-                        + speed_code
-                        + feed
-                        + coolant
-                        + stopPrgm
-                        + comment
-                    )
-
-                elif self.lang == 1:
-                    line = (
-                        move
-                        + arcPlane
-                        + posMode
-                        + corRad
-                        + corD
-                        + posWcs
-                        + x
-                        + y
-                        + z
-                        + adr_I
-                        + adr_J
-                        + adr_K
-                        + speed
-                        + speed_code
-                        + feed
-                        + coolant
-                        + stopPrgm
-                        + comment
-                    )
-
-                elif self.lang == 2:
-                    v0 = np.array(p1) - np.array(p0)
-                    v1 = np.array(p1) - np.array(p2)
-                    if self.lstProgram[i][0] == 2:
-                        if self.lstProgram[i][1] == 18:
-                            angle = np.arctan2(np.linalg.det([v0, v1]), np.dot(v0, v1))
-                        else:
-                            angle = np.arctan2(np.linalg.det([v1, v0]), np.dot(v1, v0))
-                    else:
-                        if self.lstProgram[i][1] == 18:
-                            angle = np.arctan2(np.linalg.det([v1, v0]), np.dot(v1, v0))
-                        else:
-                            angle = np.arctan2(np.linalg.det([v0, v1]), np.dot(v0, v1))
-
-                    if angle <= 0:
-                        angle = angle + 2 * pi
-
-                    if angle >= pi:
-                        if self.arc_type == 2:
-                            line = (
-                                move
-                                + arcPlane
-                                + posMode
-                                + corRad
-                                + corD
-                                + posWcs
-                                + x
-                                + y
-                                + z
-                                + adr_I
-                                + adr_J
-                                + adr_K
-                                + speed
-                                + speed_code
-                                + feed
-                                + coolant
-                                + stopPrgm
-                                + comment
-                            )
-                        else:
-                            line = (
-                                move
-                                + arcPlane
-                                + posMode
-                                + corRad
-                                + corD
-                                + posWcs
-                                + x
-                                + y
-                                + z
-                                + adr_I2
-                                + adr_J2
-                                + adr_K2
-                                + speed
-                                + speed_code
-                                + feed
-                                + coolant
-                                + stopPrgm
-                                + comment
-                            )
-                    else:
-                        adr_R = "R" + self.floatToStr(radius) + delim
-                        line = (
-                            move
-                            + arcPlane
-                            + posMode
-                            + corRad
-                            + corD
-                            + posWcs
-                            + x
-                            + y
-                            + z
-                            + adr_R
-                            + speed
-                            + speed_code
-                            + feed
-                            + coolant
-                            + stopPrgm
-                            + comment
-                        )
-
-                elif self.lang == 3:
-                    points = 314
-
-                    v0 = np.array(p1) - np.array(p0)
-                    v1 = np.array(p1) - np.array(p2)
-                    v2 = np.array(p1) - np.array(p3)
-
-                    startAngle = np.arctan2(np.linalg.det([v2, v0]), np.dot(v2, v0))
-
-                    if startAngle < 0:
-                        startAngle = startAngle + 2 * pi
-
-                    if self.lstProgram[i][0] == 2:
-                        if self.lstProgram[i][1] == 18:
-                            angle = np.arctan2(np.linalg.det([v0, v1]), np.dot(v0, v1))
-                        else:
-                            angle = np.arctan2(np.linalg.det([v1, v0]), np.dot(v1, v0))
-                    else:
-                        if self.lstProgram[i][1] == 18:
-                            angle = np.arctan2(np.linalg.det([v1, v0]), np.dot(v1, v0))
-                        else:
-                            angle = np.arctan2(np.linalg.det([v0, v1]), np.dot(v0, v1))
-
-                    if angle <= 0:
-                        angle = angle + 2 * pi
-
-                    step = k / ((angle * points) / (2 * pi))
-
-                    if self.lstProgram[i][0] == 2 and self.lstProgram[i][1] != 18:
-                        angle = -1 * abs(angle)
-                    elif self.lstProgram[i][0] == 3 and self.lstProgram[i][1] == 18:
-                        angle = -1 * abs(angle)
-
-                    prev_x = x1
-                    prev_y = y1
-                    prev_z = z1
-
-                    if prev_x is None:
-                        prev_x = 0
-                    if prev_y is None:
-                        prev_y = 0
-                    if prev_z is None:
-                        prev_z = 0
-
-                    for point in range(1, points):
-                        if self.lstProgram[i][0] == 2:
-                            if self.lstProgram[i][1] == 18:
-                                delta = (point * 2 * pi) / points
-                                if delta >= angle:
-                                    break
-                            else:
-                                delta = -1 * (point * 2 * pi) / points
-                                if delta <= angle:
-                                    break
-                        else:
-                            if self.lstProgram[i][1] == 18:
-                                delta = -1 * (point * 2 * pi) / points
-                                if delta <= angle:
-                                    break
-                            else:
-                                delta = (point * 2 * pi) / points
-                                if delta >= angle:
-                                    break
-
-                        x3 = y3 = z3 = 0
-                        if self.lstProgram[i][1] == 17:
-                            x3 = xc + radius * cos(startAngle + delta)
-                            y3 = yc + radius * sin(startAngle + delta)
-                            z3 = z1 + step * point
-
-                        elif self.lstProgram[i][1] == 18:
-                            x3 = xc + radius * cos(startAngle + delta)
-                            y3 = y1 + step * point
-                            z3 = zc + radius * sin(startAngle + delta)
-
-                        elif self.lstProgram[i][1] == 19:
-                            x3 = x1 + step * point
-                            y3 = yc + radius * cos(startAngle + delta)
-                            z3 = zc + radius * sin(startAngle + delta)
-
-                        if self.lstProgram[i][2] == 90:
-                            x = "X" + self.floatToStr(x3) + delim
-                            y = "Y" + self.floatToStr(y3) + delim
-                            z = "Z" + self.floatToStr(z3) + delim
-                        else:
-                            x4 = x3 - prev_x
-                            y4 = y3 - prev_y
-                            z4 = z3 - prev_z
-
-                            prev_x = x3
-                            prev_y = y3
-                            prev_z = z3
-
-                            x = "X" + self.floatToStr(x4) + delim
-                            y = "Y" + self.floatToStr(y4) + delim
-                            z = "Z" + self.floatToStr(z4) + delim
-
-                        if point == 1:
-                            line = (
-                                g_fmt
-                                + "1"
-                                + delim
-                                + "G"
-                                + str(self.lstProgram[i][2])
-                                + delim
-                                + x
-                                + y
-                                + z
-                                + feed
-                                + coolant
-                                + stopPrgm
-                                + comment
-                            )
-                        else:
-                            line = x + y + z
-
-                        lst.append(line.rstrip())
-
-                    if self.lstProgram[i][2] == 90:
-                        line = (
-                            "X"
-                            + self.floatToStr(x2)
-                            + delim
-                            + "Y"
-                            + self.floatToStr(y2)
-                            + delim
-                            + "Z"
-                            + self.floatToStr(z2)
-                        )
-                    else:
-                        x2_val = x2 or 0
-                        y2_val = y2 or 0
-                        z2_val = z2 or 0
-                        prev_x_val = prev_x or 0
-                        prev_y_val = prev_y or 0
-                        prev_z_val = prev_z or 0
-
-                        line = (
-                            "X"
-                            + self.floatToStr(x2_val - prev_x_val)
-                            + delim
-                            + "Y"
-                            + self.floatToStr(y2_val - prev_y_val)
-                            + delim
-                            + "Z"
-                            + self.floatToStr(z2_val - prev_z_val)
-                        )
-
             else:
-                line = (
-                    corLen
-                    + corH
-                    + z
-                    + corRad
-                    + corD
-                    + cycleDrill
-                    + posWcs
-                    + tool
-                    + toolchange
-                    + speed
-                    + speed_code
-                    + coolant
-                    + stopPrgm
-                    + comment
-                )
+                controls = clean
+            if controls:
+                lines.append(controls)
+            continue
 
-            if line != "":
-                lst.append(line.rstrip())
+        controls = _geometry_block_controls(
+            clean,
+            suppress_compensation=False,
+            geometry_g_codes=_MILL_GEOMETRY_G_CODES,
+        )
+        if controls:
+            lines.append(controls)
 
-    else:
-        for i in range(len(self.lst_points)):
-            self.progressBar.setValue(int((i * 100) / len(self.lst_points)))
+        if any(motion.cycle_generated for motion in motions):
+            source = clean or block.raw.strip()
+            lines.append(_format_comment(f"EXPANDED MILL CYCLE: {source}"))
 
-            x = "X" + self.floatToStr(self.lst_points[i][0]) + delim
-            y = "Y" + self.floatToStr(self.lst_points[i][1]) + delim
-            z = "Z" + self.floatToStr(self.lst_points[i][2]) + delim
-            feed = "F" + self.floatToStr(self.lst_feed[i]) + delim
+        _append_mill_motion_chunk(
+            lines,
+            motions,
+            step=step,
+            options=options,
+        )
 
-            if self.lst_feed[i] == self.rapidFeed:
-                line = g_fmt + "0" + delim + x + y + z
-            else:
-                line = g_fmt + "1" + delim + x + y + z + feed
+    if trailer is None:
+        trailer = result.program_end or "M30"
+    lines.extend([trailer, "%"])
+    return "\n".join(_number_full_program_lines(lines, options)) + "\n"
 
-            if i == 0:
-                lst.append(line.rstrip())
-            else:
-                if line.rstrip() != lst[-1]:
-                    lst.append(line.rstrip())
 
-    if self.endPgmExp != "":
-        lst.append(self.endPgmExp.upper())
-    txt = ""
-    lst1 = []
-    lst1.append(self.er)
-    if self.startPgmExp != "":
-        lst1.append(self.startPgmExp.upper())
+def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None = None) -> str:
+    """Export one group per executed turning-cycle block, including G72/G73."""
+    if not result.ok:
+        raise ValueError("Expanded turn cycle export requires a valid turning execution result")
+    options = _turn_program_options(options)
+    lines: list[str] = ["G18"]
+    previous_unit: tuple[float, bool] | None = None
+    group_index = 0
 
-    if self.seqNum:
-        for i in range(len(lst)):
-            line = "N" + str(st) + seq_delim + str(lst[i])
-            st = st + incr
-            lst1.append(line)
-    else:
-        lst1.extend(lst)
+    for step, block, motions in _execution_slices(result):
+        if not motions or not any(motion.cycle_generated for motion in motions):
+            continue
+        group_index += 1
+        clean = _without_sequence_number(_normalize_words_line(block.raw))
+        gcodes = _g_codes(clean)
+        prefix = "FINISH CONTOUR" if 70 in gcodes else "EXPANDED TURN CYCLE"
+        lines.append(_format_comment(f"{prefix} {group_index}: {clean or block.raw.strip()}"))
 
-    toolpath = self.toolPath()
-    if toolpath != "":
-        lst1.append(toolpath)
-    limits = self.toolPathLimits()
-    if limits != "":
-        lst1.append(limits)
-    lst1.append(self.er)
-    txt = "\n".join(lst1)
+        unit_key = (step.unit_scale, step.x_is_diameter)
+        if unit_key != previous_unit:
+            lines.append("G20" if abs(step.unit_scale - 25.4) < 1e-9 else "G21")
+            lines.append("G190" if step.x_is_diameter else "G191")
+            previous_unit = unit_key
 
-    return txt
+        _append_motion_chunk(
+            lines,
+            motions,
+            step=step,
+            options=options,
+            previous_end_mm=None,
+        )
+
+    return "\n".join(_number_full_program_lines(lines, options)) + ("\n" if lines else "")
+
+
+def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
+    return ExportOptions(
+        arc_mode=arc_mode,
+        source_arc_type=int(window.arc_type),
+        incremental=bool(window.incrMode),
+        force_addresses=bool(window.forceAdr),
+        sequence_numbers=bool(window.seqNum),
+        sequence_start=int(window.seqNumStart),
+        sequence_increment=int(window.seqNumIncr),
+        sequence_spacing=bool(window.seqNumSpacing),
+        delimiter=bool(window.delim),
+        leading_zero=bool(window.leadingZero),
+        start_program=str(window.startPgmExp or ""),
+        end_program=str(window.endPgmExp or ""),
+        safety_line=bool(window.safLine),
+    )
+
+
+def export_pgm(window) -> str:
+    """Compatibility entry point for the existing MainWindow export action."""
+    result = getattr(window, "execution_result", None)
+    if result is None or not result.ok:
+        raise ValueError("No valid CNC execution result is available for export")
+
+    mode = int(window.lang)
+    if mode == EXPANDED_TURN_PROGRAM_MODE:
+        if not bool(window.latheMode):
+            raise ValueError("Expanded turn program export requires Lathe Mode")
+        return export_full_program(
+            result,
+            str(window.ui.editor.text()).splitlines(),
+            _window_export_options(window, arc_mode=2),
+        )
+
+    if mode == EXPANDED_MILL_PROGRAM_MODE:
+        if bool(window.latheMode):
+            raise ValueError("Expanded mill program export requires Milling Mode")
+        return export_full_mill_program(
+            result,
+            str(window.ui.editor.text()).splitlines(),
+            _window_export_options(window, arc_mode=0),
+        )
+
+    return export_result(result, _window_export_options(window, arc_mode=mode))
