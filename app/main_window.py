@@ -1,5 +1,6 @@
 """Main application window."""
 
+import json
 import re
 import time
 from math import floor
@@ -18,7 +19,6 @@ from PyQt6.QtWidgets import (
 from pyqtgraph.opengl import GLGridItem, GLLinePlotItem, GLScatterPlotItem
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
-from app import get_version
 from app.gcode.core import (
     calculate_scene_geometry,
     format_gcode_number,
@@ -29,7 +29,15 @@ from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace, trace_statistics
 from app.plot_grid import adaptive_grid_geometry
 from app.settings import get_settings
-from app.ui.dialogs import BlockNum, Export, Find
+from app.ui.dialogs import (
+    About,
+    BlockNum,
+    Export,
+    Find,
+    MillingTools,
+    TurningTools,
+    Wcs,
+)
 from app.ui.generated.main_ui import Ui_MainWindow
 from app.ui.lexer import GcodeLexer
 
@@ -47,6 +55,99 @@ RECENT_FILES_LIMIT = 5
 PICK_DISTANCE_PX = 8.0
 CURSOR_SIZE_PX = 7.0
 RAPID_COLOR = "#d02020"
+
+
+def _normalized_tools(raw):
+    """Return validated tool definitions from a QSettings JSON value."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+
+    tools = {}
+    for raw_key, raw_spec in raw.items():
+        if not isinstance(raw_spec, dict):
+            continue
+        key = str(raw_key).strip().upper()
+        digits = key[1:] if key.startswith("T") else key
+        if not digits.isdigit() or not 1 <= len(digits) <= 4:
+            continue
+        key = f"T{int(digits):04d}"
+
+        tool_type = str(raw_spec.get("type", "turning")).strip().lower()
+        if tool_type not in {"turning", "drill"}:
+            continue
+        spec = {"type": tool_type}
+
+        description = raw_spec.get("description")
+        if isinstance(description, str) and description.strip():
+            spec["description"] = " ".join(description.split())
+
+        if tool_type == "turning":
+            try:
+                radius = float(raw_spec.get("noseRadius", 0.0))
+                orientation = int(raw_spec.get("tipOrientation", 0))
+            except (TypeError, ValueError):
+                continue
+            if radius <= 0.0 or orientation not in range(1, 10):
+                continue
+            spec["noseRadius"] = radius
+            spec["tipOrientation"] = orientation
+
+        tools[key] = spec
+    return tools
+
+
+def _normalized_milling_tools(raw):
+    """Return validated milling tool geometry from a QSettings JSON value."""
+    if isinstance(raw, str):
+        try:
+            raw = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+    if not isinstance(raw, dict):
+        return {}
+
+    tools = {}
+    valid_types = {"mill_flat", "mill_bull", "mill_ball", "drill"}
+    for raw_key, raw_spec in raw.items():
+        if not isinstance(raw_spec, dict):
+            continue
+        key = str(raw_key).strip().upper()
+        digits = key[1:] if key.startswith("T") else key
+        if not digits.isdigit() or not 1 <= len(digits) <= 4 or int(digits) <= 0:
+            continue
+        key = f"T{int(digits):04d}"
+
+        tool_type = str(raw_spec.get("type", "mill_flat")).strip().lower()
+        if tool_type not in valid_types:
+            continue
+        try:
+            diameter = max(0.0, float(raw_spec.get("diameter", 0.0)))
+            length = max(0.0, float(raw_spec.get("length", 0.0)))
+            radius = max(0.0, float(raw_spec.get("cornerRadius", 0.0)))
+        except (TypeError, ValueError):
+            continue
+
+        if tool_type == "mill_ball":
+            radius = diameter / 2.0
+        elif tool_type != "mill_bull":
+            radius = 0.0
+
+        spec = {
+            "type": tool_type,
+            "diameter": diameter,
+            "cornerRadius": radius,
+            "length": length,
+        }
+        description = raw_spec.get("description")
+        if isinstance(description, str) and description.strip():
+            spec["description"] = " ".join(description.split())
+        tools[key] = spec
+    return tools
 
 
 def _normalized_recent_files(paths, limit=RECENT_FILES_LIMIT):
@@ -92,19 +193,20 @@ class PlotNavigation(QObject):
         if watched is not self.view:
             return False
 
+        handled = False
         event_type = event.type()
         if event_type == QEvent.Type.MouseButtonPress:
             if event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 self._drag_pos = None
                 self.on_pick(event.position())
-                return True
-            if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
+                handled = True
+            elif event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
                 self._drag_pos = event.position()
-                return True
+                handled = True
         elif event_type == QEvent.Type.MouseButtonRelease:
             if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
                 self._drag_pos = None
-                return True
+                handled = True
         elif event_type == QEvent.Type.MouseMove and self._drag_pos is not None:
             pos = event.position()
             diff = pos - self._drag_pos
@@ -113,22 +215,21 @@ class PlotNavigation(QObject):
             if event.buttons() & Qt.MouseButton.LeftButton:
                 self.view.pan(diff.x(), diff.y(), 0, relative="view")
                 QTimer.singleShot(0, self.on_view_changed)
-                return True
-            if event.buttons() & Qt.MouseButton.MiddleButton:
+                handled = True
+            elif event.buttons() & Qt.MouseButton.MiddleButton:
                 if self.view.opts["rotationMethod"] == "euler":
                     self.view.orbit(-diff.x(), diff.y())
                 else:
                     self.view.pan(diff.x(), diff.y(), 0, relative="view")
                     QTimer.singleShot(0, self.on_view_changed)
-                return True
-
+                handled = True
         elif event_type == QEvent.Type.Wheel:
             # GLViewWidget applies its zoom after event filters have run.
             QTimer.singleShot(0, self.on_view_changed)
         elif event_type == QEvent.Type.Resize:
             QTimer.singleShot(0, self.on_view_changed)
 
-        return False
+        return handled
 
 
 class MainWindow(QMainWindow):
@@ -184,6 +285,17 @@ class MainWindow(QMainWindow):
         self.xPosMach = self.settings.value("PLOT/MACHINE_XPOS", 0, type=float)
         self.yPosMach = self.settings.value("PLOT/MACHINE_YPOS", 0, type=float)
         self.zPosMach = self.settings.value("PLOT/MACHINE_ZPOS", 0, type=float)
+        self.homeConfigured = self.settings.value("CNC/HOME_CONFIGURED", True, type=bool)
+        self.wcsOffsets = {
+            code: (
+                self.settings.value(f"CNC/G{code}_X", 0.0, type=float),
+                self.settings.value(f"CNC/G{code}_Y", 0.0, type=float),
+                self.settings.value(f"CNC/G{code}_Z", 0.0, type=float),
+            )
+            for code in range(54, 60)
+        }
+        self.tools = _normalized_tools(self.settings.value("CNC/TOOLS_JSON", "{}"))
+        self.millingTools = _normalized_milling_tools(self.settings.value("CNC/MILLING_TOOLS_JSON", "{}"))
         self.latheMode = self.settings.value("PLOT/LATHE_MODE", False, type=bool)
         self.ui.actionLatheMode.setChecked(self.latheMode)
         self.plotLineColor = self.settings.value("PLOT/LINE_COLOR", "#0000ff")
@@ -272,9 +384,13 @@ class MainWindow(QMainWindow):
         self.resize(widthApp, heightApp)
         self.move(x, y)
 
+        self.aboutDlg = About(self)
         self.exportDlg = Export(self)
         self.findDlg = Find(self)
         self.blockNumDlg = BlockNum(self)
+        self.wcsDlg = Wcs(self)
+        self.turningToolsDlg = TurningTools(self)
+        self.millingToolsDlg = MillingTools(self)
         self.timer = QBasicTimer()
         self.autoUpdateTimer = QTimer(self)
         self.autoUpdateTimer.setSingleShot(True)
@@ -296,6 +412,19 @@ class MainWindow(QMainWindow):
         self.settings.setValue("GRID_COLOR", self.plotGridColor)
         self.settings.setValue("GRID_SIZE", self.plotGridSize)
         self.settings.setValue("GRID_SPACING", self.plotGridSpacing)
+        self.settings.endGroup()
+        self.settings.beginGroup("CNC")
+        self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
+        for code in range(54, 60):
+            x_offset, y_offset, z_offset = self.wcsOffsets.get(code, (0.0, 0.0, 0.0))
+            self.settings.setValue(f"G{code}_X", x_offset)
+            self.settings.setValue(f"G{code}_Y", y_offset)
+            self.settings.setValue(f"G{code}_Z", z_offset)
+        self.settings.setValue("TOOLS_JSON", json.dumps(self.tools, ensure_ascii=False, sort_keys=True))
+        self.settings.setValue(
+            "MILLING_TOOLS_JSON",
+            json.dumps(self.millingTools, ensure_ascii=False, sort_keys=True),
+        )
         self.settings.endGroup()
         self.settings.beginGroup("EDITOR")
         self.settings.setValue("CARETLINE_COLOR", self.caretLineColor)
@@ -383,6 +512,9 @@ class MainWindow(QMainWindow):
         self.ui.actionRemoveSpaces.triggered.connect(self.removeSpaces)
         self.ui.actionRemoveEmptyLines.triggered.connect(self.removeLines)
         self.ui.actionStatistics.triggered.connect(self.statistics)
+        self.ui.actionWCS.triggered.connect(lambda: self.wcsDlg.show())
+        self.ui.actionTurningTools.triggered.connect(lambda: self.turningToolsDlg.show())
+        self.ui.actionMillingTools.triggered.connect(lambda: self.millingToolsDlg.show())
 
         self.ui.actionRefresh.triggered.connect(self.updateData)
         self.ui.actionZoom_In.triggered.connect(self.zoomIn)
@@ -415,7 +547,7 @@ class MainWindow(QMainWindow):
         self.ui.editor.cursorPositionChanged.connect(self.plotCurLine)
         self.ui.horizontalSlider.sliderMoved.connect(self.sliderDrag)
         self.ui.horizontalSlider.valueChanged.connect(self.valueHandler)
-        self.ui.actionAbout.triggered.connect(self.about)
+        self.ui.actionAbout.triggered.connect(self.aboutDlg.show)
 
         self.ui.langCombo.currentIndexChanged.connect(self.changeLang)
 
@@ -872,10 +1004,12 @@ class MainWindow(QMainWindow):
         result = execute(
             source,
             language=language,
+            tools=getattr(self, "tools", None),
             home_x=self.xPosMach,
             home_y=self.yPosMach,
             home_z=self.zPosMach,
-            emulate_g28_home=True,
+            wcs_offsets=getattr(self, "wcsOffsets", None),
+            emulate_g28_home=getattr(self, "homeConfigured", True),
         )
         if not result.ok and show_errors:
             message = "\n".join(f"{d.code}: {d.message}" for d in result.diagnostics) or "Unable to execute G-code"
@@ -1447,11 +1581,3 @@ class MainWindow(QMainWindow):
         zs = [p.z for p in self.render_points]
         center, self.dist = calculate_scene_geometry(xs, ys, zs)
         self.ui.graphicsView.opts["center"] = QVector3D(*center)
-
-    def about(self):
-        """Show application about dialog."""
-        QMessageBox.about(
-            self,
-            "Easy G-code Plot",
-            f"This program is free software\nDeveloper: MaestroFusion360\nVersion: {get_version()}\n2025/12/09",
-        )

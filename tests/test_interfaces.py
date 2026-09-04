@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from gcode_samples import MILLING_ARC_PLANES, MILLING_CYCLES, MILLING_HELIX_FULL_CIRCLE
 
 from app.cli import main
 from app.gcode.exporter import (
@@ -237,8 +238,6 @@ M99
 
 
 def test_mill_full_program_expands_cycles_and_round_trips_trace():
-    from gcode_samples import MILLING_CYCLES
-
     result = execute(MILLING_CYCLES, language="fanuc_mill")
     assert result.ok, result.diagnostics
     assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
@@ -255,11 +254,8 @@ def test_mill_full_program_expands_cycles_and_round_trips_trace():
     _assert_mill_round_trip(MILLING_CYCLES, text)
 
 
-@pytest.mark.parametrize("sample_name", ["MILLING_ARC_PLANES", "MILLING_HELIX_FULL_CIRCLE"])
-def test_mill_full_program_round_trips_arc_planes_and_full_circle(sample_name):
-    import gcode_samples
-
-    source = getattr(gcode_samples, sample_name)
+@pytest.mark.parametrize("source", [MILLING_ARC_PLANES, MILLING_HELIX_FULL_CIRCLE])
+def test_mill_full_program_round_trips_arc_planes_and_full_circle(source):
     result = execute(source, language="fanuc_mill")
     assert result.ok, result.diagnostics
 

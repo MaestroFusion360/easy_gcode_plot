@@ -1,3 +1,4 @@
+# pylint: disable=protected-access
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -74,6 +75,94 @@ def test_gui_executes_editor_source_through_same_kernel_contract():
     assert gui_result.ok == direct_result.ok
     assert gui_result.motions == direct_result.motions
     assert gui_result.diagnostics == direct_result.diagnostics
+
+
+def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch):
+    captured = {}
+    expected = SimpleNamespace(ok=True, diagnostics=(), motions=())
+
+    def fake_execute(source, **kwargs):
+        captured["source"] = source
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(main_window, "execute", fake_execute)
+    tools = {"T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1}}
+    offsets = {54: (10.0, 20.0, -2.0)}
+    window = SimpleNamespace(
+        ui=SimpleNamespace(editor=_Editor("G54\nG1 X20 Y30 Z-5"), statusbar=_StatusBar()),
+        latheMode=False,
+        xPosMach=100.0,
+        yPosMach=200.0,
+        zPosMach=50.0,
+        homeConfigured=False,
+        wcsOffsets=offsets,
+        tools=tools,
+    )
+
+    result = main_window.MainWindow._execute_editor_source(window, show_errors=False)
+
+    assert result is expected
+    assert captured["language"] == "fanuc_mill"
+    assert captured["tools"] == tools
+    assert captured["wcs_offsets"] == offsets
+    assert captured["home_x"] == 100.0
+    assert captured["home_y"] == 200.0
+    assert captured["home_z"] == 50.0
+    assert captured["emulate_g28_home"] is False
+
+
+def test_tool_settings_normalization_matches_turning_kernel_keys():
+    raw = {
+        "101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
+        "T2": {"type": "drill", "description": "  center   drill "},
+        "bad": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
+        "T0303": {"type": "turning", "noseRadius": 0.0, "tipOrientation": 3},
+    }
+
+    assert main_window._normalized_tools(raw) == {
+        "T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
+        "T0002": {"type": "drill", "description": "center drill"},
+    }
+
+
+def test_milling_tool_settings_normalization_matches_cnceditor_geometry_rules():
+    raw = {
+        "1": {"type": "mill_flat", "diameter": 10, "cornerRadius": 2, "length": 50},
+        "T2": {"type": "mill_bull", "diameter": 12, "cornerRadius": 1.5, "length": 60},
+        "T3": {"type": "mill_ball", "diameter": 8, "cornerRadius": 99, "length": 45},
+        "4": {"type": "drill", "diameter": 6, "cornerRadius": 1, "length": 70, "description": "  center   drill "},
+        "bad": {"type": "mill_flat", "diameter": 10, "length": 20},
+        "T5": {"type": "unknown", "diameter": 10, "length": 20},
+    }
+
+    assert main_window._normalized_milling_tools(raw) == {
+        "T0001": {
+            "type": "mill_flat",
+            "diameter": 10.0,
+            "cornerRadius": 0.0,
+            "length": 50.0,
+        },
+        "T0002": {
+            "type": "mill_bull",
+            "diameter": 12.0,
+            "cornerRadius": 1.5,
+            "length": 60.0,
+        },
+        "T0003": {
+            "type": "mill_ball",
+            "diameter": 8.0,
+            "cornerRadius": 4.0,
+            "length": 45.0,
+        },
+        "T0004": {
+            "type": "drill",
+            "diameter": 6.0,
+            "cornerRadius": 0.0,
+            "length": 70.0,
+            "description": "center drill",
+        },
+    }
 
 
 def test_gui_keeps_partial_turning_trace_renderable_when_kernel_reports_unsupported_cycle():

@@ -63,6 +63,35 @@ SUPPORTED_G_CODES = frozenset(
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
 
 
+WcsOffset = tuple[float, float] | tuple[float, float, float]
+WcsOffsets = dict[int, WcsOffset]
+
+
+def _mill_wcs_offsets(wcs_offsets: WcsOffsets | None) -> dict[int, tuple[float, float, float]]:
+    """Normalize public WCS values to XYZ for the milling kernel."""
+    out = {}
+    for code, values in (wcs_offsets or {}).items():
+        if len(values) == 2:
+            x, z = values
+            out[code] = (float(x), 0.0, float(z))
+        else:
+            x, y, z = values
+            out[code] = (float(x), float(y), float(z))
+    return out
+
+
+def _turn_wcs_offsets(wcs_offsets: WcsOffsets | None) -> dict[int, tuple[float, float]]:
+    """Normalize public WCS values to XZ for the turning kernel."""
+    out = {}
+    for code, values in (wcs_offsets or {}).items():
+        if len(values) == 2:
+            x, z = values
+        else:
+            x, _y, z = values
+        out[code] = (float(x), float(z))
+    return out
+
+
 def execute(
     source: str,
     language: str = "fanuc_turn",
@@ -75,7 +104,7 @@ def execute(
     home_x: float = 0.0,
     home_y: float = 0.0,
     home_z: float = 0.0,
-    wcs_offsets: dict[int, tuple[float, float]] | None = None,
+    wcs_offsets: WcsOffsets | None = None,
     emulate_g28_home: bool = False,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
@@ -103,6 +132,7 @@ def execute(
             source,
             skip_optional_blocks=skip_optional_blocks,
             home=(home_x, home_y, home_z),
+            wcs_offsets=_mill_wcs_offsets(wcs_offsets),
         )
 
     program: Program | None = None
@@ -125,7 +155,7 @@ def execute(
             skip_optional_blocks=skip_optional_blocks,
             home_x=home_x,
             home_z=home_z,
-            wcs_offsets=wcs_offsets,
+            wcs_offsets=_turn_wcs_offsets(wcs_offsets),
             emulate_g28_home=emulate_g28_home,
             eval_words_fn=eval_words,
             try_wcs_from_gcode_fn=try_wcs_from_gcode,

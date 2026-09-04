@@ -1,12 +1,42 @@
-"""Find/replace, export and block-numbering dialogs."""
+"""Find/replace, export, CNC configuration and block-numbering dialogs."""
+
+import copy
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog
+from PyQt6.QtWidgets import (
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QLineEdit,
+    QMessageBox,
+    QTableWidgetItem,
+    QVBoxLayout,
+)
 
+from app import get_version
 from app.gcode.exporter import EXPANDED_MILL_PROGRAM_MODE, EXPANDED_TURN_PROGRAM_MODE
+from app.ui.generated.about import Ui_AboutDlg
 from app.ui.generated.block_num import Ui_BlockNumberDlg
 from app.ui.generated.export import Ui_ExportOptDlg
 from app.ui.generated.find_replace import Ui_Find
+from app.ui.generated.milling_tools import Ui_MillingToolsDlg
+from app.ui.generated.turning_tools import Ui_TurningToolsDlg
+from app.ui.generated.wcs import Ui_WcsDlg
+
+
+class About(QDialog):
+    """Application information dialog."""
+
+    def __init__(self, parent=None):
+        """Initialize static application metadata and the runtime version."""
+        super().__init__(parent)
+        self.ui = Ui_AboutDlg()
+        self.ui.setupUi(self)
+        self.setWindowIcon(self.parent().windowIcon())
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.ui.versionLabel.setText(f"Version: {get_version()}")
 
 
 class BlockNum(QDialog):
@@ -225,3 +255,443 @@ class Find(QDialog):
                 self.ui.checkWholeWord.isChecked(),
             )
         )
+
+
+class Wcs(QDialog):
+    """Dialog for configuring G54-G59 XYZ offsets and the G28 home position."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.ui = Ui_WcsDlg()
+        self.ui.setupUi(self)
+        self.setWindowIcon(self.parent().windowIcon())
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.accepted.connect(self.applyValues)
+        self.loadValues()
+
+    def showEvent(self, event):
+        """Reload current values whenever the dialog is opened."""
+        self.loadValues()
+        super().showEvent(event)
+
+    def loadValues(self):
+        """Populate controls from the parent CNC configuration."""
+        offsets = getattr(self.parent(), "wcsOffsets", {})
+        for code in range(54, 60):
+            values = offsets.get(code, (0.0, 0.0, 0.0))
+            if len(values) == 2:
+                x, z = values
+                y = 0.0
+            else:
+                x, y, z = values
+            getattr(self.ui, f"g{code}X").setValue(float(x))
+            getattr(self.ui, f"g{code}Y").setValue(float(y))
+            getattr(self.ui, f"g{code}Z").setValue(float(z))
+        for axis, attr in (("X", "xPosMach"), ("Y", "yPosMach"), ("Z", "zPosMach")):
+            getattr(self.ui, f"home{axis}").setValue(float(getattr(self.parent(), attr, 0.0)))
+        self.ui.homeConfiguredCheck.setChecked(bool(getattr(self.parent(), "homeConfigured", True)))
+
+    def applyValues(self):
+        """Store XYZ WCS and G28 values on the main window and refresh the trace."""
+        self.parent().wcsOffsets = {
+            code: (
+                getattr(self.ui, f"g{code}X").value(),
+                getattr(self.ui, f"g{code}Y").value(),
+                getattr(self.ui, f"g{code}Z").value(),
+            )
+            for code in range(54, 60)
+        }
+        for axis, attr in (("X", "xPosMach"), ("Y", "yPosMach"), ("Z", "zPosMach")):
+            setattr(self.parent(), attr, getattr(self.ui, f"home{axis}").value())
+        self.parent().homeConfigured = self.ui.homeConfiguredCheck.isChecked()
+        self.parent().updateData()
+
+
+class _TurningToolEditor(QDialog):
+    """Small Add/Edit dialog for FANUC turning tool definitions."""
+
+    def __init__(self, parent=None, tool_code=None, spec=None):
+        super().__init__(parent)
+        spec = spec or {}
+        self.setWindowTitle("Edit Tool" if tool_code else "Add Tool")
+        self.setModal(True)
+        self.setMinimumWidth(400)
+
+        form = QFormLayout()
+        self.toolCode = QLineEdit(tool_code or "T0101", self)
+        self.toolType = QComboBox(self)
+        self.toolType.addItems(["turning", "drill"])
+        self.toolType.setCurrentText(str(spec.get("type", "turning")))
+        self.noseRadius = QDoubleSpinBox(self)
+        self.noseRadius.setDecimals(3)
+        self.noseRadius.setRange(0.001, 999999.999)
+        self.noseRadius.setValue(float(spec.get("noseRadius", 0.4)))
+        self.tipOrientation = QComboBox(self)
+        self.tipOrientation.addItems([f"P{value}" for value in range(1, 10)])
+        self.tipOrientation.setCurrentText(f"P{int(spec.get('tipOrientation', 1))}")
+        self.description = QLineEdit(str(spec.get("description", "")), self)
+
+        form.addRow("T code", self.toolCode)
+        form.addRow("Type", self.toolType)
+        form.addRow("Nose radius, mm", self.noseRadius)
+        form.addRow("Tip orientation", self.tipOrientation)
+        form.addRow("Description", self.description)
+
+        self.buttonBox = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=self,
+        )
+        self.buttonBox.accepted.connect(self.validateAndAccept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(self.buttonBox)
+        self.toolType.currentTextChanged.connect(self.updateTurningFields)
+        self.updateTurningFields(self.toolType.currentText())
+        self.toolCode.selectAll()
+        self.toolCode.setFocus()
+
+    def updateTurningFields(self, tool_type):
+        """Enable nose data only for turning tools."""
+        enabled = tool_type == "turning"
+        self.noseRadius.setEnabled(enabled)
+        self.tipOrientation.setEnabled(enabled)
+
+    def validateAndAccept(self):
+        """Validate the FANUC T word before accepting the editor."""
+        raw = self.toolCode.text().strip().upper()
+        digits = raw[1:] if raw.startswith("T") else raw
+        if not digits.isdigit() or not 1 <= len(digits) <= 4:
+            QMessageBox.warning(self, "Turning Tools", "T code must contain 1 to 4 digits.")
+            return
+        self.accept()
+
+    def value(self):
+        """Return normalized tool code and specification."""
+        raw = self.toolCode.text().strip().upper()
+        digits = raw[1:] if raw.startswith("T") else raw
+        key = f"T{int(digits):04d}"
+        tool_type = self.toolType.currentText()
+        spec = {"type": tool_type}
+        description = " ".join(self.description.text().split())
+        if description:
+            spec["description"] = description
+        if tool_type == "turning":
+            spec["noseRadius"] = self.noseRadius.value()
+            spec["tipOrientation"] = self.tipOrientation.currentIndex() + 1
+        return key, spec
+
+
+class TurningTools(QDialog):
+    """Dialog for editing turning tool-nose compensation definitions."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.ui = Ui_TurningToolsDlg()
+        self.ui.setupUi(self)
+        self.setWindowIcon(self.parent().windowIcon())
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.pendingTools = {}
+        self.ui.addButton.clicked.connect(self.addTool)
+        self.ui.editButton.clicked.connect(self.editTool)
+        self.ui.removeButton.clicked.connect(self.removeTool)
+        self.ui.toolTable.doubleClicked.connect(self.editTool)
+        self.accepted.connect(self.applyValues)
+        self.loadValues()
+
+    def showEvent(self, event):
+        """Discard stale pending edits and reload the current tool table."""
+        self.loadValues()
+        super().showEvent(event)
+
+    def loadValues(self):
+        """Copy the current tool map into the dialog editing buffer."""
+        self.pendingTools = copy.deepcopy(getattr(self.parent(), "tools", {}))
+        self.refreshTable()
+
+    def refreshTable(self, selected_key=None):
+        """Rebuild the visible table from the pending tool map."""
+        table = self.ui.toolTable
+        table.setRowCount(0)
+        selected_row = -1
+        for row, key in enumerate(sorted(self.pendingTools)):
+            spec = self.pendingTools[key]
+            is_turning = spec.get("type") == "turning"
+            orientation = f"P{int(spec.get('tipOrientation', 1))}" if is_turning else "—"
+            radius = f"{float(spec.get('noseRadius', 0.0)):g}" if is_turning else "—"
+            values = (
+                orientation,
+                key,
+                "Turning tool" if is_turning else "Drill",
+                radius,
+                str(spec.get("description", "")),
+            )
+            table.insertRow(row)
+            for column, value in enumerate(values):
+                table.setItem(row, column, QTableWidgetItem(value))
+            if key == selected_key:
+                selected_row = row
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+        if selected_row >= 0:
+            table.selectRow(selected_row)
+
+    def selectedTool(self):
+        """Return the T code from the selected table row."""
+        row = self.ui.toolTable.currentRow()
+        if row < 0:
+            return None
+        item = self.ui.toolTable.item(row, 1)
+        return item.text() if item is not None else None
+
+    def addTool(self):
+        """Open the tool editor for a new definition."""
+        editor = _TurningToolEditor(self)
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        key, spec = editor.value()
+        self.pendingTools[key] = spec
+        self.refreshTable(key)
+
+    def editTool(self, *_args):
+        """Edit the currently selected tool definition."""
+        key = self.selectedTool()
+        if key is None:
+            return
+        editor = _TurningToolEditor(self, key, self.pendingTools[key])
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_key, spec = editor.value()
+        if new_key != key:
+            self.pendingTools.pop(key, None)
+        self.pendingTools[new_key] = spec
+        self.refreshTable(new_key)
+
+    def removeTool(self):
+        """Remove the selected pending tool definition."""
+        key = self.selectedTool()
+        if key is None:
+            return
+        self.pendingTools.pop(key, None)
+        self.refreshTable()
+
+    def applyValues(self):
+        """Commit the tool table to the main window and refresh the trace."""
+        self.parent().tools = copy.deepcopy(self.pendingTools)
+        self.parent().updateData()
+
+
+_MILLING_TOOL_TYPES = {
+    "mill_flat": "Mill Flat",
+    "mill_bull": "Mill Bull",
+    "mill_ball": "Mill Ball",
+    "drill": "Drill",
+}
+
+
+class _MillingToolEditor(QDialog):
+    """Add/Edit dialog for milling tool geometry."""
+
+    def __init__(self, parent=None, tool_code=None, spec=None):
+        super().__init__(parent)
+        spec = spec or {}
+        self.setWindowTitle("Edit Milling Tool" if tool_code else "Add Milling Tool")
+        self.setModal(True)
+        self.setMinimumWidth(420)
+
+        form = QFormLayout()
+        self.toolCode = QLineEdit(tool_code or "T1", self)
+        self.toolType = QComboBox(self)
+        for key, label in _MILLING_TOOL_TYPES.items():
+            self.toolType.addItem(label, key)
+        type_index = self.toolType.findData(str(spec.get("type", "mill_flat")))
+        self.toolType.setCurrentIndex(max(0, type_index))
+
+        self.diameter = QDoubleSpinBox(self)
+        self.diameter.setDecimals(3)
+        self.diameter.setRange(0.0, 10000.0)
+        self.diameter.setValue(float(spec.get("diameter", 0.0)))
+
+        self.cornerRadius = QDoubleSpinBox(self)
+        self.cornerRadius.setDecimals(3)
+        self.cornerRadius.setRange(0.0, 10000.0)
+        self.cornerRadius.setValue(float(spec.get("cornerRadius", 0.0)))
+
+        self.length = QDoubleSpinBox(self)
+        self.length.setDecimals(3)
+        self.length.setRange(0.0, 10000.0)
+        self.length.setValue(float(spec.get("length", 0.0)))
+
+        self.description = QLineEdit(str(spec.get("description", "")), self)
+
+        form.addRow("T code", self.toolCode)
+        form.addRow("Type", self.toolType)
+        form.addRow("Diameter, mm", self.diameter)
+        form.addRow("Corner radius, mm", self.cornerRadius)
+        form.addRow("Length, mm", self.length)
+        form.addRow("Description", self.description)
+
+        self.buttonBox = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
+            parent=self,
+        )
+        self.buttonBox.accepted.connect(self.validateAndAccept)
+        self.buttonBox.rejected.connect(self.reject)
+
+        layout = QVBoxLayout(self)
+        layout.addLayout(form)
+        layout.addWidget(self.buttonBox)
+
+        self.toolType.currentIndexChanged.connect(self.updateRadiusField)
+        self.diameter.valueChanged.connect(self.updateBallRadius)
+        self.updateRadiusField()
+        self.toolCode.selectAll()
+        self.toolCode.setFocus()
+
+    def currentType(self):
+        """Return the stable milling tool type key."""
+        return str(self.toolType.currentData())
+
+    def updateRadiusField(self, *_args):
+        """Match CNCEditor radius rules for flat, bull, ball and drill tools."""
+        tool_type = self.currentType()
+        self.cornerRadius.setEnabled(tool_type == "mill_bull")
+        if tool_type == "mill_ball":
+            self.cornerRadius.setValue(self.diameter.value() / 2.0)
+        elif tool_type != "mill_bull":
+            self.cornerRadius.setValue(0.0)
+
+    def updateBallRadius(self, *_args):
+        """Keep ball radius equal to half of tool diameter."""
+        if self.currentType() == "mill_ball":
+            self.cornerRadius.setValue(self.diameter.value() / 2.0)
+
+    def validateAndAccept(self):
+        """Validate a compact FANUC T word before accepting the editor."""
+        raw = self.toolCode.text().strip().upper()
+        digits = raw[1:] if raw.startswith("T") else raw
+        if not digits.isdigit() or not 1 <= len(digits) <= 4 or int(digits) <= 0:
+            QMessageBox.warning(self, "Milling Tools", "T code must contain 1 to 4 non-zero digits.")
+            return
+        self.accept()
+
+    def value(self):
+        """Return normalized tool code and milling geometry."""
+        raw = self.toolCode.text().strip().upper()
+        digits = raw[1:] if raw.startswith("T") else raw
+        key = f"T{int(digits):04d}"
+        tool_type = self.currentType()
+        diameter = self.diameter.value()
+        radius = self.cornerRadius.value()
+        if tool_type == "mill_ball":
+            radius = diameter / 2.0
+        elif tool_type != "mill_bull":
+            radius = 0.0
+        spec = {
+            "type": tool_type,
+            "diameter": diameter,
+            "cornerRadius": radius,
+            "length": self.length.value(),
+        }
+        description = " ".join(self.description.text().split())
+        if description:
+            spec["description"] = description
+        return key, spec
+
+
+class MillingTools(QDialog):
+    """Dialog for milling tool geometry stored independently from turning tools."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.ui = Ui_MillingToolsDlg()
+        self.ui.setupUi(self)
+        self.setWindowIcon(self.parent().windowIcon())
+        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.pendingTools = {}
+        self.ui.addButton.clicked.connect(self.addTool)
+        self.ui.editButton.clicked.connect(self.editTool)
+        self.ui.removeButton.clicked.connect(self.removeTool)
+        self.ui.toolTable.doubleClicked.connect(self.editTool)
+        self.accepted.connect(self.applyValues)
+        self.loadValues()
+
+    def showEvent(self, event):
+        """Reload saved milling data whenever the dialog is opened."""
+        self.loadValues()
+        super().showEvent(event)
+
+    def loadValues(self):
+        """Copy current milling tool data into the dialog editing buffer."""
+        self.pendingTools = copy.deepcopy(getattr(self.parent(), "millingTools", {}))
+        self.refreshTable()
+
+    def refreshTable(self, selected_key=None):
+        """Rebuild the visible milling tool table."""
+        table = self.ui.toolTable
+        table.setRowCount(0)
+        selected_row = -1
+        for row, key in enumerate(sorted(self.pendingTools)):
+            spec = self.pendingTools[key]
+            tool_type = str(spec.get("type", "mill_flat"))
+            values = (
+                key,
+                _MILLING_TOOL_TYPES.get(tool_type, "Mill Flat"),
+                f"{float(spec.get('diameter', 0.0)):g}",
+                f"{float(spec.get('cornerRadius', 0.0)):g}",
+                f"{float(spec.get('length', 0.0)):g}",
+                str(spec.get("description", "")),
+            )
+            table.insertRow(row)
+            for column, value in enumerate(values):
+                table.setItem(row, column, QTableWidgetItem(value))
+            if key == selected_key:
+                selected_row = row
+        table.resizeColumnsToContents()
+        table.horizontalHeader().setStretchLastSection(True)
+        if selected_row >= 0:
+            table.selectRow(selected_row)
+
+    def selectedTool(self):
+        """Return the selected normalized T code."""
+        row = self.ui.toolTable.currentRow()
+        if row < 0:
+            return None
+        item = self.ui.toolTable.item(row, 0)
+        return item.text() if item is not None else None
+
+    def addTool(self):
+        """Add a milling tool definition."""
+        editor = _MillingToolEditor(self)
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        key, spec = editor.value()
+        self.pendingTools[key] = spec
+        self.refreshTable(key)
+
+    def editTool(self, *_args):
+        """Edit the selected milling tool definition."""
+        key = self.selectedTool()
+        if key is None:
+            return
+        editor = _MillingToolEditor(self, key, self.pendingTools[key])
+        if editor.exec() != QDialog.DialogCode.Accepted:
+            return
+        new_key, spec = editor.value()
+        if new_key != key:
+            self.pendingTools.pop(key, None)
+        self.pendingTools[new_key] = spec
+        self.refreshTable(new_key)
+
+    def removeTool(self):
+        """Remove the selected milling tool definition."""
+        key = self.selectedTool()
+        if key is None:
+            return
+        self.pendingTools.pop(key, None)
+        self.refreshTable()
+
+    def applyValues(self):
+        """Store milling tool data without changing or rebuilding the trace."""
+        self.parent().millingTools = copy.deepcopy(self.pendingTools)

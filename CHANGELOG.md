@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.1 - 2026-09-04
+
+- Updated application icons `app/resources/icons/logo.png` and `logo.ico`.
+- Refactored the About dialog into a dedicated Qt Designer form and generated PyQt6 UI module.
+- Updated the About dialog layout, application description, MIT license text and copyright information.
+- Added persistent WCS configuration for `G54-G59` with full `X/Y/Z` offsets and configurable `G28` home coordinates.
+- Extended WCS handling so milling uses full XYZ offsets while turning continues to use the relevant X/Z components.
+- Fixed the public milling execution path so configured `wcs_offsets` are passed into the milling kernel.
+- Split the previous generic Tools dialog into separate `Turning Tools` and `Milling Tools` dialogs.
+- Moved `WCS`, `Turning Tools` and `Milling Tools` from `CNC Functions` to the `Settings` menu.
+- Added persistent milling tool definitions with tool type, diameter, corner radius, length and description.
+- Added milling tool presets for flat end mills, bull-nose mills, ball end mills and drills.
+- Kept milling tool configuration informational only; it does not modify Motion Trace or milling geometry.
+- Retained turning tool settings for the existing tool-nose compensation workflow.
+- Regenerated Qt resource bindings so updated application artwork is used by the packaged UI.
+
 ## 1.2.0 — 2026-09-04
 
 - Added source-aware expanded program export for both machine modes: `EXPANDED TURN PROGRAM` in Lathe Mode and `EXPANDED MILL PROGRAM` in Milling Mode; CLI `--mode program` supports both languages while `--mode cycles` remains turning-only.

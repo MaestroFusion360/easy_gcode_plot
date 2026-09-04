@@ -106,6 +106,42 @@ def test_milling_wcs_fixture_executes_four_complete_contours(fixture_text):
     assert max(motion.end_y for motion in result.motions) == pytest.approx(65.123)
 
 
+def test_milling_xyz_wcs_offsets_are_applied_in_machine_space():
+    source = """\
+G90 G17 G54
+G0 X1 Y2 Z3
+G55
+G1 X4 Y5 Z6 F100
+M30
+"""
+    result = execute(
+        source,
+        language="fanuc_mill",
+        wcs_offsets={
+            54: (10.0, 20.0, 30.0),
+            55: (-1.0, -2.0, -3.0),
+        },
+    )
+
+    assert result.ok, result.diagnostics
+    assert (result.motions[0].end_x, result.motions[0].end_y, result.motions[0].end_z) == pytest.approx(
+        (11.0, 22.0, 33.0)
+    )
+    assert (result.motions[1].end_x, result.motions[1].end_y, result.motions[1].end_z) == pytest.approx((3.0, 3.0, 3.0))
+
+
+def test_milling_two_axis_wcs_input_keeps_backward_compatible_xz_mapping():
+    result = execute(
+        "G90 G54\nG0 X1 Y2 Z3\nM30",
+        language="fanuc_mill",
+        wcs_offsets={54: (10.0, 30.0)},
+    )
+
+    assert result.ok, result.diagnostics
+    motion = result.motions[0]
+    assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx((11.0, 2.0, 33.0))
+
+
 def test_trace_statistics_use_logical_arc_geometry_not_render_sample_count():
     result = execute("G90 G17\nG0 X10 Y0\nG3 X0 Y10 I-10 J0 F100\nM30", language="fanuc_mill")
     stats = trace_statistics(result)
