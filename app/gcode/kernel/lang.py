@@ -377,7 +377,10 @@ def _safe_eval(expr: str) -> float:
     value = eval(compile(tree, "<expr>", "eval"), {"__builtins__": {}}, SAFE_FUNCS)
     if isinstance(value, bool):
         return 1.0 if value else 0.0
-    return float(value)
+    value = float(value)
+    if not math.isfinite(value):
+        raise ValueError("Non-finite expression result")
+    return value
 
 
 def evaluate_expression(expr: str, variables: dict[str, float]) -> float:
@@ -385,7 +388,10 @@ def evaluate_expression(expr: str, variables: dict[str, float]) -> float:
     if not raw:
         return 0.0
     if NUMERIC_LITERAL_RE.fullmatch(raw):
-        return float(raw)
+        value = float(raw)
+        if not math.isfinite(value):
+            raise ValueError("Non-finite numeric word")
+        return value
     expanded = _expand_variables(raw, variables)
     translated = _translate_expr(expanded)
     return _safe_eval(translated)

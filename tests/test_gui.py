@@ -130,32 +130,33 @@ def test_milling_tool_settings_normalization_matches_cnceditor_geometry_rules():
     raw = {
         "1": {"type": "mill_flat", "diameter": 10, "cornerRadius": 2, "length": 50},
         "T2": {"type": "mill_bull", "diameter": 12, "cornerRadius": 1.5, "length": 60},
-        "T3": {"type": "mill_ball", "diameter": 8, "cornerRadius": 99, "length": 45},
+        "T0003": {"type": "mill_ball", "diameter": 8, "cornerRadius": 99, "length": 45},
         "4": {"type": "drill", "diameter": 6, "cornerRadius": 1, "length": 70, "description": "  center   drill "},
+        "T100": {"type": "mill_flat", "diameter": 10, "length": 20},
         "bad": {"type": "mill_flat", "diameter": 10, "length": 20},
         "T5": {"type": "unknown", "diameter": 10, "length": 20},
     }
 
     assert main_window._normalized_milling_tools(raw) == {
-        "T0001": {
+        "T1": {
             "type": "mill_flat",
             "diameter": 10.0,
             "cornerRadius": 0.0,
             "length": 50.0,
         },
-        "T0002": {
+        "T2": {
             "type": "mill_bull",
             "diameter": 12.0,
             "cornerRadius": 1.5,
             "length": 60.0,
         },
-        "T0003": {
+        "T3": {
             "type": "mill_ball",
             "diameter": 8.0,
             "cornerRadius": 4.0,
             "length": 45.0,
         },
-        "T0004": {
+        "T4": {
             "type": "drill",
             "diameter": 6.0,
             "cornerRadius": 0.0,

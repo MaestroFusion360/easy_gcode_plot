@@ -47,7 +47,7 @@ def test_milling_full_circle_helix_stays_logical_and_renderer_reaches_depth_and_
 
 def test_milling_relative_absolute_and_radius_arc_encodings_render_same_contour():
     relative = execute(ARC_RELATIVE, language="fanuc_mill")
-    absolute = execute(ARC_ABSOLUTE, language="fanuc_mill")
+    absolute = execute(ARC_ABSOLUTE, language="fanuc_mill", source_arc_type=2)
     radius = execute(ARC_RADIUS, language="fanuc_mill")
     assert relative.ok and absolute.ok and radius.ok
 

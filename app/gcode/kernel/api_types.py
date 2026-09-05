@@ -53,6 +53,28 @@ class TraceMotion:
     start_y: float = 0.0
     end_y: float = 0.0
     j: float | None = None
+    arc: ArcGeometry | None = None
+    x_scale: float = 1.0
+    feed_mode: str = "per_minute"
+    spindle_rpm: float | None = None
+    spindle_mode: str = "rpm"
+    surface_speed_m_min: float | None = None
+    spindle_limit_rpm: float | None = None
+    spindle_running: bool = False
+    compensation_status: str = "NOT_APPLIED"
+    threading: bool = False
+
+
+@dataclass(frozen=True)
+class ArcGeometry:
+    """Resolved circle in physical millimetres; sweep is positive radians."""
+
+    center: tuple[float, float, float]
+    radius: float
+    sweep: float
+    plane: int
+    clockwise: bool
+    full_circle: bool
 
 
 @dataclass(frozen=True)
@@ -74,6 +96,17 @@ class ExecutionStep:
     contour_definition: bool = False
     stop: bool = False
     absolute: bool = True
+    words: tuple[tuple[str, float], ...] = ()
+    signals: tuple[MachineSignal, ...] = ()
+    occurrence: int = 0
+    position: tuple[float, float, float] | None = None
+    active_wcs: int = 54
+    feed_mode: str = "per_minute"
+    spindle_rpm: float | None = None
+    spindle_mode: str = "rpm"
+    surface_speed_m_min: float | None = None
+    spindle_limit_rpm: float | None = None
+    spindle_running: bool = False
 
 
 @dataclass(frozen=True)
@@ -87,3 +120,5 @@ class ExecutionResult:
     signals: tuple[MachineSignal, ...] = ()
     program_end: str | None = None
     execution_steps: tuple[ExecutionStep, ...] = ()
+    complete: bool = True
+    language: str = "fanuc_turn"

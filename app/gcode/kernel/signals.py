@@ -3,14 +3,10 @@
 from __future__ import annotations
 
 from .api_types import MachineSignal
-from .lang import try_literal_int
-from .model import Program
 
 
-def collect_machine_signals(program: Program | None) -> tuple[MachineSignal, ...]:
-    if program is None:
-        return ()
-    out: list[MachineSignal] = []
+def signals_for_words(block_index, words):
+    """Signals from evaluated words of this occurrence, never from source order."""
     kinds = {
         0: "stop",
         1: "optional_stop",
@@ -22,22 +18,12 @@ def collect_machine_signals(program: Program | None) -> tuple[MachineSignal, ...
         9: "coolant_off",
         30: "program_end",
     }
-    for block in program.blocks:
-        for word in block.parsed_words:
-            if word.letter.upper() != "M":
-                continue
-            code = try_literal_int(word.expr)
-            if code in kinds:
-                out.append(MachineSignal(kinds[code], block.index, f"M{code:02d}"))
-        if any(w.letter.upper() == "G" and try_literal_int(w.expr) == 4 for w in block.parsed_words):
-            dwell = next((w for w in reversed(block.parsed_words) if w.letter.upper() in {"P", "X"}), None)
-            value = None
-            if dwell is not None:
-                try:
-                    value = float(dwell.expr)
-                except ValueError:
-                    value = None
-            out.append(MachineSignal("dwell", block.index, "G04", value))
+    out = [MachineSignal(kinds[int(m)], block_index, f"M{int(m):02d}") for m in words.all("M") if m in kinds]
+    if 4 in words.all("G"):
+        value = words.get("X", words.get("P", 0.0) / 1000.0)
+        if value < 0:
+            raise ValueError("Dwell duration must not be negative")
+        out.append(MachineSignal("dwell", block_index, "G04", value))
     return tuple(out)
 
 

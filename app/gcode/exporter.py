@@ -358,22 +358,45 @@ def _turn_program_options(options: ExportOptions | None) -> ExportOptions:
     )
 
 
+def _scaled_arc(motion: TraceMotion, *, x_scale: float, y_scale: float, z_scale: float):
+    """Scale resolved kernel arc geometry together with serialized motion coordinates."""
+    if motion.arc is None:
+        return None
+    cx, cy, cz = motion.arc.center
+    # Radius is measured in the active interpolation plane.  The exporter only
+    # uses non-uniform scaling for turning X, where the resolved arc already
+    # lives in physical radial-X/Z space; its physical radius therefore follows
+    # the Z/unit scale, not programmed diameter-X.
+    radius_scale = z_scale if motion.plane == 18 else (y_scale if motion.plane == 17 else z_scale)
+    return replace(
+        motion.arc,
+        center=(cx / x_scale, cy / y_scale, cz / z_scale),
+        radius=motion.arc.radius / radius_scale,
+    )
+
+
 def _scale_turn_motion(motion: TraceMotion, *, unit_scale: float, x_is_diameter: bool) -> TraceMotion:
     scale = unit_scale if abs(unit_scale) > 1e-12 else 1.0
-    x_scale = scale if x_is_diameter else scale * 2.0
+    programmed_x_scale = scale if x_is_diameter else scale * 2.0
+    # ``TraceMotion.arc`` is resolved in physical radial-X/Z millimetres, while
+    # programmed turning X may be diameter or radius.  Keep the serialized
+    # motion's x_scale consistent with the coordinates we emit.
+    serialized_x_scale = 0.5 if x_is_diameter else 1.0
     return replace(
         motion,
-        start_x=motion.start_x / x_scale,
-        end_x=motion.end_x / x_scale,
+        start_x=motion.start_x / programmed_x_scale,
+        end_x=motion.end_x / programmed_x_scale,
         start_y=motion.start_y / scale,
         end_y=motion.end_y / scale,
         start_z=motion.start_z / scale,
         end_z=motion.end_z / scale,
         radius=None if motion.radius is None else motion.radius / scale,
         feed=None if motion.feed is None else motion.feed / scale,
-        i=None if motion.i is None else motion.i / x_scale,
+        i=None if motion.i is None else motion.i / programmed_x_scale,
         j=None if motion.j is None else motion.j / scale,
         k=None if motion.k is None else motion.k / scale,
+        arc=_scaled_arc(motion, x_scale=scale, y_scale=scale, z_scale=scale),
+        x_scale=serialized_x_scale,
     )
 
 
@@ -591,6 +614,7 @@ def _scale_mill_motion(motion: TraceMotion, *, unit_scale: float) -> TraceMotion
         i=None if motion.i is None else motion.i / scale,
         j=None if motion.j is None else motion.j / scale,
         k=None if motion.k is None else motion.k / scale,
+        arc=_scaled_arc(motion, x_scale=scale, y_scale=scale, z_scale=scale),
     )
 
 

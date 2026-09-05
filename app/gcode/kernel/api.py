@@ -3,14 +3,17 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from .api_types import Diagnostic, ExecutionResult, ExecutionStep, SemanticInstruction, TraceMotion
+from .geometry import resolve_arc
 from .lang import UndefinedMacroVariableError, try_literal_int
 from .milling import execute_milling
+from .milling_compensation import apply_milling_cutter_compensation
 from .model import Motion, Point2, Program
 from .program import eval_words, parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
-from .runtime import compile_program
-from .signals import collect_machine_signals, program_end_code
+from .resources import ExecutionBudget, ExecutionLimits, SemanticError, active_budget
+from .signals import program_end_code
 from .trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
@@ -92,7 +95,7 @@ def _turn_wcs_offsets(wcs_offsets: WcsOffsets | None) -> dict[int, tuple[float, 
     return out
 
 
-def execute(
+def _execute_impl(
     source: str,
     language: str = "fanuc_turn",
     *,
@@ -139,19 +142,14 @@ def execute(
     try:
         program = parse_program(source.splitlines())
         unsupported = _unsupported_g_diagnostics(program)
-        rough, finish = compile_program(
-            program,
-            supplementary_angles=supplementary_angles,
-            x_is_diameter=x_is_diameter,
-            skip_optional_blocks=skip_optional_blocks,
-            pq_mm_for_g74758384=pq_mm_for_g74758384,
-            tools=tools,
-        )
+        rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(
             program,
             rough,
             finish,
             x_is_diameter=x_is_diameter,
+            pq_mm_for_g74758384=pq_mm_for_g74758384,
+            supplementary_angles=supplementary_angles,
             skip_optional_blocks=skip_optional_blocks,
             home_x=home_x,
             home_z=home_z,
@@ -175,7 +173,7 @@ def execute(
             executed_blocks=(),
         )
 
-    signals = collect_machine_signals(program)
+    signals = tuple(signal for step in trace_steps for signal in step.signals)
     return ExecutionResult(
         ok=not any(item.severity == "error" for item in unsupported),
         program=program,
@@ -195,8 +193,19 @@ def execute(
                 x_is_diameter=step.x_is_diameter,
                 contour_definition=step.contour_definition,
                 stop=step.stop,
+                words=step.words,
+                signals=step.signals,
+                occurrence=occurrence,
+                active_wcs=step.active_wcs,
+                position=(step.modal_x, 0.0, step.modal_z),
+                feed_mode=step.feed_mode,
+                spindle_rpm=step.spindle_rpm,
+                spindle_mode=step.spindle_mode,
+                surface_speed_m_min=step.surface_speed_m_min,
+                spindle_limit_rpm=step.spindle_limit_rpm,
+                spindle_running=step.spindle_running,
             )
-            for step in trace_steps
+            for occurrence, step in enumerate(trace_steps)
         ),
     )
 
@@ -266,7 +275,11 @@ def _diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagn
     if undefined_macro or "undefined macro variable" in lowered:
         code = "UNDEFINED_MACRO"
     elif "missing goto target" in lowered or "missing if/goto target" in lowered:
-        code = "MISSING_LABEL"
+        code = "FLOW_TARGET_MISSING"
+    elif "m98 targets missing" in lowered:
+        code = "SUBPROGRAM_MISSING"
+    elif "call depth exceeds" in lowered:
+        code = "CALL_DEPTH_EXCEEDED"
     elif "m98" in lowered:
         code = "SUBPROGRAM_ERROR"
     elif "guard reached" in lowered:
@@ -282,12 +295,28 @@ def _diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagn
     raw = None
     if program is not None and line is not None and 1 <= line <= len(program.blocks):
         raw = program.blocks[line - 1].raw
-    return Diagnostic(code=code, message=message, line=line, raw=raw)
+    current = exc
+    while current is not None:
+        if isinstance(current, SemanticError):
+            return Diagnostic(current.code, message, status=current.status, line=line, raw=raw)
+        current = current.__cause__
+    return Diagnostic(code=code, message=message, status="malformed", line=line, raw=raw)
 
 
 def _unsupported_g_diagnostics(program: Program) -> tuple[Diagnostic, ...]:
     diagnostics: list[Diagnostic] = []
     for block in program.blocks:
+        if any(word.letter == "Y" for word in block.parsed_words):
+            diagnostics.append(
+                Diagnostic(
+                    code="UNSUPPORTED_AXIS",
+                    message="Y-axis motion is not modeled for fanuc_turn",
+                    severity="error",
+                    status="unsupported",
+                    line=block.index + 1,
+                    raw=block.raw,
+                )
+            )
         for word in block.parsed_words:
             if word.letter != "G":
                 continue
@@ -297,7 +326,9 @@ def _unsupported_g_diagnostics(program: Program) -> tuple[Diagnostic, ...]:
                 continue
             code = int(value)
             if value == code and code not in SUPPORTED_G_CODES:
-                affects_geometry = any(item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words)
+                affects_geometry = code in {17, 19} or any(
+                    item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words
+                )
                 diagnostics.append(
                     Diagnostic(
                         code="UNSUPPORTED_G_CODE",
@@ -309,3 +340,60 @@ def _unsupported_g_diagnostics(program: Program) -> tuple[Diagnostic, ...]:
                     )
                 )
     return tuple(diagnostics)
+
+
+def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, source_arc_type=1, **options):
+    """Execute once; resolve geometry and publish a self-contained immutable result."""
+    budget = ExecutionBudget(limits or ExecutionLimits(), cancelled)
+    token = active_budget.set(budget)
+    milling_tools = options.pop("milling_tools", None)
+    try:
+        result = _execute_impl(source, language, **options)
+        motions = []
+        cursor = 0
+        for step in result.execution_steps:
+            for motion in result.motions[cursor : cursor + step.emitted_count]:
+                motion = replace(
+                    motion,
+                    x_scale=0.5 if language == "fanuc_turn" else 1.0,
+                    feed_mode=step.feed_mode,
+                    spindle_rpm=step.spindle_rpm,
+                    spindle_mode=step.spindle_mode,
+                    surface_speed_m_min=step.surface_speed_m_min,
+                    spindle_limit_rpm=step.spindle_limit_rpm,
+                    spindle_running=step.spindle_running,
+                    compensation_status="APPLIED"
+                    if motion.compensation_applied
+                    else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED"),
+                    threading=any(k == "G" and v in (32, 33, 76, 92) for k, v in step.words),
+                )
+                motions.append(resolve_arc(motion, source_arc_type=source_arc_type))
+            cursor += step.emitted_count
+        if not result.execution_steps:
+            motions = list(result.motions)
+        diagnostics = result.diagnostics
+        if language == "fanuc_mill":
+            motions = apply_milling_cutter_compensation(motions, milling_tools or {})
+            if any(m.compensation_mode in (41, 42) and not m.compensation_applied for m in motions):
+                diagnostics = diagnostics + (
+                    Diagnostic(
+                        "UNVERIFIED_CUTTER_COMPENSATION",
+                        "G41/G42 requires a configured T1-T99 milling cutter and supported "
+                        "resolved line/arc/helix geometry",
+                        "warning",
+                        "unverified",
+                    ),
+                )
+        return replace(
+            result,
+            motions=tuple(motions),
+            diagnostics=diagnostics,
+            complete=result.ok,
+            language=language,
+            executed_blocks=tuple(step.source_block for step in result.execution_steps),
+        )
+    except Exception as exc:
+        diagnostic = _diagnostic_from_exception(exc, None)
+        return ExecutionResult(False, None, (), (), (diagnostic,), (), complete=False, language=language)
+    finally:
+        active_budget.reset(token)

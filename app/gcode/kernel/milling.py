@@ -11,10 +11,12 @@ from .execution import (
     classify_block_codes,
     dispatch_macro_flow,
     dispatch_subprogram_flow,
+    flow_control_mcode,
 )
 from .lang import UndefinedMacroVariableError
 from .program import eval_words, parse_program
-from .signals import collect_machine_signals, program_end_code
+from .resources import SemanticError, checkpoint, require_progress
+from .signals import program_end_code, signals_for_words
 
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
 
@@ -33,6 +35,26 @@ def _exception_chain_contains(exc: Exception, exc_type: type[BaseException]) -> 
 def _execution_diagnostic(exc: Exception, program) -> Diagnostic:
     message = str(exc)
     code = "UNDEFINED_MACRO" if _exception_chain_contains(exc, UndefinedMacroVariableError) else "EXECUTION_ERROR"
+    status = "malformed"
+    current: BaseException | None = exc
+    seen: set[int] = set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, SemanticError):
+            code = current.code
+            status = current.status
+            break
+        current = current.__cause__ or current.__context__
+
+    lowered = message.lower()
+    if code == "EXECUTION_ERROR":
+        if "missing goto target" in lowered or "missing if/goto target" in lowered:
+            code = "FLOW_TARGET_MISSING"
+        elif "m98 targets missing" in lowered:
+            code = "SUBPROGRAM_MISSING"
+        elif "call depth exceeds" in lowered:
+            code = "CALL_DEPTH_EXCEEDED"
+
     line = None
     match = _LINE_RE.search(message)
     if match is not None:
@@ -40,7 +62,7 @@ def _execution_diagnostic(exc: Exception, program) -> Diagnostic:
     raw = None
     if line is not None and 1 <= line <= len(program.blocks):
         raw = program.blocks[line - 1].raw
-    return Diagnostic(code=code, message=message, line=line, raw=raw)
+    return Diagnostic(code=code, message=message, status=status, line=line, raw=raw)
 
 
 @dataclass
@@ -64,6 +86,9 @@ class MillState:
     cutter_comp: int = 40
     tool_length_comp: bool = False
     tool_length_h: int | None = None
+    active_tool: str | None = None
+    feed_mode: str = "per_minute"
+    spindle_rpm: float | None = None
 
 
 def _xyz(words, state: MillState) -> tuple[float, float, float]:
@@ -83,6 +108,81 @@ def _wcs_offset(wcs_offsets: dict[int, tuple[float, float, float]] | None, code:
 def _machine(point: tuple[float, float, float], state: MillState, wcs_offsets) -> tuple[float, float, float]:
     ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
     return point[0] + ox, point[1] + oy, point[2] + oz
+
+
+def _execution_step(
+    state: MillState,
+    block,
+    emitted_count: int,
+    occurrence: int,
+    *,
+    words: tuple[tuple[str, float], ...] = (),
+    signals=(),
+    stop: bool = False,
+    wcs_offsets=None,
+) -> ExecutionStep:
+    return ExecutionStep(
+        source_block=block.index,
+        emitted_count=emitted_count,
+        unit_scale=state.unit_scale,
+        x_is_diameter=False,
+        absolute=state.absolute,
+        stop=stop,
+        words=words,
+        signals=tuple(signals),
+        occurrence=occurrence,
+        position=_machine((state.x, state.y, state.z), state, wcs_offsets),
+        active_wcs=state.active_wcs,
+        feed_mode=state.feed_mode,
+        spindle_rpm=state.spindle_rpm,
+    )
+
+
+def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets) -> None:
+    """Apply state-only modal words before an M98/M99 control transfer."""
+    for g in gcodes:
+        if g == 20:
+            state.unit_scale = 25.4
+        elif g == 21:
+            state.unit_scale = 1.0
+        elif g in (17, 18, 19):
+            state.plane = g
+        elif g == 90:
+            state.absolute = True
+        elif g == 91:
+            state.absolute = False
+        elif 54 <= g <= 59:
+            old = _wcs_offset(wcs_offsets, state.active_wcs)
+            new = _wcs_offset(wcs_offsets, g)
+            state.x += old[0] - new[0]
+            state.y += old[1] - new[1]
+            state.z += old[2] - new[2]
+            state.active_wcs = g
+        elif g in (40, 41, 42):
+            state.cutter_comp = g
+        elif g == 43:
+            state.tool_length_comp = True
+            if "H" in words:
+                h_value = words["H"]
+                state.tool_length_h = int(h_value) if float(h_value).is_integer() else None
+        elif g == 49:
+            state.tool_length_comp = False
+            state.tool_length_h = None
+        elif g == 98:
+            state.return_initial = True
+        elif g == 99:
+            state.return_initial = False
+
+    if 94 in gcodes:
+        state.feed_mode = "per_minute"
+    if 95 in gcodes:
+        state.feed_mode = "per_revolution"
+    if "S" in words:
+        state.spindle_rpm = words["S"]
+    if 5 in all_m:
+        state.spindle_rpm = None
+    if "F" in words:
+        state.feed = words["F"] * state.unit_scale
 
 
 def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion") -> TraceMotion | None:
@@ -114,6 +214,7 @@ def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion"
         cycle_generated=source_kind == "cycle",
         compensation_mode=state.cutter_comp,
         compensation_applied=False,
+        tool=state.active_tool,
     )
 
 
@@ -148,6 +249,7 @@ def _machine_coordinate_motion(block, state: MillState, words, *, wcs_offsets) -
         plane=state.plane,
         compensation_mode=state.cutter_comp,
         compensation_applied=False,
+        tool=state.active_tool,
     )
 
 
@@ -174,6 +276,7 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
         bm = _machine(b, state, wcs_offsets)
         if am == bm:
             return
+        checkpoint("generated_motions")
         out.append(
             TraceMotion(
                 kind,
@@ -192,6 +295,7 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
                 cycle_generated=True,
                 compensation_mode=state.cutter_comp,
                 compensation_applied=False,
+                tool=state.active_tool,
             )
         )
 
@@ -204,6 +308,8 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
             nxt = current + direction * state.cycle_q
             if (state.cycle_z - nxt) * direction < 0:
                 nxt = state.cycle_z
+            require_progress(current, nxt)
+            checkpoint("cycle_iterations")
             add(1, (x, y, r), (x, y, nxt), state.cycle_feed or state.feed)
             if abs(nxt - state.cycle_z) > 1e-9:
                 add(0, (x, y, nxt), (x, y, r))
@@ -226,11 +332,13 @@ def execute_milling(
 ):
 
     program = parse_program(source.splitlines())
-    state = MillState()
+    ox, oy, oz = _wcs_offset(wcs_offsets, 54)
+    state = MillState(x=home[0] - ox, y=home[1] - oy, z=home[2] - oz)
     motions: list[TraceMotion] = []
     diagnostics: list[Diagnostic] = []
     executed: list[int] = []
     steps: list[ExecutionStep] = []
+    signals = []
     variables: dict[str, float] = {}
     call_stack: list[tuple[int, int, int]] = []
     recognized = {
@@ -267,6 +375,7 @@ def execute_milling(
         90,
         91,
         94,
+        95,
         98,
         99,
     }
@@ -294,6 +403,7 @@ def execute_milling(
     guard = 0
     try:
         while 0 <= pc < len(program.blocks):
+            checkpoint("executed_blocks")
             guard += 1
             if guard > 500_000:
                 raise RuntimeError("Program execution guard reached")
@@ -312,6 +422,7 @@ def execute_milling(
                 end_to_while=index.end_to_while,
             )
             if flow.handled:
+                steps.append(_execution_step(state, block, 0, len(steps), wcs_offsets=wcs_offsets))
                 pc = flow.next_pc
                 continue
 
@@ -323,41 +434,27 @@ def execute_milling(
                 ) from error
             codes = classify_block_codes(words)
             gcodes = codes.all_g
+            occurrence_signals = signals_for_words(block.index, words)
+            signals.extend(occurrence_signals)
+            evaluated = tuple((k, v) for k in words for v in words.all(k))
 
-            sub = dispatch_subprogram_flow(
-                mcode=codes.mcode, words=words, pc=pc, olabel_to_index=index.olabel_to_index, call_stack=call_stack
-            )
-            call_stack = sub.call_stack
-            if sub.handled:
-                if sub.stop:
-                    steps.append(
-                        ExecutionStep(
-                            source_block=block.index,
-                            emitted_count=0,
-                            unit_scale=state.unit_scale,
-                            x_is_diameter=False,
-                            absolute=state.absolute,
-                            stop=True,
-                        )
+            unknown_g = tuple(g for g in gcodes if g not in recognized)
+            position_words = any(letter in words for letter in ("X", "Y", "Z"))
+            for g in unknown_g:
+                diagnostics.append(
+                    Diagnostic(
+                        "UNSUPPORTED_G_CODE",
+                        (
+                            f"G{g} is not modeled for fanuc_mill; execution stops before this position block"
+                            if position_words
+                            else f"G{g} is not modeled for fanuc_mill; ignored for trace execution"
+                        ),
+                        "error" if position_words else "warning",
+                        "unsupported" if position_words else "unverified",
+                        block.index + 1,
+                        block.raw,
                     )
-                    break
-                pc = sub.next_pc
-                continue
-
-            motion_start = len(motions)
-
-            for g in gcodes:
-                if g not in recognized:
-                    diagnostics.append(
-                        Diagnostic(
-                            "UNSUPPORTED_G_CODE",
-                            f"G{g} is not modeled for fanuc_mill; ignored for trace execution",
-                            "warning",
-                            "unverified",
-                            block.index + 1,
-                            block.raw,
-                        )
-                    )
+                )
             for m in codes.all_m:
                 if 0 <= m <= 199 and m not in recognized_m:
                     diagnostics.append(
@@ -370,19 +467,23 @@ def execute_milling(
                             block.raw,
                         )
                     )
-            for g in gcodes:
-                if g in (41, 42):
-                    diagnostics.append(
-                        Diagnostic(
-                            "UNVERIFIED_CUTTER_COMPENSATION",
-                            f"G{g} cutter-radius compensation is tracked but not applied to fanuc_mill trace geometry",
-                            "warning",
-                            "unverified",
-                            block.index + 1,
-                            block.raw,
-                        )
+            if unknown_g and position_words:
+                steps.append(
+                    _execution_step(
+                        state,
+                        block,
+                        0,
+                        len(steps),
+                        words=evaluated,
+                        signals=occurrence_signals,
+                        stop=True,
+                        wcs_offsets=wcs_offsets,
                     )
-                elif g == 43:
+                )
+                break
+
+            for g in gcodes:
+                if g == 43:
                     diagnostics.append(
                         Diagnostic(
                             "UNVERIFIED_TOOL_LENGTH_COMPENSATION",
@@ -395,6 +496,59 @@ def execute_milling(
                         )
                     )
 
+            if "T" in words:
+                tool_value = words["T"]
+                if float(tool_value).is_integer() and 1 <= int(tool_value) <= 99:
+                    state.active_tool = f"T{int(tool_value)}"
+                else:
+                    state.active_tool = None
+                    diagnostics.append(
+                        Diagnostic(
+                            "UNSUPPORTED_TOOL_NUMBER",
+                            "Milling tool number must be in the T1-T99 range",
+                            "warning",
+                            "unsupported",
+                            block.index + 1,
+                            block.raw,
+                        )
+                    )
+            _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
+            flow_mcode = flow_control_mcode(codes.all_m, codes.mcode)
+            sub = dispatch_subprogram_flow(
+                mcode=flow_mcode, words=words, pc=pc, olabel_to_index=index.olabel_to_index, call_stack=call_stack
+            )
+            call_stack = sub.call_stack
+            if sub.handled:
+                if sub.stop:
+                    steps.append(
+                        _execution_step(
+                            state,
+                            block,
+                            0,
+                            len(steps),
+                            words=evaluated,
+                            signals=occurrence_signals,
+                            stop=True,
+                            wcs_offsets=wcs_offsets,
+                        )
+                    )
+                    break
+                steps.append(
+                    _execution_step(
+                        state,
+                        block,
+                        0,
+                        len(steps),
+                        words=evaluated,
+                        signals=occurrence_signals,
+                        wcs_offsets=wcs_offsets,
+                    )
+                )
+                pc = sub.next_pc
+                continue
+
+            motion_start = len(motions)
+
             action_g = None
             for g in gcodes:
                 if g in (0, 1, 2, 3, 28, 53, 80, 81, 82, 83, 84, 85, 86):
@@ -405,50 +559,26 @@ def execute_milling(
                 state.cycle = 80
 
             for g in gcodes:
-                if g == 20:
-                    state.unit_scale = 25.4
-                elif g == 21:
-                    state.unit_scale = 1.0
-                elif g in (17, 18, 19):
-                    state.plane = g
-                elif g == 90:
-                    state.absolute = True
-                elif g == 91:
-                    state.absolute = False
-                elif 54 <= g <= 59:
-                    state.active_wcs = g
-                elif g in (40, 41, 42):
-                    state.cutter_comp = g
-                elif g == 43:
-                    state.tool_length_comp = True
-                    if "H" in words:
-                        h_value = words["H"]
-                        state.tool_length_h = int(h_value) if float(h_value).is_integer() else None
-                elif g == 49:
-                    state.tool_length_comp = False
-                    state.tool_length_h = None
-                elif g in (0, 1, 2, 3):
+                if g in (0, 1, 2, 3):
                     state.move = g
                 elif g in (80, 81, 82, 83, 84, 85, 86):
                     if g in (81, 82, 83, 84, 85, 86) and state.cycle == 80:
                         state.cycle_initial_z = state.z
                     state.cycle = g
-                elif g == 98:
-                    state.return_initial = True
-                elif g == 99:
-                    state.return_initial = False
-            if "F" in words:
-                state.feed = words["F"] * state.unit_scale
 
-            if 53 in gcodes:
+            if 4 in gcodes:
+                pass
+            elif 53 in gcodes:
                 m = _machine_coordinate_motion(block, state, words, wcs_offsets=wcs_offsets)
                 if m:
+                    checkpoint("generated_motions")
                     motions.append(m)
             elif 28 in gcodes:
                 mid = _xyz(words, state)
                 sm = _machine((state.x, state.y, state.z), state, wcs_offsets)
                 mm = _machine(mid, state, wcs_offsets)
                 if sm != mm:
+                    checkpoint("generated_motions")
                     motions.append(
                         TraceMotion(
                             0,
@@ -472,6 +602,7 @@ def execute_milling(
                     home[2] if "Z" in axes else mm[2],
                 )
                 if mm != target:
+                    checkpoint("generated_motions")
                     motions.append(
                         TraceMotion(
                             0,
@@ -497,17 +628,20 @@ def execute_milling(
             ):
                 m = _motion(block, state, words, wcs_offsets=wcs_offsets)
                 if m:
+                    checkpoint("generated_motions")
                     motions.append(m)
 
             if motions and (not executed or executed[-1] != block.index):
                 executed.append(block.index)
             steps.append(
-                ExecutionStep(
-                    source_block=block.index,
-                    emitted_count=len(motions) - motion_start,
-                    unit_scale=state.unit_scale,
-                    x_is_diameter=False,
-                    absolute=state.absolute,
+                _execution_step(
+                    state,
+                    block,
+                    len(motions) - motion_start,
+                    len(steps),
+                    words=evaluated,
+                    signals=occurrence_signals,
+                    wcs_offsets=wcs_offsets,
                 )
             )
             pc += 1
@@ -515,7 +649,7 @@ def execute_milling(
         diagnostics.append(_execution_diagnostic(exc, program))
         return ExecutionResult(False, program, tuple(instructions), (), tuple(diagnostics), tuple(executed))
 
-    signals = collect_machine_signals(program)
+    signals = tuple(signals)
     return ExecutionResult(
         not any(d.severity == "error" for d in diagnostics),
         program,

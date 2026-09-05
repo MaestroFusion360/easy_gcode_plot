@@ -1,9 +1,8 @@
-"""Pure helpers that consume kernel logical traces for rendering and statistics.
+"""Pure consumers of the kernel's already-resolved logical motion trace.
 
-Arc interpretation follows the working CncKernelCli ArcMath contract:
-IJK can be interpreted relative to the arc start, as absolute centre
-coordinates, or ignored in favour of R.  The logical trace keeps source IJK/R
-unchanged; only consumers choose how to interpret them.
+Arc semantics belong to the kernel.  Rendering, statistics, and export may
+sample or serialize a resolved arc, but must not choose an alternative IJK/R
+interpretation after execution.
 """
 
 from __future__ import annotations
@@ -16,7 +15,6 @@ from .kernel import ExecutionResult, TraceMotion
 ARC_RELATIVE = 1
 ARC_ABSOLUTE = 2
 ARC_RADIUS = 3
-_EPS = 1e-9
 
 
 @dataclass(frozen=True)
@@ -55,134 +53,6 @@ def _plane_coordinates(m: TraceMotion, x_scale: float = 1.0):
     return (m.start_x, m.start_y), (m.end_x, m.end_y), m.start_z, m.end_z
 
 
-def _normalize_sweep(move: int, start_angle: float, end_angle: float) -> float:
-    sweep = end_angle - start_angle
-    if move == 2 and sweep > 0.0:
-        sweep -= 2.0 * math.pi
-    elif move == 3 and sweep < 0.0:
-        sweep += 2.0 * math.pi
-    return sweep
-
-
-def _center_valid(start, end, center) -> bool:
-    r0 = math.hypot(start[0] - center[0], start[1] - center[1])
-    r1 = math.hypot(end[0] - center[0], end[1] - center[1])
-    return r0 > _EPS and r1 > _EPS and abs(r0 - r1) <= max(1e-6, r0 * 1e-3)
-
-
-def _center_score(start, end, center, plot_move: int) -> float:
-    r0 = math.hypot(start[0] - center[0], start[1] - center[1])
-    r1 = math.hypot(end[0] - center[0], end[1] - center[1])
-    if r0 <= _EPS or r1 <= _EPS:
-        return math.inf
-    return (
-        abs(r0 - r1)
-        + abs(
-            _normalize_sweep(
-                plot_move,
-                math.atan2(start[1] - center[1], start[0] - center[0]),
-                math.atan2(end[1] - center[1], end[0] - center[0]),
-            )
-        )
-        * 0.0
-    )
-
-
-def _center_from_offsets(
-    m: TraceMotion,
-    arc_type: int,
-    start,
-    end,
-    *,
-    x_scale: float,
-    lathe_radius_view: bool,
-):
-    center = None
-    if arc_type == ARC_RADIUS:
-        return center
-
-    if m.plane == 18:
-        has_offsets = m.i is not None or m.k is not None
-    elif m.plane == 19:
-        has_offsets = m.j is not None or m.k is not None
-    else:
-        has_offsets = m.i is not None or m.j is not None
-
-    if has_offsets:
-        i_val = 0.0 if m.i is None else float(m.i)
-        j_val = 0.0 if m.j is None else float(m.j)
-        k_val = 0.0 if m.k is None else float(m.k)
-
-        if arc_type == ARC_ABSOLUTE:
-            if m.plane == 18:
-                center = (i_val * x_scale, k_val)
-            elif m.plane == 19:
-                center = (j_val, k_val)
-            else:
-                center = (i_val, j_val)
-        elif lathe_radius_view and m.plane == 18:
-            # fanuc_plot accepts traces where I has historically appeared either
-            # in diameter-space or radius-space.  Keep its deterministic best-fit
-            # choice instead of guessing globally.
-            plot_move = _plot_move_for_plane(m.move, m.plane)
-            candidates = (
-                (start[0] + i_val * x_scale, start[1] + k_val),
-                (start[0] + i_val, start[1] + k_val),
-            )
-            valid = [(c, _center_score(start, end, c, plot_move)) for c in candidates]
-            valid = [(c, score) for c, score in valid if math.isfinite(score)]
-            if valid:
-                center = min(valid, key=lambda item: item[1])[0]
-
-        if center is None:
-            if m.plane == 18:
-                center = (start[0] + i_val * x_scale, start[1] + k_val)
-            elif m.plane == 19:
-                center = (start[0] + j_val, start[1] + k_val)
-            else:
-                center = (start[0] + i_val, start[1] + j_val)
-
-    return center
-
-
-def _center_from_radius(start, end, radius: float, plot_move: int):
-    r = abs(radius)
-    if r <= 1e-12:
-        return None
-
-    dx = end[0] - start[0]
-    dy = end[1] - start[1]
-    chord = math.hypot(dx, dy)
-    if chord <= 1e-12 or r < chord * 0.5 - 1e-9:
-        return None
-
-    mx = (start[0] + end[0]) * 0.5
-    my = (start[1] + end[1]) * 0.5
-    ux, uy = dx / chord, dy / chord
-    nx, ny = -uy, ux
-    h = math.sqrt(max(0.0, r * r - (chord * 0.5) ** 2))
-    candidates = ((mx + nx * h, my + ny * h), (mx - nx * h, my - ny * h))
-
-    def sweep(center):
-        return abs(
-            _normalize_sweep(
-                plot_move,
-                math.atan2(start[1] - center[1], start[0] - center[0]),
-                math.atan2(end[1] - center[1], end[0] - center[0]),
-            )
-        )
-
-    s1, s2 = sweep(candidates[0]), sweep(candidates[1])
-    choose_large = radius < 0.0
-    m1 = s1 > math.pi if choose_large else s1 <= math.pi
-    m2 = s2 > math.pi if choose_large else s2 <= math.pi
-    if m1 and not m2:
-        return candidates[0]
-    if m2 and not m1:
-        return candidates[1]
-    return candidates[0] if s1 <= s2 else candidates[1]
-
-
 def arc_geometry(
     m: TraceMotion,
     *,
@@ -193,36 +63,13 @@ def arc_geometry(
     if m.move not in (2, 3) or m.plane not in (17, 18, 19):
         return None
 
-    x_scale = 0.5 if lathe_radius_view and m.plane == 18 else 1.0
-    start, end, orth0, orth1 = _plane_coordinates(m, x_scale)
-    center = _center_from_offsets(
-        m,
-        arc_type,
-        start,
-        end,
-        x_scale=x_scale,
-        lathe_radius_view=lathe_radius_view,
-    )
-    if center is not None and not _center_valid(start, end, center):
-        center = None
-
-    if center is None and m.radius is not None:
-        center = _center_from_radius(start, end, m.radius, _plot_move_for_plane(m.move, m.plane))
-    if center is None:
+    if m.arc is None:
         return None
-
-    radius = math.hypot(start[0] - center[0], start[1] - center[1])
-    if radius <= _EPS:
-        return None
-
+    start, end, orth0, orth1 = _plane_coordinates(m, m.x_scale)
+    c = m.arc.center
+    center = (c[0], c[2]) if m.plane == 18 else ((c[1], c[2]) if m.plane == 19 else (c[0], c[1]))
     a0 = math.atan2(start[1] - center[1], start[0] - center[0])
-    a1 = math.atan2(end[1] - center[1], end[0] - center[0])
-    plot_move = _plot_move_for_plane(m.move, m.plane)
-    full_circle = math.hypot(start[0] - end[0], start[1] - end[1]) <= _EPS
-    sweep_signed = (
-        (-2.0 * math.pi if plot_move == 2 else 2.0 * math.pi) if full_circle else _normalize_sweep(plot_move, a0, a1)
-    )
-    return start, end, orth0, orth1, center, a0, abs(sweep_signed), radius
+    return start, end, orth0, orth1, center, a0, m.arc.sweep, m.arc.radius
 
 
 def _xyz_from_plane(plane: int, a: float, b: float, orth: float):
@@ -260,9 +107,7 @@ def sample_motion(
         b = center[1] + radius * math.sin(angle)
         orth = orth0 + (orth1 - orth0) * t
         x, y, z = _xyz_from_plane(m.plane, a, b, orth)
-        # G18 x is already radius-scaled inside arc_geometry for lathe view.
-        if lathe_radius_view and m.plane != 18:
-            x *= scale_x
+        x *= scale_x / m.x_scale
         out.append(RenderPoint(x, y, z, m.feed, m.source_block, motion_index, m.i, m.j, m.k))
 
     out[-1] = RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)
@@ -310,14 +155,80 @@ def motion_length(
     lathe_radius_view: bool = False,
     arc_type: int = ARC_RELATIVE,
 ) -> float:
-    sx = m.start_x * (0.5 if lathe_radius_view else 1.0)
-    ex = m.end_x * (0.5 if lathe_radius_view else 1.0)
+    """Return physical tool-centre length in millimetres.
+
+    ``lathe_radius_view`` is retained for API compatibility but display mode must
+    not change physical statistics.  Turning traces carry ``x_scale=0.5`` when
+    their programmed X is diameter-space.
+    """
+    del lathe_radius_view
+    sx = m.start_x * m.x_scale
+    ex = m.end_x * m.x_scale
     if m.move in (2, 3):
-        geom = arc_geometry(m, arc_type=arc_type, lathe_radius_view=lathe_radius_view)
+        geom = arc_geometry(m, arc_type=arc_type)
         if geom:
             _, _, orth0, orth1, _, _, sweep, radius = geom
             return math.hypot(radius * sweep, orth1 - orth0)
     return math.sqrt((ex - sx) ** 2 + (m.end_y - m.start_y) ** 2 + (m.end_z - m.start_z) ** 2)
+
+
+def _css_time_minutes(m: TraceMotion, length: float) -> float | None:
+    """Integrate deterministic G96 feed-per-revolution time over one resolved motion."""
+    speed = m.surface_speed_m_min
+    feed = m.feed
+    if speed is None or speed <= 0 or feed is None or feed <= 0:
+        return None
+    limit = m.spindle_limit_rpm if m.spindle_limit_rpm is not None and m.spindle_limit_rpm > 0 else None
+
+    def rpm_for_radius(radius_x: float) -> float:
+        diameter = 2.0 * abs(radius_x)
+        if diameter <= 1e-12:
+            return limit if limit is not None else math.inf
+        rpm = 1000.0 * speed / (math.pi * diameter)
+        return min(rpm, limit) if limit is not None else rpm
+
+    if m.move not in (2, 3) or m.arc is None:
+        sx = m.start_x * m.x_scale
+        ex = m.end_x * m.x_scale
+        if length <= 1e-15:
+            return 0.0
+
+        def integrand(t: float) -> float:
+            rpm = rpm_for_radius(sx + (ex - sx) * t)
+            return 0.0 if math.isinf(rpm) else length / (feed * rpm)
+    else:
+        geom = arc_geometry(m)
+        if geom is None:
+            return None
+        _start, _end, orth0, orth1, center, a0, sweep, radius = geom
+        direction = -1.0 if _plot_move_for_plane(m.move, m.plane) == 2 else 1.0
+        ds_dt = math.hypot(radius * sweep, orth1 - orth0)
+
+        def integrand(t: float) -> float:
+            angle = a0 + direction * sweep * t
+            a = center[0] + radius * math.cos(angle)
+            b = center[1] + radius * math.sin(angle)
+            orth = orth0 + (orth1 - orth0) * t
+            x, _y, _z = _xyz_from_plane(m.plane, a, b, orth)
+            rpm = rpm_for_radius(x)
+            return 0.0 if math.isinf(rpm) else ds_dt / (feed * rpm)
+
+    def simpson(a: float, b: float, fa: float, fm: float, fb: float) -> float:
+        return (b - a) * (fa + 4.0 * fm + fb) / 6.0
+
+    def integrate(a: float, b: float, fa: float, fm: float, fb: float, whole: float, depth: int) -> float:
+        mid = (a + b) * 0.5
+        lm, rm = (a + mid) * 0.5, (mid + b) * 0.5
+        flm, frm = integrand(lm), integrand(rm)
+        left = simpson(a, mid, fa, flm, fm)
+        right = simpson(mid, b, fm, frm, fb)
+        total = left + right
+        if depth <= 0 or abs(total - whole) <= max(1e-12, abs(total) * 1e-9):
+            return total + (total - whole) / 15.0
+        return integrate(a, mid, fa, flm, fm, left, depth - 1) + integrate(mid, b, fm, frm, fb, right, depth - 1)
+
+    fa, fm, fb = integrand(0.0), integrand(0.5), integrand(1.0)
+    return integrate(0.0, 1.0, fa, fm, fb, simpson(0.0, 1.0, fa, fm, fb), 12)
 
 
 def trace_statistics(
@@ -327,25 +238,52 @@ def trace_statistics(
     rapid_feed: float = 10000.0,
     arc_type: int = ARC_RELATIVE,
 ) -> dict[str, object]:
+    """Derive geometry and time only from the executed logical trace.
+
+    Feed-per-revolution motions require a known spindle RPM.  When execution
+    cannot establish a numeric feed rate (for example active CSS without a
+    resolved spindle speed), timing is explicitly partial instead of silently
+    treating F as mm/min.
+    """
     lengths: list[float] = []
-    times: list[float] = []
+    times: list[float | None] = []
+    known_time = 0.0
+    unknown_time_motion_count = 0
+
     for m in result.motions:
-        length = motion_length(m, lathe_radius_view=lathe_radius_view, arc_type=arc_type)
-        feed = rapid_feed if m.move == 0 else (m.feed or 0.0)
+        length = motion_length(m, arc_type=arc_type)
         lengths.append(length)
-        times.append(length / feed if feed > 0 else 0.0)
+        if length <= 1e-15:
+            time = 0.0
+        elif m.move == 0:
+            time = length / rapid_feed if rapid_feed > 0 else None
+        elif m.feed is None or m.feed <= 0:
+            time = None
+        elif m.feed_mode == "per_revolution":
+            if m.spindle_mode == "css":
+                time = _css_time_minutes(m, length)
+            else:
+                rpm = m.spindle_rpm
+                time = length / (m.feed * rpm) if rpm is not None and rpm > 0 else None
+        else:
+            time = length / m.feed
+        times.append(time)
+        if time is None:
+            unknown_time_motion_count += 1
+        else:
+            known_time += time
 
     coords: list[tuple[float, float, float]] = []
-    scale_x = 0.5 if lathe_radius_view else 1.0
+    display_x_scale = 0.5 if lathe_radius_view else 1.0
     for m in result.motions:
         coords.extend(
             (
-                (m.start_x * scale_x, m.start_y, m.start_z),
-                (m.end_x * scale_x, m.end_y, m.end_z),
+                (m.start_x * display_x_scale, m.start_y, m.start_z),
+                (m.end_x * display_x_scale, m.end_y, m.end_z),
             )
         )
         if m.move in (2, 3):
-            geom = arc_geometry(m, arc_type=arc_type, lathe_radius_view=lathe_radius_view)
+            geom = arc_geometry(m, arc_type=arc_type)
             if geom is not None:
                 _start, _end, orth0, orth1, center, a0, sweep, radius = geom
                 plot_move = _plot_move_for_plane(m.move, m.plane)
@@ -357,18 +295,23 @@ def trace_statistics(
                         a = center[0] + radius * math.cos(angle)
                         b = center[1] + radius * math.sin(angle)
                         x, y, z = _xyz_from_plane(m.plane, a, b, orth)
-                        if lathe_radius_view and m.plane != 18:
-                            x *= scale_x
+                        # Arc geometry is physical; bounds use the same X-space
+                        # requested by the caller as the endpoint coordinates.
+                        x *= display_x_scale / m.x_scale
                         coords.append((x, y, z))
 
     xs = [p[0] for p in coords]
     ys = [p[1] for p in coords]
     zs = [p[2] for p in coords]
+    time_complete = unknown_time_motion_count == 0
     return {
         "lengths": lengths,
         "times": times,
         "total_length": sum(lengths),
-        "total_time_min": sum(times),
+        "total_time_min": known_time if time_complete else None,
+        "known_time_min": known_time,
+        "time_complete": time_complete,
+        "unknown_time_motion_count": unknown_time_motion_count,
         "bounds": ((min(xs), max(xs)), (min(ys), max(ys)), (min(zs), max(zs))) if xs else None,
         "motion_count": len(result.motions),
         "rapid_count": sum(m.move == 0 for m in result.motions),

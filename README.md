@@ -39,12 +39,9 @@ Download the current standalone Windows executable from [GitHub Releases](https:
       - [4. Status Bar](#4-status-bar)
     - [Export Configuration](#export-configuration)
   - [Supported G-code Commands](#supported-g-code-commands)
-    - [Motion Commands](#motion-commands)
-    - [Plane Selection](#plane-selection)
-    - [Coordinate Systems](#coordinate-systems)
-    - [Canned Cycles](#canned-cycles)
-    - [Tool Compensation](#tool-compensation)
-    - [Miscellaneous](#miscellaneous)
+    - [Common motion and execution](#common-motion-and-execution)
+    - [FANUC milling](#fanuc-milling)
+    - [FANUC turning](#fanuc-turning)
   - [Configuration](#configuration)
     - [Settings File](#settings-file)
       - [Plot Settings](#plot-settings)
@@ -246,7 +243,7 @@ The native kernel currently exposes two execution profiles: `fanuc_mill` and `fa
 - XYZ absolute/incremental motion (`G90/G91`)
 - IJK/R arcs and helical interpolation
 - `G80/G81/G82/G83/G84` canned cycles
-- `G40/G41/G42` cutter-compensation modal state is tracked, but cutter-radius geometry is not applied; explicit G41/G42 blocks are reported as `UNVERIFIED`
+- `G40/G41/G42` cutter-radius compensation is applied from configured milling tools for supported G17 line/arc/helix contours; unsupported cases remain explicitly `UNVERIFIED`
 - `G43/G49` tool-length compensation state is tracked and preserved for export, but H-offset geometry is not applied; explicit G43 blocks are reported as `UNVERIFIED`
 - `G98/G99` canned-cycle return mode
 

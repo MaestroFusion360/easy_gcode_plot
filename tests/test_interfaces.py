@@ -110,14 +110,14 @@ def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence
 
 
 def test_exporter_arc_modes_are_explicit_and_linearization_removes_g2_g3():
-    result = execute("G18 G0 X0 Z0\nG2 X20 Z0 I10 K0 F50\nM30")
+    result = execute("G18 G0 X0 Z0\nG2 X20 Z0 I5 K0 F50\nM30")
 
     absolute = export_result(result, ExportOptions(arc_mode=1, delimiter=True, analysis_banner=False))
     radius = export_result(result, ExportOptions(arc_mode=2, delimiter=True, analysis_banner=False))
     linear = export_result(result, ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False))
 
-    assert "I10" in absolute and "K0" in absolute
-    assert " R10" in radius
+    assert "I5" in absolute and "K0" in absolute
+    assert " R5" in radius
     assert " I" not in radius and " K" not in radius
     assert "G2 " not in linear and "G3 " not in linear
     assert linear.count("G1 ") > 100

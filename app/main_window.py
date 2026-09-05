@@ -118,9 +118,12 @@ def _normalized_milling_tools(raw):
             continue
         key = str(raw_key).strip().upper()
         digits = key[1:] if key.startswith("T") else key
-        if not digits.isdigit() or not 1 <= len(digits) <= 4 or int(digits) <= 0:
+        if not digits.isdigit():
             continue
-        key = f"T{int(digits):04d}"
+        tool_number = int(digits)
+        if not 1 <= tool_number <= 99:
+            continue
+        key = f"T{tool_number}"
 
         tool_type = str(raw_spec.get("type", "mill_flat")).strip().lower()
         if tool_type not in valid_types:
@@ -1004,7 +1007,9 @@ class MainWindow(QMainWindow):
         result = execute(
             source,
             language=language,
+            source_arc_type=getattr(self, "arc_type", 1),
             tools=getattr(self, "tools", None),
+            milling_tools=getattr(self, "millingTools", None),
             home_x=self.xPosMach,
             home_y=self.yPosMach,
             home_z=self.zPosMach,
@@ -1419,17 +1424,22 @@ class MainWindow(QMainWindow):
             rapid_feed=self.rapidFeed,
             arc_type=self.arc_type,
         )
-        time_min = float(stats["total_time_min"])
-        time_sec = time_min * 60
+        time_value = stats["total_time_min"]
+        if time_value is None:
+            time_text = "UNKNOWN"
+        else:
+            time_min = float(time_value)
+            time_sec = time_min * 60
+            time_text = "{h:02}:{m:02}:{s:02}".format(
+                h=floor(time_min / 60), m=floor(time_min % 60), s=floor(time_sec % 60)
+            )
         return (
             self.co
             + f"Toolpath Length: {float(stats['total_length']):.3f}"
             + self.ci
             + "\n"
             + self.co
-            + "Machining Time: {h:02}:{m:02}:{s:02}".format(
-                h=floor(time_min / 60), m=floor(time_min % 60), s=floor(time_sec % 60)
-            )
+            + f"Machining Time: {time_text}"
             + self.ci
             + "\n"
         )

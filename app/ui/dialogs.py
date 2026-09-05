@@ -568,19 +568,19 @@ class _MillingToolEditor(QDialog):
             self.cornerRadius.setValue(self.diameter.value() / 2.0)
 
     def validateAndAccept(self):
-        """Validate a compact FANUC T word before accepting the editor."""
+        """Accept only compact milling tool numbers T1 through T99."""
         raw = self.toolCode.text().strip().upper()
         digits = raw[1:] if raw.startswith("T") else raw
-        if not digits.isdigit() or not 1 <= len(digits) <= 4 or int(digits) <= 0:
-            QMessageBox.warning(self, "Milling Tools", "T code must contain 1 to 4 non-zero digits.")
+        if not digits.isdigit() or digits.startswith("0") or not 1 <= int(digits) <= 99:
+            QMessageBox.warning(self, "Milling Tools", "T code must be T1-T99 without leading zeros.")
             return
         self.accept()
 
     def value(self):
-        """Return normalized tool code and milling geometry."""
+        """Return compact T1-T99 tool code and milling geometry."""
         raw = self.toolCode.text().strip().upper()
         digits = raw[1:] if raw.startswith("T") else raw
-        key = f"T{int(digits):04d}"
+        key = f"T{int(digits)}"
         tool_type = self.currentType()
         diameter = self.diameter.value()
         radius = self.cornerRadius.value()
@@ -693,5 +693,6 @@ class MillingTools(QDialog):
         self.refreshTable()
 
     def applyValues(self):
-        """Store milling tool data without changing or rebuilding the trace."""
+        """Store milling tool data and rebuild the trace with the new cutter geometry."""
         self.parent().millingTools = copy.deepcopy(self.pendingTools)
+        self.parent().updateData()

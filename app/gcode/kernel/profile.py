@@ -226,6 +226,8 @@ def build_profile_segments(
 
     for i in range(start_idx, end_idx + 1):
         w = eval_words(blocks[i].parsed_words, variables)
+        if w.errors:
+            raise ValueError(f"Invalid profile expression at line {i + 1}: {w.errors[0][1]}")
         if "G" in w:
             g = int(w["G"])
             if g in (0, 1, 2, 3):
@@ -310,7 +312,7 @@ def build_profile_segments(
         has_center = "I" in w or "K" in w
         # Fanuc lathe I center offset is radius-based even in X-diameter programming.
         i_raw = w.get("I", 0.0) * unit_scale
-        i_off = radius_to_diameter(i_raw) if x_is_diameter else i_raw
+        i_off = radius_to_diameter(i_raw)
         k_off = w.get("K", 0.0) * unit_scale
         center = Point2(x + i_off, z + k_off)
 
@@ -409,36 +411,16 @@ def arc_center_from_r(start: Point2, end: Point2, radius: float, move: int, x_sc
 
 def try_get_arc_geometry(seg: ProfileSegment) -> ArcGeom | None:
     if seg.has_center:
-        i_delta = seg.center.x - seg.start.x
-        center_as_written = seg.center
-        center_with_radius_i = Point2(seg.start.x + (i_delta * 2.0), seg.center.z)
-        candidates = [
-            (center_as_written, 1.0),
-            (center_as_written, 0.5),
-            (center_with_radius_i, 0.5),
-        ]
-        best: tuple[Point2, float, float] | None = None
-        best_score = float("inf")
-        for center, scale in candidates:
-            score = score_center_candidate(seg, center, scale)
-            if not math.isfinite(score):
-                continue
-            if score < best_score:
-                best = (center, scale, score)
-                best_score = score
-        if best is not None:
-            center, scale, _score = best
-            return ArcGeom(center, scale)
-
+        r0 = math.hypot((seg.start.x - seg.center.x) * 0.5, seg.start.z - seg.center.z)
+        r1 = math.hypot((seg.end.x - seg.center.x) * 0.5, seg.end.z - seg.center.z)
+        if r0 > 1e-10 and abs(r0 - r1) <= max(0.002, r0 * 1e-5):
+            return ArcGeom(seg.center, 0.5)
+        raise ValueError("Invalid profile I/K arc geometry")
     if seg.has_radius:
-        # Lathe default: diameter programming (X is diameter) -> solve in radius-space first.
-        scaled = arc_center_from_r(seg.start, seg.end, seg.radius, seg.move, x_scale=0.5)
-        if scaled is not None:
-            return ArcGeom(scaled, 0.5)
-
-        direct = arc_center_from_r(seg.start, seg.end, seg.radius, seg.move, x_scale=1.0)
-        if direct is not None:
-            return ArcGeom(direct, 1.0)
+        center = arc_center_from_r(seg.start, seg.end, seg.radius, seg.move, x_scale=0.5)
+        if center is not None:
+            return ArcGeom(center, 0.5)
+        raise ValueError("Invalid profile R arc geometry")
 
     return None
 

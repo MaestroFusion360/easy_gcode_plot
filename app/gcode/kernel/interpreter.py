@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # Interpreter dispatch exits early for each explicit CNC motion/cycle opcode.
 # pylint: disable=too-many-return-statements
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 
 from .ast import CycleAstNode, MotionAstNode
 from .execution import (
@@ -11,9 +11,14 @@ from .execution import (
     classify_block_codes,
     dispatch_macro_flow,
     dispatch_subprogram_flow,
+    flow_control_mcode,
     retain_modal_turning_cycles,
 )
+from .model import RuntimeState
 from .program import resolve_cycle_profile_indices
+from .resources import checkpoint
+from .runtime import expand_cycle_block
+from .signals import signals_for_words
 
 _X_AXIS_WORDS = ("X", "U")
 _Z_AXIS_WORDS = ("Z", "W")
@@ -42,6 +47,12 @@ class TraceRuntimeState:
     compensation_mode: int = 40
     active_tool: str | None = None
     vars_map: dict[str, float] | None = None
+    feed_mode: str = "per_revolution"
+    spindle_rpm: float | None = None
+    spindle_mode: str = "rpm"
+    surface_speed_m_min: float | None = None
+    spindle_limit_rpm: float | None = None
+    spindle_running: bool = False
 
     def __post_init__(self) -> None:
         if self.vars_map is None:
@@ -55,6 +66,10 @@ class TraceExecutionContext:
     guard: int = 0
     call_stack: list[tuple[int, int, int]] | None = None
     max_call_depth: int = 64
+    cycle_state: RuntimeState = field(default_factory=RuntimeState)
+    cycle_options: dict = field(default_factory=dict)
+    words: tuple = ()
+    signals: tuple = ()
     label_to_index: dict[int, int] | None = None
     olabel_to_index: dict[int, int] | None = None
     contour_block_indices: set[int] | None = None
@@ -92,6 +107,14 @@ class TraceStepSnapshot:
     x_is_diameter: bool
     contour_definition: bool
     variables: tuple[tuple[str, float], ...] = ()
+    words: tuple = ()
+    signals: tuple = ()
+    feed_mode: str = "per_revolution"
+    spindle_rpm: float | None = None
+    spindle_mode: str = "rpm"
+    surface_speed_m_min: float | None = None
+    spindle_limit_rpm: float | None = None
+    spindle_running: bool = False
 
 
 @dataclass(frozen=True)
@@ -189,81 +212,12 @@ def build_trace_execution_context(
     initial_state: TraceRuntimeState | None = None,
 ) -> TraceExecutionContext:
     state = initial_state or TraceRuntimeState()
-    blocks = program.blocks
 
     execution_index = build_program_execution_index(program)
     label_to_index = execution_index.label_to_index
     olabel_to_index = execution_index.olabel_to_index
 
-    # Resolve P/Q contours with the same evaluated Macro B values and control
-    # flow used by execution.  A separate variables map keeps this planning
-    # pass from changing the actual trace runtime state.
     contour_block_indices: set[int] = set()
-    planning_vars = dict(state.vars_map or {})
-    planning_call_stack: list[tuple[int, int, int]] = []
-    planning_pc = 0
-    planning_guard = 0
-    while 0 <= planning_pc < len(blocks):
-        planning_guard += 1
-        if planning_guard > 500000:
-            break
-
-        block = blocks[planning_pc]
-        flow_dispatch = dispatch_macro_flow(
-            block=block,
-            pc=planning_pc,
-            blocks=blocks,
-            variables=planning_vars,
-            label_to_index=label_to_index,
-            while_to_end=execution_index.while_to_end,
-            end_to_while=execution_index.end_to_while,
-        )
-        if flow_dispatch.handled:
-            planning_pc = flow_dispatch.next_pc
-            continue
-
-        words = eval_words_fn(block.parsed_words, planning_vars)
-        if getattr(words, "errors", None):
-            planning_pc += 1
-            continue
-        codes = classify_block_codes(words)
-        flow_mcode = (
-            98
-            if 98 in codes.all_m
-            else (99 if 99 in codes.all_m else (30 if 30 in codes.all_m else (2 if 2 in codes.all_m else codes.mcode)))
-        )
-        try:
-            sub_flow = dispatch_subprogram_flow(
-                mcode=flow_mcode,
-                words=words,
-                pc=planning_pc,
-                olabel_to_index=olabel_to_index,
-                call_stack=planning_call_stack,
-                max_call_depth=64,
-            )
-        except ValueError:
-            planning_pc += 1
-            continue
-        planning_call_stack = sub_flow.call_stack
-        if sub_flow.handled:
-            if sub_flow.stop:
-                break
-            planning_pc = sub_flow.next_pc
-            continue
-
-        g_codes = codes.all_g
-        if any(g in (70, 71, 72, 73) for g in g_codes) and "P" in words and "Q" in words:
-            bounds = resolve_cycle_profile_indices(
-                blocks,
-                planning_pc,
-                int(words["P"]),
-                int(words["Q"]),
-                prefer_preceding=70 in g_codes,
-            )
-            if bounds is not None:
-                p_idx, q_idx = bounds
-                contour_block_indices.update(range(p_idx, q_idx + 1))
-        planning_pc += 1
 
     while_to_end = execution_index.while_to_end
     end_to_while = execution_index.end_to_while
@@ -486,6 +440,7 @@ def dispatch_motion_block(
     source_nlabel: int | None,
     source_raw: str | None,
 ) -> MotionDispatch:
+    has_pos = has_pos or (modal_move in (2, 3) and any(k in words for k in ("I", "K", "R")))
     if (not has_pos) or non_motion_g or modal_move not in (0, 1, 2, 3):
         return MotionDispatch(False, modal_x, modal_z, None)
 
@@ -500,7 +455,7 @@ def dispatch_motion_block(
     elif "W" in words:
         tz = modal_z + (words["W"] * unit_scale)
 
-    if abs(tx - modal_x) <= 1e-9 and abs(tz - modal_z) <= 1e-9:
+    if tx == modal_x and tz == modal_z and not (modal_move in (2, 3) and any(k in words for k in ("I", "K", "R"))):
         return MotionDispatch(True, tx, tz, None)
 
     radius = (words["R"] * unit_scale) if (modal_move in (2, 3) and "R" in words) else None
@@ -509,7 +464,7 @@ def dispatch_motion_block(
     k_off = None
     if modal_move in (2, 3) and ("I" in words or "K" in words):
         i_raw = words.get("I", 0.0) * unit_scale
-        i_off = x_delta_to_diameter_fn(i_raw, x_is_diameter)
+        i_off = i_raw * 2.0
         k_off = words.get("K", 0.0) * unit_scale
     smx, smz = to_machine_fn(modal_x, modal_z)
     emx, emz = to_machine_fn(tx, tz)
@@ -615,53 +570,6 @@ def dispatch_cycle_emission(
     )
 
 
-def execute_trace_context(
-    *,
-    program,
-    ctx: TraceExecutionContext,
-    rough_cycles: list[list[object]],
-    finish_cycles: list[list[object]],
-    skip_optional_blocks: bool,
-    emulate_g28_home: bool,
-    x_is_diameter: bool,
-    home_x: float,
-    home_z: float,
-    eval_words_fn,
-    try_wcs_from_gcode_fn,
-    to_machine_fn,
-    wcs_off_fn,
-    x_value_to_diameter_fn,
-    x_delta_to_diameter_fn,
-    motion_ctor,
-    point_ctor,
-) -> list[object]:
-    motions: list[object] = []
-    while 0 <= ctx.pc < len(program.blocks):
-        step_stop, step_motions = execute_trace_step(
-            program=program,
-            ctx=ctx,
-            rough_cycles=rough_cycles,
-            finish_cycles=finish_cycles,
-            skip_optional_blocks=skip_optional_blocks,
-            emulate_g28_home=emulate_g28_home,
-            x_is_diameter=x_is_diameter,
-            home_x=home_x,
-            home_z=home_z,
-            eval_words_fn=eval_words_fn,
-            try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
-            to_machine_fn=to_machine_fn,
-            wcs_off_fn=wcs_off_fn,
-            x_value_to_diameter_fn=x_value_to_diameter_fn,
-            x_delta_to_diameter_fn=x_delta_to_diameter_fn,
-            motion_ctor=motion_ctor,
-            point_ctor=point_ctor,
-        )
-        motions.extend(step_motions)
-        if step_stop:
-            break
-    return motions
-
-
 def execute_trace_context_with_steps(
     *,
     program,
@@ -686,6 +594,9 @@ def execute_trace_context_with_steps(
     steps: list[TraceStepSnapshot] = []
     while 0 <= ctx.pc < len(program.blocks):
         pc_before = ctx.pc
+        if skip_optional_blocks and program.blocks[pc_before].optional_skip:
+            ctx.pc += 1
+            continue
         step_stop, step_motions = execute_trace_step(
             program=program,
             ctx=ctx,
@@ -727,6 +638,14 @@ def execute_trace_context_with_steps(
                 x_is_diameter=ctx.state.x_is_diameter,
                 contour_definition=pc_before in (ctx.contour_block_indices or set()),
                 variables=tuple(sorted((ctx.state.vars_map or {}).items())),
+                words=ctx.words,
+                signals=ctx.signals,
+                feed_mode=ctx.state.feed_mode,
+                spindle_rpm=ctx.state.spindle_rpm,
+                spindle_mode=ctx.state.spindle_mode,
+                surface_speed_m_min=ctx.state.surface_speed_m_min,
+                spindle_limit_rpm=ctx.state.spindle_limit_rpm,
+                spindle_running=ctx.state.spindle_running,
             )
         )
         if step_stop:
@@ -758,6 +677,9 @@ def execute_trace_step(
     blocks = program.blocks
     state = ctx.state
 
+    checkpoint("executed_blocks")
+    ctx.words = ()
+    ctx.signals = ()
     ctx.guard += 1
     if ctx.guard > 500000:
         raise RuntimeError("Source trace execution guard reached")
@@ -768,6 +690,10 @@ def execute_trace_step(
         ast_node = program.ast.nodes[ctx.pc]
 
     if skip_optional_blocks and block.optional_skip:
+        ctx.pc += 1
+        return False, motions
+
+    if ctx.pc in (ctx.contour_block_indices or set()):
         ctx.pc += 1
         return False, motions
 
@@ -789,6 +715,8 @@ def execute_trace_step(
     if getattr(words, "errors", None):
         details = ", ".join(f"{tok.letter}{tok.expr}: {msg}" for tok, msg in words.errors)
         raise ValueError(f"Cannot evaluate CNC words at line {block.index + 1}: {block.raw}: {details}")
+    ctx.words = tuple((k, v) for k in words for v in words.all(k))
+    ctx.signals = signals_for_words(block.index, words)
     codes = classify_block_codes(words)
     all_g = codes.all_g
     all_m = codes.all_m
@@ -820,9 +748,51 @@ def execute_trace_step(
     for candidate in all_g:
         wcs_code = try_wcs_from_gcode_fn(candidate)
         if wcs_code is not None:
+            old_x, old_z = wcs_off_fn(state.active_wcs)
+            new_x, new_z = wcs_off_fn(wcs_code)
+            state.modal_x += old_x - new_x
+            state.modal_z += old_z - new_z
             state.active_wcs = wcs_code
 
-    flow_mcode = 98 if 98 in all_m else (99 if 99 in all_m else (30 if 30 in all_m else (2 if 2 in all_m else mcode)))
+    # Modal words on an M98 block are active for the called subprogram.  Apply
+    # state-only words before transferring control; the source block is not
+    # revisited after M99 returns.
+    if 20 in all_g:
+        state.unit_scale = 25.4
+    if 21 in all_g:
+        state.unit_scale = 1.0
+    if 190 in all_g:
+        state.x_is_diameter = True
+    if 191 in all_g:
+        state.x_is_diameter = False
+    if 98 in all_g:
+        state.feed_mode = "per_minute"
+    if 99 in all_g:
+        state.feed_mode = "per_revolution"
+    if 50 in all_g and "S" in words:
+        state.spindle_limit_rpm = words["S"]
+    if 96 in all_g:
+        state.spindle_mode = "css"
+        if "S" in words:
+            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1.0 else 1.0)
+        state.spindle_rpm = None
+    elif 97 in all_g:
+        state.spindle_mode = "rpm"
+        if "S" in words:
+            state.spindle_rpm = words["S"]
+    elif "S" in words and 50 not in all_g:
+        if state.spindle_mode == "css":
+            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1.0 else 1.0)
+        else:
+            state.spindle_rpm = words["S"]
+    if 3 in all_m or 4 in all_m:
+        state.spindle_running = True
+    if 5 in all_m:
+        state.spindle_running = False
+    if "F" in words:
+        state.modal_feed = words["F"] * state.unit_scale
+
+    flow_mcode = flow_control_mcode(all_m, mcode)
     sub_flow = dispatch_subprogram_flow(
         mcode=flow_mcode,
         words=words,
@@ -849,17 +819,21 @@ def execute_trace_step(
         ctx.pc += 1
         return False, motions
 
-    if 20 in all_g:
-        state.unit_scale = 25.4
-    if 21 in all_g:
-        state.unit_scale = 1.0
-    if 190 in all_g:
-        state.x_is_diameter = True
-    if 191 in all_g:
-        state.x_is_diameter = False
-
-    if "F" in words:
-        state.modal_feed = words["F"] * state.unit_scale
+    cs = ctx.cycle_state
+    cs.modal_x, cs.modal_z = state.modal_x, state.modal_z
+    cs.modal_feed, cs.unit_scale = state.modal_feed, state.unit_scale
+    cs.x_is_diameter = state.x_is_diameter
+    cs.variables = state.vars_map
+    cs.compensation_mode, cs.active_tool = state.compensation_mode, state.active_tool
+    rough_cycles, finish_cycles = expand_cycle_block(program, ctx.pc, words, cs, **ctx.cycle_options)
+    state.rough_idx = state.finish_idx = 0
+    if any(g in (70, 71, 72, 73) for g in all_g) and "P" in words and "Q" in words:
+        bounds = resolve_cycle_profile_indices(
+            blocks, ctx.pc, int(words["P"]), int(words["Q"]), prefer_preceding=70 in all_g
+        )
+        if bounds is None:
+            raise ValueError(f"Missing cycle P/Q contour at line {block.index + 1}")
+        ctx.contour_block_indices.update(range(bounds[0], bounds[1] + 1))
 
     cyc = dispatch_cycle_block(
         ast_node,

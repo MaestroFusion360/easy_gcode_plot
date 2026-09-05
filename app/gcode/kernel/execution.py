@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .lang import eval_condition, evaluate_expression
+from .resources import SemanticError, active_budget, checkpoint
 
 MOTION_CODES = frozenset({0, 1, 2, 3, 32, 33})
 CYCLE_CODES = frozenset({70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94})
@@ -70,6 +71,14 @@ class SubprogramDispatch:
     next_pc: int
     stop: bool
     call_stack: list[tuple[int, int, int]]
+
+
+def flow_control_mcode(all_m: tuple[int, ...], fallback: int | None = None) -> int | None:
+    """Select program-flow M code independently of source word order."""
+    for code in (98, 99, 30, 2):
+        if code in all_m:
+            return code
+    return fallback
 
 
 def classify_block_codes(words: object) -> BlockCodes:
@@ -209,6 +218,9 @@ def dispatch_macro_flow(
         return FlowDispatch(True, target)
 
     if flow.kind == "while":
+        checkpoint("macro_iterations")
+        if pc not in while_to_end:
+            raise ValueError(f"WHILE has no matching END at line {line}: {raw}")
         try:
             take = eval_condition(flow.condition or "0", variables)
         except Exception as exc:
@@ -221,6 +233,7 @@ def dispatch_macro_flow(
         return FlowDispatch(True, end_index + 1)
 
     if flow.kind == "end":
+        checkpoint("macro_iterations")
         while_index = end_to_while.get(pc)
         if while_index is None:
             raise ValueError(f"END{flow.loop_id} has no matching WHILE DO{flow.loop_id} at line {line}: {raw}")
@@ -248,6 +261,14 @@ def dispatch_subprogram_flow(
     if mcode == 98:
         if "P" not in words:
             raise ValueError("M98 requires a P subprogram target")
+        checkpoint("subprogram_calls")
+        budget = active_budget.get()
+        if budget is not None:
+            max_call_depth = budget.limits.call_depth
+        if not float(words["P"]).is_integer() or words["P"] <= 0:
+            raise ValueError("M98 P must be a positive integer")
+        if not float(words.get("L", 1)).is_integer() or words.get("L", 1) <= 0:
+            raise ValueError("M98 L must be a positive integer")
         target_o = int(words["P"])
         target_idx = olabel_to_index.get(target_o)
         if target_idx is None:
@@ -259,6 +280,12 @@ def dispatch_subprogram_flow(
         return SubprogramDispatch(True, target_idx, False, stack)
 
     if mcode == 99:
+        if "P" in words:
+            raise SemanticError(
+                "UNSUPPORTED_M99_P",
+                "M99 P requires an explicit controller profile",
+                "controller_dependent",
+            )
         if stack:
             ret_pc, sub_pc, remaining = stack[-1]
             if remaining > 1:

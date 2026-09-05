@@ -2,12 +2,7 @@ from __future__ import annotations
 
 # Keyword assembly mirrors the execution-context contract directly.
 # pylint: disable=use-dict-literal
-from .interpreter import (
-    TraceRuntimeState,
-    build_trace_execution_context,
-    execute_trace_context,
-    execute_trace_context_with_steps,
-)
+from .interpreter import TraceRuntimeState, build_trace_execution_context, execute_trace_context_with_steps
 from .tool_compensation import apply_tool_nose_compensation
 
 
@@ -17,6 +12,8 @@ def _build_trace_execution_kwargs(
     finish_cycles,
     *,
     x_is_diameter: bool,
+    pq_mm_for_g74758384: bool = False,
+    supplementary_angles: bool = False,
     skip_optional_blocks: bool,
     home_x: float,
     home_z: float,
@@ -47,6 +44,7 @@ def _build_trace_execution_kwargs(
         return px + ox, pz + oz
 
     ctx = build_trace_execution_context(program=program, initial_state=state, eval_words_fn=eval_words_fn)
+    ctx.cycle_options = dict(pq_mm_for_g74758384=pq_mm_for_g74758384, supplementary_angles=supplementary_angles)
     return dict(
         program=program,
         ctx=ctx,
@@ -68,52 +66,14 @@ def _build_trace_execution_kwargs(
     )
 
 
-def build_source_motion_trace(
-    program,
-    rough_cycles,
-    finish_cycles,
-    *,
-    x_is_diameter: bool,
-    skip_optional_blocks: bool = False,
-    home_x: float = 0.0,
-    home_z: float = 0.0,
-    wcs_offsets: dict[int, tuple[float, float]] | None = None,
-    emulate_g28_home: bool = False,
-    eval_words_fn,
-    try_wcs_from_gcode_fn,
-    x_value_to_diameter_fn,
-    x_delta_to_diameter_fn,
-    motion_ctor,
-    point_ctor,
-    tools: dict[str, dict[str, object]] | None = None,
-):
-    execution_kwargs = _build_trace_execution_kwargs(
-        program,
-        rough_cycles,
-        finish_cycles,
-        x_is_diameter=x_is_diameter,
-        skip_optional_blocks=skip_optional_blocks,
-        home_x=home_x,
-        home_z=home_z,
-        wcs_offsets=wcs_offsets,
-        emulate_g28_home=emulate_g28_home,
-        eval_words_fn=eval_words_fn,
-        try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
-        x_value_to_diameter_fn=x_value_to_diameter_fn,
-        x_delta_to_diameter_fn=x_delta_to_diameter_fn,
-        motion_ctor=motion_ctor,
-        point_ctor=point_ctor,
-    )
-    motions = execute_trace_context(**execution_kwargs)
-    return apply_tool_nose_compensation(motions, tools or {})
-
-
 def build_source_motion_trace_with_steps(
     program,
     rough_cycles,
     finish_cycles,
     *,
     x_is_diameter: bool,
+    pq_mm_for_g74758384: bool = False,
+    supplementary_angles: bool = False,
     skip_optional_blocks: bool = False,
     home_x: float = 0.0,
     home_z: float = 0.0,
@@ -132,6 +92,8 @@ def build_source_motion_trace_with_steps(
         rough_cycles,
         finish_cycles,
         x_is_diameter=x_is_diameter,
+        pq_mm_for_g74758384=pq_mm_for_g74758384,
+        supplementary_angles=supplementary_angles,
         skip_optional_blocks=skip_optional_blocks,
         home_x=home_x,
         home_z=home_z,

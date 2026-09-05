@@ -71,16 +71,12 @@ def _arc_center(motion: Motion) -> _Vec | None:
         k_value = float(motion.k or 0.0)
         start = _to_vec(motion.start)
         end = _to_vec(motion.end)
-        candidates = (
-            _Vec(start.x + i_value, start.z + k_value),
-            _Vec(start.x + i_value * 0.5, start.z + k_value),
-        )
-        return min(
-            candidates,
-            key=lambda center: abs(
-                math.hypot(start.x - center.x, start.z - center.z) - math.hypot(end.x - center.x, end.z - center.z)
-            ),
-        )
+        center = _Vec(start.x + i_value * 0.5, start.z + k_value)
+        r0 = math.hypot(start.x - center.x, start.z - center.z)
+        r1 = math.hypot(end.x - center.x, end.z - center.z)
+        if r0 <= 1e-10 or abs(r0 - r1) > max(0.002, r0 * 1e-5):
+            raise ToolCompensationError("Invalid tool compensation arc")
+        return center
     if motion.radius is None:
         return None
     center = arc_center_from_r(

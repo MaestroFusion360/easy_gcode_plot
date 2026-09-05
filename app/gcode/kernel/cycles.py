@@ -12,6 +12,7 @@ import math
 from .model import *  # noqa: F403
 from .profile import *  # noqa: F403
 from .program import radius_to_diameter
+from .resources import SemanticError, checkpoint, require_progress
 
 
 def add_motion(
@@ -27,6 +28,7 @@ def add_motion(
 ) -> None:
     if abs(s.x - e.x) <= 1e-6 and abs(s.z - e.z) <= 1e-6:
         return
+    checkpoint("generated_motions")
     motions.append(
         Motion(
             move=move,
@@ -55,17 +57,18 @@ def add_motion_with_meta(
     source_raw: str | None = None,
     source_kind: str = "motion",
 ) -> None:
-    if abs(s.x - e.x) <= 1e-6 and abs(s.z - e.z) <= 1e-6:
+    if s == e and move not in (2, 3):
         return
     arc_i = i
     arc_k = k
     if move in (2, 3) and arc_i is None and arc_k is None and radius is not None:
         center = arc_center_from_r(s, e, radius, move, x_scale=0.5)
         if center is None:
-            center = arc_center_from_r(s, e, radius, move, x_scale=1.0)
+            raise SemanticError("INVALID_GEOMETRY", "Invalid cycle R arc", "invalid_geometry")
         if center is not None:
             arc_i = center.x - s.x
             arc_k = center.z - s.z
+    checkpoint("generated_motions")
     motions.append(
         Motion(
             move=move,
@@ -199,8 +202,12 @@ def build_g71_roughing(
     tool = Point2(stock_x, stock_z)
 
     guard = 0
-    while guard < 10000 and ((pass_x <= max_x + 1e-4) if boring_mode else (pass_x >= min_x - 1e-4)):
+    while (pass_x <= max_x + 1e-4) if boring_mode else (pass_x >= min_x - 1e-4):
+        checkpoint("cycle_iterations")
         guard += 1
+        checkpoint("cycle_iterations")
+        if guard > 10000:
+            raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
         entry = try_find_entry_on_profile(profile, pass_x)
         if entry is None:
             if abs(pass_x - limit_x) <= 1e-9:
@@ -467,8 +474,12 @@ def build_g72_facing(
     saw_closed_span = False
 
     guard = 0
-    while guard < 10000 and ((pass_z >= limit_z - 1e-6) if pass_dir < 0.0 else (pass_z <= limit_z + 1e-6)):
+    while (pass_z >= limit_z - 1e-6) if pass_dir < 0.0 else (pass_z <= limit_z + 1e-6):
+        checkpoint("cycle_iterations")
         guard += 1
+        checkpoint("cycle_iterations")
+        if guard > 10000:
+            raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
         cand = _distinct_in_profile_order(_profile_intersections_at_z(profile, pass_z))
         if not cand:
             stock_side_of_profile = (pass_dir < 0.0 and pass_z > z_max + 1e-8) or (
@@ -640,6 +651,7 @@ def build_g73_pattern(
 
     tool = Point2(stock_x, stock_z)
     for i in range(passes, 0, -1):
+        checkpoint("cycle_iterations")
         k = i / passes
         # U/W carry the programmed pattern displacement.  Preserve their signs;
         # inferring direction from the average contour position makes identical
@@ -665,6 +677,8 @@ def _linspace_steps(start: float, end: float, step: float) -> list[float]:
     cur = start
     direction = 1.0 if end > start else -1.0
     while (end - cur) * direction > step:
+        checkpoint("cycle_iterations")
+        require_progress(cur, cur + direction * step)
         cur += direction * step
         vals.append(cur)
     if abs(vals[-1] - end) > 1e-9:
@@ -685,7 +699,9 @@ def _append_peck_x(
     direction = 1.0 if target_x > start.x else -1.0
     curr = start
     while (target_x - curr.x) * direction > 1e-7:
+        checkpoint("cycle_iterations")
         nx = curr.x + (direction * step_dia)
+        require_progress(curr.x, nx)
         if (target_x - nx) * direction < 0.0:
             nx = target_x
         hit = Point2(nx, curr.z)
@@ -711,7 +727,9 @@ def _append_peck_z(
     direction = 1.0 if target_z > start.z else -1.0
     curr = start
     while (target_z - curr.z) * direction > 1e-7:
+        checkpoint("cycle_iterations")
         nz = curr.z + (direction * step)
+        require_progress(curr.z, nz)
         if (target_z - nz) * direction < 0.0:
             nz = target_z
         hit = Point2(curr.x, nz)
@@ -739,6 +757,7 @@ def _append_peck_x_turning(
     curr = start
     last_cut_x = start.x
     while (target_x - last_cut_x) * direction > 1e-7:
+        checkpoint("cycle_iterations")
         nx = last_cut_x + (direction * step_dia)
         if (target_x - nx) * direction < 0.0:
             nx = target_x
@@ -769,6 +788,7 @@ def _append_peck_z_turning(
     curr = start
     last_cut_z = start.z
     while (target_z - last_cut_z) * direction > 1e-7:
+        checkpoint("cycle_iterations")
         nz = last_cut_z + (direction * step)
         if (target_z - nz) * direction < 0.0:
             nz = target_z
@@ -963,12 +983,15 @@ def _g76_constant_area_depths(
         depth = min(first, rough_target)
         depths.append(depth)
         pass_no = 2
-        while depth < rough_target - 1e-9 and pass_no < 10000:
+        while depth < rough_target - 1e-9:
+            checkpoint("cycle_iterations")
+            checkpoint("cycle_iterations")
+            if pass_no >= 10000:
+                raise SemanticError("RESOURCE_LIMIT", "G76 exceeds 10000 passes", "resource_limit")
             nominal = first * math.sqrt(float(pass_no))
             candidate = max(nominal, depth + min_inc) if min_inc > 0 else nominal
             candidate = min(rough_target, candidate)
-            if candidate <= depth + 1e-12:
-                candidate = rough_target
+            require_progress(depth, candidate)
             depths.append(candidate)
             depth = candidate
             pass_no += 1
