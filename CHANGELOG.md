@@ -1,6 +1,10 @@
 # Changelog
 
-## 1.2.3 - Unreleased
+## 1.2.4 - Unreleased
+
+- Updated README and project documentation to reflect the current execution architecture, milling cutter compensation and tool configuration.
+
+## 1.2.3 - 2026-09-05
 
 - Stabilized the execution pipeline around one runtime `ExecutionResult` with resolved modal state, machine signals and execution occurrences; removed duplicate turning execution/scanning paths.
 - Moved analytical arc resolution into the kernel, removed consumer-side I/2I best-fit heuristics, and fixed resolved-arc export across unit/coordinate conversions.
