@@ -9,6 +9,12 @@ from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
 from app import main_window
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace
+from app.window_settings import (
+    EDITOR_FONT_FAMILY_KEY,
+    EDITOR_FONT_ITALIC_KEY,
+    EDITOR_FONT_SIZE_KEY,
+    EDITOR_FONT_WEIGHT_KEY,
+)
 
 
 class _Editor:
@@ -124,6 +130,15 @@ def test_tool_settings_normalization_matches_turning_kernel_keys():
         "T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
         "T0002": {"type": "drill", "description": "center drill"},
     }
+
+
+def test_editor_font_persistence_uses_existing_font_keys():
+    assert (
+        EDITOR_FONT_FAMILY_KEY,
+        EDITOR_FONT_SIZE_KEY,
+        EDITOR_FONT_WEIGHT_KEY,
+        EDITOR_FONT_ITALIC_KEY,
+    ) == ("FONT_FAMILY", "FONT_SIZE", "FONT_WEIGHT", "FONT_ITALIC")
 
 
 def test_milling_tool_settings_normalization_matches_cnceditor_geometry_rules():

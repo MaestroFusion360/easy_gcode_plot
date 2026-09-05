@@ -123,6 +123,27 @@ def test_exporter_arc_modes_are_explicit_and_linearization_removes_g2_g3():
     assert linear.count("G1 ") > 100
 
 
+def test_turning_relative_ijk_export_round_trips_nonzero_x_arc_geometry():
+    source = "G21 G18\nG0 X20 Z0\nG2 X20 Z0 I-10 K0 F100\nM30"
+    original = execute(source, language="fanuc_turn")
+    assert original.ok, original.diagnostics
+
+    text = export_result(
+        original,
+        ExportOptions(arc_mode=0, delimiter=True, analysis_banner=False),
+    )
+    assert "I-10" in text
+
+    round_trip = execute(text, language="fanuc_turn")
+    assert round_trip.ok, round_trip.diagnostics
+    expected_arc = arc_geometry(original.motions[-1], arc_type=1)
+    actual_arc = arc_geometry(round_trip.motions[-1], arc_type=1)
+    assert expected_arc is not None
+    assert actual_arc is not None
+    assert actual_arc[4] == pytest.approx(expected_arc[4], abs=0.001)
+    assert actual_arc[6:] == pytest.approx(expected_arc[6:], abs=0.001)
+
+
 @pytest.mark.parametrize(
     "cycle_source",
     [

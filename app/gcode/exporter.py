@@ -67,7 +67,7 @@ def _center_words(m: TraceMotion, options: ExportOptions) -> list[str]:
         center = geom[4]
         if m.plane == 18:
             absolute = (("I", center[0]), ("K", center[1]))
-            relative = (("I", center[0] - m.start_x), ("K", center[1] - m.start_z))
+            relative = (("I", center[0] - (m.start_x * m.x_scale)), ("K", center[1] - m.start_z))
         elif m.plane == 19:
             absolute = (("J", center[0]), ("K", center[1]))
             relative = (("J", center[0] - m.start_y), ("K", center[1] - m.start_z))

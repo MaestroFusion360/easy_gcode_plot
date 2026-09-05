@@ -206,7 +206,11 @@ def micron_or_mm_to_mm(value: float) -> float:
     return value / 1000.0 if abs(value) >= 100.0 else value
 
 
-def try_wcs_from_gcode(gcode: int | None) -> int | None:
+def try_wcs_from_gcode(gcode: int | float | None) -> int | None:
     if gcode is None:
         return None
-    return gcode if 54 <= gcode <= 59 else None
+    numeric = float(gcode)
+    if not numeric.is_integer():
+        return None
+    code = int(numeric)
+    return code if 54 <= code <= 59 else None

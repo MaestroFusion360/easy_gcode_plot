@@ -45,10 +45,10 @@ POSITION_NEUTRAL_GCODES = frozenset(
 
 @dataclass(frozen=True)
 class BlockCodes:
-    all_g: tuple[int, ...]
-    all_m: tuple[int, ...]
-    gcode: int | None
-    mcode: int | None
+    all_g: tuple[int | float, ...]
+    all_m: tuple[int | float, ...]
+    gcode: int | float | None
+    mcode: int | float | None
 
 
 @dataclass(frozen=True)
@@ -73,7 +73,7 @@ class SubprogramDispatch:
     call_stack: list[tuple[int, int, int]]
 
 
-def flow_control_mcode(all_m: tuple[int, ...], fallback: int | None = None) -> int | None:
+def flow_control_mcode(all_m: tuple[int | float, ...], fallback: int | float | None = None) -> int | float | None:
     """Select program-flow M code independently of source word order."""
     for code in (98, 99, 30, 2):
         if code in all_m:
@@ -83,13 +83,18 @@ def flow_control_mcode(all_m: tuple[int, ...], fallback: int | None = None) -> i
 
 def classify_block_codes(words: object) -> BlockCodes:
     """Return all evaluated G/M codes plus the effective execution G/M code."""
+
+    def code_value(value: float) -> int | float:
+        numeric = float(value)
+        return int(numeric) if numeric.is_integer() else numeric
+
     all_getter = getattr(words, "all", None)
-    all_g = tuple(int(round(v)) for v in all_getter("G")) if callable(all_getter) else ()
-    all_m = tuple(int(round(v)) for v in all_getter("M")) if callable(all_getter) else ()
+    all_g = tuple(code_value(v) for v in all_getter("G")) if callable(all_getter) else ()
+    all_m = tuple(code_value(v) for v in all_getter("M")) if callable(all_getter) else ()
     if not all_g and isinstance(words, dict) and "G" in words:
-        all_g = (int(round(words["G"])),)
+        all_g = (code_value(words["G"]),)
     if not all_m and isinstance(words, dict) and "M" in words:
-        all_m = (int(round(words["M"])),)
+        all_m = (code_value(words["M"]),)
 
     cycle_gcodes = [g for g in all_g if g in CYCLE_CODES]
     motion_gcodes = [g for g in all_g if g in MOTION_CODES]
@@ -105,7 +110,7 @@ def classify_block_codes(words: object) -> BlockCodes:
 
 
 def retain_modal_turning_cycles(
-    all_g: tuple[int, ...],
+    all_g: tuple[int | float, ...],
     *,
     active_g90: bool,
     active_g92: bool,
@@ -249,7 +254,7 @@ def dispatch_macro_flow(
 
 def dispatch_subprogram_flow(
     *,
-    mcode: int | None,
+    mcode: int | float | None,
     words: dict[str, float],
     pc: int,
     olabel_to_index: dict[int, int],
@@ -261,7 +266,6 @@ def dispatch_subprogram_flow(
     if mcode == 98:
         if "P" not in words:
             raise ValueError("M98 requires a P subprogram target")
-        checkpoint("subprogram_calls")
         budget = active_budget.get()
         if budget is not None:
             max_call_depth = budget.limits.call_depth
@@ -276,6 +280,7 @@ def dispatch_subprogram_flow(
         if len(stack) >= max_call_depth:
             raise ValueError(f"M98 call depth exceeds limit {max_call_depth}")
         repeat = max(1, int(words.get("L", 1.0)))
+        checkpoint("subprogram_calls")
         stack.append((pc + 1, target_idx, repeat))
         return SubprogramDispatch(True, target_idx, False, stack)
 
@@ -289,12 +294,8 @@ def dispatch_subprogram_flow(
         if stack:
             ret_pc, sub_pc, remaining = stack[-1]
             if remaining > 1:
+                checkpoint("subprogram_calls")
                 stack[-1] = (ret_pc, sub_pc, remaining - 1)
-                if "P" in words:
-                    target_o = int(words["P"])
-                    target_idx = olabel_to_index.get(target_o)
-                    if target_idx is not None:
-                        return SubprogramDispatch(True, target_idx, False, stack)
                 return SubprogramDispatch(True, sub_pc, False, stack)
             stack.pop()
             return SubprogramDispatch(True, ret_pc, False, stack)

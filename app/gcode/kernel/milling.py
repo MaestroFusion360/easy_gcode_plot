@@ -151,7 +151,7 @@ def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_o
             state.absolute = True
         elif g == 91:
             state.absolute = False
-        elif 54 <= g <= 59:
+        elif isinstance(g, int) and 54 <= g <= 59:
             old = _wcs_offset(wcs_offsets, state.active_wcs)
             new = _wcs_offset(wcs_offsets, g)
             state.x += old[0] - new[0]

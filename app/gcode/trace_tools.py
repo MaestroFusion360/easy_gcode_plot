@@ -17,6 +17,10 @@ ARC_ABSOLUTE = 2
 ARC_RADIUS = 3
 
 
+class RenderLimitExceeded(ValueError):
+    """Raised when trace sampling would exceed an explicit point budget."""
+
+
 @dataclass(frozen=True)
 class RenderPoint:
     x: float
@@ -87,17 +91,24 @@ def sample_motion(
     arc_points_per_circle: int = 314,
     lathe_radius_view: bool = False,
     arc_type: int = ARC_RELATIVE,
+    max_points: int | None = None,
 ) -> list[RenderPoint]:
     scale_x = 0.5 if lathe_radius_view else 1.0
     if m.move not in (2, 3):
+        if max_points is not None and max_points < 1:
+            raise RenderLimitExceeded("Trace render point limit exceeded")
         return [RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)]
 
     geom = arc_geometry(m, arc_type=arc_type, lathe_radius_view=lathe_radius_view)
     if geom is None:
+        if max_points is not None and max_points < 1:
+            raise RenderLimitExceeded("Trace render point limit exceeded")
         return [RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)]
 
     _, _, orth0, orth1, center, a0, sweep, radius = geom
     count = max(1, int(round(arc_points_per_circle * sweep / (2.0 * math.pi))))
+    if max_points is not None and count > max_points:
+        raise RenderLimitExceeded("Trace render point limit exceeded")
     plot_move = _plot_move_for_plane(m.move, m.plane)
     out: list[RenderPoint] = []
     for n in range(1, count + 1):
@@ -120,10 +131,15 @@ def render_trace(
     lathe_radius_view: bool = False,
     arc_points_per_circle: int = 314,
     arc_type: int = ARC_RELATIVE,
+    max_points: int | None = None,
 ) -> list[RenderPoint]:
+    if max_points is not None and (not isinstance(max_points, int) or max_points <= 0):
+        raise ValueError("max_points must be a positive integer")
     out: list[RenderPoint] = []
     for idx, m in enumerate(result.motions):
         if not out:
+            if max_points is not None and len(out) >= max_points:
+                raise RenderLimitExceeded("Trace render point limit exceeded")
             out.append(
                 RenderPoint(
                     m.start_x * (0.5 if lathe_radius_view else 1.0),
@@ -137,6 +153,7 @@ def render_trace(
                     m.k,
                 )
             )
+        remaining = None if max_points is None else max_points - len(out)
         out.extend(
             sample_motion(
                 m,
@@ -144,6 +161,7 @@ def render_trace(
                 arc_points_per_circle=arc_points_per_circle,
                 lathe_radius_view=lathe_radius_view,
                 arc_type=arc_type,
+                max_points=remaining,
             )
         )
     return out

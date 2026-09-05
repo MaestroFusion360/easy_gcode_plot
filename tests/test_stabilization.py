@@ -6,7 +6,7 @@ import pytest
 
 from app.gcode.kernel import execute
 from app.gcode.kernel.resources import ExecutionLimits
-from app.gcode.trace_tools import render_trace, trace_statistics
+from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
@@ -97,6 +97,60 @@ def test_execution_budget_failure_is_structured_and_incomplete(language):
     assert not result.ok
     assert result.complete is False
     assert any(d.code == "RESOURCE_LIMIT" and d.status == "resource_limit" for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+@pytest.mark.parametrize("source", ["G0.6 X10 F100\nM30", "#1=0.6\nG#1 X10 F100\nM30"])
+def test_fractional_gcode_is_not_rounded_to_a_motion_code(language, source):
+    result = execute(source, language)
+    assert not result.ok
+    assert result.motions == ()
+    diagnostic = next(d for d in result.diagnostics if d.code == "UNSUPPORTED_G_CODE")
+    assert "G0.6" in diagnostic.message
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+@pytest.mark.parametrize(
+    "source",
+    ["G1 X10 F100\nM29.6\nG1 X20\nM30", "#1=29.6\nG1 X10 F100\nM#1\nG1 X20\nM30"],
+)
+def test_fractional_mcode_is_not_rounded_to_program_end(language, source):
+    result = execute(source, language)
+    assert result.ok, result.diagnostics
+    assert [motion.end_x for motion in result.motions] == pytest.approx([10.0, 20.0])
+    assert result.program_end == "M30"
+    diagnostic = next(d for d in result.diagnostics if d.code == "UNSUPPORTED_M_CODE")
+    assert "M29.6" in diagnostic.message
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_g54_1_is_not_treated_as_g54(language):
+    result = execute(
+        "G55\nG54.1 P1\nG1 X10 F100\nM30",
+        language,
+        wcs_offsets={54: (100.0, 0.0, 0.0), 55: (200.0, 0.0, 0.0)},
+    )
+    assert result.ok, result.diagnostics
+    assert result.motions[-1].end_x == pytest.approx(210.0)
+    assert any(d.code == "UNSUPPORTED_G_CODE" and "G54.1" in d.message for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_subprogram_repeat_counts_each_actual_call(language):
+    result = execute(
+        "M98 P100 L3\nM30\nO100\nG1 X1 F100\nM99",
+        language,
+        limits=ExecutionLimits(subprogram_calls=2),
+    )
+    assert not result.ok
+    assert any(d.code == "RESOURCE_LIMIT" and d.status == "resource_limit" for d in result.diagnostics)
+
+
+def test_render_trace_stops_before_exceeding_point_budget():
+    result = execute("G18 G0 X20 Z0\nG2 X20 Z0 I-10 K0 F100\nM30")
+    assert result.ok, result.diagnostics
+    with pytest.raises(RenderLimitExceeded):
+        render_trace(result, max_points=20)
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])

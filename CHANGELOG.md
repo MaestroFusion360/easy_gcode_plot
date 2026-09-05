@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.5 - 2026-09-06
+
+- Stopped coercing fractional G/M words to the nearest integer code; unsupported fractional controller codes are now preserved as distinct values and reported diagnostically instead of being executed as another command.
+- Fixed relative-center export for turning G18 arcs with non-zero X starts by keeping diameter-space motion coordinates and physical/radius-space arc centers consistent.
+- Added bounded trace rendering so point limits are enforced during arc/helix tessellation instead of only after the full sampled trajectory has already been created.
+- Fixed `M98 ... L<n>` resource accounting so each repeated subprogram execution consumes the `subprogram_calls` budget.
+- Fixed editor font persistence by using the same `EDITOR/FONT_*` settings keys for saving and loading.
+- Reduced `main_window.py` by extracting existing settings persistence and plot viewport/navigation responsibilities without changing the current GUI behavior.
+- Added regression coverage for fractional G/M handling, turning arc export, bounded rendering, repeated subprogram accounting and editor settings persistence.
+
 ## 1.2.4 - Unreleased
 
 - Updated README and project documentation to reflect the current execution architecture, milling cutter compensation and tool configuration.

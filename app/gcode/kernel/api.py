@@ -163,6 +163,7 @@ def _execute_impl(
             point_ctor=Point2,
             tools=tools,
         )
+        unsupported += _fractional_code_diagnostics(program, trace_steps)
     except Exception as exc:
         return ExecutionResult(
             ok=False,
@@ -339,6 +340,40 @@ def _unsupported_g_diagnostics(program: Program) -> tuple[Diagnostic, ...]:
                         raw=block.raw,
                     )
                 )
+    return tuple(diagnostics)
+
+
+def _fractional_code_diagnostics(program: Program, steps) -> tuple[Diagnostic, ...]:
+    """Report evaluated fractional G/M words without coercing them to integer codes."""
+    diagnostics: list[Diagnostic] = []
+    seen: set[tuple[int, str, float]] = set()
+    for step in steps:
+        block_index = step.source_block
+        if block_index is None or not 0 <= block_index < len(program.blocks):
+            continue
+        block = program.blocks[block_index]
+        affects_geometry = any(item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words)
+        for letter, raw_value in step.words:
+            if letter not in {"G", "M"}:
+                continue
+            value = float(raw_value)
+            if value.is_integer():
+                continue
+            key = (block_index, letter, value)
+            if key in seen:
+                continue
+            seen.add(key)
+            is_g = letter == "G"
+            diagnostics.append(
+                Diagnostic(
+                    code="UNSUPPORTED_G_CODE" if is_g else "UNSUPPORTED_M_CODE",
+                    message=f"{letter}{value:g} is not modeled for fanuc_turn",
+                    severity="error" if is_g and affects_geometry else "warning",
+                    status="unsupported" if is_g and affects_geometry else "unverified",
+                    line=block.index + 1,
+                    raw=block.raw,
+                )
+            )
     return tuple(diagnostics)
 
 
