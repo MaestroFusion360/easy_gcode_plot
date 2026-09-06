@@ -28,6 +28,8 @@ Download the current standalone Windows executable from [GitHub Releases](https:
     - [Code Manipulation](#code-manipulation)
     - [Export](#export)
     - [Analysis](#analysis)
+    - [Tokens Diagnostics](#tokens-diagnostics)
+    - [Options](#options)
     - [Tool Configuration](#tool-configuration)
       - [Turning Tools](#turning-tools)
       - [Milling Tools](#milling-tools)
@@ -48,6 +50,7 @@ Download the current standalone Windows executable from [GitHub Releases](https:
       - [Tool length compensation](#tool-length-compensation)
     - [FANUC turning](#fanuc-turning)
   - [Configuration](#configuration)
+    - [Options Dialog](#options-dialog)
     - [Plot](#plot)
     - [Editor](#editor)
     - [Export](#export-1)
@@ -169,6 +172,20 @@ Expanded program export follows actual execution-step order, including repeated 
 
 When machining time cannot be resolved reliably, the application reports it as unknown rather than silently guessing.
 
+### Tokens Diagnostics
+
+Open **Settings → Tokens** to inspect the current editor document without modifying it. The dialog refreshes from the live editor and uses the application's existing parser, AST and `ExecutionResult`; it does not maintain a second G-code parser.
+
+The read-only table shows the original line and parsed words together with dedicated address groups for `N`, `O`, `M`, motion, plane, units, correction, cycles, coordinate mode, spindle and control flow. Kernel warnings and errors are attached to their source lines. Valid rows are highlighted in pale green; every suspicious row (warning or error) is highlighted in pale red.
+
+Selected rows can be copied with **Ctrl+C** or the context menu. **Export CSV** writes the current table as UTF-8, semicolon-delimited data, and **Reset Columns** restores the default widths and scroll position.
+
+### Options
+
+**Settings → Options** opens a separate Qt Designer-based settings dialog. Tokens remains an independent diagnostic tool and is not embedded in Options.
+
+Options is organized into General, Editor and Plot pages. Changes are applied with **OK** and persisted in the normal application configuration; **Cancel** discards unapplied edits.
+
 ### Tool Configuration
 
 Turning and milling tools are configured independently.
@@ -240,42 +257,42 @@ cd easy_gcode_plot
 Create or update the project environment:
 
 ```bash
-uv sync
+uv sync --no-dev
 ```
 
 Run the GUI:
 
 ```bash
-uv run python main.py
+uv run --no-dev python main.py
 ```
 
 The same kernel is also available through the CLI:
 
 ```bash
-uv run python -m app parse program.nc --lang fanuc_turn
+uv run --no-dev python -m app parse program.nc --lang fanuc_turn
 
-uv run python -m app trace program.nc \
+uv run --no-dev python -m app trace program.nc \
   --lang fanuc_turn \
   -o trace.json
 
-uv run python -m app analyze program.nc \
+uv run --no-dev python -m app analyze program.nc \
   --lang fanuc_turn
 
-uv run python -m app export program.nc \
+uv run --no-dev python -m app export program.nc \
   --lang fanuc_turn \
   -o expanded.nc
 
-uv run python -m app export program.nc \
+uv run --no-dev python -m app export program.nc \
   --lang fanuc_turn \
   --mode program \
   -o expanded-turn.nc
 
-uv run python -m app export program.nc \
+uv run --no-dev python -m app export program.nc \
   --lang fanuc_mill \
   --mode program \
   -o expanded-mill.nc
 
-uv run python -m app export program.nc \
+uv run --no-dev python -m app export program.nc \
   --lang fanuc_turn \
   --mode cycles \
   -o expanded-cycles.nc
@@ -292,7 +309,8 @@ uv run python -m app export program.nc \
 5. Edit the source program.
 6. Refresh the execution result after changes.
 7. Inspect playback, diagnostics and statistics.
-8. Export the resolved or expanded program if required.
+8. Use **Settings → Tokens** when line-by-line parser and execution diagnostics are needed.
+9. Export the resolved or expanded program if required.
 
 ### Main Interface
 
@@ -438,6 +456,24 @@ On first run, a legacy `config.ini` next to the launcher may be migrated to the 
 
 The configuration stores settings for:
 
+### Options Dialog
+
+The **Settings → Options** dialog exposes:
+
+- UTF-8 or Windows-1251 file encoding
+- default Text / ISO G-code editor mode
+- default millimeter or inch preference
+- current UI language (displayed read-only until localization switching is ready)
+- application logging toggle
+- G41/G42 correction preference and arc tolerance
+- editor font, size, caret-line, EOL, whitespace and line-number presentation
+- rapid, linear, arc, current-segment and canvas colors
+- native color pickers and a Restore Defaults action
+- plot line thickness, canvas axes and grid visibility
+- grid step, where `0` selects adaptive spacing and a positive value records a fixed step
+
+The selected encoding is used when opening and saving editor documents. The default editor mode is restored on the next launch, and the default unit preference initializes CNC execution until an explicit `G20` or `G21` in the program overrides it. Existing WCS, tool, Arc Type and Lathe Mode controls remain separate Settings menu entries.
+
 ### Plot
 
 - timer speed
@@ -449,6 +485,9 @@ The configuration stores settings for:
 - grid color
 - grid size
 - grid spacing
+- rapid, linear, arc and current-segment color preferences
+- line thickness and axes visibility
+- adaptive/fixed grid-step preference
 
 ### Editor
 
@@ -460,6 +499,7 @@ The configuration stores settings for:
 - whitespace display
 - EOL display
 - margins
+- file encoding (`UTF-8` or `Windows-1251`)
 
 ### Export
 
@@ -538,13 +578,13 @@ Check:
 
 ### Logging
 
-The application creates:
+When application logging is enabled, the log is written beside the per-user configuration file:
 
 ```text
-main.log
+%LOCALAPPDATA%\easy-gcode-plot\main.log
 ```
 
-The log contains runtime, conversion, export and general exception information.
+It records application startup, file open/save activity, CNC execution summaries, export completion and related errors. Disabling logging closes the application-owned file handler.
 
 ## Technical Details
 
@@ -660,10 +700,11 @@ Output:
 - expanded milling programs
 - trace-oriented exports
 
-Default text encoding:
+The default encoding is UTF-8. Document loading and saving can be switched through **Settings → Options**:
 
 ```text
 UTF-8
+Windows-1251
 ```
 
 ## Development
@@ -673,7 +714,7 @@ UTF-8
 Install runtime and development dependencies:
 
 ```bash
-uv sync
+uv sync --group dev
 ```
 
 Run tests:
@@ -716,7 +757,7 @@ main.py                              application launcher
 app/
 ├─ __main__.py                       GUI/CLI dispatcher
 ├─ cli.py                            parse/trace/analyze/export CLI
-├─ main_window.py                    PyQt6/QScintilla/PyQtGraph consumer of ExecutionResult
+├─ main_window.py                    main-window composition and Qt signal wiring
 │
 ├─ gcode/
 │  ├─ core.py                        formatting and generic UI-side helpers
@@ -742,9 +783,25 @@ app/
 │     ├─ tool_compensation.py        turning tool-nose compensation
 │     └─ milling_compensation.py     milling G41/G42 cutter-radius compensation
 │
-├─ ui/                               Qt dialogs, lexer and generated Designer modules
-│  ├─ generated/                     pyuic6-generated UI modules
-│  └─ ...
+├─ ui/                               Qt-facing GUI package
+│  ├─ main_window_file_ops.py         files, recent files, drag/drop and export
+│  ├─ main_window_editor_ops.py       editor/status/search/text transformations
+│  ├─ main_window_execution.py        kernel execution, auto-refresh, playback and statistics
+│  ├─ main_window_plot.py             OpenGL rendering, views, grids and trajectory picking
+│  ├─ plot_grid.py                    adaptive grid geometry
+│  ├─ plot_navigation.py              plot event/navigation helpers
+│  ├─ window_settings.py              persisted main-window settings
+│  ├─ widgets.py                      custom QScintilla/PyQtGraph Designer widgets
+│  ├─ dialogs.py                      WCS, tools, export and utility dialogs
+│  ├─ options.py                      Options controller and settings binding
+│  ├─ tokens.py                       parser/ExecutionResult-backed diagnostics
+│  ├─ lexer.py                        editor lexer
+│  └─ generated/                      Designer sources and generated PyQt6-compatible modules
+│     ├─ main_window.ui               canonical main-window Qt Designer source
+│     ├─ main_ui.py                   generated main-window Python module
+│     ├─ options.ui / options.py      Options source and generated module
+│     ├─ tokens.ui / tokens.py        Tokens source and generated module
+│     └─ ...
 │
 └─ resources/                        application resources
    └─ icons/                         application and toolbar icons
@@ -757,10 +814,15 @@ tests/
 ├─ test_macro_b.py                   Macro B and control-flow tests
 ├─ test_milling.py                   FANUC milling tests
 ├─ test_stabilization.py             regression and architecture stabilization tests
+├─ test_qt_codegen.py                isolated Qt generation and atomicity tests
+├─ test_tokens_dialog.py             Tokens and Options GUI tests
 └─ test_turning.py                   FANUC turning tests
 
 scripts/
-├─ build.ps1                         Windows executable build
+├─ build.ps1                         Windows executable build (runtime groups only for PyInstaller)
+├─ generate-qt.ps1                   regenerate Qt resources and all Designer Python modules
+├─ generate-resources.ps1            generate `files_res.py` with pyside6-rcc, normalize to PyQt6
+├─ generate-ui.ps1                   generate Designer modules with pyside6-uic, normalize to PyQt6
 ├─ lint.ps1                          formatting and static-analysis checks
 ├─ release.ps1                       release/version/tag automation
 └─ test.ps1                          project test runner
@@ -783,14 +845,40 @@ In particular:
 - unsupported semantics must be diagnosed rather than guessed
 - resource protection must remain active for loops, cycles and subprogram execution
 
-To regenerate Python code from an edited Qt Designer `.ui` file:
+Qt Designer `.ui` files and the Qt resource collection are committed sources. The generated Python modules are also committed.
 
-```bash
-uv run pyuic6 app/ui/generated/export.ui -o app/ui/generated/export.py
+PySide6 is installed only in the `dev` dependency group to provide the maintained `pyside6-uic` and `pyside6-rcc` command-line tools. The application runtime remains PyQt6; the generation scripts rewrite generated `PySide6` imports to `PyQt6` before updating committed Python modules. With the locked PySide6 6.11.x toolchain, Qt code generation uses Python 3.11-3.14.
+
+Regenerate everything on Windows:
+
+```powershell
+.\scripts\generate-qt.ps1
 ```
 
-> Note: PyQt6 wheels no longer bundle `pyrcc6`. `app/resources/files_res.py` is
-> committed pre-generated; edit it only together with `files_res.qrc`.
+Or regenerate only one side of the Qt sources:
+
+```powershell
+.\scripts\generate-ui.ps1
+.\scripts\generate-resources.ps1
+```
+
+Designer dependency mapping includes:
+
+```text
+app/ui/generated/main_window.ui -> app/ui/generated/main_ui.py
+app/ui/generated/options.ui     -> app/ui/generated/options.py
+app/ui/generated/tokens.ui      -> app/ui/generated/tokens.py
+app/ui/generated/<name>.ui      -> app/ui/generated/<name>.py
+app/resources/files_res.qrc     -> app/resources/files_res.py
+```
+
+The `main_window.ui → main_ui.py` name is the only special-case mapping. Generated Python modules must not be edited manually.
+
+`files_res.qrc` is the canonical, deliberately maintained resource manifest: adding or removing an icon requires updating it. The batch command validates missing and duplicate entries, generates every UI and resource module in a staging directory, and replaces committed outputs only after the entire generation succeeds. It can be launched from any working directory and safely handles project paths containing spaces.
+
+The functional code-generation tests use a minimal isolated one-form fixture and the already installed development toolchain. They do not regenerate every project form or create another virtual environment.
+
+The Windows packaging script explicitly drops the dev dependency group before invoking PyInstaller, so PySide6 is not present in the packaged PyQt6 runtime environment.
 
 ## License
 

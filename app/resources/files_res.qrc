@@ -13,7 +13,7 @@
     <file>icons/export.png</file>
     <file>icons/zoom-in.png</file>
     <file>icons/zoom-out.png</file>
-    <file>icons/export.png</file>
+    <file>icons/fit-screen.png</file>
     <file>icons/3D.png</file>
     <file>icons/front.png</file>
     <file>icons/left.png</file>
@@ -34,5 +34,14 @@
     <file>icons/select-all.png</file>
     <file>icons/stop.png</file>
     <file>icons/undo.png</file>
+    <file>icons/orientation_box/P1.png</file>
+    <file>icons/orientation_box/P2.png</file>
+    <file>icons/orientation_box/P3.png</file>
+    <file>icons/orientation_box/P4.png</file>
+    <file>icons/orientation_box/P5.png</file>
+    <file>icons/orientation_box/P6.png</file>
+    <file>icons/orientation_box/P7.png</file>
+    <file>icons/orientation_box/P8.png</file>
+    <file>icons/orientation_box/P9.png</file>
   </qresource>
 </RCC>

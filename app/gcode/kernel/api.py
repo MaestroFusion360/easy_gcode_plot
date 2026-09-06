@@ -103,6 +103,7 @@ def _execute_impl(
     skip_optional_blocks: bool = False,
     supplementary_angles: bool = False,
     pq_mm_for_g74758384: bool = False,
+    default_unit_scale: float = 1.0,
     tools: dict[str, dict[str, object]] | None = None,
     home_x: float = 0.0,
     home_y: float = 0.0,
@@ -134,11 +135,13 @@ def _execute_impl(
         return execute_milling(
             source,
             skip_optional_blocks=skip_optional_blocks,
+            default_unit_scale=default_unit_scale,
             home=(home_x, home_y, home_z),
             wcs_offsets=_mill_wcs_offsets(wcs_offsets),
         )
 
     program: Program | None = None
+    unsupported: tuple[Diagnostic, ...] = ()
     try:
         program = parse_program(source.splitlines())
         unsupported = _unsupported_g_diagnostics(program)
@@ -150,6 +153,7 @@ def _execute_impl(
             x_is_diameter=x_is_diameter,
             pq_mm_for_g74758384=pq_mm_for_g74758384,
             supplementary_angles=supplementary_angles,
+            default_unit_scale=default_unit_scale,
             skip_optional_blocks=skip_optional_blocks,
             home_x=home_x,
             home_z=home_z,
@@ -170,7 +174,7 @@ def _execute_impl(
             program=program,
             instructions=_semantic_instructions(program),
             motions=(),
-            diagnostics=(_diagnostic_from_exception(exc, program),),
+            diagnostics=unsupported + (_diagnostic_from_exception(exc, program),),
             executed_blocks=(),
         )
 

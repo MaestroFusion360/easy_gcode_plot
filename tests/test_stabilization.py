@@ -4,6 +4,7 @@ import math
 
 import pytest
 
+from app.gcode.kernel import cycles as cycle_module
 from app.gcode.kernel import execute
 from app.gcode.kernel.resources import ExecutionLimits
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
@@ -359,3 +360,34 @@ M30
     large_entry = next(m for m in large.motions if m.source_kind == "cutter_compensation_entry")
     assert small_entry.end_x == pytest.approx(7.0)
     assert large_entry.end_x == pytest.approx(5.0)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_default_unit_scale_applies_until_program_selects_units(language):
+    default_inch = execute("G0 X1 Z0\nM30", language, default_unit_scale=25.4)
+    assert default_inch.ok, default_inch.diagnostics
+    assert default_inch.motions[-1].end_x == pytest.approx(25.4)
+
+    explicit_mm = execute("G21\nG0 X1 Z0\nM30", language, default_unit_scale=25.4)
+    assert explicit_mm.ok, explicit_mm.diagnostics
+    assert explicit_mm.motions[-1].end_x == pytest.approx(1.0)
+
+
+def test_turning_fatal_error_preserves_preexisting_diagnostics():
+    result = execute("G999\nGOTO999")
+    codes = [diagnostic.code for diagnostic in result.diagnostics]
+    assert "UNSUPPORTED_G_CODE" in codes
+    assert "FLOW_TARGET_MISSING" in codes
+
+
+def test_g76_cycle_budget_counts_each_iteration_once(monkeypatch):
+    calls = []
+    monkeypatch.setattr(cycle_module, "checkpoint", calls.append)
+    depths = cycle_module._g76_constant_area_depths(  # pylint: disable=protected-access
+        total_rad=1.0,
+        first_rad=0.2,
+        min_increment_rad=0.0,
+        finish_allow_rad=0.0,
+        finish_passes=0,
+    )
+    assert calls == ["cycle_iterations"] * (len(depths) - 1)

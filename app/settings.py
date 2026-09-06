@@ -1,12 +1,15 @@
 """Per-user application settings stored outside the program directory."""
 
 import json
+import logging
 import os
 import shutil
 
 from PyQt6.QtCore import QSettings, QStandardPaths
 
 _APP_DIR = "easy-gcode-plot"
+_LOG_HANDLER_MARKER = "_easy_gcode_plot_handler"
+_LOG_PREVIOUS_LEVEL_MARKER = "_easy_gcode_plot_previous_level"
 
 
 def _config_dir() -> str:
@@ -20,6 +23,33 @@ def _config_dir() -> str:
 def config_path() -> str:
     """Return the absolute path of the ini file used to store settings."""
     return os.path.join(_config_dir(), "config.ini")
+
+
+def log_path() -> str:
+    """Return the per-user application log path."""
+    return os.path.join(_config_dir(), "main.log")
+
+
+def configure_logging(enabled: bool) -> None:
+    """Enable or disable the project-owned file handler without muting third-party logging."""
+    root = logging.getLogger()
+    handlers = [handler for handler in root.handlers if getattr(handler, _LOG_HANDLER_MARKER, False)]
+    if enabled:
+        if not handlers:
+            handler = logging.FileHandler(log_path(), encoding="utf-8")
+            setattr(handler, _LOG_HANDLER_MARKER, True)
+            setattr(handler, _LOG_PREVIOUS_LEVEL_MARKER, root.level)
+            handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+            handler.setLevel(logging.DEBUG)
+            root.addHandler(handler)
+        root.setLevel(logging.DEBUG)
+        return
+    previous_level = getattr(handlers[0], _LOG_PREVIOUS_LEVEL_MARKER, None) if handlers else None
+    for handler in handlers:
+        root.removeHandler(handler)
+        handler.close()
+    if previous_level is not None:
+        root.setLevel(previous_level)
 
 
 def _migrate_legacy_config() -> None:

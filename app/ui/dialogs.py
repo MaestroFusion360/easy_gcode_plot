@@ -3,6 +3,7 @@
 import copy
 
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
@@ -327,7 +328,11 @@ class _TurningToolEditor(QDialog):
         self.noseRadius.setRange(0.001, 999999.999)
         self.noseRadius.setValue(float(spec.get("noseRadius", 0.4)))
         self.tipOrientation = QComboBox(self)
-        self.tipOrientation.addItems([f"P{value}" for value in range(1, 10)])
+        for value in range(1, 10):
+            self.tipOrientation.addItem(
+                QIcon(f":/resource/icons/orientation_box/P{value}.png"),
+                f"P{value}",
+            )
         self.tipOrientation.setCurrentText(f"P{int(spec.get('tipOrientation', 1))}")
         self.description = QLineEdit(str(spec.get("description", "")), self)
 
@@ -429,7 +434,10 @@ class TurningTools(QDialog):
             )
             table.insertRow(row)
             for column, value in enumerate(values):
-                table.setItem(row, column, QTableWidgetItem(value))
+                item = QTableWidgetItem(value)
+                if column == 0 and is_turning:
+                    item.setIcon(QIcon(f":/resource/icons/orientation_box/P{int(spec.get('tipOrientation', 1))}.png"))
+                table.setItem(row, column, item)
             if key == selected_key:
                 selected_row = row
         table.resizeColumnsToContents()

@@ -6,34 +6,38 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $targets = @('main.py', 'app', 'tests')
+$uvRunArguments = @('run')
+if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
+    $uvRunArguments += '--active'
+}
 
 Push-Location $projectRoot
 
 try {
     if ($Fix) {
-        & uv run ruff format @targets
+        & uv @uvRunArguments ruff format @targets
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
 
-        & uv run ruff check @targets --fix
+        & uv @uvRunArguments ruff check @targets --fix
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
     }
     else {
-        & uv run ruff format --check @targets
+        & uv @uvRunArguments ruff format --check @targets
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
 
-        & uv run ruff check @targets
+        & uv @uvRunArguments ruff check @targets
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
     }
 
-    & uv run pylint @targets
+    & uv @uvRunArguments pylint @targets
     exit $LASTEXITCODE
 }
 finally {

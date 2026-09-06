@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont, QVector3D
 
 from app.settings import (
+    configure_logging,
     get_settings,
 )
 from app.settings import (
@@ -75,12 +76,26 @@ class MainWindowSettingsMixin:
         self.latheMode = self.settings.value("PLOT/LATHE_MODE", False, type=bool)
         self.ui.actionLatheMode.setChecked(self.latheMode)
         self.plotLineColor = self.settings.value("PLOT/LINE_COLOR", "#0000ff")
+        self.plotRapidColor = self.settings.value("PLOT/RAPID_COLOR", "#d02020")
+        self.plotArcColor = self.settings.value("PLOT/ARC_COLOR", "#008000")
+        self.plotCurrentColor = self.settings.value("PLOT/CURRENT_COLOR", "#00b7ff")
+        self.plotLineWidth = self.settings.value("PLOT/LINE_WIDTH", 1.5, type=float)
+        self.plotGridStep = self.settings.value("PLOT/GRID_STEP", 0.0, type=float)
+        self.plotAxes = self.settings.value("PLOT/AXES", True, type=bool)
         self.plotBackground = self.settings.value("PLOT/BACKGROUND", "#ffffff")
         self.plotGrid = self.settings.value("PLOT/GRID", False, type=bool)
         self.plotGridColor = self.settings.value("PLOT/GRID_COLOR", "#d3d3d3")
         self.plotGridSize = self.settings.value("PLOT/GRID_SIZE", 1000, type=int)
         self.plotGridSpacing = self.settings.value("PLOT/GRID_SPACING", 50, type=int)
         self.ui.actionGrid.setChecked(self.plotGrid)
+        self.fileEncoding = self.settings.value("EDITOR/ENCODING", "utf-8")
+        self.defaultFileType = self.settings.value("EDITOR/DEFAULT_FILE_TYPE", 0, type=int)
+        self.defaultUnits = self.settings.value("CNC/DEFAULT_UNITS", "mm")
+        self.correctionEnabled = self.settings.value("CNC/CORRECTION_ENABLED", True, type=bool)
+        self.arcTolerance = self.settings.value("CNC/ARC_TOLERANCE", 0.001, type=float)
+        self.uiLanguage = self.settings.value("GENERAL/LANGUAGE", "en")
+        self.loggingEnabled = self.settings.value("GENERAL/LOGGING", False, type=bool)
+        configure_logging(self.loggingEnabled)
 
         # Editor
         self.ui.editor.setUtf8(True)
@@ -123,6 +138,7 @@ class MainWindowSettingsMixin:
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
 
         self.lexer = GcodeLexer()
+        self.ui.langCombo.setCurrentIndex(1 if self.defaultFileType == 1 else 0)
         self.ui.editor.setFont(
             QFont(
                 self.fontFamily,
@@ -131,6 +147,7 @@ class MainWindowSettingsMixin:
                 italic=self.fontItalic,
             )
         )
+        self.changeLang(self.ui.langCombo.currentIndex())
 
         # Export / Block Numbers opt
         self.lang = self.settings.value("EXPORT_OPT/LANGUAGE", 0, type=int)
@@ -170,6 +187,12 @@ class MainWindowSettingsMixin:
         self.settings.setValue("MACHINE_ZPOS", self.zPosMach)
         self.settings.setValue("LATHE_MODE", self.latheMode)
         self.settings.setValue("LINE_COLOR", self.plotLineColor)
+        self.settings.setValue("RAPID_COLOR", self.plotRapidColor)
+        self.settings.setValue("ARC_COLOR", self.plotArcColor)
+        self.settings.setValue("CURRENT_COLOR", self.plotCurrentColor)
+        self.settings.setValue("LINE_WIDTH", self.plotLineWidth)
+        self.settings.setValue("GRID_STEP", self.plotGridStep)
+        self.settings.setValue("AXES", self.plotAxes)
         self.settings.setValue("BACKGROUND", self.plotBackground)
         self.settings.setValue("GRID", self.plotGrid)
         self.settings.setValue("GRID_COLOR", self.plotGridColor)
@@ -178,6 +201,9 @@ class MainWindowSettingsMixin:
         self.settings.endGroup()
         self.settings.beginGroup("CNC")
         self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
+        self.settings.setValue("DEFAULT_UNITS", self.defaultUnits)
+        self.settings.setValue("CORRECTION_ENABLED", self.correctionEnabled)
+        self.settings.setValue("ARC_TOLERANCE", self.arcTolerance)
         for code in range(54, 60):
             x_offset, y_offset, z_offset = self.wcsOffsets.get(code, (0.0, 0.0, 0.0))
             self.settings.setValue(f"G{code}_X", x_offset)
@@ -191,6 +217,8 @@ class MainWindowSettingsMixin:
         self.settings.endGroup()
         self.settings.beginGroup("EDITOR")
         self.settings.setValue("CARETLINE_COLOR", self.caretLineColor)
+        self.settings.setValue("ENCODING", self.fileEncoding)
+        self.settings.setValue("DEFAULT_FILE_TYPE", self.defaultFileType)
         self.settings.setValue("CARETLINE_VISIBLE", self.caretLine)
         self.settings.setValue("EOL_VISIBLE", self.eolVisible)
         self.settings.setValue("WHITESPACE_VISIBLE", self.spaceVisible)
@@ -230,3 +258,5 @@ class MainWindowSettingsMixin:
             self.settings.setValue("START_POS_Y", self.pos().y())
         self.settings.endGroup()
         self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
+        self.settings.setValue("GENERAL/LANGUAGE", self.uiLanguage)
+        self.settings.setValue("GENERAL/LOGGING", self.loggingEnabled)

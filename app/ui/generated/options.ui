@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>OptionsDlg</class>
+ <widget class="QDialog" name="OptionsDlg">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>620</width><height>650</height></rect></property>
+  <property name="windowTitle"><string>Options</string></property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item><widget class="QTabWidget" name="tabs">
+    <widget class="QWidget" name="generalTab"><attribute name="title"><string>General</string></attribute>
+     <layout class="QFormLayout" name="generalForm">
+      <item row="0" column="0"><widget class="QLabel" name="encodingLabel"><property name="text"><string>Encoding</string></property></widget></item>
+      <item row="0" column="1"><widget class="QComboBox" name="encodingCombo"><item><property name="text"><string>UTF-8</string></property></item><item><property name="text"><string>Windows-1251</string></property></item></widget></item>
+      <item row="1" column="0"><widget class="QLabel" name="fileTypeLabel"><property name="text"><string>Default file type</string></property></widget></item>
+      <item row="1" column="1"><widget class="QComboBox" name="fileTypeCombo"><item><property name="text"><string>Text</string></property></item><item><property name="text"><string>ISO G-code</string></property></item></widget></item>
+      <item row="2" column="0"><widget class="QLabel" name="unitsLabel"><property name="text"><string>Default units</string></property></widget></item>
+      <item row="2" column="1"><widget class="QComboBox" name="unitsCombo"><item><property name="text"><string>Millimeters</string></property></item><item><property name="text"><string>Inches</string></property></item></widget></item>
+      <item row="3" column="0"><widget class="QLabel" name="languageLabel"><property name="text"><string>Language</string></property></widget></item>
+      <item row="3" column="1"><widget class="QComboBox" name="languageCombo"><property name="enabled"><bool>false</bool></property><property name="toolTip"><string>Language switching is not available yet</string></property><item><property name="text"><string>English</string></property></item><item><property name="text"><string>Russian</string></property></item></widget></item>
+      <item row="4" column="0" colspan="2"><widget class="QCheckBox" name="loggingCheck"><property name="text"><string>Enable application log</string></property></widget></item>
+      <item row="5" column="0" colspan="2"><widget class="QCheckBox" name="correctionCheck"><property name="text"><string>Correction (G41/G42) — On / Off</string></property></widget></item>
+      <item row="6" column="0"><widget class="QLabel" name="arcToleranceLabel"><property name="text"><string>Arc tolerance</string></property></widget></item>
+      <item row="6" column="1"><widget class="QDoubleSpinBox" name="arcToleranceSpin"><property name="decimals"><number>6</number></property><property name="minimum"><double>0.000001</double></property><property name="maximum"><double>10.000000</double></property><property name="value"><double>0.001000</double></property></widget></item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="editorTab"><attribute name="title"><string>Editor</string></attribute>
+     <layout class="QFormLayout" name="editorForm">
+      <item row="0" column="0"><widget class="QLabel" name="fontLabel"><property name="text"><string>Font family</string></property></widget></item>
+      <item row="0" column="1"><widget class="QFontComboBox" name="fontCombo"/></item>
+      <item row="1" column="0"><widget class="QLabel" name="fontSizeLabel"><property name="text"><string>Font size</string></property></widget></item>
+      <item row="1" column="1"><widget class="QSpinBox" name="fontSizeSpin"><property name="minimum"><number>6</number></property><property name="maximum"><number>48</number></property></widget></item>
+      <item row="2" column="0" colspan="2"><widget class="QCheckBox" name="caretLineCheck"><property name="text"><string>Highlight current line</string></property></widget></item>
+      <item row="3" column="0" colspan="2"><widget class="QCheckBox" name="eolCheck"><property name="text"><string>Show end-of-line markers</string></property></widget></item>
+      <item row="4" column="0" colspan="2"><widget class="QCheckBox" name="whitespaceCheck"><property name="text"><string>Show whitespace</string></property></widget></item>
+      <item row="5" column="0" colspan="2"><widget class="QCheckBox" name="marginCheck"><property name="text"><string>Show line-number margin</string></property></widget></item>
+     </layout>
+    </widget>
+    <widget class="QWidget" name="plotTab"><attribute name="title"><string>Plot</string></attribute>
+     <layout class="QFormLayout" name="plotForm">
+      <item row="0" column="0"><widget class="QLabel" name="rapidLabel"><property name="text"><string>Rapid color (G0)</string></property></widget></item><item row="0" column="1"><layout class="QHBoxLayout" name="rapidColorLayout"><property name="spacing"><number>6</number></property><item><widget class="QLineEdit" name="rapidColorEdit"/></item><item><widget class="QPushButton" name="rapidColorButton"><property name="maximumSize"><size><width>72</width><height>16777215</height></size></property><property name="text"><string>Pick...</string></property></widget></item></layout></item>
+      <item row="1" column="0"><widget class="QLabel" name="linearLabel"><property name="text"><string>Linear color (G1)</string></property></widget></item><item row="1" column="1"><layout class="QHBoxLayout" name="linearColorLayout"><property name="spacing"><number>6</number></property><item><widget class="QLineEdit" name="linearColorEdit"/></item><item><widget class="QPushButton" name="linearColorButton"><property name="maximumSize"><size><width>72</width><height>16777215</height></size></property><property name="text"><string>Pick...</string></property></widget></item></layout></item>
+      <item row="2" column="0"><widget class="QLabel" name="arcLabel"><property name="text"><string>Arc color (G2/G3)</string></property></widget></item><item row="2" column="1"><layout class="QHBoxLayout" name="arcColorLayout"><property name="spacing"><number>6</number></property><item><widget class="QLineEdit" name="arcColorEdit"/></item><item><widget class="QPushButton" name="arcColorButton"><property name="maximumSize"><size><width>72</width><height>16777215</height></size></property><property name="text"><string>Pick...</string></property></widget></item></layout></item>
+      <item row="3" column="0"><widget class="QLabel" name="currentLabel"><property name="text"><string>Current segment color</string></property></widget></item><item row="3" column="1"><layout class="QHBoxLayout" name="currentColorLayout"><property name="spacing"><number>6</number></property><item><widget class="QLineEdit" name="currentColorEdit"/></item><item><widget class="QPushButton" name="currentColorButton"><property name="maximumSize"><size><width>72</width><height>16777215</height></size></property><property name="text"><string>Pick...</string></property></widget></item></layout></item>
+      <item row="4" column="0"><widget class="QLabel" name="backgroundLabel"><property name="text"><string>Canvas background</string></property></widget></item><item row="4" column="1"><layout class="QHBoxLayout" name="backgroundColorLayout"><property name="spacing"><number>6</number></property><item><widget class="QLineEdit" name="backgroundColorEdit"/></item><item><widget class="QPushButton" name="backgroundColorButton"><property name="maximumSize"><size><width>72</width><height>16777215</height></size></property><property name="text"><string>Pick...</string></property></widget></item></layout></item>
+      <item row="5" column="0"><widget class="QLabel" name="lineWidthLabel"><property name="text"><string>Line thickness (0.25–6.0)</string></property></widget></item><item row="5" column="1"><widget class="QDoubleSpinBox" name="lineWidthSpin"><property name="minimum"><double>0.250000</double></property><property name="maximum"><double>6.000000</double></property><property name="value"><double>1.500000</double></property></widget></item>
+      <item row="6" column="0"><widget class="QLabel" name="gridStepLabel"><property name="text"><string>Grid step (0 = adaptive)</string></property></widget></item><item row="6" column="1"><widget class="QDoubleSpinBox" name="gridStepSpin"><property name="maximum"><double>1000000.000000</double></property></widget></item>
+      <item row="7" column="0" colspan="2"><widget class="QCheckBox" name="axesCheck"><property name="text"><string>Show canvas axes</string></property></widget></item>
+      <item row="8" column="0" colspan="2"><widget class="QCheckBox" name="gridCheck"><property name="text"><string>Show canvas grid</string></property></widget></item>
+     </layout>
+    </widget>
+   </widget></item>
+   <item><widget class="QDialogButtonBox" name="buttonBox"><property name="standardButtons"><set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok|QDialogButtonBox::StandardButton::RestoreDefaults</set></property></widget></item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections><connection><sender>buttonBox</sender><signal>accepted()</signal><receiver>OptionsDlg</receiver><slot>accept()</slot><hints/></connection><connection><sender>buttonBox</sender><signal>rejected()</signal><receiver>OptionsDlg</receiver><slot>reject()</slot><hints/></connection></connections>
+</ui>

@@ -11,16 +11,13 @@ $separator = [System.IO.Path]::PathSeparator
 
 Push-Location $projectRoot
 try {
-    & uv sync --locked --group dev --group build
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
     if (-not $SkipTests) {
-        & uv run pytest tests
+        & (Join-Path $PSScriptRoot 'test.ps1')
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 
     $arguments = @(
-        'run', 'pyinstaller',
+        'run', '--isolated', '--locked', '--no-dev', '--group', 'build', 'pyinstaller',
         '--noconfirm',
         '--clean',
         '--onefile',

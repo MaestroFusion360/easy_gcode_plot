@@ -205,7 +205,6 @@ def build_g71_roughing(
     while (pass_x <= max_x + 1e-4) if boring_mode else (pass_x >= min_x - 1e-4):
         checkpoint("cycle_iterations")
         guard += 1
-        checkpoint("cycle_iterations")
         if guard > 10000:
             raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
         entry = try_find_entry_on_profile(profile, pass_x)
@@ -477,7 +476,6 @@ def build_g72_facing(
     while (pass_z >= limit_z - 1e-6) if pass_dir < 0.0 else (pass_z <= limit_z + 1e-6):
         checkpoint("cycle_iterations")
         guard += 1
-        checkpoint("cycle_iterations")
         if guard > 10000:
             raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
         cand = _distinct_in_profile_order(_profile_intersections_at_z(profile, pass_z))
@@ -984,7 +982,6 @@ def _g76_constant_area_depths(
         depths.append(depth)
         pass_no = 2
         while depth < rough_target - 1e-9:
-            checkpoint("cycle_iterations")
             checkpoint("cycle_iterations")
             if pass_no >= 10000:
                 raise SemanticError("RESOURCE_LIMIT", "G76 exceeds 10000 passes", "resource_limit")

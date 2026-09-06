@@ -1,5 +1,32 @@
 # Changelog
 
+## 1.2.6 - Unreleased
+
+- Run PyInstaller in a disposable `uv --isolated` environment so release packaging cannot mutate the developer `.venv` or leave a second project venv, while test, lint and sync scripts honor an explicitly activated environment.
+- Reorganized the main-window GUI layer: `app/main_window.py` now composes focused file, editor, execution/playback and plot mixins under `app/ui/`, and the existing settings/grid/navigation helpers were moved into the same UI package.
+- Replaced the stale `app/ui/untitled.ui` Designer source with the canonical `app/ui/generated/main_window.ui`, synchronized with the current editor, plot view, settings actions and two-toolbar layout.
+- Fixed drag-and-drop to accept local files only and open the first dropped local file deterministically instead of silently using the last URL.
+- Fixed stale toolpath display after edits by invalidating the previous execution/render state before the debounced auto-refresh; oversized, invalid or render-limited edits no longer leave an old trajectory visible.
+- Fixed whitespace cleanup so multiple parenthesized comments on one line are preserved independently instead of being concatenated/duplicated.
+- Hardened GUI export by aborting when execution fails and reporting output-file errors through the GUI.
+- Added PySide6 6.11 as a development-only Qt code-generation toolchain plus PowerShell scripts for regenerating `.ui` and `.qrc` Python modules and converting generated imports back to PyQt6.
+- Made Qt generation atomic and deterministic, with automatic `.ui` discovery, resource-manifest validation, path-independent execution, PyQt6 enum normalization and functional regression tests for changed or broken inputs.
+- Kept PySide6 out of packaged builds by synchronizing the PyInstaller stage without the dev dependency group.
+- Added separate Qt Designer-based `Tokens` and `Options` dialogs to the Settings menu instead of folding either feature into the main-window controller.
+- Added a read-only Tokens diagnostic table backed by the existing parser AST and execution diagnostics, with detailed FANUC address groups, status coloring, live refresh, multi-row clipboard copy, CSV export and column reset.
+- Added persistent General, Editor and Plot options for file encoding, default file type and units, logging, G41/G42 correction, arc tolerance, editor presentation, plot colors, line width, axes, and fixed/adaptive grid selection, with native color pickers and restore-defaults support.
+- Exposed the current UI language in Options as a disabled selector pending complete runtime localization support.
+- Simplified Settings menu labels, assigned F2 to Options, and added compact FANUC P1-P9 tip-orientation icons to the turning-tool editor and table without changing control or row heights.
+- Matched Tokens validation colors to the Tkinter view: pale green for parsed rows and pale red for every suspicious row.
+- Added a resource-backed Fit to View command to the plot context menu, centering the complete toolpath in turning mode and fitting milling bounds from all eight view-rotated corners with CNCEditor-compatible 0.9 padding.
+- Added UTF-8 and Windows-1251 document loading and saving through the selected file encoding.
+- Fixed the new Options integration so default editor mode persists, default units initialize execution until explicit G20/G21, editor font changes are reapplied to the active lexer, and correction/unit/arc-tolerance changes refresh the current execution instead of leaving a stale trace.
+- Made the logging toggle functional with a per-user `main.log` and project-owned file handler instead of disabling the process-wide root logger.
+- Fixed Tokens support classification to follow kernel diagnostics, include supported modal/cycle codes, and keep fractional G words distinct instead of coercing them through `int(float(...))`.
+- Preserved pre-existing turning diagnostics when execution later fails, and removed duplicate cycle-budget checkpoints from G71/G72/G76 iteration paths.
+- Added a Windows codegen regression that verifies committed Qt generated modules exactly match the current `.ui` and `.qrc` sources.
+- Updated imports, tests and README for the new UI module layout and generation workflow.
+
 ## 1.2.5 - 2026-09-06
 
 - Stopped coercing fractional G/M words to the nearest integer code; unsupported fractional controller codes are now preserved as distinct values and reported diagnostically instead of being executed as another command.

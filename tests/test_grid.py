@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.plot_grid import adaptive_grid_geometry, adaptive_grid_step
+from app.ui.plot_grid import adaptive_grid_geometry, adaptive_grid_step
 
 
 @pytest.mark.parametrize(

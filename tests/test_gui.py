@@ -1,15 +1,21 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 
 import pytest
 from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
 
 from app import main_window
+from app import settings as app_settings
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace
-from app.window_settings import (
+from app.ui import main_window_execution, main_window_plot
+from app.ui.main_window_editor_ops import MainWindowEditorMixin
+from app.ui.main_window_execution import MainWindowExecutionMixin
+from app.ui.main_window_file_ops import MainWindowFileMixin
+from app.ui.window_settings import (
     EDITOR_FONT_FAMILY_KEY,
     EDITOR_FONT_ITALIC_KEY,
     EDITOR_FONT_SIZE_KEY,
@@ -92,7 +98,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr(main_window, "execute", fake_execute)
+    monkeypatch.setattr(main_window_execution, "execute", fake_execute)
     tools = {"T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1}}
     offsets = {54: (10.0, 20.0, -2.0)}
     window = SimpleNamespace(
@@ -102,6 +108,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
         yPosMach=200.0,
         zPosMach=50.0,
         homeConfigured=False,
+        defaultUnits="inch",
         wcsOffsets=offsets,
         tools=tools,
     )
@@ -110,6 +117,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
 
     assert result is expected
     assert captured["language"] == "fanuc_mill"
+    assert captured["default_unit_scale"] == 25.4
     assert captured["tools"] == tools
     assert captured["wcs_offsets"] == offsets
     assert captured["home_x"] == 100.0
@@ -247,10 +255,11 @@ def test_rapid_and_cutting_segments_are_split_by_motion_type():
     points = render_trace(result)
     window = SimpleNamespace(execution_result=result, render_points=points)
 
-    rapid, cutting = main_window.MainWindow._trace_segment_vertices(window, len(points))
+    rapid, cutting, arcs = main_window.MainWindow._trace_segment_vertices(window, len(points))
 
     assert rapid == [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0)]
     assert cutting == [(10.0, 0.0, 0.0), (20.0, 0.0, 0.0)]
+    assert arcs == []
 
 
 def test_trace_cursor_is_fixed_pixel_size_and_rapid_has_own_item(monkeypatch):
@@ -277,17 +286,26 @@ def test_trace_cursor_is_fixed_pixel_size_and_rapid_has_own_item(monkeypatch):
         def addItem(self, item):
             self.items.append(item)
 
-    monkeypatch.setattr(main_window, "GLLinePlotItem", _LineItem)
-    monkeypatch.setattr(main_window, "GLScatterPlotItem", _ScatterItem)
-    window = SimpleNamespace(plotLineColor="#0000ff", ui=SimpleNamespace(graphicsView=_View()))
+    monkeypatch.setattr(main_window_plot, "GLLinePlotItem", _LineItem)
+    monkeypatch.setattr(main_window_plot, "GLScatterPlotItem", _ScatterItem)
+    window = SimpleNamespace(
+        plotRapidColor="#110000",
+        plotLineColor="#001100",
+        plotArcColor="#000011",
+        plotCurrentColor="#111111",
+        plotLineWidth=2.5,
+        ui=SimpleNamespace(graphicsView=_View()),
+    )
 
     main_window.MainWindow._create_trace_items(window)
 
-    assert len(created_lines) == 2
-    assert created_lines[0].kwargs["color"].name() == main_window.RAPID_COLOR
+    assert len(created_lines) == 3
+    assert [item.kwargs["color"].name() for item in created_lines] == ["#110000", "#001100", "#000011"]
+    assert all(item.kwargs["width"] == 2.5 for item in created_lines)
     assert created_lines[0].kwargs["mode"] == "lines"
     assert created_scatters[0].kwargs["size"] == main_window.CURSOR_SIZE_PX
     assert created_scatters[0].kwargs["pxMode"] is True
+    assert created_scatters[0].kwargs["color"].name() == "#111111"
 
 
 def test_2d_picking_selects_nearest_motion_and_source_line():
@@ -342,3 +360,108 @@ def test_recent_files_are_unique_case_insensitively_and_limited():
         ["C:/A.nc", "c:/a.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc", "C:/F.nc"]
     )
     assert recent == ["C:/A.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc"]
+
+
+class _DropUrl:
+    def __init__(self, path, *, local=True):
+        self._path = path
+        self._local = local
+
+    def isLocalFile(self):
+        return self._local
+
+    def toLocalFile(self):
+        return self._path
+
+
+class _DropEvent:
+    def __init__(self, urls):
+        self._mime = SimpleNamespace(hasUrls=lambda: bool(urls), urls=lambda: urls)
+        self.accepted = False
+        self.ignored = False
+
+    def mimeData(self):
+        return self._mime
+
+    def acceptProposedAction(self):
+        self.accepted = True
+
+    def ignore(self):
+        self.ignored = True
+
+
+def test_drop_event_opens_first_local_file_only():
+    opened = []
+
+    class Window(MainWindowFileMixin):
+        def maybeSave(self):
+            return True
+
+        def loadFile(self, fileName):
+            opened.append(fileName)
+
+    event = _DropEvent(
+        [
+            _DropUrl("https://example.invalid/program.nc", local=False),
+            _DropUrl("C:/first.nc"),
+            _DropUrl("C:/second.nc"),
+        ]
+    )
+
+    Window().dropEvent(event)
+
+    assert opened == ["C:/first.nc"]
+    assert event.accepted is True
+    assert event.ignored is False
+
+
+def test_auto_update_schedule_invalidates_previous_trace_before_debounce():
+    calls = []
+
+    class Timer:
+        def stop(self):
+            calls.append("stop")
+
+        def start(self):
+            calls.append("start")
+
+    class Window(MainWindowExecutionMixin):
+        def __init__(self):
+            self.autoUpdateTimer = Timer()
+            self.execution_result = object()
+            self.render_points = [object()]
+
+        def clearPlot(self):
+            calls.append("clear")
+            self.execution_result = None
+            self.render_points = []
+
+    Window().scheduleAutoUpdate()
+
+    assert calls == ["stop", "clear", "start"]
+
+
+def test_remove_spaces_preserves_multiple_parenthesized_comments():
+    class Window(MainWindowEditorMixin):
+        def __init__(self):
+            self.transformed = None
+
+        def _process_selected_lines(self, handler):
+            self.transformed = handler(["G1 X1 (first comment) Y2 (second comment) F100\n"])
+
+    window = Window()
+    window.removeSpaces()
+
+    assert window.transformed == ["G1X1(first comment)Y2(second comment)F100\n"]
+
+
+def test_application_logging_toggle_creates_and_closes_project_handler(monkeypatch, tmp_path):
+    monkeypatch.setattr(app_settings, "_config_dir", lambda: str(tmp_path))
+    app_settings.configure_logging(False)
+    app_settings.configure_logging(True)
+    logging.getLogger("easy_gcode_plot.test").warning("logging-regression")
+    for handler in logging.getLogger().handlers:
+        handler.flush()
+    assert "logging-regression" in (tmp_path / "main.log").read_text(encoding="utf-8")
+    app_settings.configure_logging(False)
+    assert not any(getattr(handler, "_easy_gcode_plot_handler", False) for handler in logging.getLogger().handlers)

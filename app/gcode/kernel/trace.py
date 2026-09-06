@@ -14,6 +14,7 @@ def _build_trace_execution_kwargs(
     x_is_diameter: bool,
     pq_mm_for_g74758384: bool = False,
     supplementary_angles: bool = False,
+    default_unit_scale: float = 1.0,
     skip_optional_blocks: bool,
     home_x: float,
     home_z: float,
@@ -34,6 +35,7 @@ def _build_trace_execution_kwargs(
         modal_z=float(home_z) - float(home_oz),
         active_wcs=active_wcs,
         x_is_diameter=x_is_diameter,
+        unit_scale=float(default_unit_scale),
     )
 
     def wcs_off(code: int) -> tuple[float, float]:
@@ -74,6 +76,7 @@ def build_source_motion_trace_with_steps(
     x_is_diameter: bool,
     pq_mm_for_g74758384: bool = False,
     supplementary_angles: bool = False,
+    default_unit_scale: float = 1.0,
     skip_optional_blocks: bool = False,
     home_x: float = 0.0,
     home_z: float = 0.0,
@@ -94,6 +97,7 @@ def build_source_motion_trace_with_steps(
         x_is_diameter=x_is_diameter,
         pq_mm_for_g74758384=pq_mm_for_g74758384,
         supplementary_angles=supplementary_angles,
+        default_unit_scale=default_unit_scale,
         skip_optional_blocks=skip_optional_blocks,
         home_x=home_x,
         home_z=home_z,

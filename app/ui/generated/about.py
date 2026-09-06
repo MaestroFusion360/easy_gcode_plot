@@ -1,95 +1,122 @@
-from PyQt6 import QtCore, QtGui, QtWidgets
+# -*- coding: utf-8 -*-
 
+################################################################################
+## Form generated from reading UI file 'about.ui'
+##
+## Created by: Qt User Interface Compiler version 6.11.2
+##
+## WARNING! All changes made in this file will be lost when recompiling UI file!
+################################################################################
+
+from PyQt6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PyQt6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
+    QFrame, QHBoxLayout, QLabel, QSizePolicy,
+    QSpacerItem, QVBoxLayout, QWidget)
+
+import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
 
 class Ui_AboutDlg(object):
     def setupUi(self, AboutDlg):
-        AboutDlg.setObjectName("AboutDlg")
+        if not AboutDlg.objectName():
+            AboutDlg.setObjectName(u"AboutDlg")
         AboutDlg.resize(520, 310)
-        AboutDlg.setMinimumSize(QtCore.QSize(520, 310))
-        AboutDlg.setMaximumSize(QtCore.QSize(520, 310))
-        self.verticalLayout = QtWidgets.QVBoxLayout(AboutDlg)
-        self.verticalLayout.setContentsMargins(18, 18, 18, 12)
+        AboutDlg.setMinimumSize(QSize(520, 310))
+        AboutDlg.setMaximumSize(QSize(520, 310))
+        self.verticalLayout = QVBoxLayout(AboutDlg)
         self.verticalLayout.setSpacing(10)
-        self.verticalLayout.setObjectName("verticalLayout")
-        self.headerLayout = QtWidgets.QHBoxLayout()
+        self.verticalLayout.setObjectName(u"verticalLayout")
+        self.verticalLayout.setContentsMargins(18, 18, 18, 12)
+        self.headerLayout = QHBoxLayout()
         self.headerLayout.setSpacing(16)
-        self.headerLayout.setObjectName("headerLayout")
-        self.logoLabel = QtWidgets.QLabel(parent=AboutDlg)
-        self.logoLabel.setMinimumSize(QtCore.QSize(72, 72))
-        self.logoLabel.setMaximumSize(QtCore.QSize(72, 72))
-        self.logoLabel.setPixmap(QtGui.QPixmap(":/resource/icons/logo.png"))
+        self.headerLayout.setObjectName(u"headerLayout")
+        self.logoLabel = QLabel(AboutDlg)
+        self.logoLabel.setObjectName(u"logoLabel")
+        self.logoLabel.setMinimumSize(QSize(72, 72))
+        self.logoLabel.setMaximumSize(QSize(72, 72))
+        self.logoLabel.setPixmap(QPixmap(u":/resource/icons/logo.png"))
         self.logoLabel.setScaledContents(True)
-        self.logoLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.logoLabel.setObjectName("logoLabel")
+        self.logoLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self.headerLayout.addWidget(self.logoLabel)
-        self.titleLayout = QtWidgets.QVBoxLayout()
-        self.titleLayout.setObjectName("titleLayout")
-        self.titleLabel = QtWidgets.QLabel(parent=AboutDlg)
-        font = QtGui.QFont()
+
+        self.titleLayout = QVBoxLayout()
+        self.titleLayout.setObjectName(u"titleLayout")
+        self.titleLabel = QLabel(AboutDlg)
+        self.titleLabel.setObjectName(u"titleLabel")
+        font = QFont()
         font.setPointSize(16)
         font.setBold(True)
         self.titleLabel.setFont(font)
-        self.titleLabel.setObjectName("titleLabel")
+
         self.titleLayout.addWidget(self.titleLabel)
-        self.versionLabel = QtWidgets.QLabel(parent=AboutDlg)
-        self.versionLabel.setObjectName("versionLabel")
+
+        self.versionLabel = QLabel(AboutDlg)
+        self.versionLabel.setObjectName(u"versionLabel")
+
         self.titleLayout.addWidget(self.versionLabel)
+
+
         self.headerLayout.addLayout(self.titleLayout)
+
+
         self.verticalLayout.addLayout(self.headerLayout)
-        self.line = QtWidgets.QFrame(parent=AboutDlg)
-        self.line.setFrameShape(QtWidgets.QFrame.Shape.HLine)
-        self.line.setFrameShadow(QtWidgets.QFrame.Shadow.Sunken)
-        self.line.setObjectName("line")
+
+        self.line = QFrame(AboutDlg)
+        self.line.setObjectName(u"line")
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+
         self.verticalLayout.addWidget(self.line)
-        self.descriptionLabel = QtWidgets.QLabel(parent=AboutDlg)
+
+        self.descriptionLabel = QLabel(AboutDlg)
+        self.descriptionLabel.setObjectName(u"descriptionLabel")
         self.descriptionLabel.setWordWrap(True)
-        self.descriptionLabel.setAlignment(
-            QtCore.Qt.AlignmentFlag.AlignLeft | QtCore.Qt.AlignmentFlag.AlignVCenter
-        )
-        self.descriptionLabel.setObjectName("descriptionLabel")
+        self.descriptionLabel.setAlignment(Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
+
         self.verticalLayout.addWidget(self.descriptionLabel)
-        self.licenseLabel = QtWidgets.QLabel(parent=AboutDlg)
-        self.licenseLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.licenseLabel.setObjectName("licenseLabel")
+
+        self.licenseLabel = QLabel(AboutDlg)
+        self.licenseLabel.setObjectName(u"licenseLabel")
+        self.licenseLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self.verticalLayout.addWidget(self.licenseLabel)
-        self.dateLabel = QtWidgets.QLabel(parent=AboutDlg)
-        self.dateLabel.setAlignment(QtCore.Qt.AlignmentFlag.AlignCenter)
-        self.dateLabel.setObjectName("dateLabel")
+
+        self.dateLabel = QLabel(AboutDlg)
+        self.dateLabel.setObjectName(u"dateLabel")
+        self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
         self.verticalLayout.addWidget(self.dateLabel)
-        spacerItem = QtWidgets.QSpacerItem(
-            20,
-            10,
-            QtWidgets.QSizePolicy.Policy.Minimum,
-            QtWidgets.QSizePolicy.Policy.Expanding,
-        )
-        self.verticalLayout.addItem(spacerItem)
-        self.buttonBox = QtWidgets.QDialogButtonBox(parent=AboutDlg)
-        self.buttonBox.setOrientation(QtCore.Qt.Orientation.Horizontal)
-        self.buttonBox.setStandardButtons(QtWidgets.QDialogButtonBox.StandardButton.Ok)
+
+        self.verticalSpacer = QSpacerItem(20, 10, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.verticalSpacer)
+
+        self.buttonBox = QDialogButtonBox(AboutDlg)
+        self.buttonBox.setObjectName(u"buttonBox")
+        self.buttonBox.setOrientation(Qt.Orientation.Horizontal)
+        self.buttonBox.setStandardButtons(QDialogButtonBox.StandardButton.Ok)
         self.buttonBox.setCenterButtons(True)
-        self.buttonBox.setObjectName("buttonBox")
+
         self.verticalLayout.addWidget(self.buttonBox)
 
+
         self.retranslateUi(AboutDlg)
-        self.buttonBox.accepted.connect(AboutDlg.accept)  # type: ignore
-        QtCore.QMetaObject.connectSlotsByName(AboutDlg)
+        self.buttonBox.accepted.connect(AboutDlg.accept)
+
+        QMetaObject.connectSlotsByName(AboutDlg)
+    # setupUi
 
     def retranslateUi(self, AboutDlg):
-        _translate = QtCore.QCoreApplication.translate
-        AboutDlg.setWindowTitle(_translate("AboutDlg", "About Easy G-code Plot"))
-        self.titleLabel.setText(_translate("AboutDlg", "Easy G-code Plot"))
-        self.versionLabel.setText(_translate("AboutDlg", "Version"))
-        self.descriptionLabel.setText(
-            _translate(
-                "AboutDlg",
-                "Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier "
-                "for turning and milling. Version 1.2.0 introduces a shared native Python CNC "
-                "kernel, authoritative logical Motion Trace, Macro B/control flow, turning "
-                "cycles, native XYZ milling, trajectory playback/picking and source-aware "
-                "expanded program export for both machine modes.",
-            )
-        )
-        self.licenseLabel.setText(
-            _translate("AboutDlg", "Free and open-source software distributed under the MIT License.")
-        )
-        self.dateLabel.setText(_translate("AboutDlg", "© 2025–2026 MaestroFusion360"))
+        AboutDlg.setWindowTitle(QCoreApplication.translate("AboutDlg", u"About Easy G-code Plot", None))
+        self.titleLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot", None))
+        self.versionLabel.setText(QCoreApplication.translate("AboutDlg", u"Version", None))
+        self.descriptionLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier for turning and milling. Version 1.2.0 introduces a shared native Python CNC kernel, authoritative logical Motion Trace, Macro B/control flow, turning cycles, native XYZ milling, trajectory playback/picking and source-aware expanded program export for both machine modes.", None))
+        self.licenseLabel.setText(QCoreApplication.translate("AboutDlg", u"Free and open-source software distributed under the MIT License.", None))
+        self.dateLabel.setText(QCoreApplication.translate("AboutDlg", u"\u00a9 2025\u20132026 MaestroFusion360", None))
+    # retranslateUi

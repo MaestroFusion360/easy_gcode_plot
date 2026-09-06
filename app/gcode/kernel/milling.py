@@ -327,13 +327,19 @@ def execute_milling(
     source: str,
     *,
     skip_optional_blocks: bool = False,
+    default_unit_scale: float = 1.0,
     home: tuple[float, float, float] = (0.0, 0.0, 0.0),
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
 ):
 
     program = parse_program(source.splitlines())
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
-    state = MillState(x=home[0] - ox, y=home[1] - oy, z=home[2] - oz)
+    state = MillState(
+        x=home[0] - ox,
+        y=home[1] - oy,
+        z=home[2] - oz,
+        unit_scale=float(default_unit_scale),
+    )
     motions: list[TraceMotion] = []
     diagnostics: list[Diagnostic] = []
     executed: list[int] = []
