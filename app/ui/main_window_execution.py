@@ -3,13 +3,13 @@
 import logging
 from math import acos, ceil, floor, pi
 
+from PyQt6.QtCore import QCoreApplication, QEventLoop, QTimer
 from PyQt6.QtWidgets import QMessageBox
 
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
 
-AUTO_REFRESH_MAX_LINES = 5000
 AUTO_REFRESH_MAX_POINTS = 20000
 AUTO_REFRESH_DELAY_MS = 500
 LOGGER = logging.getLogger(__name__)
@@ -59,11 +59,11 @@ class MainWindowExecutionMixin:
         self._sync_editor_to_motion(self.ui.horizontalSlider.value() - 1)
 
     def scheduleAutoUpdate(self):
-        """Invalidate stale execution state and restart the edit debounce timer."""
+        """Mark the displayed trace stale and optionally debounce its refresh."""
         self.autoUpdateTimer.stop()
-        if getattr(self, "execution_result", None) is not None or getattr(self, "render_points", ()):
-            self.clearPlot()
-        self.autoUpdateTimer.start()
+        self._plot_source_stale = True
+        if getattr(self, "autoUpdateEnabled", True):
+            self.autoUpdateTimer.start()
 
     def _execute_editor_source(self, *, show_errors=True):
         source = self.ui.editor.text()
@@ -117,15 +117,12 @@ class MainWindowExecutionMixin:
             render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
-                arc_type=self.arc_type,
                 arc_points_per_circle=self.arcPointsPerCircle(result),
             )
         )
 
     def autoUpdate(self):
         """Debounced refresh for programs whose sampled render path is small."""
-        if self.ui.editor.lines() > AUTO_REFRESH_MAX_LINES:
-            return
         result = self._execute_editor_source(show_errors=False)
         if result is None or not result.motions:
             return
@@ -133,29 +130,62 @@ class MainWindowExecutionMixin:
             points = render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
-                arc_type=self.arc_type,
                 arc_points_per_circle=self.arcPointsPerCircle(result),
-                max_points=AUTO_REFRESH_MAX_POINTS,
+                max_points=getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS) + 1,
             )
         except RenderLimitExceeded:
+            self._auto_update_deferred = True
+            self.ui.statusbar.showMessage("Trajectory is too large for Auto Update; press Update.", 10000)
             return
+        self._auto_update_deferred = False
         self._finishDataUpdate(result, points)
 
     def updateData(self):
         """Execute editor source through the single authoritative CNC kernel."""
         if hasattr(self, "autoUpdateTimer"):
             self.autoUpdateTimer.stop()
+        segment_limit = getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)
+        previous_segments = max(0, len(getattr(self, "render_points", ())) - 1)
+        show_progress = getattr(self, "_auto_update_deferred", False) or previous_segments > segment_limit
+        MainWindowExecutionMixin._setUpdateProgress(self, 5 if show_progress else None)
         result = self._execute_editor_source(show_errors=True)
         if result is None or not result.motions:
+            MainWindowExecutionMixin._setUpdateProgress(self, None)
             self.clearPlot()
             return False
-        self._finishDataUpdate(result)
+        if show_progress:
+            MainWindowExecutionMixin._setUpdateProgress(self, 40)
+            points = render_trace(
+                result,
+                lathe_radius_view=self.latheMode,
+                arc_points_per_circle=self.arcPointsPerCircle(result),
+            )
+            MainWindowExecutionMixin._setUpdateProgress(self, 75)
+            self._finishDataUpdate(result, points)
+            self._auto_update_deferred = False
+            MainWindowExecutionMixin._setUpdateProgress(self, 100)
+            QTimer.singleShot(500, lambda: MainWindowExecutionMixin._setUpdateProgress(self, None))
+        else:
+            self._finishDataUpdate(result)
         return True
+
+    def _setUpdateProgress(self, value):
+        """Show a painted stage indicator for long synchronous updates."""
+        if not hasattr(self, "progressBar"):
+            return
+        if value is None:
+            self.progressBar.hide()
+            return
+        self.progressBar.show()
+        self.progressBar.setValue(value)
+        self.progressBar.repaint()
+        QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
 
     def _finishDataUpdate(self, result=None, points=None):
         """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
         if result is not None:
             self.execution_result = result
+            self._plot_source_stale = False
         result = self.execution_result
         if result is None:
             return
@@ -165,7 +195,6 @@ class MainWindowExecutionMixin:
             else render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
-                arc_type=self.arc_type,
                 arc_points_per_circle=self.arcPointsPerCircle(result),
             )
         )
@@ -201,7 +230,7 @@ class MainWindowExecutionMixin:
         self.loadPlot()
         self._create_trace_items()
         if result.motions:
-            self.valueHandler(len(result.motions))
+            self.valueHandler(len(result.motions), sync_editor=False)
 
     def lstExport(self):
         """Compatibility hook: export data now comes directly from ExecutionResult."""
@@ -215,7 +244,6 @@ class MainWindowExecutionMixin:
             self.execution_result,
             lathe_radius_view=self.latheMode,
             rapid_feed=self.rapidFeed,
-            arc_type=self.arc_type,
         )
         time_value = stats["total_time_min"]
         if time_value is None:
@@ -245,7 +273,6 @@ class MainWindowExecutionMixin:
             self.execution_result,
             lathe_radius_view=False,
             rapid_feed=self.rapidFeed,
-            arc_type=self.arc_type,
         )
         bounds = stats["bounds"]
         if bounds is None:

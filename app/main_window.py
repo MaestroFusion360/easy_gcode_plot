@@ -15,9 +15,6 @@ from app.ui.main_window_execution import (
     MainWindowExecutionMixin,
 )
 from app.ui.main_window_execution import (
-    AUTO_REFRESH_MAX_LINES as _AUTO_REFRESH_MAX_LINES,
-)
-from app.ui.main_window_execution import (
     AUTO_REFRESH_MAX_POINTS as _AUTO_REFRESH_MAX_POINTS,
 )
 from app.ui.main_window_file_ops import MainWindowFileMixin
@@ -43,7 +40,6 @@ RECENT_FILES_LIMIT = _RECENT_FILES_LIMIT
 _normalized_tools = normalized_tools
 _normalized_milling_tools = normalized_milling_tools
 _normalized_recent_files = normalized_recent_files
-AUTO_REFRESH_MAX_LINES = _AUTO_REFRESH_MAX_LINES
 AUTO_REFRESH_MAX_POINTS = _AUTO_REFRESH_MAX_POINTS
 PICK_DISTANCE_PX = _PICK_DISTANCE_PX
 CURSOR_SIZE_PX = _CURSOR_SIZE_PX
@@ -198,6 +194,20 @@ class MainWindow(
 
         self.ui.langCombo.currentIndexChanged.connect(self.changeLang)
 
+    def syncGuiCapabilities(self):
+        """Synchronize machine-specific actions with the active execution profile."""
+        turning = bool(self.latheMode)
+        self.ui.actionTurningTools.setEnabled(turning)
+        self.ui.actionMillingTools.setEnabled(not turning)
+
+        # Arc interpretation is a kernel input for both profiles, while arc
+        # tolerance controls downstream sampling for any resolved ArcGeometry.
+        self.ui.actionRelative_to_start.setEnabled(True)
+        self.ui.actionAbsolute.setEnabled(True)
+        self.ui.actionRadius_value.setEnabled(True)
+        if hasattr(self, "optionsDlg"):
+            self.optionsDlg.ui.arcToleranceSpin.setEnabled(True)
+
     def changeArcType(self):
         """Change arc mode between relative, absolute, or radius modes."""
         if self.ui.actionRelative_to_start.isChecked():
@@ -235,5 +245,6 @@ class MainWindow(
             self.updateData()
             self.view3d()
 
+        self.syncGuiCapabilities()
         if hasattr(self, "exportDlg"):
-            self.exportDlg.set_expanded_turn_available(self.latheMode)
+            self.exportDlg.sync_mode_availability(self.latheMode)

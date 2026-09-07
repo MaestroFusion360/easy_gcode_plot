@@ -6,6 +6,12 @@ from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont, QVector3D
 
+from app.gcode.exporter import (
+    EXPANDED_EXECUTION_MODE,
+    MILL_FULL_PROGRAM_MODE,
+    PLOT_DATA_MODE,
+    TURN_FULL_PROGRAM_MODE,
+)
 from app.settings import (
     configure_logging,
     get_settings,
@@ -95,6 +101,8 @@ class MainWindowSettingsMixin:
         self.arcTolerance = self.settings.value("CNC/ARC_TOLERANCE", 0.001, type=float)
         self.uiLanguage = self.settings.value("GENERAL/LANGUAGE", "en")
         self.loggingEnabled = self.settings.value("GENERAL/LOGGING", False, type=bool)
+        self.autoUpdateEnabled = self.settings.value("GENERAL/AUTO_UPDATE", True, type=bool)
+        self.autoUpdateMaxSegments = self.settings.value("GENERAL/AUTO_UPDATE_MAX_SEGMENTS", 20000, type=int)
         configure_logging(self.loggingEnabled)
 
         # Editor
@@ -150,7 +158,26 @@ class MainWindowSettingsMixin:
         self.changeLang(self.ui.langCombo.currentIndex())
 
         # Export / Block Numbers opt
-        self.lang = self.settings.value("EXPORT_OPT/LANGUAGE", 0, type=int)
+        stored_export_mode = self.settings.value("EXPORT_OPT/MODE", None)
+        if stored_export_mode is None:
+            legacy_mode = self.settings.value("EXPORT_OPT/LANGUAGE", 0, type=int)
+            if legacy_mode == 5:
+                self.exportMode = TURN_FULL_PROGRAM_MODE
+                self.exportArcMode = 0
+            elif legacy_mode == 6:
+                self.exportMode = MILL_FULL_PROGRAM_MODE
+                self.exportArcMode = 0
+            elif legacy_mode == 4:
+                self.exportMode = PLOT_DATA_MODE
+                self.exportArcMode = 0
+            else:
+                self.exportMode = EXPANDED_EXECUTION_MODE
+                self.exportArcMode = legacy_mode if legacy_mode in range(4) else 0
+        else:
+            mode = self.settings.value("EXPORT_OPT/MODE", EXPANDED_EXECUTION_MODE, type=int)
+            self.exportMode = mode if mode in range(4) else EXPANDED_EXECUTION_MODE
+            arc_mode = self.settings.value("EXPORT_OPT/ARC_MODE", 0, type=int)
+            self.exportArcMode = arc_mode if arc_mode in range(4) else 0
         self.forceAdr = self.settings.value("EXPORT_OPT/FORCE_ADDRESS", False, type=bool)
         self.incrMode = self.settings.value("EXPORT_OPT/INCREMENTAL_MODE", False, type=bool)
         self.startPgmExp = self.settings.value("EXPORT_OPT/START_PROGRAM", "O0001")
@@ -232,8 +259,15 @@ class MainWindowSettingsMixin:
         self.settings.setValue(EDITOR_FONT_WEIGHT_KEY, self.fontWeight)
         self.settings.setValue(EDITOR_FONT_ITALIC_KEY, self.fontItalic)
         self.settings.endGroup()
+        self.settings.beginGroup("GENERAL")
+        self.settings.setValue("AUTO_UPDATE", self.autoUpdateEnabled)
+        self.settings.setValue("AUTO_UPDATE_MAX_SEGMENTS", self.autoUpdateMaxSegments)
+        self.settings.remove("AUTO_UPDATE_MAX_LINES")
+        self.settings.endGroup()
         self.settings.beginGroup("EXPORT_OPT")
-        self.settings.setValue("LANGUAGE", self.lang)
+        self.settings.setValue("MODE", self.exportMode)
+        self.settings.setValue("ARC_MODE", self.exportArcMode)
+        self.settings.remove("LANGUAGE")
         self.settings.setValue("FORCE_ADDRESS", self.forceAdr)
         self.settings.setValue("INCREMENTAL_MODE", self.incrMode)
         self.settings.setValue("START_PROGRAM", self.startPgmExp)

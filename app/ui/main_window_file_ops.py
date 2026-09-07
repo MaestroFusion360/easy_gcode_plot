@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 
 from app.gcode.core import format_gcode_number
 from app.gcode.exporter import export_pgm
+from app.gcode.kernel.io import read_nc_text
 from app.settings import normalized_recent_files as _normalized_recent_files
 
 LOGGER = logging.getLogger(__name__)
@@ -103,6 +104,7 @@ class MainWindowFileMixin:
             self.ui.editor.clear()
             self.setCurrentFile("")
             self.clearPlot()
+            self.syncGuiCapabilities()
 
     def openFile(self):
         """Prompt for a file to open and load its contents."""
@@ -128,11 +130,10 @@ class MainWindowFileMixin:
         return False
 
     def documentWasModified(self):
-        """Update window modified state and reset plot when text changes."""
+        """Update document actions without invalidating the displayed trace."""
         self.setWindowModified(self.ui.editor.isModified())
         self.ui.actionUndo.setEnabled(self.ui.editor.isUndoAvailable())
         self.ui.actionRedo.setEnabled(self.ui.editor.isRedoAvailable())
-        self.clearPlot()
 
     def maybeSave(self):
         """Ask the user to save if the document has unsaved changes."""
@@ -158,7 +159,7 @@ class MainWindowFileMixin:
     def loadFile(self, fileName):
         """Load file contents into the editor and reset cursor."""
         try:
-            content = Path(fileName).read_text(encoding=getattr(self, "fileEncoding", "utf-8"))
+            content = read_nc_text(fileName, encoding=getattr(self, "fileEncoding", "utf-8"))
         except (OSError, UnicodeError) as exc:
             LOGGER.exception("file_open_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
             QMessageBox.warning(
@@ -173,6 +174,7 @@ class MainWindowFileMixin:
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
         self.changeLang(self.ui.langCombo.currentIndex())
+        self.syncGuiCapabilities()
         self.scheduleAutoUpdate()
         self._add_recent_file(fileName)
 

@@ -42,6 +42,7 @@ class MainWindowEditorMixin:
                 )
             )
             self.ui.editor.setLexer(self.lexer)
+        self.syncGuiCapabilities()
         end = time.time()
         print(f"Paint Execution time: {(end - start) * 1000:.3f} ms")
 
@@ -51,6 +52,7 @@ class MainWindowEditorMixin:
         self.progressBar.setMaximumWidth(200)
         self.progressBar.setMaximum(100)
         self.progressBar.setTextVisible(False)
+        self.progressBar.hide()
         self.chrCountLabel = QLabel()
         self.chrCountLabel.setMinimumWidth(100)
 

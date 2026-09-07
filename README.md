@@ -143,13 +143,17 @@ The project intentionally prefers explicit diagnostics over guessing unsupported
 
 The exporter works from the executed logical trace rather than running a second CNC interpreter.
 
-Available modes include:
+The GUI exposes four logical output types:
 
-- Standard trace export
-- `EXPANDED TURN PROGRAM`
-- `EXPANDED MILL PROGRAM`
-- Turning cycle expansion
-- Absolute or incremental positioning
+- `TURN FULL PROGRAM`
+- `MILL FULL PROGRAM`
+- `EXPANDED EXECUTION`
+- `PLOT DATA`
+
+Expanded execution keeps arc representation (`IJK relative`, `IJK absolute`, `R`, or linearized) and G90/G91 coordinate output as separate representation options instead of separate export types. Full-program export remains source/execution-structure oriented, while Plot Data remains a raw resolved-toolpath output.
+
+Additional export options include:
+
 - Source unit preservation
 - Sequence-number generation
 - Forced address output
@@ -270,6 +274,9 @@ The same kernel is also available through the CLI:
 
 ```bash
 uv run --no-dev python -m app parse program.nc --lang fanuc_turn
+
+# Use the same explicit Windows-1251 decoding contract as the GUI when needed.
+uv run --no-dev python -m app parse program.nc --lang fanuc_turn --encoding cp1251
 
 uv run --no-dev python -m app trace program.nc \
   --lang fanuc_turn \
@@ -503,10 +510,10 @@ The selected encoding is used when opening and saving editor documents. The defa
 
 ### Export
 
-- language
-- export mode
+- logical export type
+- arc output representation for expanded execution
+- G90/G91 coordinate output for expanded execution
 - address forcing
-- incremental mode
 - program start/end strings
 - sequence-number settings
 - formatting options

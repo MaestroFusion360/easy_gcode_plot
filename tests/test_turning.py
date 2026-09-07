@@ -19,6 +19,45 @@ def test_basic_turning_cycles_fixture_executes_facing_roughing_and_grooving(fixt
     assert min(motion.end_z for motion in result.motions) == pytest.approx(-224.7)
 
 
+@pytest.mark.parametrize(
+    ("x_mode", "start_x", "end_x", "source_arc_type", "arc_words"),
+    [
+        ("G190", 20, 40, 1, "I0 K-10"),
+        ("G190", 20, 40, 2, "I10 K-10"),
+        ("G190", 20, 40, 3, "R10"),
+        ("G191", 10, 20, 1, "I0 K-10"),
+        ("G191", 10, 20, 2, "I10 K-10"),
+        ("G191", 10, 20, 3, "R10"),
+    ],
+)
+def test_turning_arcs_share_physical_geometry_across_x_and_arc_programming_modes(
+    x_mode, start_x, end_x, source_arc_type, arc_words
+):
+    source = f"G21 G18 {x_mode}\nG0 X{start_x} Z0\nG3 X{end_x} Z-10 {arc_words} F100\nM30"
+    result = execute(source, language="fanuc_turn", source_arc_type=source_arc_type)
+    assert result.ok, result.diagnostics
+
+    motion = next(item for item in result.motions if item.move in (2, 3))
+    assert motion.arc is not None
+    assert (motion.end_x * motion.x_scale, motion.end_y, motion.end_z) == pytest.approx((20.0, 0.0, -10.0))
+    assert motion.arc.center == pytest.approx((10.0, 0.0, -10.0))
+    assert motion.arc.radius == pytest.approx(10.0)
+    assert motion.arc.sweep == pytest.approx(3.141592653589793 / 2.0)
+    assert motion.arc.clockwise is True
+    assert motion.x_scale == pytest.approx(0.5)
+
+
+@pytest.mark.parametrize(("g_code", "clockwise"), [("G2", False), ("G3", True)])
+def test_turning_g18_arc_direction_is_resolved_in_physical_geometry(g_code, clockwise):
+    source = f"G21 G18 G190\nG0 X20 Z0\n{g_code} X40 Z-10 R10 F100\nM30"
+    result = execute(source, language="fanuc_turn", source_arc_type=3)
+    assert result.ok, result.diagnostics
+
+    motion = next(item for item in result.motions if item.move in (2, 3))
+    assert motion.arc is not None
+    assert motion.arc.clockwise is clockwise
+
+
 def test_turning_drill_fixture_executes_g83_and_g84_as_axial_cycles(fixture_text):
     result = execute(fixture_text("turning/drill.nc"), language="fanuc_turn")
     assert result.ok, result.diagnostics

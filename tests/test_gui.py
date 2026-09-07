@@ -126,6 +126,24 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     assert captured["emulate_g28_home"] is False
 
 
+def test_legacy_config_migration_uses_application_directory_not_process_cwd(tmp_path, monkeypatch):
+    app_dir = tmp_path / "app"
+    app_dir.mkdir()
+    legacy = app_dir / "config.ini"
+    legacy.write_text("[PLOT]\nARC_TYPE=2\n", encoding="utf-8")
+    target = tmp_path / "config" / "config.ini"
+    target.parent.mkdir()
+    other_cwd = tmp_path / "elsewhere"
+    other_cwd.mkdir()
+
+    monkeypatch.chdir(other_cwd)
+    monkeypatch.setattr(app_settings, "_application_dir", lambda: str(app_dir))
+    monkeypatch.setattr(app_settings, "config_path", lambda: str(target))
+    app_settings._migrate_legacy_config()
+
+    assert target.read_text(encoding="utf-8") == legacy.read_text(encoding="utf-8")
+
+
 def test_tool_settings_normalization_matches_turning_kernel_keys():
     raw = {
         "101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
@@ -415,7 +433,7 @@ def test_drop_event_opens_first_local_file_only():
     assert event.ignored is False
 
 
-def test_auto_update_schedule_invalidates_previous_trace_before_debounce():
+def test_auto_update_schedule_marks_trace_stale_without_moving_old_slider():
     calls = []
 
     class Timer:
@@ -428,6 +446,7 @@ def test_auto_update_schedule_invalidates_previous_trace_before_debounce():
     class Window(MainWindowExecutionMixin):
         def __init__(self):
             self.autoUpdateTimer = Timer()
+            self.autoUpdateEnabled = True
             self.execution_result = object()
             self.render_points = [object()]
 
@@ -436,9 +455,28 @@ def test_auto_update_schedule_invalidates_previous_trace_before_debounce():
             self.execution_result = None
             self.render_points = []
 
-    Window().scheduleAutoUpdate()
+    window = Window()
+    window.scheduleAutoUpdate()
 
-    assert calls == ["stop", "clear", "start"]
+    assert calls == ["stop", "start"]
+    assert window._plot_source_stale is True
+
+
+def test_disabled_auto_update_marks_trace_stale_without_starting_timer():
+    calls = []
+
+    class Timer:
+        def stop(self):
+            calls.append("stop")
+
+        def start(self):
+            calls.append("start")
+
+    window = SimpleNamespace(autoUpdateTimer=Timer(), autoUpdateEnabled=False)
+    MainWindowExecutionMixin.scheduleAutoUpdate(window)
+
+    assert calls == ["stop"]
+    assert window._plot_source_stale is True
 
 
 def test_remove_spaces_preserves_multiple_parenthesized_comments():

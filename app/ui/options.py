@@ -34,6 +34,8 @@ class OptionsDialog(QDialog):
         self.ui.unitsCombo.setCurrentIndex(1 if getattr(window, "defaultUnits", "mm") == "inch" else 0)
         self.ui.languageCombo.setCurrentIndex(1 if getattr(window, "uiLanguage", "en") == "ru" else 0)
         self.ui.loggingCheck.setChecked(getattr(window, "loggingEnabled", False))
+        self.ui.autoUpdateCheck.setChecked(getattr(window, "autoUpdateEnabled", True))
+        self.ui.autoUpdateMaxSegmentsSpin.setValue(getattr(window, "autoUpdateMaxSegments", 20000))
         self.ui.correctionCheck.setChecked(getattr(window, "correctionEnabled", True))
         self.ui.arcToleranceSpin.setValue(getattr(window, "arcTolerance", 0.001))
         self.ui.fontCombo.setCurrentFont(QFont(window.fontFamily))
@@ -71,6 +73,8 @@ class OptionsDialog(QDialog):
         window.defaultFileType = self.ui.fileTypeCombo.currentIndex()
         window.defaultUnits = "inch" if self.ui.unitsCombo.currentIndex() else "mm"
         window.loggingEnabled = self.ui.loggingCheck.isChecked()
+        window.autoUpdateEnabled = self.ui.autoUpdateCheck.isChecked()
+        window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
         window.correctionEnabled = self.ui.correctionCheck.isChecked()
         window.arcTolerance = self.ui.arcToleranceSpin.value()
         window.fontFamily = self.ui.fontCombo.currentFont().family()
@@ -106,6 +110,10 @@ class OptionsDialog(QDialog):
         window.ui.editor.setMarginLineNumbers(1, window.marginArea)
         window.changeLang(target_file_type)
         configure_logging(window.loggingEnabled)
+        if not window.autoUpdateEnabled:
+            window.autoUpdateTimer.stop()
+        elif getattr(window, "_plot_source_stale", False):
+            window.scheduleAutoUpdate()
         window.saveSettings()
         execution_changed = (
             previous_units != window.defaultUnits
@@ -128,6 +136,8 @@ class OptionsDialog(QDialog):
         self.ui.fileTypeCombo.setCurrentIndex(0)
         self.ui.unitsCombo.setCurrentIndex(0)
         self.ui.loggingCheck.setChecked(False)
+        self.ui.autoUpdateCheck.setChecked(True)
+        self.ui.autoUpdateMaxSegmentsSpin.setValue(20000)
         self.ui.correctionCheck.setChecked(True)
         self.ui.arcToleranceSpin.setValue(0.001)
         self.ui.fontCombo.setCurrentFont(QFont("Courier New"))

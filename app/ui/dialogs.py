@@ -10,6 +10,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
+    QLabel,
     QLineEdit,
     QMessageBox,
     QTableWidgetItem,
@@ -17,7 +18,11 @@ from PyQt6.QtWidgets import (
 )
 
 from app import get_version
-from app.gcode.exporter import EXPANDED_MILL_PROGRAM_MODE, EXPANDED_TURN_PROGRAM_MODE
+from app.gcode.exporter import (
+    EXPANDED_EXECUTION_MODE,
+    MILL_FULL_PROGRAM_MODE,
+    TURN_FULL_PROGRAM_MODE,
+)
 from app.ui.generated.about import Ui_AboutDlg
 from app.ui.generated.block_num import Ui_BlockNumberDlg
 from app.ui.generated.export import Ui_ExportOptDlg
@@ -82,24 +87,55 @@ class BlockNum(QDialog):
 
 
 class Export(QDialog):
-    """Dialog for configuring export options before saving G-code."""
+    """Dialog for configuring export type and output representation."""
+
+    _MODE_LABELS = (
+        "TURN FULL PROGRAM",
+        "MILL FULL PROGRAM",
+        "EXPANDED EXECUTION",
+        "PLOT DATA",
+    )
+    _ARC_LABELS = (
+        "IJK RELATIVE",
+        "IJK ABSOLUTE",
+        "R RADIUS",
+        "LINEARIZED",
+    )
 
     def __init__(self, parent=None):
         """Set up export options dialog and load persisted settings."""
         super().__init__(parent)
         self.ui = Ui_ExportOptDlg()
         self.ui.setupUi(self)
-        self._last_standard_lang = (
-            self.parent().lang
-            if self.parent().lang not in {EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE}
-            else 0
-        )
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
-
+        self._configure_export_mode_ui()
         self.loadSettings()
         self.connectActions()
-        self.set_expanded_turn_available(bool(self.parent().latheMode))
+        self.sync_mode_availability(bool(self.parent().latheMode))
+
+    def _configure_export_mode_ui(self):
+        """Separate export type from coordinate and arc representation options."""
+        self.ui.label_Lang.setText("Export Type")
+        self.ui.langCmbBox.clear()
+        self.ui.langCmbBox.addItems(self._MODE_LABELS)
+
+        self.ui.label_Incr.setText("Coordinates")
+        self.ui.incrCmbBox.setItemText(0, "G90 Absolute")
+        self.ui.incrCmbBox.setItemText(1, "G91 Incremental")
+
+        grid = self.ui.gridLayout
+        grid.removeWidget(self.ui.label_Incr)
+        grid.removeWidget(self.ui.incrCmbBox)
+        grid.addWidget(self.ui.label_Incr, 11, 0)
+        grid.addWidget(self.ui.incrCmbBox, 11, 1)
+
+        self.arcOutputLabel = QLabel("Arc Output", self)
+        self.arcOutputCmbBox = QComboBox(self)
+        self.arcOutputCmbBox.addItems(self._ARC_LABELS)
+        grid.addWidget(self.arcOutputLabel, 12, 0)
+        grid.addWidget(self.arcOutputCmbBox, 12, 1)
+        self.setMinimumHeight(max(self.minimumHeight(), 430))
 
     def _set_parent_bool(self, combo, attr_name, true_index=1):
         """Update a boolean attribute on the parent using combo index."""
@@ -111,28 +147,25 @@ class Export(QDialog):
 
     def loadSettings(self):
         """Populate UI fields with current export preferences."""
-        self.ui.langCmbBox.setCurrentIndex(self.parent().lang)
-
+        self.ui.langCmbBox.setCurrentIndex(self.parent().exportMode)
+        self.arcOutputCmbBox.setCurrentIndex(self.parent().exportArcMode)
         self._set_combo_from_bool(self.ui.forceCmbBox, self.parent().forceAdr)
-
         self._set_combo_from_bool(self.ui.incrCmbBox, self.parent().incrMode)
-
         self.ui.startLineEdit.setText(self.parent().startPgmExp)
         self.ui.endLineEdit.setText(self.parent().endPgmExp)
-
         self._set_combo_from_bool(self.ui.safLineCmbBox, self.parent().safLine)
         self._set_combo_from_bool(self.ui.seqNumCmbBox, self.parent().seqNum)
-
         self.ui.seqStartSpinBox.setValue(self.parent().seqNumStart)
         self.ui.seqIntervalSpinBox.setValue(self.parent().seqNumIncr)
-
         self._set_combo_from_bool(self.ui.delimCmbBox, self.parent().delim)
         self._set_combo_from_bool(self.ui.leadingZeroCmbBox, self.parent().leadingZero)
+        self._sync_output_option_availability()
 
     def connectActions(self):
         """Wire up dialog controls to parent setters."""
         self.accepted.connect(lambda: self.parent().export())
-        self.ui.langCmbBox.currentIndexChanged.connect(self.lang)
+        self.ui.langCmbBox.currentIndexChanged.connect(self.exportMode)
+        self.arcOutputCmbBox.currentIndexChanged.connect(self.arcMode)
         self.ui.forceCmbBox.currentIndexChanged.connect(self.forceAdr)
         self.ui.incrCmbBox.currentIndexChanged.connect(self.incrMode)
         self.ui.startLineEdit.textChanged.connect(self.startPgmText)
@@ -144,43 +177,47 @@ class Export(QDialog):
         self.ui.delimCmbBox.currentIndexChanged.connect(self.delim)
         self.ui.leadingZeroCmbBox.currentIndexChanged.connect(self.ledingZero)
 
-    def lang(self):
-        """Update selected language and toggle related fields."""
-        index = self.ui.langCmbBox.currentIndex()
-        self.parent().lang = index
-        if index not in {EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE}:
-            self._last_standard_lang = index
+    def exportMode(self):
+        """Store the selected logical export type."""
+        self.parent().exportMode = self.ui.langCmbBox.currentIndex()
+        self._sync_output_option_availability()
 
-        trace_shape_locked = index in {4, EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE}
-        self.ui.forceCmbBox.setEnabled(not trace_shape_locked)
-        self.ui.incrCmbBox.setEnabled(not trace_shape_locked)
+    def arcMode(self):
+        """Store the arc representation used by expanded execution output."""
+        self.parent().exportArcMode = self.arcOutputCmbBox.currentIndex()
 
-    def set_expanded_turn_available(self, enabled: bool):
-        """Enable exactly the expanded-program mode matching the current machine mode."""
+    def _sync_output_option_availability(self):
+        """Enable representation controls only when the selected exporter uses them."""
+        converted = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
+        self.ui.forceCmbBox.setEnabled(converted)
+        self.ui.incrCmbBox.setEnabled(converted)
+        self.arcOutputLabel.setEnabled(converted)
+        self.arcOutputCmbBox.setEnabled(converted)
+
+    def sync_mode_availability(self, turning: bool):
+        """Enable exactly the full-program mode matching the active machine profile."""
         model = self.ui.langCmbBox.model()
-        turn_item = model.item(EXPANDED_TURN_PROGRAM_MODE) if hasattr(model, "item") else None
-        mill_item = model.item(EXPANDED_MILL_PROGRAM_MODE) if hasattr(model, "item") else None
+        turn_item = model.item(TURN_FULL_PROGRAM_MODE) if hasattr(model, "item") else None
+        mill_item = model.item(MILL_FULL_PROGRAM_MODE) if hasattr(model, "item") else None
         if turn_item is not None:
-            turn_item.setEnabled(enabled)
+            turn_item.setEnabled(turning)
         if mill_item is not None:
-            mill_item.setEnabled(not enabled)
+            mill_item.setEnabled(not turning)
 
         current = self.ui.langCmbBox.currentIndex()
-        invalid_expanded = (not enabled and current == EXPANDED_TURN_PROGRAM_MODE) or (
-            enabled and current == EXPANDED_MILL_PROGRAM_MODE
-        )
-        if invalid_expanded:
-            fallback = self._last_standard_lang
-            if fallback in {EXPANDED_TURN_PROGRAM_MODE, EXPANDED_MILL_PROGRAM_MODE} or fallback < 0:
-                fallback = 0
-            self.ui.langCmbBox.setCurrentIndex(fallback)
+        invalid = (not turning and current == TURN_FULL_PROGRAM_MODE) or (turning and current == MILL_FULL_PROGRAM_MODE)
+        if invalid:
+            self.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+        self._sync_output_option_availability()
 
     def forceAdr(self, idx):
         """Toggle forced address formatting on export."""
+        del idx
         self._set_parent_bool(self.ui.forceCmbBox, "forceAdr")
 
     def incrMode(self, idx):
-        """Switch between absolute and incremental address modes."""
+        """Switch between absolute and incremental output coordinates."""
+        del idx
         self._set_parent_bool(self.ui.incrCmbBox, "incrMode")
 
     def startPgmText(self):
@@ -193,10 +230,12 @@ class Export(QDialog):
 
     def safLine(self, idx):
         """Toggle inserting a safety line at program start."""
+        del idx
         self._set_parent_bool(self.ui.safLineCmbBox, "safLine")
 
     def seqNum(self, idx):
         """Enable or disable sequence numbering for export."""
+        del idx
         self._set_parent_bool(self.ui.seqNumCmbBox, "seqNum")
 
     def seqNumStart(self):
@@ -209,10 +248,12 @@ class Export(QDialog):
 
     def delim(self, idx):
         """Switch delimiter between addresses based on selection."""
+        del idx
         self._set_parent_bool(self.ui.delimCmbBox, "delim")
 
     def ledingZero(self, idx):
         """Toggle leading zero formatting for addresses."""
+        del idx
         self._set_parent_bool(self.ui.leadingZeroCmbBox, "leadingZero")
 
 

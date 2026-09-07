@@ -16,6 +16,7 @@ from app.gcode.exporter import (
     export_result,
 )
 from app.gcode.kernel import ExecutionResult, execute
+from app.gcode.kernel.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.trace_tools import trace_statistics
 
 
@@ -26,6 +27,7 @@ def _parser() -> argparse.ArgumentParser:
         command = sub.add_parser(name)
         command.add_argument("file", type=Path)
         command.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn")
+        command.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8")
         if name in {"trace", "analyze"}:
             command.add_argument("-o", "--output", type=Path)
         if name == "export":
@@ -34,8 +36,8 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load(path: Path, language: str) -> tuple[str, ExecutionResult]:
-    source = path.read_text(encoding="utf-8-sig")
+def _load(path: Path, language: str, encoding: str) -> tuple[str, ExecutionResult]:
+    source = read_nc_text(path, encoding=encoding)
     return source, execute(source, language=language)
 
 
@@ -81,7 +83,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "export" and args.lang == "fanuc_mill" and args.mode == "cycles":
         parser.error("export --mode cycles is only available for fanuc_turn")
 
-    source, result = _load(args.file, args.lang)
+    source, result = _load(args.file, args.lang, args.encoding)
     if args.command == "parse":
         _write(None, json.dumps(_result_document(result, include_motions=False), ensure_ascii=False, indent=2))
     elif args.command == "trace":

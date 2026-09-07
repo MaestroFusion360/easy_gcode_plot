@@ -19,7 +19,6 @@ class ExportOptions:
     # 0: relative IJK, 1: absolute IJK, 2: R arcs, 3: linearized arcs,
     # 4: plot-data style (all logical motions emitted as point-to-point moves).
     arc_mode: int = 0
-    source_arc_type: int = 1
     incremental: bool = False
     force_addresses: bool = False
     sequence_numbers: bool = False
@@ -51,7 +50,7 @@ def _axis_values(m: TraceMotion, options: ExportOptions) -> tuple[float, float, 
 
 
 def _center_words(m: TraceMotion, options: ExportOptions) -> list[str]:
-    geom = arc_geometry(m, arc_type=options.source_arc_type)
+    geom = arc_geometry(m)
 
     if options.arc_mode == 2:
         if geom is not None:
@@ -124,7 +123,6 @@ def _linearized_lines(
         m,
         motion_index,
         arc_points_per_circle=314,
-        arc_type=options.source_arc_type,
     )
     lines: list[str] = []
     previous = (m.start_x, m.start_y, m.start_z)
@@ -204,8 +202,10 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None)
     return "\n".join(_number_lines(lines, options)) + "\n"
 
 
-EXPANDED_TURN_PROGRAM_MODE = 5
-EXPANDED_MILL_PROGRAM_MODE = 6
+TURN_FULL_PROGRAM_MODE = 0
+MILL_FULL_PROGRAM_MODE = 1
+EXPANDED_EXECUTION_MODE = 2
+PLOT_DATA_MODE = 3
 _TURN_CYCLE_G_CODES = {70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92, 94}
 _TURN_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, 30, 32, 33, *_TURN_CYCLE_G_CODES}
 _MILL_CYCLE_G_CODES = {81, 82, 83, 84, 85, 86}
@@ -351,7 +351,6 @@ def _turn_program_options(options: ExportOptions | None) -> ExportOptions:
     return replace(
         base,
         arc_mode=2,
-        source_arc_type=1,
         incremental=False,
         force_addresses=False,
         analysis_banner=False,
@@ -762,7 +761,6 @@ def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None =
 def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
     return ExportOptions(
         arc_mode=arc_mode,
-        source_arc_type=int(window.arc_type),
         incremental=bool(window.incrMode),
         force_addresses=bool(window.forceAdr),
         sequence_numbers=bool(window.seqNum),
@@ -783,23 +781,29 @@ def export_pgm(window) -> str:
     if result is None or not result.ok:
         raise ValueError("No valid CNC execution result is available for export")
 
-    mode = int(window.lang)
-    if mode == EXPANDED_TURN_PROGRAM_MODE:
+    mode = int(window.exportMode)
+    if mode == TURN_FULL_PROGRAM_MODE:
         if not bool(window.latheMode):
-            raise ValueError("Expanded turn program export requires Lathe Mode")
+            raise ValueError("Turn Full Program export requires Lathe Mode")
         return export_full_program(
             result,
             str(window.ui.editor.text()).splitlines(),
             _window_export_options(window, arc_mode=2),
         )
 
-    if mode == EXPANDED_MILL_PROGRAM_MODE:
+    if mode == MILL_FULL_PROGRAM_MODE:
         if bool(window.latheMode):
-            raise ValueError("Expanded mill program export requires Milling Mode")
+            raise ValueError("Mill Full Program export requires Milling Mode")
         return export_full_mill_program(
             result,
             str(window.ui.editor.text()).splitlines(),
             _window_export_options(window, arc_mode=0),
         )
 
-    return export_result(result, _window_export_options(window, arc_mode=mode))
+    if mode == EXPANDED_EXECUTION_MODE:
+        return export_result(result, _window_export_options(window, arc_mode=int(window.exportArcMode)))
+
+    if mode == PLOT_DATA_MODE:
+        return export_result(result, _window_export_options(window, arc_mode=4))
+
+    raise ValueError(f"Unknown export mode: {mode}")

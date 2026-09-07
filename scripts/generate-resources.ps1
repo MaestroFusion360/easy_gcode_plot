@@ -17,7 +17,7 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 
 New-Item -ItemType Directory -Path $outputDirPath -Force | Out-Null
 try {
-    [xml]$manifest = Get-Content -Raw -LiteralPath $source
+    [xml]$manifest = Get-Content -Raw -LiteralPath $source -Encoding UTF8
     $seen = @{}
     foreach ($entry in $manifest.RCC.qresource.file) {
         $relative = [string]$entry.'#text'

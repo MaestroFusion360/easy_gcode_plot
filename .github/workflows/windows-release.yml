@@ -41,7 +41,6 @@ jobs:
 
       - name: Run static checks
         shell: pwsh
-        continue-on-error: true
         run: ./scripts/lint.ps1
 
       - name: Verify release tag matches project version
@@ -117,3 +116,5 @@ jobs:
             gh release create $tag $asset $checksum `
               --verify-tag --generate-notes --title "Easy G-Code Plot $tag"
           }
+
+          gh release edit $tag --draft=false --latest

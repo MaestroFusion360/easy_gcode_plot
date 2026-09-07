@@ -51,9 +51,9 @@ def test_milling_relative_absolute_and_radius_arc_encodings_render_same_contour(
     radius = execute(ARC_RADIUS, language="fanuc_mill")
     assert relative.ok and absolute.ok and radius.ok
 
-    rel_points = render_trace(relative, arc_type=1)
-    abs_points = render_trace(absolute, arc_type=2)
-    rad_points = render_trace(radius, arc_type=3)
+    rel_points = render_trace(relative)
+    abs_points = render_trace(absolute)
+    rad_points = render_trace(radius)
 
     for points in (rel_points, abs_points, rad_points):
         assert (points[-1].x, points[-1].y) == pytest.approx((-55.123, 39.556), abs=1e-6)

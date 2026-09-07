@@ -12,10 +12,6 @@ from dataclasses import dataclass
 
 from .kernel import ExecutionResult, TraceMotion
 
-ARC_RELATIVE = 1
-ARC_ABSOLUTE = 2
-ARC_RADIUS = 3
-
 
 class RenderLimitExceeded(ValueError):
     """Raised when trace sampling would exceed an explicit point budget."""
@@ -60,7 +56,6 @@ def _plane_coordinates(m: TraceMotion, x_scale: float = 1.0):
 def arc_geometry(
     m: TraceMotion,
     *,
-    arc_type: int = ARC_RELATIVE,
     lathe_radius_view: bool = False,
 ):
     """Resolve one logical arc using the same plane semantics as CncKernelCli."""
@@ -90,7 +85,6 @@ def sample_motion(
     *,
     arc_points_per_circle: int = 314,
     lathe_radius_view: bool = False,
-    arc_type: int = ARC_RELATIVE,
     max_points: int | None = None,
 ) -> list[RenderPoint]:
     scale_x = 0.5 if lathe_radius_view else 1.0
@@ -99,7 +93,7 @@ def sample_motion(
             raise RenderLimitExceeded("Trace render point limit exceeded")
         return [RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)]
 
-    geom = arc_geometry(m, arc_type=arc_type, lathe_radius_view=lathe_radius_view)
+    geom = arc_geometry(m, lathe_radius_view=lathe_radius_view)
     if geom is None:
         if max_points is not None and max_points < 1:
             raise RenderLimitExceeded("Trace render point limit exceeded")
@@ -130,7 +124,6 @@ def render_trace(
     *,
     lathe_radius_view: bool = False,
     arc_points_per_circle: int = 314,
-    arc_type: int = ARC_RELATIVE,
     max_points: int | None = None,
 ) -> list[RenderPoint]:
     if max_points is not None and (not isinstance(max_points, int) or max_points <= 0):
@@ -160,7 +153,6 @@ def render_trace(
                 idx,
                 arc_points_per_circle=arc_points_per_circle,
                 lathe_radius_view=lathe_radius_view,
-                arc_type=arc_type,
                 max_points=remaining,
             )
         )
@@ -171,7 +163,6 @@ def motion_length(
     m: TraceMotion,
     *,
     lathe_radius_view: bool = False,
-    arc_type: int = ARC_RELATIVE,
 ) -> float:
     """Return physical tool-centre length in millimetres.
 
@@ -183,7 +174,7 @@ def motion_length(
     sx = m.start_x * m.x_scale
     ex = m.end_x * m.x_scale
     if m.move in (2, 3):
-        geom = arc_geometry(m, arc_type=arc_type)
+        geom = arc_geometry(m)
         if geom:
             _, _, orth0, orth1, _, _, sweep, radius = geom
             return math.hypot(radius * sweep, orth1 - orth0)
@@ -254,7 +245,6 @@ def trace_statistics(
     *,
     lathe_radius_view: bool = False,
     rapid_feed: float = 10000.0,
-    arc_type: int = ARC_RELATIVE,
 ) -> dict[str, object]:
     """Derive geometry and time only from the executed logical trace.
 
@@ -269,7 +259,7 @@ def trace_statistics(
     unknown_time_motion_count = 0
 
     for m in result.motions:
-        length = motion_length(m, arc_type=arc_type)
+        length = motion_length(m)
         lengths.append(length)
         if length <= 1e-15:
             time = 0.0
@@ -301,7 +291,7 @@ def trace_statistics(
             )
         )
         if m.move in (2, 3):
-            geom = arc_geometry(m, arc_type=arc_type)
+            geom = arc_geometry(m)
             if geom is not None:
                 _start, _end, orth0, orth1, center, a0, sweep, radius = geom
                 plot_move = _plot_move_for_plane(m.move, m.plane)

@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import shutil
+import sys
+from pathlib import Path
 
 from PyQt6.QtCore import QSettings, QStandardPaths
 
@@ -52,12 +54,19 @@ def configure_logging(enabled: bool) -> None:
         root.setLevel(previous_level)
 
 
+def _application_dir() -> str:
+    """Return the stable application directory without depending on process CWD."""
+    if getattr(sys, "frozen", False):
+        return os.path.dirname(os.path.abspath(sys.executable))
+    return str(Path(__file__).resolve().parent.parent)
+
+
 def _migrate_legacy_config() -> None:
-    """Copy a legacy ``config.ini`` next to the launcher on first run."""
+    """Copy a legacy ``config.ini`` next to the application on first run."""
     target = config_path()
     if os.path.exists(target):
         return
-    legacy = os.path.join(os.getcwd(), "config.ini")
+    legacy = os.path.join(_application_dir(), "config.ini")
     if os.path.exists(legacy):
         shutil.copy2(legacy, target)
 

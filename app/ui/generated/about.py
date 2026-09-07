@@ -39,7 +39,7 @@ class Ui_AboutDlg(object):
         self.logoLabel.setObjectName(u"logoLabel")
         self.logoLabel.setMinimumSize(QSize(72, 72))
         self.logoLabel.setMaximumSize(QSize(72, 72))
-        self.logoLabel.setPixmap(QPixmap(u":/resource/icons/logo.png"))
+        self.logoLabel.setPixmap(QPixmap(u":/resource/icons/logo_256\u0445256.png"))
         self.logoLabel.setScaledContents(True)
         self.logoLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 

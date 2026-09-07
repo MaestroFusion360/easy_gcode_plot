@@ -61,7 +61,7 @@
         </size>
        </property>
        <property name="pixmap">
-        <pixmap resource="../../resources/files_res.qrc">:/resource/icons/logo.png</pixmap>
+        <pixmap resource="../../resources/files_res.qrc">:/resource/icons/logo_256х256.png</pixmap>
        </property>
        <property name="scaledContents">
         <bool>true</bool>

@@ -1,16 +1,22 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import pytest
 from gcode_samples import MILLING_ARC_PLANES, MILLING_CYCLES, MILLING_HELIX_FULL_CIRCLE
 
 from app.cli import main
 from app.gcode.exporter import (
+    EXPANDED_EXECUTION_MODE,
+    MILL_FULL_PROGRAM_MODE,
+    PLOT_DATA_MODE,
+    TURN_FULL_PROGRAM_MODE,
     ExportOptions,
     export_cycle_groups,
     export_full_mill_program,
     export_full_program,
+    export_pgm,
     export_result,
 )
 from app.gcode.kernel import execute
@@ -38,8 +44,8 @@ def _assert_mill_round_trip(source: str, exported: str) -> None:
             assert actual.feed == pytest.approx(expected.feed, abs=0.001)
 
         if expected.move in (2, 3):
-            expected_arc = arc_geometry(expected, arc_type=1)
-            actual_arc = arc_geometry(actual, arc_type=1)
+            expected_arc = arc_geometry(expected)
+            actual_arc = arc_geometry(actual)
             assert expected_arc is not None
             assert actual_arc is not None
             assert actual_arc[4] == pytest.approx(expected_arc[4], abs=0.001)
@@ -57,6 +63,15 @@ def test_cli_trace_serializes_one_logical_arc(tmp_path):
     assert len(data["motions"]) == 1
     assert data["motions"][0]["move"] == 2
     assert data["motions"][0]["radius"] == 5.0
+
+
+def test_cli_reads_cp1251_through_shared_nc_text_contract(tmp_path, capsys):
+    source = tmp_path / "cp1251.nc"
+    source.write_bytes("(ПРОГРАММА)\nG21 G18\nG0 X20 Z0\nM30\n".encode("cp1251"))
+
+    assert main(["parse", str(source), "--encoding", "cp1251"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["ok"] is True
 
 
 def test_cli_parse_returns_structured_error_code(tmp_path, capsys):
@@ -79,6 +94,59 @@ def test_cli_analyze_and_export_consume_same_execution_result(tmp_path):
     assert main(["export", str(source), "-o", str(exported)]) == 0
     assert json.loads(analysis.read_text(encoding="utf-8"))["motion_count"] == 2
     assert "G01 X6 Z8 F10" in exported.read_text(encoding="utf-8")
+
+
+def _window_export_harness(source: str, *, language: str, export_mode: int, arc_mode: int = 0):
+    result = execute(source, language=language)
+    assert result.ok, result.diagnostics
+    return SimpleNamespace(
+        execution_result=result,
+        exportMode=export_mode,
+        exportArcMode=arc_mode,
+        latheMode=language == "fanuc_turn",
+        incrMode=False,
+        forceAdr=False,
+        seqNum=False,
+        seqNumStart=1,
+        seqNumIncr=1,
+        seqNumSpacing=False,
+        delim=True,
+        leadingZero=False,
+        startPgmExp="",
+        endPgmExp="",
+        safLine=False,
+        ui=SimpleNamespace(editor=SimpleNamespace(text=lambda: source)),
+    )
+
+
+def test_gui_export_dispatch_keeps_four_logical_modes_and_arc_options():
+    turn_source = "G21 G18\nG0 X20 Z0\nG3 X40 Z-10 I0 K-10 F100\nM30"
+
+    converted = _window_export_harness(
+        turn_source,
+        language="fanuc_turn",
+        export_mode=EXPANDED_EXECUTION_MODE,
+        arc_mode=2,
+    )
+    converted_text = export_pgm(converted)
+    assert " R10" in converted_text
+
+    converted.exportMode = PLOT_DATA_MODE
+    plot_text = export_pgm(converted)
+    assert "G2 " not in plot_text and "G3 " not in plot_text
+
+    converted.exportMode = TURN_FULL_PROGRAM_MODE
+    turn_full = export_pgm(converted)
+    assert "EXPANDED TURN PROGRAM" in turn_full
+
+    mill_source = "G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nM30"
+    mill = _window_export_harness(
+        mill_source,
+        language="fanuc_mill",
+        export_mode=MILL_FULL_PROGRAM_MODE,
+    )
+    mill_full = export_pgm(mill)
+    assert "EXPANDED MILL PROGRAM" in mill_full
 
 
 def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence_options():
@@ -136,8 +204,8 @@ def test_turning_relative_ijk_export_round_trips_nonzero_x_arc_geometry():
 
     round_trip = execute(text, language="fanuc_turn")
     assert round_trip.ok, round_trip.diagnostics
-    expected_arc = arc_geometry(original.motions[-1], arc_type=1)
-    actual_arc = arc_geometry(round_trip.motions[-1], arc_type=1)
+    expected_arc = arc_geometry(original.motions[-1])
+    actual_arc = arc_geometry(round_trip.motions[-1])
     assert expected_arc is not None
     assert actual_arc is not None
     assert actual_arc[4] == pytest.approx(expected_arc[4], abs=0.001)

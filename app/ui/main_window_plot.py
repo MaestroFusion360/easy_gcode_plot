@@ -253,8 +253,8 @@ class MainWindowPlotMixin:
         self.ui.actionStop.setEnabled(False)
         self.loadPlot()
 
-    def valueHandler(self, value):
-        """Display one logical motion and draw the sampled prefix efficiently."""
+    def valueHandler(self, value, *, sync_editor=True):
+        """Display one logical motion and optionally synchronize the editor cursor."""
         result = self.execution_result
         if result is None or not result.motions:
             return
@@ -290,7 +290,8 @@ class MainWindowPlotMixin:
             self._cursor_item.setData(
                 pos=[xyz[-1]], color=QColor(self.plotCurrentColor), size=CURSOR_SIZE_PX, pxMode=True
             )
-        self._sync_editor_to_motion(idx)
+        if sync_editor:
+            self._sync_editor_to_motion(idx)
 
     def loadPlot(self):
         """Redraw axes, background, and the active orthographic grid."""
@@ -390,7 +391,7 @@ class MainWindowPlotMixin:
 
     def plotCurLine(self):
         """Map the current source line to its last logical motion."""
-        if self._syncing_cursor:
+        if self._syncing_cursor or getattr(self, "_plot_source_stale", False):
             return
         line = self.ui.editor.getCursorPosition()[0]
         idx = self._source_motion_index.get(line)

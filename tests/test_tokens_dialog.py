@@ -1,12 +1,21 @@
 from __future__ import annotations
 
 import csv
+from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QItemSelectionModel, QPoint
+from gcode_samples import TURNING_PARTIAL_TRACE
+from PyQt6.QtCore import QItemSelectionModel, QPoint, Qt
 from PyQt6.QtGui import QColor
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
+from app.gcode.exporter import (
+    EXPANDED_EXECUTION_MODE,
+    MILL_FULL_PROGRAM_MODE,
+    PLOT_DATA_MODE,
+    TURN_FULL_PROGRAM_MODE,
+)
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import RenderPoint
 from app.main_window import MainWindow
@@ -69,6 +78,52 @@ def test_tokens_support_follows_kernel_diagnostics_and_keeps_fractional_g_distin
     milling = rows_from_execution("G85 X1 Z-2 R0 F100", execute("G85 X1 Z-2 R0 F100", language="fanuc_mill"))
     assert milling[0].values[11] == "G85"
     assert milling[0].values[15] == "OK"
+
+
+def test_tokens_groups_macro_flow_and_multiple_g_codes_follow_kernel_program():
+    source = "#1=1\nG21 G18 G90 G190 G97\nIF[#1 EQ 1] GOTO10\nN10 G0 X20 Z0\nM30"
+    rows = rows_from_execution(source, execute(source, language="fanuc_turn"))
+
+    assert rows[0].values[14] == "assign"
+    assert rows[1].values[8] == "G18"
+    assert rows[1].values[9] == "G21"
+    assert rows[1].values[12] == "G90,G190"
+    assert rows[1].values[13] == "G97"
+    assert rows[2].values[14] == "if_goto"
+    assert all(row.values[15] == "OK" for row in rows)
+
+
+def test_tokens_show_unverified_milling_diagnostics_without_own_support_table():
+    source = "G90 G17\nG64\nM123\nG1 X10 Y0 F100\nM30"
+    rows = rows_from_execution(source, execute(source, language="fanuc_mill"))
+
+    assert rows[1].values[15] == "UNVERIFIED"
+    assert "UNSUPPORTED_G_CODE" in rows[1].values[16]
+    assert rows[2].values[15] == "UNVERIFIED"
+    assert "UNSUPPORTED_M_CODE" in rows[2].values[16]
+    assert rows[3].values[15] == "OK"
+
+
+def test_tokens_preserve_fatal_diagnostics_on_their_source_lines():
+    source = "G999\nGOTO999"
+    rows = rows_from_execution(source, execute(source, language="fanuc_turn"))
+
+    assert rows[0].values[15] == "UNVERIFIED"
+    assert "UNSUPPORTED_G_CODE" in rows[0].values[16]
+    assert rows[1].status == "ERROR"
+    assert "FLOW_TARGET_MISSING" in rows[1].values[16]
+
+
+def test_tokens_keep_partial_turning_execution_diagnostics_and_later_source_rows():
+    rows = rows_from_execution(
+        TURNING_PARTIAL_TRACE,
+        execute(TURNING_PARTIAL_TRACE, language="fanuc_turn"),
+    )
+
+    assert rows[1].values[15] == "UNVERIFIED"
+    assert rows[3].values[15] == "UNSUPPORTED"
+    assert rows[4].values[15] == "OK"
+    assert rows[5].values[15] == "OK"
 
 
 def test_tokens_dialog_refreshes_live_source_and_does_not_change_it(qt_app):
@@ -144,6 +199,8 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     dialog = window.optionsDlg
     dialog.ui.linearColorEdit.setText("#123456")
     dialog.restore_defaults()
+    assert dialog.ui.autoUpdateCheck.isChecked()
+    assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 20000
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
     assert dialog.ui.axesCheck.isChecked()
     assert dialog.ui.gridStepSpin.value() == 0
@@ -172,6 +229,8 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.gridCheck.setChecked(True)
     dialog.ui.arcToleranceSpin.setValue(0.02)
     dialog.ui.correctionCheck.setChecked(False)
+    dialog.ui.autoUpdateCheck.setChecked(False)
+    dialog.ui.autoUpdateMaxSegmentsSpin.setValue(7500)
     dialog.accept()
     assert (window.plotRapidColor, window.plotLineColor, window.plotArcColor, window.plotCurrentColor) == (
         "#110000",
@@ -186,6 +245,8 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.plotGrid is True and window.ui.actionGrid.isChecked()
     assert window.arcTolerance == 0.02
     assert window.correctionEnabled is False
+    assert window.autoUpdateEnabled is False
+    assert window.autoUpdateMaxSegments == 7500
     assert saved == [True] and refreshed == [True]
     window.deleteLater()
 
@@ -279,6 +340,180 @@ def test_correction_toggle_controls_tools_passed_to_kernel(qt_app, monkeypatch):
     window.analyzeEditorSource()
     assert captured[-1]["tools"] is window.tools
     assert captured[-1]["milling_tools"] is window.millingTools
+    window.deleteLater()
+
+
+def test_machine_specific_actions_follow_active_profile_without_restart(qt_app):
+    window = MainWindow()
+
+    window.ui.actionLatheMode.setChecked(True)
+    qt_app.processEvents()
+    assert window.ui.actionTurningTools.isEnabled()
+    assert not window.ui.actionMillingTools.isEnabled()
+    assert window.ui.actionRelative_to_start.isEnabled()
+    assert window.ui.actionAbsolute.isEnabled()
+    assert window.ui.actionRadius_value.isEnabled()
+    assert window.optionsDlg.ui.arcToleranceSpin.isEnabled()
+
+    window.ui.actionLatheMode.setChecked(False)
+    qt_app.processEvents()
+    assert not window.ui.actionTurningTools.isEnabled()
+    assert window.ui.actionMillingTools.isEnabled()
+    assert window.ui.actionRelative_to_start.isEnabled()
+    assert window.ui.actionAbsolute.isEnabled()
+    assert window.ui.actionRadius_value.isEnabled()
+    assert window.optionsDlg.ui.arcToleranceSpin.isEnabled()
+    window.deleteLater()
+
+
+def test_machine_specific_actions_stay_synchronized_after_new_and_load(qt_app, tmp_path):
+    window = MainWindow()
+    window.ui.actionLatheMode.setChecked(True)
+    window.newFile()
+    assert window.ui.actionTurningTools.isEnabled()
+    assert not window.ui.actionMillingTools.isEnabled()
+
+    source = tmp_path / "sample.nc"
+    source.write_text("G21 G18\nG0 X20 Z0\nM30\n", encoding="utf-8")
+    window.loadFile(str(source))
+    qt_app.processEvents()
+    assert window.ui.actionTurningTools.isEnabled()
+    assert not window.ui.actionMillingTools.isEnabled()
+    window.deleteLater()
+
+
+def test_auto_refresh_preserves_editor_cursor_position(qt_app):
+    window = MainWindow()
+    window.ui.actionLatheMode.setChecked(True)
+    window.ui.editor.setText("G21 G18\nG0 X20 Z0\nG1 X30 Z-5 F100\nM30")
+    assert window.updateData()
+
+    window.ui.editor.setCursorPosition(1, 2)
+    QTest.keyClick(window.ui.editor, Qt.Key.Key_Space)
+    expected_cursor = window.ui.editor.getCursorPosition()
+    QTest.qWait(600)
+    qt_app.processEvents()
+
+    assert window.ui.editor.getCursorPosition() == expected_cursor
+    assert window.execution_result is not None
+    window.deleteLater()
+
+
+def test_auto_refresh_replaces_plot_after_editor_change(qt_app):
+    window = MainWindow()
+    window.autoUpdateEnabled = True
+    window.ui.actionLatheMode.setChecked(True)
+    window.ui.editor.setText("G21 G18\nG0 X20 Z0\nG1 X30 Z-5 F100\nM30")
+    assert window.updateData()
+    old_result = window.execution_result
+    old_endpoint = window.execution_result.motions[-1].end_x
+
+    window.ui.editor.setCursorPosition(2, 5)
+    QTest.keyClick(window.ui.editor, Qt.Key.Key_1)
+
+    # Until the debounce expires, the slider and plot still describe the old
+    # trajectory instead of being cleared by the document-modified signal.
+    assert window.execution_result is old_result
+    assert window.execution_result.motions[-1].end_x == old_endpoint
+
+    QTest.qWait(600)
+    qt_app.processEvents()
+
+    assert window.execution_result is not old_result
+    assert window.execution_result.motions[-1].end_x == pytest.approx(310.0)
+    assert window.render_points[-1].x == pytest.approx(155.0)
+    window.deleteLater()
+
+
+def test_long_manual_update_reports_progress_and_then_hides_it(qt_app):
+    window = MainWindow()
+    window.autoUpdateMaxSegments = 1
+    setattr(window, "_auto_update_deferred", True)
+    window.ui.actionLatheMode.setChecked(True)
+    window.ui.editor.setText("G21 G18\nG0 X20 Z0\nG1 X30 Z-5 F100\nM30")
+
+    assert window.updateData()
+    assert window.progressBar.isVisibleTo(window)
+    assert window.progressBar.value() == 100
+
+    QTest.qWait(600)
+    qt_app.processEvents()
+    assert window.progressBar.isHidden()
+    window.deleteLater()
+
+
+def test_arc_heavy_milling_file_exceeds_auto_update_segment_limit(qt_app):
+    window = MainWindow()
+    window.autoUpdateMaxSegments = 20000
+    window.latheMode = False
+    window.arcTolerance = 0.001
+    window.correctionEnabled = False
+    window.ui.actionLatheMode.setChecked(False)
+    source = Path("tests/fixtures/milling/macro_boss_milling.nc").read_text(encoding="utf-8")
+    window.ui.editor.setText(source)
+    result = execute(source, language="fanuc_mill")
+    assert result.motions
+    window._execute_editor_source = lambda *, show_errors: result  # pylint: disable=protected-access
+
+    window.autoUpdate()
+
+    assert window.ui.editor.lines() < 100
+    assert getattr(window, "_auto_update_deferred") is True
+    assert "press Update" in window.ui.statusbar.currentMessage()
+    window.deleteLater()
+
+
+def test_stale_editor_source_does_not_drive_old_trajectory_slider(qt_app):
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    window.ui.actionLatheMode.setChecked(True)
+    window.ui.editor.setText("G21 G18\nG0 X20 Z0\nG1 X30 Z-5 F100\nM30")
+    assert window.updateData()
+
+    window.ui.horizontalSlider.setValue(1)
+    window.ui.editor.setCursorPosition(1, 2)
+    QTest.keyClick(window.ui.editor, Qt.Key.Key_Space)
+    stale_slider_value = window.ui.horizontalSlider.value()
+    window.ui.editor.setCursorPosition(2, 0)
+    qt_app.processEvents()
+
+    assert getattr(window, "_plot_source_stale") is True
+    assert window.ui.horizontalSlider.value() == stale_slider_value
+    window.deleteLater()
+
+
+def test_export_dialog_has_four_logical_modes_and_separate_representation_options(qt_app):
+    window = MainWindow()
+    dialog = window.exportDlg
+
+    assert dialog.ui.langCmbBox.count() == 4
+    assert [dialog.ui.langCmbBox.itemText(index) for index in range(4)] == [
+        "TURN FULL PROGRAM",
+        "MILL FULL PROGRAM",
+        "EXPANDED EXECUTION",
+        "PLOT DATA",
+    ]
+    assert dialog.arcOutputCmbBox.count() == 4
+    assert dialog.ui.incrCmbBox.itemText(0) == "G90 Absolute"
+    assert dialog.ui.incrCmbBox.itemText(1) == "G91 Incremental"
+
+    window.ui.actionLatheMode.setChecked(True)
+    qt_app.processEvents()
+    model = dialog.ui.langCmbBox.model()
+    assert model.item(TURN_FULL_PROGRAM_MODE).isEnabled()
+    assert not model.item(MILL_FULL_PROGRAM_MODE).isEnabled()
+
+    dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+    assert dialog.arcOutputCmbBox.isEnabled()
+    assert dialog.ui.incrCmbBox.isEnabled()
+    dialog.ui.langCmbBox.setCurrentIndex(PLOT_DATA_MODE)
+    assert not dialog.arcOutputCmbBox.isEnabled()
+    assert not dialog.ui.incrCmbBox.isEnabled()
+
+    window.ui.actionLatheMode.setChecked(False)
+    qt_app.processEvents()
+    assert not model.item(TURN_FULL_PROGRAM_MODE).isEnabled()
+    assert model.item(MILL_FULL_PROGRAM_MODE).isEnabled()
     window.deleteLater()
 
 

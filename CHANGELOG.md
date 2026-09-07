@@ -1,6 +1,21 @@
 # Changelog
 
-## 1.2.6 - Unreleased
+## 1.2.7 - 2026-09-07
+
+- Added persistent Auto Update controls, including a configurable sampled-segment limit after which plot refresh requires the manual Update action.
+- Added staged progress reporting for manual updates of long files; the status-bar indicator remains hidden during idle and ordinary short updates.
+- Kept the editor caret and trajectory slider stable while edited source is waiting for recalculation, and preserved the previous plot until a successful refresh replaces it.
+- Synchronized machine-specific GUI capabilities so Turning Tools and Milling Tools follow the active execution profile while arc interpretation and tolerance remain available for both turning and milling.
+- Added turning G2/G3 regression coverage for relative I/K, absolute I/K and R arcs in both diameter and radius X programming modes without changing existing kernel normalization.
+- Removed the dead downstream `arc_type` API from trace rendering, geometry statistics and export consumers; source arc interpretation now exists only at kernel execution.
+- Reworked the export dialog into four logical output types with separate G90/G91 and arc-representation controls for expanded execution output, preserving the existing full-program and plot-data exporters.
+- Expanded Tokens regression coverage for Macro B flow, grouped modal words, unverified/unsupported diagnostics, fatal execution and partial turning traces.
+- Unified GUI and CLI NC-file decoding through one explicit UTF-8/Windows-1251 loader contract and added a CLI `--encoding` option.
+- Required the release version passed to `release.ps1` to match `pyproject.toml` before creating a commit or tag.
+- Made CI static checks blocking and migrated legacy `config.ini` discovery away from process CWD to the stable application directory.
+- Restored the 256×256 logo in the About dialog by adding it to the compiled Qt resources and making resource-manifest validation UTF-8-safe.
+
+## 1.2.6 - 2026-09-06
 
 - Run PyInstaller in a disposable `uv --isolated` environment so release packaging cannot mutate the developer `.venv` or leave a second project venv, while test, lint and sync scripts honor an explicitly activated environment.
 - Reorganized the main-window GUI layer: `app/main_window.py` now composes focused file, editor, execution/playback and plot mixins under `app/ui/`, and the existing settings/grid/navigation helpers were moved into the same UI package.

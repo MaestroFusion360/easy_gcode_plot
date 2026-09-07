@@ -69,6 +69,16 @@ if ([string]::IsNullOrWhiteSpace($Message)) {
     throw "Commit message must not be empty."
 }
 
+Write-Host ""
+Write-Host "==> Verify project version" -ForegroundColor Cyan
+$ProjectVersion = (& uv version --short | Out-String).Trim()
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($ProjectVersion)) {
+    throw "Unable to read the project version with 'uv version --short'."
+}
+if ($ProjectVersion -ne $Version) {
+    throw "Requested release $Version does not match pyproject version $ProjectVersion."
+}
+
 Run-Lint
 
 Run-Step "Tests" {

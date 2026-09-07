@@ -88,15 +88,35 @@ class Ui_OptionsDlg(object):
 
         self.generalForm.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.loggingCheck)
 
+        self.autoUpdateCheck = QCheckBox(self.generalTab)
+        self.autoUpdateCheck.setObjectName(u"autoUpdateCheck")
+        self.autoUpdateCheck.setChecked(True)
+
+        self.generalForm.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.autoUpdateCheck)
+
+        self.autoUpdateMaxSegmentsLabel = QLabel(self.generalTab)
+        self.autoUpdateMaxSegmentsLabel.setObjectName(u"autoUpdateMaxSegmentsLabel")
+
+        self.generalForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.autoUpdateMaxSegmentsLabel)
+
+        self.autoUpdateMaxSegmentsSpin = QSpinBox(self.generalTab)
+        self.autoUpdateMaxSegmentsSpin.setObjectName(u"autoUpdateMaxSegmentsSpin")
+        self.autoUpdateMaxSegmentsSpin.setMinimum(1000)
+        self.autoUpdateMaxSegmentsSpin.setMaximum(5000000)
+        self.autoUpdateMaxSegmentsSpin.setSingleStep(5000)
+        self.autoUpdateMaxSegmentsSpin.setValue(20000)
+
+        self.generalForm.setWidget(6, QFormLayout.ItemRole.FieldRole, self.autoUpdateMaxSegmentsSpin)
+
         self.correctionCheck = QCheckBox(self.generalTab)
         self.correctionCheck.setObjectName(u"correctionCheck")
 
-        self.generalForm.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.correctionCheck)
+        self.generalForm.setWidget(7, QFormLayout.ItemRole.SpanningRole, self.correctionCheck)
 
         self.arcToleranceLabel = QLabel(self.generalTab)
         self.arcToleranceLabel.setObjectName(u"arcToleranceLabel")
 
-        self.generalForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.arcToleranceLabel)
+        self.generalForm.setWidget(8, QFormLayout.ItemRole.LabelRole, self.arcToleranceLabel)
 
         self.arcToleranceSpin = QDoubleSpinBox(self.generalTab)
         self.arcToleranceSpin.setObjectName(u"arcToleranceSpin")
@@ -105,7 +125,7 @@ class Ui_OptionsDlg(object):
         self.arcToleranceSpin.setMaximum(10.000000000000000)
         self.arcToleranceSpin.setValue(0.001000000000000)
 
-        self.generalForm.setWidget(6, QFormLayout.ItemRole.FieldRole, self.arcToleranceSpin)
+        self.generalForm.setWidget(8, QFormLayout.ItemRole.FieldRole, self.arcToleranceSpin)
 
         self.tabs.addTab(self.generalTab, "")
         self.editorTab = QWidget()
@@ -343,6 +363,11 @@ class Ui_OptionsDlg(object):
         self.languageCombo.setToolTip(QCoreApplication.translate("OptionsDlg", u"Language switching is not available yet", None))
 #endif // QT_CONFIG(tooltip)
         self.loggingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Enable application log", None))
+        self.autoUpdateCheck.setText(QCoreApplication.translate("OptionsDlg", u"Auto update plot while editing", None))
+        self.autoUpdateMaxSegmentsLabel.setText(QCoreApplication.translate("OptionsDlg", u"Auto update max segments", None))
+#if QT_CONFIG(tooltip)
+        self.autoUpdateMaxSegmentsSpin.setToolTip(QCoreApplication.translate("OptionsDlg", u"Trajectories with more sampled segments require the manual Update action", None))
+#endif // QT_CONFIG(tooltip)
         self.correctionCheck.setText(QCoreApplication.translate("OptionsDlg", u"Correction (G41/G42) \u2014 On / Off", None))
         self.arcToleranceLabel.setText(QCoreApplication.translate("OptionsDlg", u"Arc tolerance", None))
         self.tabs.setTabText(self.tabs.indexOf(self.generalTab), QCoreApplication.translate("OptionsDlg", u"General", None))
