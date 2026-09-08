@@ -6,14 +6,14 @@ import re
 from dataclasses import replace
 
 from .api_types import Diagnostic, ExecutionResult, ExecutionStep, SemanticInstruction, TraceMotion
+from .events import program_end_code
 from .geometry import resolve_arc
 from .lang import UndefinedMacroVariableError, try_literal_int
 from .milling import execute_milling
-from .milling_compensation import apply_milling_cutter_compensation
+from .milling_compensation import apply_milling_cutter_compensation_with_owners
 from .model import Motion, Point2, Program
 from .program import eval_words, parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
 from .resources import ExecutionBudget, ExecutionLimits, SemanticError, active_budget
-from .signals import program_end_code
 from .trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
@@ -179,6 +179,7 @@ def _execute_impl(
         )
 
     signals = tuple(signal for step in trace_steps for signal in step.signals)
+    events = tuple(event for step in trace_steps for event in step.events)
     return ExecutionResult(
         ok=not any(item.severity == "error" for item in unsupported),
         program=program,
@@ -189,7 +190,7 @@ def _execute_impl(
             dict.fromkeys(motion.source_block for motion in native_motions if motion.source_block is not None)
         ),
         signals=signals,
-        program_end=program_end_code(signals),
+        program_end=program_end_code(events),
         execution_steps=tuple(
             ExecutionStep(
                 source_block=step.source_block,
@@ -201,6 +202,7 @@ def _execute_impl(
                 words=step.words,
                 signals=step.signals,
                 occurrence=occurrence,
+                events=step.events,
                 active_wcs=step.active_wcs,
                 position=(step.modal_x, 0.0, step.modal_z),
                 feed_mode=step.feed_mode,
@@ -212,6 +214,7 @@ def _execute_impl(
             )
             for occurrence, step in enumerate(trace_steps)
         ),
+        events=events,
     )
 
 
@@ -389,8 +392,9 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
     try:
         result = _execute_impl(source, language, **options)
         motions = []
+        motion_step_owners: list[int] = []
         cursor = 0
-        for step in result.execution_steps:
+        for step_index, step in enumerate(result.execution_steps):
             for motion in result.motions[cursor : cursor + step.emitted_count]:
                 motion = replace(
                     motion,
@@ -407,12 +411,27 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
                     threading=any(k == "G" and v in (32, 33, 76, 92) for k, v in step.words),
                 )
                 motions.append(resolve_arc(motion, source_arc_type=source_arc_type))
+                motion_step_owners.append(step_index)
             cursor += step.emitted_count
         if not result.execution_steps:
             motions = list(result.motions)
         diagnostics = result.diagnostics
         if language == "fanuc_mill":
-            motions = apply_milling_cutter_compensation(motions, milling_tools or {})
+            motions, motion_step_owners = apply_milling_cutter_compensation_with_owners(
+                motions,
+                milling_tools or {},
+                motion_step_owners,
+            )
+            emitted_counts = [0] * len(result.execution_steps)
+            for owner in motion_step_owners:
+                emitted_counts[owner] += 1
+            result = replace(
+                result,
+                execution_steps=tuple(
+                    replace(step, emitted_count=emitted_counts[index])
+                    for index, step in enumerate(result.execution_steps)
+                ),
+            )
             if any(m.compensation_mode in (41, 42) and not m.compensation_applied for m in motions):
                 diagnostics = diagnostics + (
                     Diagnostic(

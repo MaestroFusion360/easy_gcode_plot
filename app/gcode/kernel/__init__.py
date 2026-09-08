@@ -1,7 +1,7 @@
 """Native FANUC CNC kernel public API."""
 
 from .api import Diagnostic, ExecutionResult, SemanticInstruction, TraceMotion, execute
-from .api_types import ExecutionStep, MachineSignal
+from .api_types import ExecutionEvent, ExecutionStep, MachineSignal
 from .ast import (
     AstNode,
     AstWord,
@@ -20,6 +20,7 @@ __all__ = [
     "ControlAstNode",
     "CycleAstNode",
     "Diagnostic",
+    "ExecutionEvent",
     "ExecutionResult",
     "ExecutionStep",
     "FlowAstNode",

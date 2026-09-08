@@ -48,6 +48,7 @@ def _result_document(result: ExecutionResult, *, include_motions: bool) -> dict[
         "diagnostics": [asdict(item) for item in result.diagnostics],
         "executed_blocks": list(result.executed_blocks),
         "signals": [asdict(item) for item in result.signals],
+        "events": [asdict(item) for item in result.events],
         "program_end": result.program_end,
     }
     if include_motions:
@@ -65,6 +66,7 @@ def _analysis_document(result: ExecutionResult) -> dict[str, object]:
         "statistics": summary,
         "diagnostics": [asdict(item) for item in result.diagnostics],
         "signals": [asdict(item) for item in result.signals],
+        "events": [asdict(item) for item in result.events],
         "program_end": result.program_end,
     }
 

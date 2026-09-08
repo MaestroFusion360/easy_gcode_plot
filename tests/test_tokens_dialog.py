@@ -308,7 +308,8 @@ def test_axes_grid_and_fixed_grid_step_change_rendered_items(qt_app):
     assert window.ui.graphicsView.items[0].spacing()[0] == 25.0
     window.plotAxes = True
     window.loadPlot()
-    assert len(window.ui.graphicsView.items) == 4
+    assert len(window.ui.graphicsView.items) == 2
+    assert window._axis_triad_item in window.ui.graphicsView.items  # pylint: disable=protected-access
     window.deleteLater()
 
 
@@ -479,6 +480,84 @@ def test_stale_editor_source_does_not_drive_old_trajectory_slider(qt_app):
 
     assert getattr(window, "_plot_source_stale") is True
     assert window.ui.horizontalSlider.value() == stale_slider_value
+    window.deleteLater()
+
+
+def test_vbo_playback_view_changes_and_reload_preserve_scene_contract(qt_app):
+    window = MainWindow()
+    window.latheMode = False
+    window.arc_type = 1
+    window.plotAxes = True
+    window.ui.actionLatheMode.setChecked(False)
+    window.ui.editor.setText("O1\nG0 X10 Y0 Z0\nG1 X20 Y5 F100\nG2 X30 Y5 I5 J0\nM30")
+    assert window.updateData()
+    assert window.execution_result.events
+
+    item = window._toolpath_item  # pylint: disable=protected-access
+    axis_item = window._axis_triad_item  # pylint: disable=protected-access
+    assert axis_item.center == (0.0, 0.0, 0.0)
+    vertices = item.packed_vertices
+    assert item.logical_count == len(window.execution_result.motions)
+    assert item in window.ui.graphicsView.items
+
+    window.ui.horizontalSlider.setValue(1)
+    first_visible = item.visible_segment_count
+    window.forward()
+    assert window.ui.horizontalSlider.value() == 2
+    window.backward()
+    assert window.ui.horizontalSlider.value() == 1
+    window.ui.horizontalSlider.setValue(window.ui.horizontalSlider.maximum())
+    assert item.visible_segment_count > first_visible
+    window.ui.horizontalSlider.setValue(1)
+    assert item.visible_segment_count == first_visible
+    assert item.packed_vertices is vertices
+
+    window.ui.editor.setCursorPosition(0, 0)
+    cursor = window.ui.editor.getCursorPosition()
+    first_visible_line = window.ui.editor.firstVisibleLine()
+    window.viewTop()
+    window.viewFront()
+    window.viewLeft()
+    window.view3d()
+    assert window._toolpath_item is item  # pylint: disable=protected-access
+    assert window._axis_triad_item is axis_item  # pylint: disable=protected-access
+    assert axis_item.center == (0.0, 0.0, 0.0)
+    assert item.packed_vertices is vertices
+    assert item in window.ui.graphicsView.items
+    assert window.ui.editor.getCursorPosition() == cursor
+    assert window.ui.editor.firstVisibleLine() == first_visible_line
+
+    window.ui.editor.setText("O2\nT1 M6\nG0 X1\nM30")
+    assert window.updateData()
+    assert window._toolpath_item is item  # pylint: disable=protected-access
+    assert item.packed_vertices is not vertices
+    assert any(event.kind == "tool_change" for event in window.execution_result.events)
+    window.deleteLater()
+
+
+def test_axis_triad_stays_at_coordinate_zero_when_switching_mill_to_lathe(qt_app):
+    window = MainWindow()
+    window.latheMode = False
+    window.arc_type = 1
+    window.plotAxes = True
+    window.ui.actionLatheMode.setChecked(False)
+    window.ui.editor.setText("G90 G0 X100 Y200 Z300\nG1 X200 Y300 Z400 F100\nM30")
+    assert window.updateData()
+    milling_view_center = window.ui.graphicsView.opts["center"]
+    axis_item = window._axis_triad_item  # pylint: disable=protected-access
+    assert axis_item.center == (0.0, 0.0, 0.0)
+
+    window.ui.editor.setText("G18 G0 X20 Z10\nG1 X40 Z-30 F100\nM30")
+    window.ui.actionLatheMode.setChecked(True)
+    qt_app.processEvents()
+
+    turning_view_center = window.ui.graphicsView.opts["center"]
+    assert window.latheMode is True
+    assert window._axis_triad_item is axis_item  # pylint: disable=protected-access
+    assert axis_item.center == (0.0, 0.0, 0.0)
+    assert (turning_view_center.x(), turning_view_center.y(), turning_view_center.z()) != pytest.approx(
+        (milling_view_center.x(), milling_view_center.y(), milling_view_center.z())
+    )
     window.deleteLater()
 
 

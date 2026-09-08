@@ -4,7 +4,18 @@ from __future__ import annotations
 # pylint: disable=too-many-return-statements
 from dataclasses import dataclass, field, replace
 
+from .api_types import ExecutionEvent
 from .ast import CycleAstNode, MotionAstNode
+from .events import (
+    HOME_RETURN,
+    PROGRAM_END,
+    PROGRAM_START,
+    SUBPROGRAM_END,
+    SUBPROGRAM_START,
+    TOOL_CHANGE,
+    main_program_location,
+    subprogram_number,
+)
 from .execution import (
     POSITION_NEUTRAL_GCODES,
     build_program_execution_index,
@@ -70,6 +81,10 @@ class TraceExecutionContext:
     cycle_options: dict = field(default_factory=dict)
     words: tuple = ()
     signals: tuple = ()
+    events: tuple[ExecutionEvent, ...] = ()
+    program_started: bool = False
+    program_start_block: int = 0
+    program_number: int | None = None
     label_to_index: dict[int, int] | None = None
     olabel_to_index: dict[int, int] | None = None
     contour_block_indices: set[int] | None = None
@@ -109,6 +124,7 @@ class TraceStepSnapshot:
     variables: tuple[tuple[str, float], ...] = ()
     words: tuple = ()
     signals: tuple = ()
+    events: tuple[ExecutionEvent, ...] = ()
     feed_mode: str = "per_revolution"
     spindle_rpm: float | None = None
     spindle_mode: str = "rpm"
@@ -212,6 +228,7 @@ def build_trace_execution_context(
     initial_state: TraceRuntimeState | None = None,
 ) -> TraceExecutionContext:
     state = initial_state or TraceRuntimeState()
+    program_start_block, program_number = main_program_location(program)
 
     execution_index = build_program_execution_index(program)
     label_to_index = execution_index.label_to_index
@@ -233,6 +250,8 @@ def build_trace_execution_context(
         contour_block_indices=contour_block_indices,
         while_to_end=while_to_end,
         end_to_while=end_to_while,
+        program_start_block=program_start_block,
+        program_number=program_number,
     )
 
 
@@ -640,6 +659,7 @@ def execute_trace_context_with_steps(
                 variables=tuple(sorted((ctx.state.vars_map or {}).items())),
                 words=ctx.words,
                 signals=ctx.signals,
+                events=ctx.events,
                 feed_mode=ctx.state.feed_mode,
                 spindle_rpm=ctx.state.spindle_rpm,
                 spindle_mode=ctx.state.spindle_mode,
@@ -680,11 +700,24 @@ def execute_trace_step(
     checkpoint("executed_blocks")
     ctx.words = ()
     ctx.signals = ()
+    ctx.events = ()
     ctx.guard += 1
     if ctx.guard > 500000:
         raise RuntimeError("Source trace execution guard reached")
 
     block = blocks[ctx.pc]
+    event_list: list[ExecutionEvent] = []
+    if not ctx.program_started and block.index == ctx.program_start_block:
+        event_list.append(
+            ExecutionEvent(
+                PROGRAM_START,
+                block.index,
+                code=(f"O{ctx.program_number}" if ctx.program_number is not None else None),
+                program_number=ctx.program_number,
+            )
+        )
+        ctx.program_started = True
+    ctx.events = tuple(event_list)
     ast_node = None
     if getattr(program, "ast", None) is not None and 0 <= ctx.pc < len(program.ast.nodes):
         ast_node = program.ast.nodes[ctx.pc]
@@ -731,7 +764,19 @@ def execute_trace_step(
         state.compensation_mode = 42
     if "T" in words:
         packed_tool = abs(int(round(words["T"])))
+        previous_tool = state.active_tool
         state.active_tool = f"T{packed_tool:04d}"
+        event_list.append(
+            ExecutionEvent(
+                TOOL_CHANGE,
+                block.index,
+                code=state.active_tool,
+                tool=state.active_tool,
+                previous_tool=previous_tool,
+                call_depth=len(ctx.call_stack or ()),
+            )
+        )
+        ctx.events = tuple(event_list)
 
     def tagged(items: list[object]) -> list[object]:
         return [
@@ -792,7 +837,26 @@ def execute_trace_step(
     if "F" in words:
         state.modal_feed = words["F"] * state.unit_scale
 
+    for reference_code in (28, 30):
+        if reference_code in all_g:
+            axes = tuple(
+                axis
+                for axis, addresses in (("X", _X_AXIS_WORDS), ("Z", _Z_AXIS_WORDS))
+                if any(address in words for address in addresses)
+            )
+            event_list.append(
+                ExecutionEvent(
+                    HOME_RETURN,
+                    block.index,
+                    code=f"G{reference_code}",
+                    axes=axes,
+                    call_depth=len(ctx.call_stack or ()),
+                )
+            )
+    ctx.events = tuple(event_list)
+
     flow_mcode = flow_control_mcode(all_m, mcode)
+    call_stack_before = list(ctx.call_stack or [])
     sub_flow = dispatch_subprogram_flow(
         mcode=flow_mcode,
         words=words,
@@ -802,6 +866,62 @@ def execute_trace_step(
         max_call_depth=ctx.max_call_depth,
     )
     ctx.call_stack = sub_flow.call_stack
+    if flow_mcode == 98 and sub_flow.handled and not sub_flow.stop:
+        target_block = sub_flow.next_pc
+        event_list.append(
+            ExecutionEvent(
+                SUBPROGRAM_START,
+                block.index,
+                code=(f"O{int(words['P'])}" if "P" in words else None),
+                program_number=subprogram_number(program, target_block),
+                call_depth=len(sub_flow.call_stack),
+                target_block=target_block,
+            )
+        )
+    elif flow_mcode == 99 and sub_flow.handled:
+        if call_stack_before:
+            current_target = call_stack_before[-1][1]
+            current_program = subprogram_number(program, current_target)
+            event_list.append(
+                ExecutionEvent(
+                    SUBPROGRAM_END,
+                    block.index,
+                    code="M99",
+                    program_number=current_program,
+                    call_depth=len(call_stack_before),
+                    target_block=current_target,
+                )
+            )
+            if sub_flow.next_pc == current_target and len(sub_flow.call_stack) == len(call_stack_before):
+                event_list.append(
+                    ExecutionEvent(
+                        SUBPROGRAM_START,
+                        block.index,
+                        code=(f"O{current_program}" if current_program is not None else None),
+                        program_number=current_program,
+                        call_depth=len(sub_flow.call_stack),
+                        target_block=current_target,
+                    )
+                )
+        else:
+            event_list.append(
+                ExecutionEvent(
+                    PROGRAM_END,
+                    block.index,
+                    code="M99",
+                    program_number=ctx.program_number,
+                )
+            )
+    elif flow_mcode in (2, 30) and sub_flow.handled:
+        event_list.append(
+            ExecutionEvent(
+                PROGRAM_END,
+                block.index,
+                code=f"M{int(flow_mcode):02d}",
+                program_number=ctx.program_number,
+            )
+        )
+    ctx.events = tuple(event_list)
     if sub_flow.handled:
         if sub_flow.stop:
             return True, motions

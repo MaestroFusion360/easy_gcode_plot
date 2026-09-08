@@ -25,7 +25,3 @@ def signals_for_words(block_index, words):
             raise ValueError("Dwell duration must not be negative")
         out.append(MachineSignal("dwell", block_index, "G04", value))
     return tuple(out)
-
-
-def program_end_code(signals: tuple[MachineSignal, ...]) -> str | None:
-    return next((item.code for item in reversed(signals) if item.kind == "program_end"), None)

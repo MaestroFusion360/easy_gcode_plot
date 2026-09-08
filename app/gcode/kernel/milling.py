@@ -5,7 +5,25 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .api_types import Diagnostic, ExecutionResult, ExecutionStep, SemanticInstruction, TraceMotion
+from .api_types import (
+    Diagnostic,
+    ExecutionEvent,
+    ExecutionResult,
+    ExecutionStep,
+    SemanticInstruction,
+    TraceMotion,
+)
+from .events import (
+    HOME_RETURN,
+    PROGRAM_END,
+    PROGRAM_START,
+    SUBPROGRAM_END,
+    SUBPROGRAM_START,
+    TOOL_CHANGE,
+    main_program_location,
+    program_end_code,
+    subprogram_number,
+)
 from .execution import (
     build_program_execution_index,
     classify_block_codes,
@@ -16,7 +34,7 @@ from .execution import (
 from .lang import UndefinedMacroVariableError
 from .program import eval_words, parse_program
 from .resources import SemanticError, checkpoint, require_progress
-from .signals import program_end_code, signals_for_words
+from .signals import signals_for_words
 
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
 
@@ -86,6 +104,8 @@ class MillState:
     cutter_comp: int = 40
     tool_length_comp: bool = False
     tool_length_h: int | None = None
+    selected_tool: str | None = None
+    selected_tool_block: int | None = None
     active_tool: str | None = None
     feed_mode: str = "per_minute"
     spindle_rpm: float | None = None
@@ -118,6 +138,7 @@ def _execution_step(
     *,
     words: tuple[tuple[str, float], ...] = (),
     signals=(),
+    events=(),
     stop: bool = False,
     wcs_offsets=None,
 ) -> ExecutionStep:
@@ -131,6 +152,7 @@ def _execution_step(
         words=words,
         signals=tuple(signals),
         occurrence=occurrence,
+        events=tuple(events),
         position=_machine((state.x, state.y, state.z), state, wcs_offsets),
         active_wcs=state.active_wcs,
         feed_mode=state.feed_mode,
@@ -323,6 +345,29 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
     return out
 
 
+def _g53_home_axes(
+    state: MillState,
+    words,
+    home: tuple[float, float, float],
+    *,
+    wcs_offsets,
+) -> tuple[str, ...]:
+    """Return addressed G53 axes that deterministically target configured home."""
+    start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    axes: list[str] = []
+    for index, letter in enumerate(("X", "Y", "Z")):
+        if letter not in words:
+            continue
+        if state.absolute:
+            target = words[letter] * state.unit_scale
+        else:
+            target = start_m[index] + words[letter] * state.unit_scale
+        if abs(target - home[index]) > 1e-9:
+            return ()
+        axes.append(letter)
+    return tuple(axes)
+
+
 def execute_milling(
     source: str,
     *,
@@ -333,6 +378,8 @@ def execute_milling(
 ):
 
     program = parse_program(source.splitlines())
+    program_start_block, program_number = main_program_location(program)
+    program_started = False
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
     state = MillState(
         x=home[0] - ox,
@@ -345,6 +392,7 @@ def execute_milling(
     executed: list[int] = []
     steps: list[ExecutionStep] = []
     signals = []
+    events: list[ExecutionEvent] = []
     variables: dict[str, float] = {}
     call_stack: list[tuple[int, int, int]] = []
     recognized = {
@@ -414,6 +462,17 @@ def execute_milling(
             if guard > 500_000:
                 raise RuntimeError("Program execution guard reached")
             block = program.blocks[pc]
+            occurrence_events: list[ExecutionEvent] = []
+            if not program_started and block.index == program_start_block:
+                occurrence_events.append(
+                    ExecutionEvent(
+                        PROGRAM_START,
+                        block.index,
+                        code=(f"O{program_number}" if program_number is not None else None),
+                        program_number=program_number,
+                    )
+                )
+                program_started = True
             if block.optional_skip and skip_optional_blocks:
                 pc += 1
                 continue
@@ -428,7 +487,10 @@ def execute_milling(
                 end_to_while=index.end_to_while,
             )
             if flow.handled:
-                steps.append(_execution_step(state, block, 0, len(steps), wcs_offsets=wcs_offsets))
+                events.extend(occurrence_events)
+                steps.append(
+                    _execution_step(state, block, 0, len(steps), events=occurrence_events, wcs_offsets=wcs_offsets)
+                )
                 pc = flow.next_pc
                 continue
 
@@ -474,6 +536,7 @@ def execute_milling(
                         )
                     )
             if unknown_g and position_words:
+                events.extend(occurrence_events)
                 steps.append(
                     _execution_step(
                         state,
@@ -482,6 +545,7 @@ def execute_milling(
                         len(steps),
                         words=evaluated,
                         signals=occurrence_signals,
+                        events=occurrence_events,
                         stop=True,
                         wcs_offsets=wcs_offsets,
                     )
@@ -505,9 +569,11 @@ def execute_milling(
             if "T" in words:
                 tool_value = words["T"]
                 if float(tool_value).is_integer() and 1 <= int(tool_value) <= 99:
-                    state.active_tool = f"T{int(tool_value)}"
+                    state.selected_tool = f"T{int(tool_value)}"
+                    state.selected_tool_block = block.index
                 else:
-                    state.active_tool = None
+                    state.selected_tool = None
+                    state.selected_tool_block = None
                     diagnostics.append(
                         Diagnostic(
                             "UNSUPPORTED_TOOL_NUMBER",
@@ -518,14 +584,114 @@ def execute_milling(
                             block.raw,
                         )
                     )
+            if 6 in codes.all_m:
+                previous_tool = state.active_tool
+                changed_tool = state.selected_tool
+                if changed_tool is not None:
+                    state.active_tool = changed_tool
+                occurrence_events.append(
+                    ExecutionEvent(
+                        TOOL_CHANGE,
+                        block.index,
+                        code="M06",
+                        tool=changed_tool,
+                        previous_tool=previous_tool,
+                        call_depth=len(call_stack),
+                        related_block=state.selected_tool_block,
+                    )
+                )
             _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
+            if 28 in gcodes:
+                occurrence_events.append(
+                    ExecutionEvent(
+                        HOME_RETURN,
+                        block.index,
+                        code="G28",
+                        axes=tuple(axis for axis in ("X", "Y", "Z") if axis in words),
+                        call_depth=len(call_stack),
+                    )
+                )
+            if 53 in gcodes:
+                home_axes = _g53_home_axes(state, words, home, wcs_offsets=wcs_offsets)
+                if home_axes:
+                    occurrence_events.append(
+                        ExecutionEvent(
+                            HOME_RETURN,
+                            block.index,
+                            code="G53",
+                            axes=home_axes,
+                            call_depth=len(call_stack),
+                        )
+                    )
+
             flow_mcode = flow_control_mcode(codes.all_m, codes.mcode)
+            call_stack_before = list(call_stack)
             sub = dispatch_subprogram_flow(
-                mcode=flow_mcode, words=words, pc=pc, olabel_to_index=index.olabel_to_index, call_stack=call_stack
+                mcode=flow_mcode,
+                words=words,
+                pc=pc,
+                olabel_to_index=index.olabel_to_index,
+                call_stack=call_stack,
             )
             call_stack = sub.call_stack
+            if flow_mcode == 98 and sub.handled and not sub.stop:
+                target_block = sub.next_pc
+                occurrence_events.append(
+                    ExecutionEvent(
+                        SUBPROGRAM_START,
+                        block.index,
+                        code=(f"O{int(words['P'])}" if "P" in words else None),
+                        program_number=subprogram_number(program, target_block),
+                        call_depth=len(call_stack),
+                        target_block=target_block,
+                    )
+                )
+            elif flow_mcode == 99 and sub.handled:
+                if call_stack_before:
+                    current_target = call_stack_before[-1][1]
+                    current_program = subprogram_number(program, current_target)
+                    occurrence_events.append(
+                        ExecutionEvent(
+                            SUBPROGRAM_END,
+                            block.index,
+                            code="M99",
+                            program_number=current_program,
+                            call_depth=len(call_stack_before),
+                            target_block=current_target,
+                        )
+                    )
+                    if sub.next_pc == current_target and len(call_stack) == len(call_stack_before):
+                        occurrence_events.append(
+                            ExecutionEvent(
+                                SUBPROGRAM_START,
+                                block.index,
+                                code=(f"O{current_program}" if current_program is not None else None),
+                                program_number=current_program,
+                                call_depth=len(call_stack),
+                                target_block=current_target,
+                            )
+                        )
+                else:
+                    occurrence_events.append(
+                        ExecutionEvent(
+                            PROGRAM_END,
+                            block.index,
+                            code="M99",
+                            program_number=program_number,
+                        )
+                    )
+            elif flow_mcode in (2, 30) and sub.handled:
+                occurrence_events.append(
+                    ExecutionEvent(
+                        PROGRAM_END,
+                        block.index,
+                        code=f"M{int(flow_mcode):02d}",
+                        program_number=program_number,
+                    )
+                )
             if sub.handled:
                 if sub.stop:
+                    events.extend(occurrence_events)
                     steps.append(
                         _execution_step(
                             state,
@@ -534,11 +700,13 @@ def execute_milling(
                             len(steps),
                             words=evaluated,
                             signals=occurrence_signals,
+                            events=occurrence_events,
                             stop=True,
                             wcs_offsets=wcs_offsets,
                         )
                     )
                     break
+                events.extend(occurrence_events)
                 steps.append(
                     _execution_step(
                         state,
@@ -547,6 +715,7 @@ def execute_milling(
                         len(steps),
                         words=evaluated,
                         signals=occurrence_signals,
+                        events=occurrence_events,
                         wcs_offsets=wcs_offsets,
                     )
                 )
@@ -639,6 +808,7 @@ def execute_milling(
 
             if motions and (not executed or executed[-1] != block.index):
                 executed.append(block.index)
+            events.extend(occurrence_events)
             steps.append(
                 _execution_step(
                     state,
@@ -647,6 +817,7 @@ def execute_milling(
                     len(steps),
                     words=evaluated,
                     signals=occurrence_signals,
+                    events=occurrence_events,
                     wcs_offsets=wcs_offsets,
                 )
             )
@@ -656,14 +827,16 @@ def execute_milling(
         return ExecutionResult(False, program, tuple(instructions), (), tuple(diagnostics), tuple(executed))
 
     signals = tuple(signals)
+    event_tuple = tuple(events)
     return ExecutionResult(
-        not any(d.severity == "error" for d in diagnostics),
-        program,
-        tuple(instructions),
-        tuple(motions),
-        tuple(diagnostics),
-        tuple(executed),
-        signals,
-        program_end_code(signals),
-        tuple(steps),
+        ok=not any(d.severity == "error" for d in diagnostics),
+        program=program,
+        instructions=tuple(instructions),
+        motions=tuple(motions),
+        diagnostics=tuple(diagnostics),
+        executed_blocks=tuple(executed),
+        signals=signals,
+        program_end=program_end_code(event_tuple),
+        execution_steps=tuple(steps),
+        events=event_tuple,
     )

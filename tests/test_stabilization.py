@@ -333,6 +333,9 @@ M30
     assert transition.arc is not None
     assert transition.arc.radius == pytest.approx(3.0)
     assert transition.compensation_applied is True
+    assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
+    transition_step = next(step for step in result.execution_steps if step.source_block == transition.source_block)
+    assert transition_step.emitted_count == 2
 
 
 def test_milling_compensation_uses_configured_tool_diameter_in_rendered_geometry():

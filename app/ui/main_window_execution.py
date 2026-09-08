@@ -215,6 +215,7 @@ class MainWindowExecutionMixin:
             if end:
                 last = end
             self._motion_render_end[idx] = last
+        self._set_trace_geometry()
         self.calcDist()
         enabled = bool(result.motions)
         self.ui.actionStep_Backward.setEnabled(enabled)

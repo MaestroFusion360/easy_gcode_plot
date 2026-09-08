@@ -11,6 +11,14 @@ from dataclasses import dataclass, replace
 
 from .core import format_gcode_number
 from .kernel import ExecutionResult, TraceMotion
+from .kernel.events import (
+    HOME_RETURN,
+    PROGRAM_END,
+    PROGRAM_START,
+    SUBPROGRAM_END,
+    SUBPROGRAM_START,
+    event_blocks,
+)
 from .trace_tools import arc_geometry, sample_motion
 
 
@@ -210,7 +218,6 @@ _TURN_CYCLE_G_CODES = {70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92, 94}
 _TURN_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, 30, 32, 33, *_TURN_CYCLE_G_CODES}
 _MILL_CYCLE_G_CODES = {81, 82, 83, 84, 85, 86}
 _MILL_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, *_MILL_CYCLE_G_CODES}
-_TRAILER_RE = re.compile(r"M(?:0?2|30)(?=[A-Z]|\s|$)", re.IGNORECASE)
 _WORD_RE = re.compile(r"([A-Z])([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", re.IGNORECASE)
 
 
@@ -262,37 +269,57 @@ def _g_codes(line: str) -> set[int]:
     return values
 
 
-def _m_codes(line: str) -> set[int]:
-    values: set[int] = set()
-    for value in re.findall(r"M([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", line, flags=re.IGNORECASE):
-        try:
-            number = float(value)
-        except ValueError:
-            continue
-        if number.is_integer():
-            values.add(int(number))
-    return values
-
-
-def _program_number(source_lines: list[str], options: ExportOptions) -> str:
-    for raw in source_lines:
-        clean = _normalize_words_line(raw)
-        match = re.match(r"^O(\d+)(?=\s|$)", clean)
-        if match:
-            return f"O{match.group(1)}"
+def _program_number(result: ExecutionResult, options: ExportOptions) -> str:
+    start_event = next((event for event in result.events if event.kind == PROGRAM_START), None)
+    if start_event is not None and start_event.program_number is not None:
+        return f"O{start_event.program_number}"
     match = re.search(r"\bO(\d+)\b", options.start_program.upper())
     if match:
         return f"O{match.group(1)}"
     return "O0001"
 
 
-def _split_trailer(line: str) -> tuple[str | None, str]:
-    match = _TRAILER_RE.search(line)
-    if match is None:
-        return None, line
-    trailer = match.group(0).upper()
-    remainder = (line[: match.start()] + line[match.end() :]).strip()
-    return trailer, " ".join(remainder.split())
+def _event_kinds(step) -> set[str]:
+    return {event.kind for event in step.events}
+
+
+def _remove_m_code(line: str, code: str | None) -> str:
+    if not code or not code.upper().startswith("M"):
+        return line
+    try:
+        target = int(code[1:])
+    except ValueError:
+        return line
+
+    def repl(match: re.Match[str]) -> str:
+        try:
+            number = float(match.group(1))
+        except ValueError:
+            return match.group(0)
+        if number.is_integer() and int(number) == target:
+            return ""
+        return match.group(0)
+
+    return " ".join(re.sub(r"M([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", repl, line, flags=re.IGNORECASE).split())
+
+
+def _strip_flow_event_words(line: str, step) -> str:
+    out = line
+    for event in step.events:
+        if event.kind == PROGRAM_END:
+            out = _remove_m_code(out, event.code)
+        elif event.kind in {SUBPROGRAM_START, SUBPROGRAM_END}:
+            out = _remove_m_code(out, "M98" if event.kind == SUBPROGRAM_START else "M99")
+    if any(event.kind == SUBPROGRAM_START and event.code and event.code.startswith("O") for event in step.events):
+        out = re.sub(r"\b[PL][+\-]?(?:\d+(?:\.\d*)?|\.\d+)\b", "", out, flags=re.IGNORECASE)
+    return " ".join(out.split())
+
+
+def _program_end_event_code(result: ExecutionResult) -> str:
+    return next(
+        (event.code for event in reversed(result.events) if event.kind == PROGRAM_END and event.code),
+        result.program_end or "M30",
+    )
 
 
 def _remove_g_codes(line: str, codes: set[int]) -> str:
@@ -334,13 +361,6 @@ def _geometry_block_controls(
             if code in geometry_codes:
                 continue
             if suppress_compensation and code in {40, 41, 42}:
-                continue
-        if letter == "M":
-            try:
-                code = int(float(value))
-            except ValueError:
-                continue
-            if code in {2, 30, 98, 99}:
                 continue
         words.append(token)
     return " ".join(words)
@@ -502,6 +522,7 @@ def export_full_program(
     if not result.ok:
         raise ValueError("Expanded turn program export requires a valid turning execution result")
 
+    del source_lines
     options = _turn_program_options(options)
     compensated_geometry = any(motion.compensation_applied for motion in result.motions)
     steps = list(_execution_slices(result))
@@ -513,17 +534,21 @@ def export_full_program(
     if compensated_geometry:
         safety.append("G40")
 
-    lines: list[str] = ["%", _program_number(source_lines, options), " ".join(safety)]
+    lines: list[str] = ["%", _program_number(result, options), " ".join(safety)]
     lines.append(_format_comment("EXPANDED TURN PROGRAM"))
     previous_end_mm: tuple[float, float] | None = None
-    trailer: str | None = None
+    program_start_blocks = event_blocks(result.events, PROGRAM_START)
+    subprogram_target_blocks = {
+        event.target_block
+        for event in result.events
+        if event.kind == SUBPROGRAM_START and event.target_block is not None
+    }
 
     for step, block, motions in steps:
         raw = block.raw
         clean = _without_sequence_number(_normalize_words_line(raw))
-        detected_trailer, clean = _split_trailer(clean)
-        if detected_trailer is not None:
-            trailer = detected_trailer
+        clean = _strip_flow_event_words(clean, step)
+        event_kinds = _event_kinds(step)
 
         if not clean or clean == "%":
             continue
@@ -533,15 +558,12 @@ def export_full_program(
         for comment in _extract_comments(raw):
             lines.append(_format_comment(comment))
 
-        if block.olabel is not None and re.match(r"^O\d+(?=\s|$)", clean):
+        if block.index in program_start_blocks or block.index in subprogram_target_blocks:
             continue
         if block.flow_node is not None:
             continue
-        if _m_codes(clean) & {98, 99}:
-            continue
-
         gcodes = _g_codes(clean)
-        if gcodes & {28, 30}:
+        if HOME_RETURN in event_kinds:
             source_reference = _remove_g_codes(clean, {40, 41, 42}) if compensated_geometry else clean
             if source_reference:
                 lines.append(source_reference)
@@ -581,9 +603,7 @@ def export_full_program(
             previous_end_mm=previous_end_mm,
         )
 
-    if trailer is None:
-        trailer = result.program_end or "M30"
-    lines.extend([trailer, "%"])
+    lines.extend([_program_end_event_code(result), "%"])
     return "\n".join(_number_full_program_lines(lines, options)) + "\n"
 
 
@@ -649,36 +669,46 @@ def export_full_mill_program(
     if not result.ok:
         raise ValueError("Expanded mill program export requires a valid milling execution result")
 
+    del source_lines
     options = _mill_program_options(options)
     steps = list(_execution_slices(result))
+    compensated_geometry = any(motion.compensation_applied for motion in result.motions)
     executed_unit_mode = any(_g_codes(_normalize_words_line(block.raw)) & {20, 21} for _, block, _ in steps)
 
     safety = ["G17", "G40", "G49", "G80", "G90"]
     if not executed_unit_mode:
         safety.append("G21")
 
-    lines: list[str] = ["%", _program_number(source_lines, options), " ".join(safety)]
+    lines: list[str] = ["%", _program_number(result, options), " ".join(safety)]
     lines.append(_format_comment("EXPANDED MILL PROGRAM"))
-    trailer: str | None = None
+    program_start_blocks = event_blocks(result.events, PROGRAM_START)
+    subprogram_target_blocks = {
+        event.target_block
+        for event in result.events
+        if event.kind == SUBPROGRAM_START and event.target_block is not None
+    }
 
     for step, block, motions in steps:
         raw = block.raw
         comments = _extract_comments(raw)
         clean = _without_sequence_number(_normalize_words_line(raw))
-        detected_trailer, clean = _split_trailer(clean)
-        if detected_trailer is not None:
-            trailer = detected_trailer
+        clean = _strip_flow_event_words(clean, step)
+        event_kinds = _event_kinds(step)
 
         for comment in comments:
             lines.append(_format_comment(comment))
 
         if not clean or clean == "%":
             continue
-        if block.olabel is not None and re.match(r"^O\d+(?=\s|$)", clean):
+        if block.index in program_start_blocks or block.index in subprogram_target_blocks:
             continue
         if block.flow_node is not None:
             continue
-        if _m_codes(clean) & {98, 99}:
+        if not clean and event_kinds & {SUBPROGRAM_START, SUBPROGRAM_END, PROGRAM_END}:
+            continue
+        if HOME_RETURN in event_kinds:
+            if clean:
+                lines.append(clean)
             continue
 
         if not motions:
@@ -689,7 +719,7 @@ def export_full_mill_program(
             if gcodes & _MILL_GEOMETRY_G_CODES or geometry_words:
                 controls = _geometry_block_controls(
                     clean,
-                    suppress_compensation=False,
+                    suppress_compensation=compensated_geometry,
                     geometry_g_codes=_MILL_GEOMETRY_G_CODES,
                 )
             else:
@@ -700,7 +730,7 @@ def export_full_mill_program(
 
         controls = _geometry_block_controls(
             clean,
-            suppress_compensation=False,
+            suppress_compensation=compensated_geometry,
             geometry_g_codes=_MILL_GEOMETRY_G_CODES,
         )
         if controls:
@@ -717,9 +747,7 @@ def export_full_mill_program(
             options=options,
         )
 
-    if trailer is None:
-        trailer = result.program_end or "M30"
-    lines.extend([trailer, "%"])
+    lines.extend([_program_end_event_code(result), "%"])
     return "\n".join(_number_full_program_lines(lines, options)) + "\n"
 
 

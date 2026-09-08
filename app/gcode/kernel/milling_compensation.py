@@ -662,22 +662,26 @@ def _normalize_comp_mode(mode: int) -> int:
     return mode if mode in (41, 42) else 0
 
 
-def apply_milling_cutter_compensation(
+def _apply_milling_cutter_compensation(
     motions: list[TraceMotion],
     tools: dict[str, dict[str, object]],
+    motion_owners: list[int],
     *,
     geometry_tolerance: float = _GEOMETRY_TOLERANCE,
-) -> list[TraceMotion]:
+) -> tuple[list[TraceMotion], list[int]]:
     """Apply Fanuc-style cutter compensation using configured milling tool diameters.
 
     G41/G42 is treated as a state machine.  The command block is an entry
     transition, following line/arc/helix motions are offset and stitched, and
     the first G40 motion is retargeted from the final compensated endpoint.
     """
+    if len(motion_owners) != len(motions):
+        raise ValueError("Each compensated milling motion must have one owner")
     if not motions:
-        return motions
+        return motions, []
 
     output: list[TraceMotion] = []
+    output_owners: list[int] = []
     previous_steady: _ProjectedMotion | None = None
     previous_steady_output_index = -1
     align_next_active_to_entry = False
@@ -685,6 +689,7 @@ def apply_milling_cutter_compensation(
     active_comp_mode = 0
 
     for index, current in enumerate(motions):
+        current_owner = motion_owners[index]
         previous_comp = _normalize_comp_mode(motions[index - 1].compensation_mode) if index > 0 else 0
         current_comp = _normalize_comp_mode(current.compensation_mode)
         current_active = current_comp != 0
@@ -699,6 +704,7 @@ def apply_milling_cutter_compensation(
             align_next_active_to_entry = False
             if active_tool_radius <= _EPS:
                 output.append(_mark_unverified(current))
+                output_owners.append(current_owner)
                 continue
 
             reference = _find_entry_reference(motions, index, active_comp_mode) or current
@@ -712,14 +718,17 @@ def apply_milling_cutter_compensation(
             if solved_entry is None:
                 active_tool_radius = 0.0
                 output.append(_mark_unverified(current))
+                output_owners.append(current_owner)
                 continue
 
             output.append(solved_entry)
+            output_owners.append(current_owner)
             align_next_active_to_entry = True
             continue
 
         if exit_event:
             output.append(_solve_exit(current, output[-1]) if output else current)
+            output_owners.append(current_owner)
             previous_steady = None
             previous_steady_output_index = -1
             align_next_active_to_entry = False
@@ -729,10 +738,12 @@ def apply_milling_cutter_compensation(
 
         if not current_active:
             output.append(current)
+            output_owners.append(current_owner)
             continue
 
         if active_tool_radius <= _EPS or current_comp != active_comp_mode:
             output.append(_mark_unverified(current))
+            output_owners.append(current_owner)
             previous_steady = None
             previous_steady_output_index = -1
             continue
@@ -740,6 +751,7 @@ def apply_milling_cutter_compensation(
         solved_steady = _solve_standalone(current, current_comp, active_tool_radius, geometry_tolerance)
         if solved_steady is None:
             output.append(_mark_unverified(current))
+            output_owners.append(current_owner)
             previous_steady = None
             previous_steady_output_index = -1
             continue
@@ -765,10 +777,44 @@ def apply_milling_cutter_compensation(
                 )
                 if transition is not None:
                     output.append(transition)
+                    output_owners.append(output_owners[previous_steady_output_index])
 
         solved_trace = _projected_to_motion(solved_steady, comp_mode=current_comp)
         output.append(solved_trace)
+        output_owners.append(current_owner)
         previous_steady = solved_steady
         previous_steady_output_index = len(output) - 1
 
+    return output, output_owners
+
+
+def apply_milling_cutter_compensation(
+    motions: list[TraceMotion],
+    tools: dict[str, dict[str, object]],
+    *,
+    geometry_tolerance: float = _GEOMETRY_TOLERANCE,
+) -> list[TraceMotion]:
+    """Apply compensation while preserving the established list-only API."""
+    output, _owners = _apply_milling_cutter_compensation(
+        motions,
+        tools,
+        list(range(len(motions))),
+        geometry_tolerance=geometry_tolerance,
+    )
     return output
+
+
+def apply_milling_cutter_compensation_with_owners(
+    motions: list[TraceMotion],
+    tools: dict[str, dict[str, object]],
+    motion_owners: list[int],
+    *,
+    geometry_tolerance: float = _GEOMETRY_TOLERANCE,
+) -> tuple[list[TraceMotion], list[int]]:
+    """Apply compensation and propagate execution-step ownership to inserted motions."""
+    return _apply_milling_cutter_compensation(
+        motions,
+        tools,
+        motion_owners,
+        geometry_tolerance=geometry_tolerance,
+    )

@@ -86,6 +86,22 @@ class MachineSignal:
 
 
 @dataclass(frozen=True)
+class ExecutionEvent:
+    """One deterministic structural fact observed during actual execution."""
+
+    kind: str
+    source_block: int
+    code: str | None = None
+    program_number: int | None = None
+    tool: str | None = None
+    previous_tool: str | None = None
+    axes: tuple[str, ...] = ()
+    call_depth: int = 0
+    target_block: int | None = None
+    related_block: int | None = None
+
+
+@dataclass(frozen=True)
 class ExecutionStep:
     """One source block execution and the number of trace motions it emitted."""
 
@@ -107,6 +123,7 @@ class ExecutionStep:
     surface_speed_m_min: float | None = None
     spindle_limit_rpm: float | None = None
     spindle_running: bool = False
+    events: tuple[ExecutionEvent, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -122,3 +139,4 @@ class ExecutionResult:
     execution_steps: tuple[ExecutionStep, ...] = ()
     complete: bool = True
     language: str = "fanuc_turn"
+    events: tuple[ExecutionEvent, ...] = ()

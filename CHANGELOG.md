@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.0 - 2026-09-08
+
+- Added deterministic execution events for program start/end, subprogram start/end, tool changes and home returns across turning and milling execution.
+- Exposed execution events through `ExecutionResult`, per-step execution snapshots and CLI JSON output.
+- Reworked full-program exporters to use execution events for program/subprogram boundaries, program termination and home-return preservation instead of re-detecting those structures from source text.
+- Corrected milling tool semantics so `T` preselects a tool and `M6` emits the actual tool-change event and activates it; split `T`/`M6` blocks no longer assign the new tool to intervening motions.
+- Classified milling `G53` as a home-return event only when the addressed machine-coordinate axes deterministically target configured home, including non-zero active WCS offsets.
+- Replaced per-frame toolpath array rebuilding with a persistent VBO-backed `GL_LINES` item inside the existing pyqtgraph `GLViewWidget`; playback now changes only the visible logical draw prefix.
+- Replaced the three origin-axis lines with a fixed-screen-size 3D axis triad at CNC coordinate zero, with arrowheads and X/Y/Z labels.
+- Preserved execution-step ownership through milling cutter compensation so inserted corner transitions export correctly without stale motion counts or repeated G41/G42 compensation.
+
 ## 1.2.7 - 2026-09-07
 
 - Added persistent Auto Update controls, including a configurable sampled-segment limit after which plot refresh requires the manual Update action.

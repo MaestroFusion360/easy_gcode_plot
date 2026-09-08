@@ -4,11 +4,13 @@ import math
 
 from PyQt6.QtGui import QColor, QVector3D, QVector4D
 from PyQt6.QtWidgets import QMenu
-from pyqtgraph.opengl import GLGridItem, GLLinePlotItem, GLScatterPlotItem
+from pyqtgraph.opengl import GLGridItem, GLScatterPlotItem
 
 from app.gcode.core import calculate_scene_geometry
+from app.ui.axis_triad import AxisTriadItem
 from app.ui.plot_grid import adaptive_grid_geometry
 from app.ui.plot_navigation import point_segment_distance as _point_segment_distance
+from app.ui.toolpath_vbo import ToolpathVboItem, segments_from_render_points
 
 PICK_DISTANCE_PX = 8.0
 CURSOR_SIZE_PX = 7.0
@@ -34,7 +36,7 @@ class MainWindowPlotMixin:
         self.loadPlot()
         self._create_trace_items()
         if self.execution_result is not None and self.execution_result.motions:
-            self.valueHandler(self.ui.horizontalSlider.value())
+            self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
 
     def plotContextMenu(self, point):
         """Show context menu for plot view controls."""
@@ -98,52 +100,55 @@ class MainWindowPlotMixin:
         self._update_adaptive_grid()
 
     def _create_trace_items(self):
+        """Attach the persistent VBO toolpath and lightweight cursor overlay."""
         width = getattr(self, "plotLineWidth", 1.5)
-        self._rapid_item = GLLinePlotItem(
-            pos=[],
-            color=QColor(getattr(self, "plotRapidColor", RAPID_COLOR)),
-            width=width,
-            antialias=True,
-            mode="lines",
-        )
-        self._drawing_item = GLLinePlotItem(
-            pos=[], color=QColor(self.plotLineColor), width=width, antialias=True, mode="lines"
-        )
-        self._arc_item = GLLinePlotItem(
-            pos=[], color=QColor(getattr(self, "plotArcColor", "#008000")), width=width, antialias=True, mode="lines"
-        )
-        self._cursor_item = GLScatterPlotItem(
-            pos=[],
-            color=QColor(getattr(self, "plotCurrentColor", self.plotLineColor)),
-            size=CURSOR_SIZE_PX,
-            pxMode=True,
-        )
-        self._cursor_item.setGLOptions("translucent")
-        self.ui.graphicsView.addItem(self._rapid_item)
-        self.ui.graphicsView.addItem(self._drawing_item)
-        self.ui.graphicsView.addItem(self._arc_item)
-        self.ui.graphicsView.addItem(self._cursor_item)
-
-    def _trace_segment_vertices(self, end):
-        """Split the rendered prefix into rapid and cutting line-segment vertices."""
-        result = self.execution_result
-        points = self.render_points[:end]
-        rapid, linear, arc = [], [], []
-        if result is None or len(points) < 2:
-            return rapid, linear, arc
-        for previous, current in zip(points, points[1:]):
-            motion_index = current.motion_index
-            if not 0 <= motion_index < len(result.motions):
-                continue
-            move = result.motions[motion_index].move
-            target = rapid if move == 0 else arc if move in (2, 3) else linear
-            target.extend(
-                [
-                    (previous.x, previous.y, previous.z),
-                    (current.x, current.y, current.z),
-                ]
+        toolpath_item = getattr(self, "_toolpath_item", None)
+        execution_result = getattr(self, "execution_result", None)
+        if toolpath_item is None and execution_result is not None:
+            toolpath_item = ToolpathVboItem()
+            toolpath_item.set_segments(
+                segments_from_render_points(self.render_points, execution_result.motions),
+                len(execution_result.motions),
             )
-        return rapid, linear, arc
+            self._toolpath_item = toolpath_item
+        if toolpath_item is not None:
+            toolpath_item.set_style(
+                rapid_color=getattr(self, "plotRapidColor", RAPID_COLOR),
+                linear_color=self.plotLineColor,
+                arc_color=getattr(self, "plotArcColor", "#008000"),
+                width=width,
+            )
+            if toolpath_item not in self.ui.graphicsView.items:
+                self.ui.graphicsView.addItem(toolpath_item)
+
+        if getattr(self, "_cursor_item", None) is None:
+            self._cursor_item = GLScatterPlotItem(
+                pos=[],
+                color=QColor(getattr(self, "plotCurrentColor", self.plotLineColor)),
+                size=CURSOR_SIZE_PX,
+                pxMode=True,
+            )
+            self._cursor_item.setGLOptions("translucent")
+        if self._cursor_item not in self.ui.graphicsView.items:
+            self.ui.graphicsView.addItem(self._cursor_item)
+
+    def _set_trace_geometry(self):
+        """Pack new trace geometry once; GPU upload remains paint-lazy."""
+        if getattr(self, "_toolpath_item", None) is None:
+            self._toolpath_item = ToolpathVboItem()
+        result = self.execution_result
+        motions = result.motions if result is not None else ()
+        self._toolpath_item.set_segments(
+            segments_from_render_points(self.render_points, motions),
+            len(motions),
+        )
+
+    def _dispose_trace_item(self):
+        """Release trajectory buffers before the owning GL view disappears."""
+        toolpath_item = getattr(self, "_toolpath_item", None)
+        if toolpath_item is not None:
+            toolpath_item.dispose()
+        self._toolpath_item = None
 
     def _project_world_to_screen(self, x, y, z):
         """Project one world point to GLViewWidget pixel coordinates."""
@@ -218,6 +223,7 @@ class MainWindowPlotMixin:
 
     def clearPlot(self):
         """Reset authoritative execution and render/playback state."""
+        self._dispose_trace_item()
         self.execution_result = None
         self.render_points = []
         self._motion_render_end = []
@@ -268,27 +274,17 @@ class MainWindowPlotMixin:
         self.ui.lineEdit_J.setText("" if motion.j is None else str(round(motion.j, 3)))
         self.ui.lineEdit_K.setText("" if motion.k is None else str(round(motion.k, 3)))
         self.ui.lineEditFeed.setText("Rapid" if motion.move == 0 else ("" if motion.feed is None else str(motion.feed)))
-        end = self._motion_render_end[idx] if idx < len(self._motion_render_end) else len(self.render_points)
-        xyz = [(p.x, p.y, p.z) for p in self.render_points[:end]]
-        if (
-            self._drawing_item is None
-            or self._rapid_item is None
-            or self._arc_item is None
-            or self._cursor_item is None
-        ):
+        if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
             self._create_trace_items()
-        rapid_xyz, linear_xyz, arc_xyz = self._trace_segment_vertices(end)
-        width = self.plotLineWidth
-        self._rapid_item.setData(
-            pos=rapid_xyz, color=QColor(self.plotRapidColor), width=width, antialias=True, mode="lines"
-        )
-        self._drawing_item.setData(
-            pos=linear_xyz, color=QColor(self.plotLineColor), width=width, antialias=True, mode="lines"
-        )
-        self._arc_item.setData(pos=arc_xyz, color=QColor(self.plotArcColor), width=width, antialias=True, mode="lines")
-        if xyz:
+        self._toolpath_item.set_visible_logical_count(idx + 1)
+        end = self._motion_render_end[idx] if idx < len(self._motion_render_end) else len(self.render_points)
+        if end > 0:
+            point = self.render_points[min(end, len(self.render_points)) - 1]
             self._cursor_item.setData(
-                pos=[xyz[-1]], color=QColor(self.plotCurrentColor), size=CURSOR_SIZE_PX, pxMode=True
+                pos=[(point.x, point.y, point.z)],
+                color=QColor(self.plotCurrentColor),
+                size=CURSOR_SIZE_PX,
+                pxMode=True,
             )
         if sync_editor:
             self._sync_editor_to_motion(idx)
@@ -296,21 +292,12 @@ class MainWindowPlotMixin:
     def loadPlot(self):
         """Redraw axes, background, and the active orthographic grid."""
         self.ui.graphicsView.clear()
-        self._drawing_item = None
-        self._arc_item = None
-        self._rapid_item = None
         self._cursor_item = None
         self._lathe_grid_item = None
         self._lathe_grid_center = (0.0, 0.0)
         self._milling_grid_item = None
         self._milling_grid_center = (0.0, 0.0, 0.0)
         self.ui.graphicsView.setBackgroundColor(self.plotBackground)
-        line1 = [(0, 0, 0), (5, 0, 0)]
-        line2 = [(0, 0, 0), (0, 5, 0)]
-        line3 = [(0, 0, 0), (0, 0, 5)]
-        axisX = GLLinePlotItem(pos=line1, color="r", width=3, antialias=True)
-        axisY = GLLinePlotItem(pos=line2, color="g", width=3, antialias=True)
-        axisZ = GLLinePlotItem(pos=line3, color="y", width=3, antialias=True)
         if self.plotGrid:
             if self.latheMode:
                 self._lathe_grid_item = GLGridItem()
@@ -329,9 +316,9 @@ class MainWindowPlotMixin:
             self._update_adaptive_grid()
 
         if self.plotAxes:
-            self.ui.graphicsView.addItem(axisX)
-            self.ui.graphicsView.addItem(axisY)
-            self.ui.graphicsView.addItem(axisZ)
+            if getattr(self, "_axis_triad_item", None) is None:
+                self._axis_triad_item = AxisTriadItem()
+            self.ui.graphicsView.addItem(self._axis_triad_item)
 
     def _adaptive_grid_size(self):
         view = self.ui.graphicsView
@@ -341,6 +328,9 @@ class MainWindowPlotMixin:
 
     def _update_adaptive_grid(self):
         """Update the active 2D/orthographic grid after zoom, pan, or resize."""
+        axis_triad = getattr(self, "_axis_triad_item", None)
+        if axis_triad is not None:
+            axis_triad.sync_screen_size()
         if self.latheMode:
             self._update_lathe_grid()
         else:
@@ -413,7 +403,7 @@ class MainWindowPlotMixin:
         self.loadPlot()
         self._create_trace_items()
         if self.execution_result is not None and self.execution_result.motions:
-            self.valueHandler(self.ui.horizontalSlider.value())
+            self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
 
     def refreshPlotView(self):
         """Redraw the plot after user-facing visual options change."""

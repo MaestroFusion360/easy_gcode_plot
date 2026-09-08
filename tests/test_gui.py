@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -252,7 +253,7 @@ def test_grid_toggle_changes_state_and_refreshes_current_plot_position():
         execution_result=SimpleNamespace(motions=[object()]),
         loadPlot=lambda: redraws.append(True),
         _create_trace_items=lambda: recreated_trace_items.append(True),
-        valueHandler=lambda value: refreshed.append(value),
+        valueHandler=lambda value, **kwargs: refreshed.append((value, kwargs)),
     )
 
     main_window.MainWindow.gridChecked(window)
@@ -264,30 +265,23 @@ def test_grid_toggle_changes_state_and_refreshes_current_plot_position():
 
     assert redraws == [True, True]
     assert recreated_trace_items == [True, True]
-    assert refreshed == [5, 5]
+    assert refreshed == [(5, {"sync_editor": False}), (5, {"sync_editor": False})]
 
 
-def test_rapid_and_cutting_segments_are_split_by_motion_type():
-    result = execute("G0 X10 Y0 Z0\nG1 X20 Y0 Z0 F100\nM30", language="fanuc_mill")
-    assert result.ok
-    points = render_trace(result)
-    window = SimpleNamespace(execution_result=result, render_points=points)
-
-    rapid, cutting, arcs = main_window.MainWindow._trace_segment_vertices(window, len(points))
-
-    assert rapid == [(0.0, 0.0, 0.0), (10.0, 0.0, 0.0)]
-    assert cutting == [(10.0, 0.0, 0.0), (20.0, 0.0, 0.0)]
-    assert arcs == []
-
-
-def test_trace_cursor_is_fixed_pixel_size_and_rapid_has_own_item(monkeypatch):
-    created_lines = []
+def test_trace_cursor_is_fixed_pixel_size_and_toolpath_uses_one_vbo_item(monkeypatch):
+    created_toolpaths = []
     created_scatters = []
 
-    class _LineItem:
-        def __init__(self, **kwargs):
-            self.kwargs = kwargs
-            created_lines.append(self)
+    class _ToolpathItem:
+        def __init__(self):
+            created_toolpaths.append(self)
+
+        def set_segments(self, segments, logical_count):
+            self.segments = tuple(segments)
+            self.logical_count = logical_count
+
+        def set_style(self, **kwargs):
+            self.style = kwargs
 
     class _ScatterItem:
         def __init__(self, **kwargs):
@@ -304,9 +298,12 @@ def test_trace_cursor_is_fixed_pixel_size_and_rapid_has_own_item(monkeypatch):
         def addItem(self, item):
             self.items.append(item)
 
-    monkeypatch.setattr(main_window_plot, "GLLinePlotItem", _LineItem)
+    monkeypatch.setattr(main_window_plot, "ToolpathVboItem", _ToolpathItem)
     monkeypatch.setattr(main_window_plot, "GLScatterPlotItem", _ScatterItem)
+    result = execute("G0 X10\nG1 X20 F100\nM30", language="fanuc_mill")
     window = SimpleNamespace(
+        execution_result=result,
+        render_points=render_trace(result),
         plotRapidColor="#110000",
         plotLineColor="#001100",
         plotArcColor="#000011",
@@ -317,10 +314,15 @@ def test_trace_cursor_is_fixed_pixel_size_and_rapid_has_own_item(monkeypatch):
 
     main_window.MainWindow._create_trace_items(window)
 
-    assert len(created_lines) == 3
-    assert [item.kwargs["color"].name() for item in created_lines] == ["#110000", "#001100", "#000011"]
-    assert all(item.kwargs["width"] == 2.5 for item in created_lines)
-    assert created_lines[0].kwargs["mode"] == "lines"
+    assert len(created_toolpaths) == 1
+    assert created_toolpaths[0].logical_count == 2
+    assert [segment.move for segment in created_toolpaths[0].segments] == [0, 1]
+    assert created_toolpaths[0].style == {
+        "rapid_color": "#110000",
+        "linear_color": "#001100",
+        "arc_color": "#000011",
+        "width": 2.5,
+    }
     assert created_scatters[0].kwargs["size"] == main_window.CURSOR_SIZE_PX
     assert created_scatters[0].kwargs["pxMode"] is True
     assert created_scatters[0].kwargs["color"].name() == "#111111"
@@ -378,6 +380,13 @@ def test_recent_files_are_unique_case_insensitively_and_limited():
         ["C:/A.nc", "c:/a.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc", "C:/F.nc"]
     )
     assert recent == ["C:/A.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc"]
+
+
+def test_application_settings_are_isolated_from_user_profile(tmp_path):
+    del tmp_path  # The autouse settings fixture owns the per-test directory.
+    settings = app_settings.get_settings()
+
+    assert "pytest-" in Path(settings.fileName()).as_posix()
 
 
 class _DropUrl:

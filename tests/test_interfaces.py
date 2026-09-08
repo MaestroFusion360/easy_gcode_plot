@@ -431,6 +431,73 @@ M9 M02
     _assert_mill_round_trip(source, text)
 
 
+def test_mill_full_program_exports_compensation_transition_without_double_compensation():
+    source = """\
+G21 G17 G90 G40
+T1 M6
+G0 X-72 Y-72
+G1 Z-10 F3000
+G41 G1 X-40 F1200
+G1 X-40 Y30
+G1 X40 Y30
+G40 G1 Y-72
+M30
+"""
+    tools = {"T1": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}}
+    result = execute(source, language="fanuc_mill", milling_tools=tools)
+    assert result.ok, result.diagnostics
+    assert any(motion.source_kind == "cutter_compensation_transition" for motion in result.motions)
+    assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
+
+    text = export_full_mill_program(
+        result,
+        source.splitlines(),
+        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+    )
+
+    assert "G41" not in text
+    assert "G42" not in text
+    round_trip = execute(text, language="fanuc_mill", milling_tools=tools)
+    assert round_trip.ok, round_trip.diagnostics
+    assert len(round_trip.motions) == len(result.motions)
+    for expected, actual in zip(result.motions, round_trip.motions, strict=True):
+        assert actual.move == expected.move
+        assert (actual.end_x, actual.end_y, actual.end_z) == pytest.approx(
+            (expected.end_x, expected.end_y, expected.end_z), abs=0.001
+        )
+
+
+def test_compensation_transition_ownership_survives_repeated_subprogram_occurrences():
+    source = """\
+O1
+G21 G17 G90 G40
+T1 M6
+M98 P2 L2
+M30
+O2
+G0 X-72 Y-72
+G1 Z-10 F3000
+G41 G1 X-40 F1200
+G1 X-40 Y30
+G1 X40 Y30
+G40 G1 Y-72
+M99
+"""
+    tools = {"T1": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}}
+    result = execute(source, language="fanuc_mill", milling_tools=tools)
+    assert result.ok, result.diagnostics
+    assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
+    transition_steps = [step for step in result.execution_steps if step.source_block == 9]
+    assert [step.emitted_count for step in transition_steps] == [2, 2]
+
+    text = export_full_mill_program(result, source.splitlines())
+
+    assert "M98" not in text
+    assert "M99" not in text
+    assert "G41" not in text
+    assert sum(motion.source_kind == "cutter_compensation_transition" for motion in result.motions) == 2
+
+
 def test_cli_allows_program_mode_for_milling(tmp_path, fixture_text):
     source = tmp_path / "mill.nc"
     output = tmp_path / "expanded.nc"

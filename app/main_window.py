@@ -119,6 +119,7 @@ class MainWindow(
         """Prompt to save and persist settings before closing the window."""
         if self.maybeSave():
             self.saveSettings()
+            self._dispose_trace_item()
             event.accept()
         else:
             event.ignore()
