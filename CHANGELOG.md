@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Added a translucent milling-tool preview that follows logical playback, rendering configured flat, bull-nose and ball-nose mills plus drills with 120-degree points, with a persistent Plot color setting.
+- Added a persistent five-level playback-speed slider using CNCEditor's 1000/250/100/40/10 ms logical-motion intervals.
+
 ## 1.4.0 - 2026-09-08
 
 - Added ASCII and binary STL import as a persistent 3D overlay alongside the executed toolpath, with File menu, toolbar and direct `.stl` file-open integration.
@@ -15,7 +20,6 @@
 - Automatically fit the camera to the complete scene after a newly loaded CNC program finishes building its toolpath.
 - Reworked Expanded Execution export around execution-step events so tool changes and repeated subprogram boundaries retain runtime order, sequence numbers include executable events, and the program number precedes the analysis banner.
 - Preserved WCS selection, G28/G53, G32/G33 threading, G4 dwell, spindle mode/speed/direction and coolant controls in Expanded Execution output, with WCS-aware coordinates.
-
 ## 1.3.0 - 2026-09-08
 
 - Added deterministic execution events for program start/end, subprogram start/end, tool changes and home returns across turning and milling execution.

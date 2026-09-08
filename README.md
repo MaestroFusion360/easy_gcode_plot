@@ -131,7 +131,9 @@ The project intentionally prefers explicit diagnostics over guessing unsupported
 - Configurable grid and optional gradient canvas background
 - Zoom controls
 - Step-by-step playback
+- Five-level configurable playback speed
 - Fixed-pixel playback cursor
+- Translucent milling-tool preview for configured flat, bull-nose and ball-nose mills and drills
 - Separate rapid and cutting motion rendering
 - Shift+Click trajectory picking with source-line synchronization
 - Analytical circular interpolation sampled only at the rendering boundary
@@ -143,6 +145,8 @@ Use **File → Import STL** or the STL toolbar action to add one reference model
 The STL layer is visualization-only. It is parsed independently from the CNC kernel, does not modify program execution, and is not included in G-code exports. The active mesh is kept as a persistent OpenGL scene item, so changing camera views does not rebuild the STL geometry.
 
 The Plot options control STL color and solid/feature-edge rendering. **Fit to View** includes both the resolved toolpath and the active STL bounds. Top, Front and Left use true parallel projection; starting free rotation from one of those fixed views returns the plot to perspective 3D.
+
+In Milling mode, playback also shows the active configured tool at the resolved motion endpoint. `Mill Flat` is rendered as a cylinder, `Mill Bull` with its configured corner radius, `Mill Ball` with a hemispherical cutting end, and `Drill` as a cylindrical body with a 120-degree point. The translucent preview uses geometry from **Settings → Milling Tools** and its color from the Plot options; it is intentionally disabled in Lathe mode.
 
 ### Code Manipulation
 
@@ -378,6 +382,8 @@ The right side contains the toolpath visualization with:
 
 Playback controls allow stepping through the executed logical motion trace.
 
+The Plot options provide playback speed levels 1–5. They use nonlinear 1000, 250, 100, 40 and 10 ms intervals per logical motion, allowing long programs to play at up to 100 motions per second without rebuilding trajectory geometry.
+
 The current source block and playback position remain synchronized.
 
 #### Status Bar
@@ -507,11 +513,12 @@ The **Settings → Options** dialog exposes:
 - application logging toggle
 - G41/G42 correction preference and arc tolerance
 - editor font, size, caret-line, EOL, whitespace and line-number presentation
-- rapid, linear, arc, current-segment, canvas and STL colors
+- rapid, linear, arc, current-segment, milling-tool, canvas and STL colors
 - native color pickers and a Restore Defaults action
 - optional gradient canvas background
 - solid or feature-edge STL rendering
 - plot line thickness, canvas axes and grid visibility
+- playback speed from 1 (slow) to 5 (fast)
 - grid step, where `0` selects adaptive spacing and a positive value records a fixed step
 
 The selected encoding is used when opening and saving editor documents. The default editor mode is restored on the next launch, and the default unit preference initializes CNC execution until an explicit `G20` or `G21` in the program overrides it. Existing WCS, tool, Arc Type and Lathe Mode controls remain separate Settings menu entries.
@@ -529,6 +536,7 @@ The selected encoding is used when opening and saving editor documents. The defa
 - grid size
 - grid spacing
 - rapid, linear, arc and current-segment color preferences
+- translucent milling-tool color
 - line thickness and axes visibility
 - adaptive/fixed grid-step preference
 

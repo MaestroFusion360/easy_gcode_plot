@@ -22,6 +22,7 @@ from app.gcode.trace_tools import RenderPoint
 from app.main_window import MainWindow
 from app.ui.dialogs import _TurningToolEditor
 from app.ui.generated.main_ui import Ui_MainWindow
+from app.ui.main_window_execution import playback_interval_ms, playback_speed_level
 from app.ui.options import OptionsDialog
 from app.ui.tokens import TABLE_HEADINGS, TABLE_WIDTHS, TokensDialog, rows_from_execution
 
@@ -195,6 +196,25 @@ def test_options_dialog_is_independent_and_language_change_is_locked(qt_app):
     assert dialog.ui.languageCombo.isEnabled() is False
 
 
+@pytest.mark.parametrize("level, interval", [(1, 1000), (2, 250), (3, 100), (4, 40), (5, 10)])
+def test_playback_speed_uses_cnc_editor_intervals(level, interval):
+    assert playback_interval_ms(level) == interval
+    assert playback_speed_level(interval) == level
+
+
+def test_legacy_timer_interval_migrates_to_playback_speed_level(qt_app):
+    window = MainWindow()
+    window.settings.remove("PLOT/PLAYBACK_SPEED")
+    window.settings.setValue("PLOT/TIMER_SPEED", 40)
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.playbackSpeed == 4
+    assert restored.speedTimer == 40
+    restored.deleteLater()
+
+
 def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     window = MainWindow()
     dialog = window.optionsDlg
@@ -203,11 +223,13 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     assert dialog.ui.autoUpdateCheck.isChecked()
     assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 20000
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
+    assert dialog.ui.toolColorEdit.text() == "#4d99ff"
     assert dialog.ui.stlColorEdit.text() == "#b0b0b0"
     assert not dialog.ui.backgroundGradientCheck.isChecked()
     assert not dialog.ui.stlWireframeCheck.isChecked()
     assert dialog.ui.axesCheck.isChecked()
     assert dialog.ui.gridStepSpin.value() == 0
+    assert dialog.ui.playbackSpeedSlider.value() == 3
     monkeypatch.setattr("app.ui.options.QColorDialog.getColor", lambda *args: QColor("#abcdef"))
     dialog.ui.arcColorButton.click()
     assert dialog.ui.arcColorEdit.text() == "#abcdef"
@@ -228,6 +250,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.linearColorEdit.setText("#001100")
     dialog.ui.arcColorEdit.setText("#000011")
     dialog.ui.currentColorEdit.setText("#111111")
+    dialog.ui.toolColorEdit.setText("#224466")
     dialog.ui.backgroundColorEdit.setText("#eeeeee")
     dialog.ui.backgroundGradientCheck.setChecked(True)
     dialog.ui.stlColorEdit.setText("#abcdef")
@@ -240,6 +263,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.correctionCheck.setChecked(False)
     dialog.ui.autoUpdateCheck.setChecked(False)
     dialog.ui.autoUpdateMaxSegmentsSpin.setValue(7500)
+    dialog.ui.playbackSpeedSlider.setValue(5)
     dialog.accept()
     assert (window.plotRapidColor, window.plotLineColor, window.plotArcColor, window.plotCurrentColor) == (
         "#110000",
@@ -247,6 +271,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
         "#000011",
         "#111111",
     )
+    assert window.plotToolColor == "#224466"
     assert window.plotBackground == "#eeeeee"
     assert window.plotBackgroundGradient is True
     assert window.stlColor == "#abcdef"
@@ -259,6 +284,8 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.correctionEnabled is False
     assert window.autoUpdateEnabled is False
     assert window.autoUpdateMaxSegments == 7500
+    assert window.playbackSpeed == 5
+    assert window.speedTimer == 10
     assert saved == [True] and stl_refreshed == [True] and refreshed == [True]
     window.deleteLater()
 
@@ -267,6 +294,9 @@ def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     window = MainWindow()
     window.plotBackgroundGradient = True
     window.stlColor = "#2468ac"
+    window.plotToolColor = "#123abc"
+    window.playbackSpeed = 4
+    window.speedTimer = 40
     window.stlWireframe = True
     window.saveSettings()
     window.settings.sync()
@@ -274,6 +304,9 @@ def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     restored = MainWindow()
     assert restored.plotBackgroundGradient is True
     assert restored.stlColor == "#2468ac"
+    assert restored.plotToolColor == "#123abc"
+    assert restored.playbackSpeed == 4
+    assert restored.speedTimer == 40
     assert restored.stlWireframe is True
     window.deleteLater()
     restored.deleteLater()

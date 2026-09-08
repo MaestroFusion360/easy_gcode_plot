@@ -18,8 +18,8 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
 from PyQt6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QComboBox,
     QDialog, QDialogButtonBox, QDoubleSpinBox, QFontComboBox,
     QFormLayout, QHBoxLayout, QLabel, QLineEdit,
-    QPushButton, QSizePolicy, QSpinBox, QTabWidget,
-    QVBoxLayout, QWidget)
+    QPushButton, QSizePolicy, QSlider, QSpinBox,
+    QTabWidget, QVBoxLayout, QWidget)
 
 class Ui_OptionsDlg(object):
     def setupUi(self, OptionsDlg):
@@ -267,10 +267,32 @@ class Ui_OptionsDlg(object):
 
         self.plotForm.setLayout(3, QFormLayout.ItemRole.FieldRole, self.currentColorLayout)
 
+        self.toolColorLabel = QLabel(self.plotTab)
+        self.toolColorLabel.setObjectName(u"toolColorLabel")
+
+        self.plotForm.setWidget(4, QFormLayout.ItemRole.LabelRole, self.toolColorLabel)
+
+        self.toolColorLayout = QHBoxLayout()
+        self.toolColorLayout.setSpacing(6)
+        self.toolColorLayout.setObjectName(u"toolColorLayout")
+        self.toolColorEdit = QLineEdit(self.plotTab)
+        self.toolColorEdit.setObjectName(u"toolColorEdit")
+
+        self.toolColorLayout.addWidget(self.toolColorEdit)
+
+        self.toolColorButton = QPushButton(self.plotTab)
+        self.toolColorButton.setObjectName(u"toolColorButton")
+        self.toolColorButton.setMaximumSize(QSize(72, 16777215))
+
+        self.toolColorLayout.addWidget(self.toolColorButton)
+
+
+        self.plotForm.setLayout(4, QFormLayout.ItemRole.FieldRole, self.toolColorLayout)
+
         self.backgroundLabel = QLabel(self.plotTab)
         self.backgroundLabel.setObjectName(u"backgroundLabel")
 
-        self.plotForm.setWidget(4, QFormLayout.ItemRole.LabelRole, self.backgroundLabel)
+        self.plotForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.backgroundLabel)
 
         self.backgroundColorLayout = QHBoxLayout()
         self.backgroundColorLayout.setSpacing(6)
@@ -287,17 +309,17 @@ class Ui_OptionsDlg(object):
         self.backgroundColorLayout.addWidget(self.backgroundColorButton)
 
 
-        self.plotForm.setLayout(4, QFormLayout.ItemRole.FieldRole, self.backgroundColorLayout)
+        self.plotForm.setLayout(5, QFormLayout.ItemRole.FieldRole, self.backgroundColorLayout)
 
         self.backgroundGradientCheck = QCheckBox(self.plotTab)
         self.backgroundGradientCheck.setObjectName(u"backgroundGradientCheck")
 
-        self.plotForm.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.backgroundGradientCheck)
+        self.plotForm.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.backgroundGradientCheck)
 
         self.stlColorLabel = QLabel(self.plotTab)
         self.stlColorLabel.setObjectName(u"stlColorLabel")
 
-        self.plotForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.stlColorLabel)
+        self.plotForm.setWidget(7, QFormLayout.ItemRole.LabelRole, self.stlColorLabel)
 
         self.stlColorLayout = QHBoxLayout()
         self.stlColorLayout.setSpacing(6)
@@ -314,17 +336,17 @@ class Ui_OptionsDlg(object):
         self.stlColorLayout.addWidget(self.stlColorButton)
 
 
-        self.plotForm.setLayout(6, QFormLayout.ItemRole.FieldRole, self.stlColorLayout)
+        self.plotForm.setLayout(7, QFormLayout.ItemRole.FieldRole, self.stlColorLayout)
 
         self.stlWireframeCheck = QCheckBox(self.plotTab)
         self.stlWireframeCheck.setObjectName(u"stlWireframeCheck")
 
-        self.plotForm.setWidget(7, QFormLayout.ItemRole.SpanningRole, self.stlWireframeCheck)
+        self.plotForm.setWidget(8, QFormLayout.ItemRole.SpanningRole, self.stlWireframeCheck)
 
         self.lineWidthLabel = QLabel(self.plotTab)
         self.lineWidthLabel.setObjectName(u"lineWidthLabel")
 
-        self.plotForm.setWidget(8, QFormLayout.ItemRole.LabelRole, self.lineWidthLabel)
+        self.plotForm.setWidget(9, QFormLayout.ItemRole.LabelRole, self.lineWidthLabel)
 
         self.lineWidthSpin = QDoubleSpinBox(self.plotTab)
         self.lineWidthSpin.setObjectName(u"lineWidthSpin")
@@ -332,28 +354,56 @@ class Ui_OptionsDlg(object):
         self.lineWidthSpin.setMaximum(6.000000000000000)
         self.lineWidthSpin.setValue(1.500000000000000)
 
-        self.plotForm.setWidget(8, QFormLayout.ItemRole.FieldRole, self.lineWidthSpin)
+        self.plotForm.setWidget(9, QFormLayout.ItemRole.FieldRole, self.lineWidthSpin)
 
         self.gridStepLabel = QLabel(self.plotTab)
         self.gridStepLabel.setObjectName(u"gridStepLabel")
 
-        self.plotForm.setWidget(9, QFormLayout.ItemRole.LabelRole, self.gridStepLabel)
+        self.plotForm.setWidget(10, QFormLayout.ItemRole.LabelRole, self.gridStepLabel)
 
         self.gridStepSpin = QDoubleSpinBox(self.plotTab)
         self.gridStepSpin.setObjectName(u"gridStepSpin")
         self.gridStepSpin.setMaximum(1000000.000000000000000)
 
-        self.plotForm.setWidget(9, QFormLayout.ItemRole.FieldRole, self.gridStepSpin)
+        self.plotForm.setWidget(10, QFormLayout.ItemRole.FieldRole, self.gridStepSpin)
 
         self.axesCheck = QCheckBox(self.plotTab)
         self.axesCheck.setObjectName(u"axesCheck")
 
-        self.plotForm.setWidget(10, QFormLayout.ItemRole.SpanningRole, self.axesCheck)
+        self.plotForm.setWidget(11, QFormLayout.ItemRole.SpanningRole, self.axesCheck)
 
         self.gridCheck = QCheckBox(self.plotTab)
         self.gridCheck.setObjectName(u"gridCheck")
 
-        self.plotForm.setWidget(11, QFormLayout.ItemRole.SpanningRole, self.gridCheck)
+        self.plotForm.setWidget(12, QFormLayout.ItemRole.SpanningRole, self.gridCheck)
+
+        self.playbackSpeedLabel = QLabel(self.plotTab)
+        self.playbackSpeedLabel.setObjectName(u"playbackSpeedLabel")
+
+        self.plotForm.setWidget(13, QFormLayout.ItemRole.LabelRole, self.playbackSpeedLabel)
+
+        self.playbackSpeedLayout = QHBoxLayout()
+        self.playbackSpeedLayout.setSpacing(8)
+        self.playbackSpeedLayout.setObjectName(u"playbackSpeedLayout")
+        self.playbackSpeedSlider = QSlider(self.plotTab)
+        self.playbackSpeedSlider.setObjectName(u"playbackSpeedSlider")
+        self.playbackSpeedSlider.setMinimum(1)
+        self.playbackSpeedSlider.setMaximum(5)
+        self.playbackSpeedSlider.setPageStep(1)
+        self.playbackSpeedSlider.setValue(3)
+        self.playbackSpeedSlider.setOrientation(Qt.Orientation.Horizontal)
+        self.playbackSpeedSlider.setTickPosition(QSlider.TickPosition.TicksBelow)
+
+        self.playbackSpeedLayout.addWidget(self.playbackSpeedSlider)
+
+        self.playbackSpeedValueLabel = QLabel(self.plotTab)
+        self.playbackSpeedValueLabel.setObjectName(u"playbackSpeedValueLabel")
+        self.playbackSpeedValueLabel.setMinimumSize(QSize(110, 0))
+
+        self.playbackSpeedLayout.addWidget(self.playbackSpeedValueLabel)
+
+
+        self.plotForm.setLayout(13, QFormLayout.ItemRole.FieldRole, self.playbackSpeedLayout)
 
         self.tabs.addTab(self.plotTab, "")
 
@@ -418,6 +468,8 @@ class Ui_OptionsDlg(object):
         self.arcColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
         self.currentLabel.setText(QCoreApplication.translate("OptionsDlg", u"Current segment color", None))
         self.currentColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
+        self.toolColorLabel.setText(QCoreApplication.translate("OptionsDlg", u"Milling tool color", None))
+        self.toolColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
         self.backgroundLabel.setText(QCoreApplication.translate("OptionsDlg", u"Canvas background", None))
         self.backgroundColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
         self.backgroundGradientCheck.setText(QCoreApplication.translate("OptionsDlg", u"Gradient canvas background", None))
@@ -428,5 +480,7 @@ class Ui_OptionsDlg(object):
         self.gridStepLabel.setText(QCoreApplication.translate("OptionsDlg", u"Grid step (0 = adaptive)", None))
         self.axesCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show canvas axes", None))
         self.gridCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show canvas grid", None))
+        self.playbackSpeedLabel.setText(QCoreApplication.translate("OptionsDlg", u"Playback speed", None))
+        self.playbackSpeedValueLabel.setText(QCoreApplication.translate("OptionsDlg", u"3 \u2014 100 ms/step", None))
         self.tabs.setTabText(self.tabs.indexOf(self.plotTab), QCoreApplication.translate("OptionsDlg", u"Plot", None))
     # retranslateUi

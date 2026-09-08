@@ -27,6 +27,7 @@ from app.settings import (
     normalized_tools as _normalized_tools,
 )
 from app.ui.lexer import GcodeLexer
+from app.ui.main_window_execution import playback_interval_ms, playback_speed_level
 
 EDITOR_FONT_FAMILY_KEY = "FONT_FAMILY"
 EDITOR_FONT_SIZE_KEY = "FONT_SIZE"
@@ -56,7 +57,13 @@ class MainWindowSettingsMixin:
         self.rapidFeed = 10000
         self.ui.graphicsView.opts["center"] = QVector3D(0, 0, 0)
 
-        self.speedTimer = self.settings.value("PLOT/TIMER_SPEED", 100, type=int)
+        stored_playback_speed = self.settings.value("PLOT/PLAYBACK_SPEED", None)
+        if stored_playback_speed is None:
+            legacy_interval = self.settings.value("PLOT/TIMER_SPEED", 100, type=int)
+            self.playbackSpeed = playback_speed_level(legacy_interval)
+        else:
+            self.playbackSpeed = max(1, min(5, int(stored_playback_speed)))
+        self.speedTimer = playback_interval_ms(self.playbackSpeed)
         self.arc_type = self.settings.value("PLOT/ARC_TYPE", 1, type=int)
 
         if self.arc_type == 2:
@@ -86,6 +93,7 @@ class MainWindowSettingsMixin:
         self.plotRapidColor = self.settings.value("PLOT/RAPID_COLOR", "#d02020")
         self.plotArcColor = self.settings.value("PLOT/ARC_COLOR", "#008000")
         self.plotCurrentColor = self.settings.value("PLOT/CURRENT_COLOR", "#00b7ff")
+        self.plotToolColor = self.settings.value("PLOT/TOOL_COLOR", "#4d99ff")
         self.plotLineWidth = self.settings.value("PLOT/LINE_WIDTH", 1.5, type=float)
         self.plotGridStep = self.settings.value("PLOT/GRID_STEP", 0.0, type=float)
         self.plotAxes = self.settings.value("PLOT/AXES", True, type=bool)
@@ -216,6 +224,7 @@ class MainWindowSettingsMixin:
         """Persist current settings to the ini file."""
         self.settings.beginGroup("PLOT")
         self.settings.setValue("TIMER_SPEED", self.speedTimer)
+        self.settings.setValue("PLAYBACK_SPEED", self.playbackSpeed)
         self.settings.setValue("ARC_TYPE", self.arc_type)
         self.settings.setValue("MACHINE_XPOS", self.xPosMach)
         self.settings.setValue("MACHINE_YPOS", self.yPosMach)
@@ -225,6 +234,7 @@ class MainWindowSettingsMixin:
         self.settings.setValue("RAPID_COLOR", self.plotRapidColor)
         self.settings.setValue("ARC_COLOR", self.plotArcColor)
         self.settings.setValue("CURRENT_COLOR", self.plotCurrentColor)
+        self.settings.setValue("TOOL_COLOR", self.plotToolColor)
         self.settings.setValue("LINE_WIDTH", self.plotLineWidth)
         self.settings.setValue("GRID_STEP", self.plotGridStep)
         self.settings.setValue("AXES", self.plotAxes)

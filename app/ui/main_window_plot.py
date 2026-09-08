@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 from pyqtgraph.opengl import GLGridItem, GLScatterPlotItem
 
 from app.ui.axis_triad import AxisTriadItem
+from app.ui.milling_tool_preview import MillingToolPreviewItem
 from app.ui.plot_grid import adaptive_grid_geometry
 from app.ui.plot_navigation import point_segment_distance as _point_segment_distance
 from app.ui.stl import StlMesh, read_stl
@@ -81,7 +82,11 @@ class MainWindowPlotMixin:
     def _restore_trace_overlay_order(self):
         """Keep the toolpath/cursor above the opaque STL without rebuilding their buffers."""
         view = self.ui.graphicsView
-        for item in (getattr(self, "_toolpath_item", None), getattr(self, "_cursor_item", None)):
+        for item in (
+            getattr(self, "_toolpath_item", None),
+            getattr(self, "_cursor_item", None),
+            getattr(self, "_milling_tool_item", None),
+        ):
             if item is not None and item in view.items:
                 view.removeItem(item)
                 view.addItem(item)
@@ -278,6 +283,12 @@ class MainWindowPlotMixin:
         if self._cursor_item not in self.ui.graphicsView.items:
             self.ui.graphicsView.addItem(self._cursor_item)
 
+        if getattr(self, "_milling_tool_item", None) is None:
+            self._milling_tool_item = MillingToolPreviewItem(getattr(self, "plotToolColor", "#4d99ff"))
+        self._milling_tool_item.set_color(getattr(self, "plotToolColor", "#4d99ff"))
+        if self._milling_tool_item not in self.ui.graphicsView.items:
+            self.ui.graphicsView.addItem(self._milling_tool_item)
+
     def _set_trace_geometry(self):
         """Pack new trace geometry once; GPU upload remains paint-lazy."""
         if getattr(self, "_toolpath_item", None) is None:
@@ -380,6 +391,8 @@ class MainWindowPlotMixin:
         self._arc_item = None
         self._rapid_item = None
         self._cursor_item = None
+        if getattr(self, "_milling_tool_item", None) is not None:
+            self._milling_tool_item.hide_tool()
         self._lathe_grid_item = None
         self._lathe_grid_center = (0.0, 0.0)
         self._milling_grid_item = None
@@ -435,6 +448,15 @@ class MainWindowPlotMixin:
                 size=CURSOR_SIZE_PX,
                 pxMode=True,
             )
+        tool_item = getattr(self, "_milling_tool_item", None)
+        if tool_item is not None:
+            if self.latheMode:
+                tool_item.hide_tool()
+            else:
+                tool_item.show_tool(
+                    getattr(self, "millingTools", {}).get(motion.tool or ""),
+                    (motion.end_x, motion.end_y, motion.end_z),
+                )
         if sync_editor:
             self._sync_editor_to_motion(idx)
 

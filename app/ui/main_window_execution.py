@@ -13,6 +13,19 @@ from app.gcode.trace_tools import RenderLimitExceeded, format_trace_statistics, 
 AUTO_REFRESH_MAX_POINTS = 20000
 AUTO_REFRESH_DELAY_MS = 500
 LOGGER = logging.getLogger(__name__)
+PLAYBACK_INTERVALS_MS = (1000, 250, 100, 40, 10)
+
+
+def playback_interval_ms(speed: int) -> int:
+    """Map CNCEditor-compatible speed level 1..5 to a timer interval."""
+    level = max(1, min(5, int(speed)))
+    return PLAYBACK_INTERVALS_MS[level - 1]
+
+
+def playback_speed_level(interval_ms: int) -> int:
+    """Map a legacy timer interval to its nearest speed level."""
+    interval = max(1, int(interval_ms))
+    return min(range(1, 6), key=lambda level: abs(playback_interval_ms(level) - interval))
 
 
 class MainWindowExecutionMixin:

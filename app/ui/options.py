@@ -6,6 +6,7 @@ from PyQt6.QtWidgets import QColorDialog, QDialog, QDialogButtonBox, QMessageBox
 
 from app.settings import configure_logging
 from app.ui.generated.options import Ui_OptionsDlg
+from app.ui.main_window_execution import playback_interval_ms
 
 
 class OptionsDialog(QDialog):
@@ -18,11 +19,13 @@ class OptionsDialog(QDialog):
             (self.ui.linearColorButton, self.ui.linearColorEdit),
             (self.ui.arcColorButton, self.ui.arcColorEdit),
             (self.ui.currentColorButton, self.ui.currentColorEdit),
+            (self.ui.toolColorButton, self.ui.toolColorEdit),
             (self.ui.backgroundColorButton, self.ui.backgroundColorEdit),
             (self.ui.stlColorButton, self.ui.stlColorEdit),
         ):
             button.clicked.connect(lambda _checked=False, target=edit: self.pick_color(target))
         self.ui.buttonBox.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
+        self.ui.playbackSpeedSlider.valueChanged.connect(self._update_playback_speed_label)
 
     def showEvent(self, event):
         self.load_values()
@@ -49,6 +52,7 @@ class OptionsDialog(QDialog):
         self.ui.linearColorEdit.setText(window.plotLineColor)
         self.ui.arcColorEdit.setText(getattr(window, "plotArcColor", "#008000"))
         self.ui.currentColorEdit.setText(getattr(window, "plotCurrentColor", "#00b7ff"))
+        self.ui.toolColorEdit.setText(getattr(window, "plotToolColor", "#4d99ff"))
         self.ui.backgroundColorEdit.setText(window.plotBackground)
         self.ui.backgroundGradientCheck.setChecked(getattr(window, "plotBackgroundGradient", False))
         self.ui.stlColorEdit.setText(getattr(window, "stlColor", "#b0b0b0"))
@@ -57,6 +61,8 @@ class OptionsDialog(QDialog):
         self.ui.gridStepSpin.setValue(getattr(window, "plotGridStep", 0.0))
         self.ui.axesCheck.setChecked(getattr(window, "plotAxes", True))
         self.ui.gridCheck.setChecked(window.plotGrid)
+        self.ui.playbackSpeedSlider.setValue(getattr(window, "playbackSpeed", 3))
+        self._update_playback_speed_label(self.ui.playbackSpeedSlider.value())
 
     def accept(self):
         window = self.parent()
@@ -72,6 +78,7 @@ class OptionsDialog(QDialog):
             self.ui.linearColorEdit,
             self.ui.arcColorEdit,
             self.ui.currentColorEdit,
+            self.ui.toolColorEdit,
             self.ui.backgroundColorEdit,
             self.ui.stlColorEdit,
         )
@@ -97,6 +104,7 @@ class OptionsDialog(QDialog):
             window.plotLineColor,
             window.plotArcColor,
             window.plotCurrentColor,
+            window.plotToolColor,
             window.plotBackground,
             window.stlColor,
         ) = (edit.text() for edit in color_edits)
@@ -106,6 +114,8 @@ class OptionsDialog(QDialog):
         window.plotGridStep = self.ui.gridStepSpin.value()
         window.plotAxes = self.ui.axesCheck.isChecked()
         window.plotGrid = self.ui.gridCheck.isChecked()
+        window.playbackSpeed = self.ui.playbackSpeedSlider.value()
+        window.speedTimer = playback_interval_ms(window.playbackSpeed)
         target_file_type = window.defaultFileType
         signals_blocked = window.ui.langCombo.blockSignals(True)
         window.ui.langCombo.setCurrentIndex(target_file_type)
@@ -127,6 +137,8 @@ class OptionsDialog(QDialog):
         elif getattr(window, "_plot_source_stale", False):
             window.scheduleAutoUpdate()
         window.saveSettings()
+        if window.timer.isActive():
+            window.timer.start(window.speedTimer, window)
         if previous_stl_appearance != (window.stlColor, window.stlWireframe):
             window.refreshStlAppearance()
         execution_changed = (
@@ -165,6 +177,7 @@ class OptionsDialog(QDialog):
             (self.ui.linearColorEdit, "#0000ff"),
             (self.ui.arcColorEdit, "#008000"),
             (self.ui.currentColorEdit, "#00b7ff"),
+            (self.ui.toolColorEdit, "#4d99ff"),
             (self.ui.backgroundColorEdit, "#ffffff"),
             (self.ui.stlColorEdit, "#b0b0b0"),
         ):
@@ -175,3 +188,8 @@ class OptionsDialog(QDialog):
         self.ui.gridStepSpin.setValue(0.0)
         self.ui.axesCheck.setChecked(True)
         self.ui.gridCheck.setChecked(False)
+        self.ui.playbackSpeedSlider.setValue(3)
+
+    def _update_playback_speed_label(self, value):
+        interval = playback_interval_ms(value)
+        self.ui.playbackSpeedValueLabel.setText(f"{value} — {interval} ms/step")
