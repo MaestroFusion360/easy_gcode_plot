@@ -17,6 +17,7 @@ from .kernel.events import (
     PROGRAM_START,
     SUBPROGRAM_END,
     SUBPROGRAM_START,
+    TOOL_CHANGE,
     event_blocks,
 )
 from .trace_tools import arc_geometry, sample_motion
@@ -39,6 +40,8 @@ class ExportOptions:
     end_program: str = ""
     safety_line: bool = False
     analysis_banner: bool = True
+    linearization_tolerance: float = 0.0005
+    include_execution_events: bool = True
 
 
 def _g(move: int, leading_zero: bool) -> str:
@@ -49,6 +52,14 @@ def _word(letter: str, value: float | None) -> str | None:
     if value is None:
         return None
     return f"{letter}{format_gcode_number(value)}"
+
+
+def _linearized_word(letter: str, value: float | None) -> str | None:
+    if value is None:
+        return None
+    if value == 0:
+        return f"{letter}0"
+    return f"{letter}{value:.6f}".rstrip("0").rstrip(".")
 
 
 def _axis_values(m: TraceMotion, options: ExportOptions) -> tuple[float, float, float]:
@@ -121,49 +132,57 @@ def motion_line(m: TraceMotion, options: ExportOptions, *, override_move: int | 
     return sep.join(words)
 
 
+def _require_valid_trace_export(result: ExecutionResult) -> None:
+    if not result.ok or not result.complete:
+        raise ValueError("Trace export requires a valid and complete execution result")
+
+
+def _linearized_motion_line(m: TraceMotion, options: ExportOptions, *, override_move: int) -> str:
+    x, y, z = _axis_values(m, options)
+    words: list[str] = [_g(override_move, options.leading_zero)]
+    show_y = options.force_addresses or abs(y) > 1e-12 or abs(m.start_y) > 1e-12 or abs(m.end_y) > 1e-12
+    words.extend(
+        word
+        for word in (
+            _linearized_word("X", x),
+            _linearized_word("Y", y if show_y else None),
+            _linearized_word("Z", z),
+        )
+        if word
+    )
+    if override_move != 0 and m.feed is not None:
+        feed_word = _word("F", m.feed)
+        if feed_word:
+            words.append(feed_word)
+    sep = " " if options.delimiter else ""
+    return sep.join(words)
+
+
 def _linearized_lines(
     m: TraceMotion, options: ExportOptions, motion_index: int, *, all_moves: bool = False
 ) -> list[str]:
     if m.move not in (2, 3) and not all_moves:
         return [motion_line(m, options)]
 
-    points = sample_motion(
-        m,
-        motion_index,
-        arc_points_per_circle=314,
-    )
+    if m.move in (2, 3) and arc_geometry(m) is None:
+        raise ValueError("Linearized arc export requires resolved arc geometry")
+    points = sample_motion(m, motion_index, chord_error=float(options.linearization_tolerance))
     lines: list[str] = []
     previous = (m.start_x, m.start_y, m.start_z)
     linear_move = 0 if all_moves and m.move == 0 else 1
     for point in points:
-        if options.incremental:
-            dx, dy, dz = point.x - previous[0], point.y - previous[1], point.z - previous[2]
-            temp = TraceMotion(
-                linear_move,
-                previous[0],
-                previous[2],
-                point.x,
-                point.z,
-                feed=m.feed,
-                start_y=previous[1],
-                end_y=point.y,
-                source_block=m.source_block,
-            )
-            # ``motion_line`` computes the same incremental delta from temp.
-            del dx, dy, dz
-        else:
-            temp = TraceMotion(
-                linear_move,
-                previous[0],
-                previous[2],
-                point.x,
-                point.z,
-                feed=m.feed,
-                start_y=previous[1],
-                end_y=point.y,
-                source_block=m.source_block,
-            )
-        lines.append(motion_line(temp, options, override_move=linear_move))
+        temp = TraceMotion(
+            linear_move,
+            previous[0],
+            previous[2],
+            point.x,
+            point.z,
+            feed=m.feed,
+            start_y=previous[1],
+            end_y=point.y,
+            source_block=m.source_block,
+        )
+        lines.append(_linearized_motion_line(temp, options, override_move=linear_move))
         previous = (point.x, point.y, point.z)
     return lines
 
@@ -175,7 +194,7 @@ def _number_lines(lines: list[str], options: ExportOptions) -> list[str]:
     seq = options.sequence_start
     spacer = " " if options.sequence_spacing else ""
     for line in lines:
-        if not line or line == "%" or line.startswith("("):
+        if not line or line == "%" or line.startswith("(") or line.lstrip().upper().startswith("O"):
             out.append(line)
             continue
         out.append(f"N{seq}{spacer}{line}")
@@ -183,30 +202,199 @@ def _number_lines(lines: list[str], options: ExportOptions) -> list[str]:
     return out
 
 
+def _append_blank_line(lines: list[str]) -> None:
+    if lines and lines[-1]:
+        lines.append("")
+
+
+def _event_tool_change_line(event, options: ExportOptions) -> str:
+    words: list[str] = []
+    if event.tool:
+        words.append(event.tool.upper())
+    if event.code and event.code.upper() not in words:
+        words.append(event.code.upper())
+    return (" " if options.delimiter else "").join(words)
+
+
+def _subprogram_label(event) -> str:
+    if event.program_number is not None:
+        return f"O{event.program_number}"
+    if event.code and event.code.upper().startswith("O"):
+        return event.code.upper()
+    return "UNKNOWN"
+
+
+def _append_expanded_event(
+    lines: list[str],
+    event,
+    options: ExportOptions,
+    call_counts: dict[str, int],
+    active_calls: dict[int, tuple[str, int]],
+) -> None:
+    if event.kind == TOOL_CHANGE:
+        tool_line = _event_tool_change_line(event, options)
+        if tool_line:
+            _append_blank_line(lines)
+            lines.append(tool_line)
+            lines.append("")
+        return
+
+    if event.kind == SUBPROGRAM_START:
+        label = _subprogram_label(event)
+        call_counts[label] = call_counts.get(label, 0) + 1
+        occurrence = call_counts[label]
+        active_calls[event.call_depth] = (label, occurrence)
+        _append_blank_line(lines)
+        lines.append(_format_comment(f"SUBPROGRAM {label} START - CALL {occurrence}"))
+        return
+
+    if event.kind == SUBPROGRAM_END:
+        label = _subprogram_label(event)
+        active_label, occurrence = active_calls.pop(event.call_depth, (label, call_counts.get(label, 1)))
+        lines.append(_format_comment(f"SUBPROGRAM {active_label} END - CALL {occurrence}"))
+        lines.append("")
+        return
+
+    # Home-return blocks are serialized as executable G28/G53 step controls,
+    # not as comments plus a second generated movement.
+
+
+_EXPANDED_STATE_G_CODES = {17, 18, 19, 50, 54, 55, 56, 57, 58, 59, 94, 95, 96, 97}
+_EXPANDED_MACHINE_M_CODES = {3, 4, 5, 8, 9}
+
+
+def _integer_code(value: float) -> int | None:
+    number = int(value)
+    return number if abs(value - number) <= 1e-9 else None
+
+
+def _expanded_word(letter: str, value: float, options: ExportOptions) -> str:
+    code = _integer_code(value) if letter in {"G", "M"} else None
+    if code is not None:
+        if options.leading_zero and 0 <= code < 10:
+            return f"{letter}{code:02d}"
+        return f"{letter}{code}"
+    return f"{letter}{format_gcode_number(value)}"
+
+
+def _expanded_step_control(step, options: ExportOptions) -> tuple[str, bool]:
+    """Return non-geometric execution controls and whether they replace step motions."""
+    gcodes = {code for letter, value in step.words if letter == "G" and (code := _integer_code(value)) is not None}
+    home_or_machine_move = bool(gcodes & {28, 30, 53})
+    dwell = 4 in gcodes
+    tokens: list[str] = []
+
+    for letter, value in step.words:
+        letter = letter.upper()
+        code = _integer_code(value) if letter in {"G", "M"} else None
+        keep = False
+        if home_or_machine_move:
+            keep = letter not in {"N", "O", "T"} and not (letter == "M" and code in {2, 6, 30, 98, 99})
+        elif dwell:
+            keep = (letter == "G" and code == 4) or letter in {"P", "X"}
+            keep = keep or (letter == "M" and code in _EXPANDED_MACHINE_M_CODES) or letter == "S"
+        elif letter == "G":
+            keep = code in _EXPANDED_STATE_G_CODES
+        elif letter == "M":
+            keep = code in _EXPANDED_MACHINE_M_CODES
+        elif letter == "S":
+            keep = True
+        if keep:
+            tokens.append(_expanded_word(letter, value, options))
+
+    return (" " if options.delimiter else "").join(tokens), home_or_machine_move or dwell
+
+
+def _motion_in_active_wcs(motion: TraceMotion, step, result: ExecutionResult) -> TraceMotion:
+    offsets = dict(result.wcs_offsets)
+    offset = offsets.get(step.active_wcs, (0.0, 0.0, 0.0))
+    if not any(abs(value) > 1e-12 for value in offset):
+        return motion
+    ox, oy, oz = offset
+    arc = motion.arc
+    if arc is not None:
+        cx, cy, cz = arc.center
+        arc = replace(arc, center=(cx - ox, cy - oy, cz - oz))
+    return replace(
+        motion,
+        start_x=motion.start_x - ox,
+        start_y=motion.start_y - oy,
+        start_z=motion.start_z - oz,
+        end_x=motion.end_x - ox,
+        end_y=motion.end_y - oy,
+        end_z=motion.end_z - oz,
+        arc=arc,
+    )
+
+
+def _append_expanded_motion(
+    lines: list[str],
+    motion: TraceMotion,
+    options: ExportOptions,
+    index: int,
+    *,
+    override_move: int | None = None,
+) -> None:
+    if options.arc_mode == 3 and motion.move in (2, 3):
+        lines.extend(_linearized_lines(motion, options, index))
+    elif options.arc_mode == 4:
+        lines.extend(_linearized_lines(motion, options, index, all_moves=True))
+    else:
+        lines.append(motion_line(motion, options, override_move=override_move))
+
+
 def export_result(result: ExecutionResult, options: ExportOptions | None = None) -> str:
+    _require_valid_trace_export(result)
     options = options or ExportOptions()
     lines: list[str] = []
-    if options.analysis_banner:
-        lines.append("(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)")
     if options.start_program.strip():
         lines.extend(line for line in options.start_program.strip().splitlines() if line.strip())
+    elif options.include_execution_events:
+        start_event = next((event for event in result.events if event.kind == PROGRAM_START), None)
+        if start_event is not None and start_event.code:
+            lines.append(start_event.code.upper())
+    if options.analysis_banner:
+        lines.append("(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)")
     if options.safety_line:
         lines.append("G00 G17 G40 G49 G80 G90" if options.delimiter else "G00G17G40G49G80G90")
     if options.incremental:
         lines.append("G91")
 
-    for index, motion in enumerate(result.motions):
-        if options.arc_mode == 3 and motion.move in (2, 3):
-            lines.extend(_linearized_lines(motion, options, index))
-        elif options.arc_mode == 4:
-            lines.extend(_linearized_lines(motion, options, index, all_moves=True))
-        else:
-            lines.append(motion_line(motion, options))
+    motion_index = 0
+    if options.include_execution_events and result.program is not None and result.execution_steps:
+        call_counts: dict[str, int] = {}
+        active_calls: dict[int, tuple[str, int]] = {}
+        for step, _block, motions in _execution_slices(result):
+            for event in step.events:
+                if event.kind not in {PROGRAM_START, PROGRAM_END}:
+                    _append_expanded_event(lines, event, options, call_counts, active_calls)
+            control, replaces_motions = _expanded_step_control(step, options)
+            if control:
+                lines.append(control)
+            step_gcodes = {
+                code for letter, value in step.words if letter == "G" and (code := _integer_code(value)) is not None
+            }
+            threading_code = next((code for code in (32, 33) if code in step_gcodes), None)
+            for motion in motions:
+                if not replaces_motions:
+                    _append_expanded_motion(
+                        lines,
+                        _motion_in_active_wcs(motion, step, result),
+                        options,
+                        motion_index,
+                        override_move=threading_code,
+                    )
+                motion_index += 1
+    else:
+        for motion_index, motion in enumerate(result.motions):
+            _append_expanded_motion(lines, motion, options, motion_index)
 
+    if options.include_execution_events:
+        _append_blank_line(lines)
     if options.end_program.strip():
         lines.extend(line for line in options.end_program.strip().splitlines() if line.strip())
     else:
-        lines.append(result.program_end or "M30")
+        lines.append(_program_end_event_code(result))
     return "\n".join(_number_lines(lines, options)) + "\n"
 
 
@@ -214,6 +402,7 @@ TURN_FULL_PROGRAM_MODE = 0
 MILL_FULL_PROGRAM_MODE = 1
 EXPANDED_EXECUTION_MODE = 2
 PLOT_DATA_MODE = 3
+DXF_MODE = 4
 _TURN_CYCLE_G_CODES = {70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92, 94}
 _TURN_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, 30, 32, 33, *_TURN_CYCLE_G_CODES}
 _MILL_CYCLE_G_CODES = {81, 82, 83, 84, 85, 86}
@@ -519,8 +708,8 @@ def export_full_program(
     separate from the block that invoked a cycle and also flatten M98/M99 calls
     without reconstructing source order from ``TraceMotion.source_block``.
     """
-    if not result.ok:
-        raise ValueError("Expanded turn program export requires a valid turning execution result")
+    if not result.ok or not result.complete:
+        raise ValueError("Expanded turn program export requires a valid and complete turning execution result")
 
     del source_lines
     options = _turn_program_options(options)
@@ -666,8 +855,8 @@ def export_full_mill_program(
     order expands canned cycles and repeated M98/M99 subprogram calls without
     using ``TraceMotion.source_block`` as a runtime sequence.
     """
-    if not result.ok:
-        raise ValueError("Expanded mill program export requires a valid milling execution result")
+    if not result.ok or not result.complete:
+        raise ValueError("Expanded mill program export requires a valid and complete milling execution result")
 
     del source_lines
     options = _mill_program_options(options)
@@ -753,8 +942,8 @@ def export_full_mill_program(
 
 def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None = None) -> str:
     """Export one group per executed turning-cycle block, including G72/G73."""
-    if not result.ok:
-        raise ValueError("Expanded turn cycle export requires a valid turning execution result")
+    if not result.ok or not result.complete:
+        raise ValueError("Expanded turn cycle export requires a valid and complete turning execution result")
     options = _turn_program_options(options)
     lines: list[str] = ["G18"]
     previous_unit: tuple[float, bool] | None = None
@@ -806,7 +995,7 @@ def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
 def export_pgm(window) -> str:
     """Compatibility entry point for the existing MainWindow export action."""
     result = getattr(window, "execution_result", None)
-    if result is None or not result.ok:
+    if result is None or not result.ok or not result.complete:
         raise ValueError("No valid CNC execution result is available for export")
 
     mode = int(window.exportMode)
@@ -832,6 +1021,12 @@ def export_pgm(window) -> str:
         return export_result(result, _window_export_options(window, arc_mode=int(window.exportArcMode)))
 
     if mode == PLOT_DATA_MODE:
-        return export_result(result, _window_export_options(window, arc_mode=4))
+        return export_result(
+            result,
+            replace(_window_export_options(window, arc_mode=4), include_execution_events=False),
+        )
+
+    if mode == DXF_MODE:
+        raise ValueError("DXF export requires a file target")
 
     raise ValueError(f"Unknown export mode: {mode}")

@@ -19,6 +19,7 @@ from PyQt6.QtWidgets import (
 
 from app import get_version
 from app.gcode.exporter import (
+    DXF_MODE,
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
     TURN_FULL_PROGRAM_MODE,
@@ -94,6 +95,7 @@ class Export(QDialog):
         "MILL FULL PROGRAM",
         "EXPANDED EXECUTION",
         "PLOT DATA",
+        "DXF",
     )
     _ARC_LABELS = (
         "IJK RELATIVE",
@@ -187,9 +189,26 @@ class Export(QDialog):
         self.parent().exportArcMode = self.arcOutputCmbBox.currentIndex()
 
     def _sync_output_option_availability(self):
-        """Enable representation controls only when the selected exporter uses them."""
+        """Enable only options consumed by the selected exporter."""
+        dxf = self.ui.langCmbBox.currentIndex() == DXF_MODE
+        gcode_only_controls = (
+            (self.ui.label_StartText, self.ui.startLineEdit),
+            (self.ui.label_EndText, self.ui.endLineEdit),
+            (self.ui.label_SafLine, self.ui.safLineCmbBox),
+            (self.ui.label_SeqNum, self.ui.seqNumCmbBox),
+            (self.ui.label_seqStart, self.ui.seqStartSpinBox),
+            (self.ui.label_seqInterval, self.ui.seqIntervalSpinBox),
+            (self.ui.label_Delim, self.ui.delimCmbBox),
+            (self.ui.labelLeadingZero, self.ui.leadingZeroCmbBox),
+        )
+        for label, control in gcode_only_controls:
+            label.setEnabled(not dxf)
+            control.setEnabled(not dxf)
+
         converted = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
+        self.ui.labelForce.setEnabled(converted)
         self.ui.forceCmbBox.setEnabled(converted)
+        self.ui.label_Incr.setEnabled(converted)
         self.ui.incrCmbBox.setEnabled(converted)
         self.arcOutputLabel.setEnabled(converted)
         self.arcOutputCmbBox.setEnabled(converted)

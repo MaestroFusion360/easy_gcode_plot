@@ -82,6 +82,6 @@ def calculate_scene_geometry(
         y_min + (y_max - y_min) / 2,
         z_min + (z_max - z_min) / 2,
     )
-    diagonal = int(sqrt((x_max - x_min) ** 2 + (y_max - y_min) ** 2))
+    diagonal = sqrt((x_max - x_min) ** 2 + (y_max - y_min) ** 2 + (z_max - z_min) ** 2)
     distance = diagonal + diagonal * 0.5
     return center, distance

@@ -27,7 +27,6 @@ from .model import Motion, Point2
 from .profile import build_profile_segments
 from .program import (
     eval_words,
-    micron_or_mm_to_mm,
     resolve_cycle_profile_indices,
     scaled_word,
     scaled_word_or,
@@ -49,13 +48,13 @@ def expand_cycle_block(
 ):
     """Expand one already evaluated occurrence; never execute Macro B or flow."""
 
-    def _cycle_pq_to_mm(value: float, unit_scale: float, expr: str | None = None) -> float:
+    def _cycle_least_input_or_length_to_mm(value: float, unit_scale: float, expr: str | None = None) -> float:
         raw = abs(value * unit_scale)
         if pq_mm_for_g74758384:
             return raw
         # FANUC commonly programs P/Q as integer least-input increments.  Some
         # CAM posts (including the CncKernelCli donor fixtures) intentionally
-        # emit decimal P/Q words such as P3. Q3. to mean direct length units.
+        # emit decimal words such as P3. Q3. R1. to mean direct length units.
         # Use lexical precision rather than a value-magnitude heuristic.
         if expr is not None and ("." in expr or "E" in expr.upper()):
             return raw
@@ -304,7 +303,9 @@ def expand_cycle_block(
             if "R" in words:
                 state.g83_retract_r = abs(scaled_word(words, "R", state.unit_scale))
             if "Q" in words:
-                state.g83_step_q = _cycle_pq_to_mm(words["Q"], state.unit_scale, _word_expr(block, "Q"))
+                state.g83_step_q = _cycle_least_input_or_length_to_mm(
+                    words["Q"], state.unit_scale, _word_expr(block, "Q")
+                )
             if "P" in words:
                 state.g83_dwell_p = abs(words["P"])
             state.g83_feed = scaled_word_or(words, "F", state.modal_feed, state.unit_scale)
@@ -312,7 +313,9 @@ def expand_cycle_block(
             if "R" in words:
                 state.g83_retract_r = abs(scaled_word(words, "R", state.unit_scale))
             if "Q" in words:
-                state.g83_step_q = _cycle_pq_to_mm(words["Q"], state.unit_scale, _word_expr(block, "Q"))
+                state.g83_step_q = _cycle_least_input_or_length_to_mm(
+                    words["Q"], state.unit_scale, _word_expr(block, "Q")
+                )
             if "P" in words:
                 state.g83_dwell_p = abs(words["P"])
             if "F" in words:
@@ -358,7 +361,9 @@ def expand_cycle_block(
             if "R" in words:
                 state.g84_retract_r = abs(scaled_word(words, "R", state.unit_scale))
             if "Q" in words:
-                state.g84_step_q = _cycle_pq_to_mm(words["Q"], state.unit_scale, _word_expr(block, "Q"))
+                state.g84_step_q = _cycle_least_input_or_length_to_mm(
+                    words["Q"], state.unit_scale, _word_expr(block, "Q")
+                )
             if "P" in words:
                 state.g84_dwell_p = abs(words["P"])
             state.g84_feed = scaled_word_or(words, "F", state.modal_feed, state.unit_scale)
@@ -366,7 +371,9 @@ def expand_cycle_block(
             if "R" in words:
                 state.g84_retract_r = abs(scaled_word(words, "R", state.unit_scale))
             if "Q" in words:
-                state.g84_step_q = _cycle_pq_to_mm(words["Q"], state.unit_scale, _word_expr(block, "Q"))
+                state.g84_step_q = _cycle_least_input_or_length_to_mm(
+                    words["Q"], state.unit_scale, _word_expr(block, "Q")
+                )
             if "P" in words:
                 state.g84_dwell_p = abs(words["P"])
             if "F" in words:
@@ -596,9 +603,13 @@ def expand_cycle_block(
                 if "Z" in words
                 else (state.modal_z + scaled_word(words, "W", state.unit_scale) if "W" in words else None)
             )
-            p_step = _cycle_pq_to_mm(words.get("P", 0.0), state.unit_scale, _word_expr(block, "P"))
-            q_step = _cycle_pq_to_mm(words.get("Q", 0.0), state.unit_scale, _word_expr(block, "Q"))
-            bottom = micron_or_mm_to_mm(abs(words.get("R", 0.0) * state.unit_scale))
+            p_step = _cycle_least_input_or_length_to_mm(words.get("P", 0.0), state.unit_scale, _word_expr(block, "P"))
+            q_step = _cycle_least_input_or_length_to_mm(words.get("Q", 0.0), state.unit_scale, _word_expr(block, "Q"))
+            bottom = _cycle_least_input_or_length_to_mm(
+                words.get("R", 0.0),
+                state.unit_scale,
+                _word_expr(block, "R"),
+            )
             cycle_feed = scaled_word_or(words, "F", state.modal_feed, state.unit_scale)
             cyc = build_g74_cycle(
                 state.modal_x,
@@ -634,9 +645,13 @@ def expand_cycle_block(
                 if "Z" in words
                 else (state.modal_z + scaled_word(words, "W", state.unit_scale) if "W" in words else None)
             )
-            p_step = _cycle_pq_to_mm(words.get("P", 0.0), state.unit_scale, _word_expr(block, "P"))
-            q_step = _cycle_pq_to_mm(words.get("Q", 0.0), state.unit_scale, _word_expr(block, "Q"))
-            bottom = micron_or_mm_to_mm(abs(words.get("R", 0.0) * state.unit_scale))
+            p_step = _cycle_least_input_or_length_to_mm(words.get("P", 0.0), state.unit_scale, _word_expr(block, "P"))
+            q_step = _cycle_least_input_or_length_to_mm(words.get("Q", 0.0), state.unit_scale, _word_expr(block, "Q"))
+            bottom = _cycle_least_input_or_length_to_mm(
+                words.get("R", 0.0),
+                state.unit_scale,
+                _word_expr(block, "R"),
+            )
             cycle_feed = scaled_word_or(words, "F", state.modal_feed, state.unit_scale)
             cyc = build_g75_cycle(
                 state.modal_x,

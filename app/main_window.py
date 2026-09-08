@@ -1,7 +1,7 @@
 """Main application window."""
 
 from PyQt6.QtCore import QBasicTimer, QSize, Qt, QTimer
-from PyQt6.QtGui import QActionGroup, QIcon, QQuaternion
+from PyQt6.QtGui import QAction, QActionGroup, QIcon, QQuaternion
 from PyQt6.QtWidgets import QComboBox, QMainWindow
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
@@ -32,6 +32,7 @@ from app.ui.main_window_plot import (
 )
 from app.ui.options import OptionsDialog
 from app.ui.plot_navigation import PlotNavigation
+from app.ui.statistics import StatisticsDialog
 from app.ui.tokens import TokensDialog
 from app.ui.window_settings import MainWindowSettingsMixin
 
@@ -78,6 +79,19 @@ class MainWindow(
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
+        self.ui.actionImportSTL = QAction("Import STL...", self)
+        self.ui.actionImportSTL.setObjectName("actionImportSTL")
+        self.ui.actionImportSTL.setToolTip("Import an STL model into the 3D plot")
+        self.ui.actionImportSTL.setIcon(QIcon(":/resource/icons/3D.png"))
+        self.ui.actionClearSTL = QAction("Clear STL", self)
+        self.ui.actionClearSTL.setObjectName("actionClearSTL")
+        self.ui.actionClearSTL.setEnabled(False)
+        self.ui.menu_File.insertAction(self.ui.actionSave, self.ui.actionImportSTL)
+        self.ui.menu_File.insertAction(self.ui.actionSave, self.ui.actionClearSTL)
+        self.ui.menu_File.insertSeparator(self.ui.actionSave)
+        self.ui.toolBar.addSeparator()
+        self.ui.toolBar.addAction(self.ui.actionImportSTL)
+
         self.ui.actionGroupArcType = QActionGroup(self)
         self.ui.actionGroupArcType.setExclusive(True)
         for action in (
@@ -109,6 +123,7 @@ class MainWindow(
         self.millingToolsDlg = MillingTools(self)
         self.optionsDlg = OptionsDialog(self)
         self.tokensDlg = TokensDialog(self)
+        self.statisticsDlg = StatisticsDialog(self)
         self.timer = QBasicTimer()
         self.autoUpdateTimer = QTimer(self)
         self.autoUpdateTimer.setSingleShot(True)
@@ -132,6 +147,8 @@ class MainWindow(
         self.ui.actionSave.triggered.connect(self.save)
         self.ui.actionSaveAs.triggered.connect(self.saveAs)
         self.ui.actionExportData.triggered.connect(lambda: self.exportDlg.show())
+        self.ui.actionImportSTL.triggered.connect(self.importStl)
+        self.ui.actionClearSTL.triggered.connect(self.clearStl)
         self.ui.actionExit.triggered.connect(self.close)
 
         self.ui.actionUndo.triggered.connect(lambda: self.ui.editor.undo())
@@ -168,6 +185,7 @@ class MainWindow(
         self.ui.actionFront.triggered.connect(self.viewFront)
         self.ui.actionLeft.triggered.connect(self.viewLeft)
         self.ui.actionGrid.toggled.connect(self.gridChecked)
+        self.ui.graphicsView.orthographicOrbitStarted.connect(self._orthographic_orbit_started)
 
         self.ui.actionRelative_to_start.toggled.connect(self.changeArcType)
         self.ui.actionAbsolute.toggled.connect(self.changeArcType)
@@ -224,6 +242,7 @@ class MainWindow(
         if self.ui.actionLatheMode.isChecked():
             self.latheMode = True
             self._view_mode = "lathe"
+            self.ui.graphicsView.setProjectionMode("perspective")
             self.ui.action3D.setEnabled(False)
             self.ui.actionTop.setEnabled(False)
             self.ui.actionFront.setEnabled(False)

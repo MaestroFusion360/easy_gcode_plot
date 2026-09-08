@@ -2,11 +2,29 @@
 
 from __future__ import annotations
 
+from OpenGL import GL
 from PyQt6.QtGui import QColor, QFont, QVector3D
 from pyqtgraph.opengl import GLMeshItem, GLTextItem, MeshData
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
 AXIS_LENGTH_PX = 48.0
+AXIS_DEPTH = 100
+AXIS_OPAQUE_GL_OPTIONS = {
+    GL.GL_DEPTH_TEST: False,
+    GL.GL_BLEND: False,
+    GL.GL_CULL_FACE: False,
+}
+AXIS_TEXT_GL_OPTIONS = {
+    GL.GL_DEPTH_TEST: False,
+    GL.GL_BLEND: True,
+    GL.GL_CULL_FACE: False,
+    "glBlendFuncSeparate": (
+        GL.GL_SRC_ALPHA,
+        GL.GL_ONE_MINUS_SRC_ALPHA,
+        GL.GL_ONE,
+        GL.GL_ONE_MINUS_SRC_ALPHA,
+    ),
+}
 
 
 class AxisTriadItem(GLGraphicsItem):
@@ -14,7 +32,7 @@ class AxisTriadItem(GLGraphicsItem):
 
     def __init__(self, parentItem=None):
         super().__init__(parentItem=parentItem)
-        self.setDepthValue(-100)
+        self.setDepthValue(AXIS_DEPTH)
         self.center = (0.0, 0.0, 0.0)
         self.extent = 1.0
         self._meshes = []
@@ -26,7 +44,7 @@ class AxisTriadItem(GLGraphicsItem):
             color=QColor("#ffd400"),
             smooth=True,
             shader="shaded",
-            glOptions="opaque",
+            glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
         self._meshes.append(sphere)
 
@@ -44,7 +62,7 @@ class AxisTriadItem(GLGraphicsItem):
                 color=color,
                 text=label,
                 font=label_font,
-                glOptions="translucent",
+                glOptions=AXIS_TEXT_GL_OPTIONS,
             )
             text.setDepthValue(20)
             self._labels.append(text)
@@ -56,7 +74,7 @@ class AxisTriadItem(GLGraphicsItem):
             color=color,
             smooth=True,
             shader="shaded",
-            glOptions="opaque",
+            glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
         cone = GLMeshItem(
             parentItem=self,
@@ -64,7 +82,7 @@ class AxisTriadItem(GLGraphicsItem):
             color=color,
             smooth=True,
             shader="shaded",
-            glOptions="opaque",
+            glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
         cone.translate(0.0, 0.0, 0.72)
         if rotation is not None:

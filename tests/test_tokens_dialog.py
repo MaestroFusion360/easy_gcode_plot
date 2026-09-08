@@ -11,6 +11,7 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from app.gcode.exporter import (
+    DXF_MODE,
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
     PLOT_DATA_MODE,
@@ -202,6 +203,9 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     assert dialog.ui.autoUpdateCheck.isChecked()
     assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 20000
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
+    assert dialog.ui.stlColorEdit.text() == "#b0b0b0"
+    assert not dialog.ui.backgroundGradientCheck.isChecked()
+    assert not dialog.ui.stlWireframeCheck.isChecked()
     assert dialog.ui.axesCheck.isChecked()
     assert dialog.ui.gridStepSpin.value() == 0
     monkeypatch.setattr("app.ui.options.QColorDialog.getColor", lambda *args: QColor("#abcdef"))
@@ -215,14 +219,19 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog = window.optionsDlg
     saved = []
     refreshed = []
+    stl_refreshed = []
     monkeypatch.setattr(window, "saveSettings", lambda: saved.append(True))
     monkeypatch.setattr(window, "refreshPlotView", lambda: refreshed.append(True))
+    monkeypatch.setattr(window, "refreshStlAppearance", lambda: stl_refreshed.append(True))
     dialog.load_values()
     dialog.ui.rapidColorEdit.setText("#110000")
     dialog.ui.linearColorEdit.setText("#001100")
     dialog.ui.arcColorEdit.setText("#000011")
     dialog.ui.currentColorEdit.setText("#111111")
     dialog.ui.backgroundColorEdit.setText("#eeeeee")
+    dialog.ui.backgroundGradientCheck.setChecked(True)
+    dialog.ui.stlColorEdit.setText("#abcdef")
+    dialog.ui.stlWireframeCheck.setChecked(True)
     dialog.ui.lineWidthSpin.setValue(2.5)
     dialog.ui.gridStepSpin.setValue(12.5)
     dialog.ui.axesCheck.setChecked(False)
@@ -239,6 +248,9 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
         "#111111",
     )
     assert window.plotBackground == "#eeeeee"
+    assert window.plotBackgroundGradient is True
+    assert window.stlColor == "#abcdef"
+    assert window.stlWireframe is True
     assert window.plotLineWidth == 2.5
     assert window.plotGridStep == 12.5
     assert window.plotAxes is False
@@ -247,8 +259,35 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.correctionEnabled is False
     assert window.autoUpdateEnabled is False
     assert window.autoUpdateMaxSegments == 7500
-    assert saved == [True] and refreshed == [True]
+    assert saved == [True] and stl_refreshed == [True] and refreshed == [True]
     window.deleteLater()
+
+
+def test_stl_and_gradient_plot_options_are_persisted(qt_app):
+    window = MainWindow()
+    window.plotBackgroundGradient = True
+    window.stlColor = "#2468ac"
+    window.stlWireframe = True
+    window.saveSettings()
+    window.settings.sync()
+
+    restored = MainWindow()
+    assert restored.plotBackgroundGradient is True
+    assert restored.stlColor == "#2468ac"
+    assert restored.stlWireframe is True
+    window.deleteLater()
+    restored.deleteLater()
+
+
+def test_legacy_grid_color_is_migrated_for_gradient_contrast(qt_app):
+    window = MainWindow()
+    window.settings.setValue("PLOT/GRID_COLOR", "#d3d3d3")
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.plotGridColor == "#808080"
+    restored.deleteLater()
 
 
 @pytest.mark.parametrize("changed_option", ["units", "correction", "tolerance"])
@@ -380,6 +419,25 @@ def test_machine_specific_actions_stay_synchronized_after_new_and_load(qt_app, t
     qt_app.processEvents()
     assert window.ui.actionTurningTools.isEnabled()
     assert not window.ui.actionMillingTools.isEnabled()
+    window.deleteLater()
+
+
+def test_loaded_program_fits_view_once_after_geometry_is_built(qt_app, tmp_path):
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    fitted = []
+    window.fitToView = lambda: fitted.append(True)
+    source = tmp_path / "fit-on-load.nc"
+    source.write_text("G21 G17 G90\nG0 X10 Y20 Z5\nG1 X100 Y50 Z-10 F100\nM30\n", encoding="utf-8")
+
+    window.loadFile(str(source))
+    assert fitted == []
+    assert window.updateData()
+    assert fitted == [True]
+
+    # Ordinary recalculation must preserve the camera chosen by the user.
+    assert window.updateData()
+    assert fitted == [True]
     window.deleteLater()
 
 
@@ -561,16 +619,17 @@ def test_axis_triad_stays_at_coordinate_zero_when_switching_mill_to_lathe(qt_app
     window.deleteLater()
 
 
-def test_export_dialog_has_four_logical_modes_and_separate_representation_options(qt_app):
+def test_export_dialog_has_five_logical_modes_and_separate_representation_options(qt_app):
     window = MainWindow()
     dialog = window.exportDlg
 
-    assert dialog.ui.langCmbBox.count() == 4
-    assert [dialog.ui.langCmbBox.itemText(index) for index in range(4)] == [
+    assert dialog.ui.langCmbBox.count() == 5
+    assert [dialog.ui.langCmbBox.itemText(index) for index in range(5)] == [
         "TURN FULL PROGRAM",
         "MILL FULL PROGRAM",
         "EXPANDED EXECUTION",
         "PLOT DATA",
+        "DXF",
     ]
     assert dialog.arcOutputCmbBox.count() == 4
     assert dialog.ui.incrCmbBox.itemText(0) == "G90 Absolute"
@@ -588,6 +647,41 @@ def test_export_dialog_has_four_logical_modes_and_separate_representation_option
     dialog.ui.langCmbBox.setCurrentIndex(PLOT_DATA_MODE)
     assert not dialog.arcOutputCmbBox.isEnabled()
     assert not dialog.ui.incrCmbBox.isEnabled()
+
+    dialog.ui.langCmbBox.setCurrentIndex(DXF_MODE)
+    assert all(
+        not widget.isEnabled()
+        for widget in (
+            dialog.ui.labelForce,
+            dialog.ui.forceCmbBox,
+            dialog.ui.label_StartText,
+            dialog.ui.startLineEdit,
+            dialog.ui.label_EndText,
+            dialog.ui.endLineEdit,
+            dialog.ui.label_SafLine,
+            dialog.ui.safLineCmbBox,
+            dialog.ui.label_SeqNum,
+            dialog.ui.seqNumCmbBox,
+            dialog.ui.label_seqStart,
+            dialog.ui.seqStartSpinBox,
+            dialog.ui.label_seqInterval,
+            dialog.ui.seqIntervalSpinBox,
+            dialog.ui.label_Delim,
+            dialog.ui.delimCmbBox,
+            dialog.ui.labelLeadingZero,
+            dialog.ui.leadingZeroCmbBox,
+            dialog.ui.label_Incr,
+            dialog.ui.incrCmbBox,
+            dialog.arcOutputLabel,
+            dialog.arcOutputCmbBox,
+        )
+    )
+
+    dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+    assert dialog.ui.startLineEdit.isEnabled()
+    assert dialog.ui.seqNumCmbBox.isEnabled()
+    assert dialog.ui.forceCmbBox.isEnabled()
+    assert dialog.arcOutputCmbBox.isEnabled()
 
     window.ui.actionLatheMode.setChecked(False)
     qt_app.processEvents()

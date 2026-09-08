@@ -119,7 +119,7 @@ def _window_export_harness(source: str, *, language: str, export_mode: int, arc_
     )
 
 
-def test_gui_export_dispatch_keeps_four_logical_modes_and_arc_options():
+def test_gui_export_dispatch_keeps_text_modes_and_arc_options():
     turn_source = "G21 G18\nG0 X20 Z0\nG3 X40 Z-10 I0 K-10 F100\nM30"
 
     converted = _window_export_harness(
@@ -168,12 +168,13 @@ def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence
     )
 
     assert text.splitlines() == [
-        "N10 O1200",
-        "N20 G00 G17 G40 G49 G80 G90",
-        "N30 G91",
-        "N40 G0 X10 Z5",
-        "N50 G1 X10 Z-5 F100",
-        "N60 M30",
+        "O1200",
+        "N10 G00 G17 G40 G49 G80 G90",
+        "N20 G91",
+        "N30 G0 X10 Z5",
+        "N40 G1 X10 Z-5 F100",
+        "",
+        "N50 M30",
     ]
 
 
@@ -183,12 +184,21 @@ def test_exporter_arc_modes_are_explicit_and_linearization_removes_g2_g3():
     absolute = export_result(result, ExportOptions(arc_mode=1, delimiter=True, analysis_banner=False))
     radius = export_result(result, ExportOptions(arc_mode=2, delimiter=True, analysis_banner=False))
     linear = export_result(result, ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False))
+    coarse = export_result(
+        result,
+        ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False, linearization_tolerance=0.1),
+    )
+    fine = export_result(
+        result,
+        ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False, linearization_tolerance=0.001),
+    )
 
     assert "I5" in absolute and "K0" in absolute
     assert " R5" in radius
     assert " I" not in radius and " K" not in radius
     assert "G2 " not in linear and "G3 " not in linear
     assert linear.count("G1 ") > 100
+    assert fine.count("G1 ") > coarse.count("G1 ")
 
 
 def test_turning_relative_ijk_export_round_trips_nonzero_x_arc_geometry():
@@ -541,3 +551,15 @@ def test_cli_rejects_cycle_mode_for_milling(tmp_path):
             ]
         )
     assert exc.value.code == 2
+
+
+def test_cli_export_rejects_invalid_partial_execution(tmp_path, capsys):
+    source = tmp_path / "invalid_arc.nc"
+    output = tmp_path / "invalid_arc_export.nc"
+    source.write_text("G21 G17 G90\nG1 X10 Y0 F100\nG2 X20 Y0 R1\nM30\n", encoding="utf-8")
+
+    assert main(["export", str(source), "--lang", "fanuc_mill", "-o", str(output)]) == 2
+    assert not output.exists()
+    data = json.loads(capsys.readouterr().out)
+    assert data["ok"] is False
+    assert any(item["code"] == "INVALID_GEOMETRY" for item in data["diagnostics"])

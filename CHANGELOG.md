@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.4.0 - 2026-09-08
+
+- Added ASCII and binary STL import as a persistent 3D overlay alongside the executed toolpath, with File menu, toolbar and direct `.stl` file-open integration.
+- Added solid and feature-edge STL rendering modes with configurable persistent model color and explicit Clear STL support.
+- Included imported STL geometry in Fit to View and scene bounds so the camera fits the complete toolpath/model combination instead of the toolpath alone.
+- Reworked STL rendering around a persistent OpenGL overlay so camera and view changes reuse the existing mesh instead of rebuilding `MeshData`, face colors and scene items.
+- Optimized STL loading and rendering with vectorized binary parsing and normal normalization, cached wireframe feature edges and cached toolpath bounds.
+- Added true orthographic projection for Top, Front and Left milling views while retaining perspective projection for the standard 3D view, eliminating depth-precision artifacts caused by the previous near-zero-FOV perspective approximation.
+- Added persistent optional gradient plot background and STL appearance controls to Plot options, with improved default grid contrast.
+- Corrected OpenGL depth/render ordering for the grid, STL model and coordinate-axis triad so solid geometry occludes hidden surfaces correctly while the axis triad remains visible as a screen-oriented overlay.
+- Added DXF export of the resolved motion trace with analytical lines, arcs and circles, separate rapid/cutting layers, Plot-aligned Z/X turning coordinates and 3D milling entities.
+- Replaced the oversized statistics message box with a reusable, resizable report window containing a read-only scrollable text view.
+- Automatically fit the camera to the complete scene after a newly loaded CNC program finishes building its toolpath.
+- Reworked Expanded Execution export around execution-step events so tool changes and repeated subprogram boundaries retain runtime order, sequence numbers include executable events, and the program number precedes the analysis banner.
+- Preserved WCS selection, G28/G53, G32/G33 threading, G4 dwell, spindle mode/speed/direction and coolant controls in Expanded Execution output, with WCS-aware coordinates.
+
 ## 1.3.0 - 2026-09-08
 
 - Added deterministic execution events for program start/end, subprogram start/end, tool changes and home returns across turning and milling execution.

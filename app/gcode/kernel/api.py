@@ -95,6 +95,16 @@ def _turn_wcs_offsets(wcs_offsets: WcsOffsets | None) -> dict[int, tuple[float, 
     return out
 
 
+def _result_wcs_offsets(
+    offsets: dict[int, tuple[float, float] | tuple[float, float, float]],
+) -> tuple[tuple[int, tuple[float, float, float]], ...]:
+    normalized = []
+    for code, values in sorted(offsets.items()):
+        xyz = (values[0], 0.0, values[1]) if len(values) == 2 else values
+        normalized.append((int(code), tuple(float(value) for value in xyz)))
+    return tuple(normalized)
+
+
 def _execute_impl(
     source: str,
     language: str = "fanuc_turn",
@@ -132,16 +142,21 @@ def _execute_impl(
         )
 
     if language == "fanuc_mill":
-        return execute_milling(
-            source,
-            skip_optional_blocks=skip_optional_blocks,
-            default_unit_scale=default_unit_scale,
-            home=(home_x, home_y, home_z),
-            wcs_offsets=_mill_wcs_offsets(wcs_offsets),
+        mill_offsets = _mill_wcs_offsets(wcs_offsets)
+        return replace(
+            execute_milling(
+                source,
+                skip_optional_blocks=skip_optional_blocks,
+                default_unit_scale=default_unit_scale,
+                home=(home_x, home_y, home_z),
+                wcs_offsets=mill_offsets,
+            ),
+            wcs_offsets=_result_wcs_offsets(mill_offsets),
         )
 
     program: Program | None = None
     unsupported: tuple[Diagnostic, ...] = ()
+    turn_offsets = _turn_wcs_offsets(wcs_offsets)
     try:
         program = parse_program(source.splitlines())
         unsupported = _unsupported_g_diagnostics(program)
@@ -157,7 +172,7 @@ def _execute_impl(
             skip_optional_blocks=skip_optional_blocks,
             home_x=home_x,
             home_z=home_z,
-            wcs_offsets=_turn_wcs_offsets(wcs_offsets),
+            wcs_offsets=turn_offsets,
             emulate_g28_home=emulate_g28_home,
             eval_words_fn=eval_words,
             try_wcs_from_gcode_fn=try_wcs_from_gcode,
@@ -215,6 +230,7 @@ def _execute_impl(
             for occurrence, step in enumerate(trace_steps)
         ),
         events=events,
+        wcs_offsets=_result_wcs_offsets(turn_offsets),
     )
 
 
@@ -394,25 +410,57 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
         motions = []
         motion_step_owners: list[int] = []
         cursor = 0
-        for step_index, step in enumerate(result.execution_steps):
-            for motion in result.motions[cursor : cursor + step.emitted_count]:
-                motion = replace(
-                    motion,
-                    x_scale=0.5 if language == "fanuc_turn" else 1.0,
-                    feed_mode=step.feed_mode,
-                    spindle_rpm=step.spindle_rpm,
-                    spindle_mode=step.spindle_mode,
-                    surface_speed_m_min=step.surface_speed_m_min,
-                    spindle_limit_rpm=step.spindle_limit_rpm,
-                    spindle_running=step.spindle_running,
-                    compensation_status="APPLIED"
-                    if motion.compensation_applied
-                    else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED"),
-                    threading=any(k == "G" and v in (32, 33, 76, 92) for k, v in step.words),
+        try:
+            for step_index, step in enumerate(result.execution_steps):
+                for motion in result.motions[cursor : cursor + step.emitted_count]:
+                    motion = replace(
+                        motion,
+                        x_scale=0.5 if language == "fanuc_turn" else 1.0,
+                        feed_mode=step.feed_mode,
+                        spindle_rpm=step.spindle_rpm,
+                        spindle_mode=step.spindle_mode,
+                        surface_speed_m_min=step.surface_speed_m_min,
+                        spindle_limit_rpm=step.spindle_limit_rpm,
+                        spindle_running=step.spindle_running,
+                        compensation_status="APPLIED"
+                        if motion.compensation_applied
+                        else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED"),
+                        threading=any(k == "G" and v in (32, 33, 76, 92) for k, v in step.words),
+                    )
+                    motions.append(resolve_arc(motion, source_arc_type=source_arc_type))
+                    motion_step_owners.append(step_index)
+                cursor += step.emitted_count
+        except Exception as exc:
+            emitted_counts = [0] * len(result.execution_steps)
+            for owner in motion_step_owners:
+                emitted_counts[owner] += 1
+            diagnostic = _diagnostic_from_exception(exc, result.program)
+            partial_steps = []
+            for index, step in enumerate(result.execution_steps):
+                if index > step_index:
+                    break
+                partial_steps.append(
+                    replace(
+                        step,
+                        emitted_count=emitted_counts[index],
+                        stop=(step.stop or index == step_index),
+                    )
                 )
-                motions.append(resolve_arc(motion, source_arc_type=source_arc_type))
-                motion_step_owners.append(step_index)
-            cursor += step.emitted_count
+            partial_events = tuple(event for step in partial_steps for event in step.events)
+            partial_signals = tuple(signal for step in partial_steps for signal in step.signals)
+            return replace(
+                result,
+                ok=False,
+                motions=tuple(motions),
+                diagnostics=result.diagnostics + (diagnostic,),
+                executed_blocks=tuple(step.source_block for step in partial_steps),
+                execution_steps=tuple(partial_steps),
+                signals=partial_signals,
+                program_end=program_end_code(partial_events),
+                events=partial_events,
+                complete=False,
+                language=language,
+            )
         if not result.execution_steps:
             motions = list(result.motions)
         diagnostics = result.diagnostics

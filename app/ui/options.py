@@ -19,6 +19,7 @@ class OptionsDialog(QDialog):
             (self.ui.arcColorButton, self.ui.arcColorEdit),
             (self.ui.currentColorButton, self.ui.currentColorEdit),
             (self.ui.backgroundColorButton, self.ui.backgroundColorEdit),
+            (self.ui.stlColorButton, self.ui.stlColorEdit),
         ):
             button.clicked.connect(lambda _checked=False, target=edit: self.pick_color(target))
         self.ui.buttonBox.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
@@ -49,6 +50,9 @@ class OptionsDialog(QDialog):
         self.ui.arcColorEdit.setText(getattr(window, "plotArcColor", "#008000"))
         self.ui.currentColorEdit.setText(getattr(window, "plotCurrentColor", "#00b7ff"))
         self.ui.backgroundColorEdit.setText(window.plotBackground)
+        self.ui.backgroundGradientCheck.setChecked(getattr(window, "plotBackgroundGradient", False))
+        self.ui.stlColorEdit.setText(getattr(window, "stlColor", "#b0b0b0"))
+        self.ui.stlWireframeCheck.setChecked(getattr(window, "stlWireframe", False))
         self.ui.lineWidthSpin.setValue(getattr(window, "plotLineWidth", 1.5))
         self.ui.gridStepSpin.setValue(getattr(window, "plotGridStep", 0.0))
         self.ui.axesCheck.setChecked(getattr(window, "plotAxes", True))
@@ -59,12 +63,17 @@ class OptionsDialog(QDialog):
         previous_units = getattr(window, "defaultUnits", "mm")
         previous_correction = getattr(window, "correctionEnabled", True)
         previous_tolerance = getattr(window, "arcTolerance", 0.001)
+        previous_stl_appearance = (
+            getattr(window, "stlColor", "#b0b0b0"),
+            getattr(window, "stlWireframe", False),
+        )
         color_edits = (
             self.ui.rapidColorEdit,
             self.ui.linearColorEdit,
             self.ui.arcColorEdit,
             self.ui.currentColorEdit,
             self.ui.backgroundColorEdit,
+            self.ui.stlColorEdit,
         )
         if any(not QColor(edit.text()).isValid() for edit in color_edits):
             QMessageBox.warning(self, "Options", "Plot colors must be valid Qt color names, for example #008000.")
@@ -89,7 +98,10 @@ class OptionsDialog(QDialog):
             window.plotArcColor,
             window.plotCurrentColor,
             window.plotBackground,
+            window.stlColor,
         ) = (edit.text() for edit in color_edits)
+        window.plotBackgroundGradient = self.ui.backgroundGradientCheck.isChecked()
+        window.stlWireframe = self.ui.stlWireframeCheck.isChecked()
         window.plotLineWidth = self.ui.lineWidthSpin.value()
         window.plotGridStep = self.ui.gridStepSpin.value()
         window.plotAxes = self.ui.axesCheck.isChecked()
@@ -115,6 +127,8 @@ class OptionsDialog(QDialog):
         elif getattr(window, "_plot_source_stale", False):
             window.scheduleAutoUpdate()
         window.saveSettings()
+        if previous_stl_appearance != (window.stlColor, window.stlWireframe):
+            window.refreshStlAppearance()
         execution_changed = (
             previous_units != window.defaultUnits
             or previous_correction != window.correctionEnabled
@@ -152,8 +166,11 @@ class OptionsDialog(QDialog):
             (self.ui.arcColorEdit, "#008000"),
             (self.ui.currentColorEdit, "#00b7ff"),
             (self.ui.backgroundColorEdit, "#ffffff"),
+            (self.ui.stlColorEdit, "#b0b0b0"),
         ):
             edit.setText(value)
+        self.ui.backgroundGradientCheck.setChecked(False)
+        self.ui.stlWireframeCheck.setChecked(False)
         self.ui.lineWidthSpin.setValue(1.5)
         self.ui.gridStepSpin.setValue(0.0)
         self.ui.axesCheck.setChecked(True)

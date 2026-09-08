@@ -84,6 +84,7 @@ def sample_motion(
     motion_index: int,
     *,
     arc_points_per_circle: int = 314,
+    chord_error: float | None = None,
     lathe_radius_view: bool = False,
     max_points: int | None = None,
 ) -> list[RenderPoint]:
@@ -100,7 +101,19 @@ def sample_motion(
         return [RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)]
 
     _, _, orth0, orth1, center, a0, sweep, radius = geom
-    count = max(1, int(round(arc_points_per_circle * sweep / (2.0 * math.pi))))
+    if chord_error is None:
+        count = max(1, int(round(arc_points_per_circle * sweep / (2.0 * math.pi))))
+    else:
+        if not math.isfinite(chord_error) or chord_error <= 0:
+            raise ValueError("chord_error must be a positive finite value")
+        if radius <= 0 or sweep <= 0:
+            count = 1
+        else:
+            effective_error = min(chord_error, radius * 2.0)
+            segment_angle = 4.0 * math.asin(math.sqrt(effective_error / (2.0 * radius)))
+            count = 1 if segment_angle <= 0 else int(math.ceil(sweep / segment_angle))
+            if m.arc is not None and m.arc.full_circle:
+                count = max(4, count)
     if max_points is not None and count > max_points:
         raise RenderLimitExceeded("Trace render point limit exceeded")
     plot_move = _plot_move_for_plane(m.move, m.plane)
@@ -124,6 +137,7 @@ def render_trace(
     *,
     lathe_radius_view: bool = False,
     arc_points_per_circle: int = 314,
+    chord_error: float | None = None,
     max_points: int | None = None,
 ) -> list[RenderPoint]:
     if max_points is not None and (not isinstance(max_points, int) or max_points <= 0):
@@ -152,6 +166,7 @@ def render_trace(
                 m,
                 idx,
                 arc_points_per_circle=arc_points_per_circle,
+                chord_error=chord_error,
                 lathe_radius_view=lathe_radius_view,
                 max_points=remaining,
             )
@@ -311,8 +326,36 @@ def trace_statistics(
     xs = [p[0] for p in coords]
     ys = [p[1] for p in coords]
     zs = [p[2] for p in coords]
-    time_complete = unknown_time_motion_count == 0
+    time_complete = unknown_time_motion_count == 0 and result.ok and result.complete
+
+    def summarize(indices):
+        rapid = [i for i in indices if result.motions[i].move == 0]
+        feed = [i for i in indices if result.motions[i].move != 0]
+        rapid_time = sum(times[i] for i in rapid if times[i] is not None)
+        feed_time = sum(times[i] for i in feed if times[i] is not None)
+        feed_complete = all(times[i] is not None for i in feed)
+        feed_length = sum(lengths[i] for i in feed)
+        return {
+            "motion_count": len(indices),
+            "total_length": sum(lengths[i] for i in indices),
+            "rapid_length": sum(lengths[i] for i in rapid),
+            "feed_length": feed_length,
+            "known_time_min": rapid_time + feed_time,
+            "rapid_time_min": rapid_time if all(times[i] is not None for i in rapid) else None,
+            "feed_time_min": feed_time if feed_complete else None,
+            "average_feed_mm_min": feed_length / feed_time if feed_complete and feed_time > 0 else None,
+            "unknown_time_motion_count": sum(times[i] is None for i in indices),
+        }
+
+    by_tool: dict[str, list[int]] = {}
+    for index, motion in enumerate(result.motions):
+        by_tool.setdefault(motion.tool or "unknown", []).append(index)
     return {
+        **summarize(list(range(len(result.motions)))),
+        "per_tool": {tool: summarize(indices) for tool, indices in by_tool.items()},
+        "execution_complete": result.ok and result.complete,
+        "executed_step_count": len(result.execution_steps),
+        "rapid_feed_mm_min": rapid_feed,
         "lengths": lengths,
         "times": times,
         "total_length": sum(lengths),
@@ -326,3 +369,47 @@ def trace_statistics(
         "arc_count": sum(m.move in (2, 3) for m in result.motions),
         "cycle_count": sum(m.cycle_generated for m in result.motions),
     }
+
+
+def format_trace_statistics(stats: dict[str, object]) -> str:
+    """Format trace-only metrics; times exclude machine-dependent overhead."""
+
+    def duration(value):
+        if value is None:
+            return "UNKNOWN"
+        seconds = round(value * 60)
+        hours, seconds = divmod(seconds, 3600)
+        minutes, seconds = divmod(seconds, 60)
+        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+
+    def section(values):
+        average = values["average_feed_mm_min"]
+        return [
+            f"Length: {values['total_length']:.3f} mm",
+            f"Rapid length: {values['rapid_length']:.3f} mm",
+            f"Feed length: {values['feed_length']:.3f} mm",
+            f"Rapid time: {duration(values['rapid_time_min'])}",
+            f"Feed time: {duration(values['feed_time_min'])}",
+            f"Known motion time: {duration(values['known_time_min'])}",
+            "Average feed: " + (f"{average:.3f} mm/min" if average is not None else "UNKNOWN"),
+            f"Motions with unknown time: {values['unknown_time_motion_count']}",
+        ]
+
+    lines = [
+        "Toolpath Statistics",
+        "Execution: " + ("complete" if stats["execution_complete"] else "PARTIAL / INVALID"),
+        f"Motions: {stats['motion_count']}; executed steps: {stats['executed_step_count']}",
+        f"Rapid motions: {stats['rapid_count']}; "
+        f"arc motions: {stats['arc_count']}; cycle motions: {stats['cycle_count']}",
+        f"Estimated motion time: {duration(stats['total_time_min'])}",
+        *section(stats),
+        f"Assumed rapid speed: {stats['rapid_feed_mm_min']:.3f} mm/min",
+        "Kinematic estimate only; excludes dwell, tool changes and acceleration.",
+    ]
+    if stats["bounds"] is not None:
+        lines.append("Bounds in programmed coordinates (mm):")
+        for axis, (low, high) in zip("XYZ", stats["bounds"]):
+            lines.append(f"{axis}: {low:.3f} / {high:.3f}")
+    for tool, values in stats["per_tool"].items():
+        lines.extend(["", f"Tool {tool}", *section(values)])
+    return "\n".join(lines)

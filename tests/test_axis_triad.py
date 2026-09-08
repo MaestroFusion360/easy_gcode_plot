@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
+from OpenGL import GL
 
-from app.ui.axis_triad import AXIS_LENGTH_PX, AxisTriadItem
+from app.ui.axis_triad import AXIS_DEPTH, AXIS_LENGTH_PX, AXIS_OPAQUE_GL_OPTIONS, AXIS_TEXT_GL_OPTIONS, AxisTriadItem
 
 
 def test_axis_triad_has_sphere_three_arrows_and_three_labels():
@@ -49,3 +50,13 @@ def test_axis_triad_world_extent_tracks_pixel_size_not_toolpath_size():
 
 def test_axis_triad_defaults_to_cnc_coordinate_origin():
     assert AxisTriadItem().center == (0.0, 0.0, 0.0)
+
+
+def test_axis_triad_is_the_topmost_depth_independent_overlay():
+    item = AxisTriadItem()
+
+    assert item.depthValue() == AXIS_DEPTH
+    assert AXIS_OPAQUE_GL_OPTIONS[GL.GL_DEPTH_TEST] is False
+    assert AXIS_TEXT_GL_OPTIONS[GL.GL_DEPTH_TEST] is False
+    assert item._meshes[0]._GLGraphicsItem__glOpts[GL.GL_DEPTH_TEST] is False  # pylint: disable=protected-access
+    assert item._labels[0]._GLGraphicsItem__glOpts[GL.GL_DEPTH_TEST] is False  # pylint: disable=protected-access

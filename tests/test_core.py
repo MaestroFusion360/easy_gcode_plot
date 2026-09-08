@@ -51,7 +51,14 @@ def test_toolpath_metrics_use_destination_feed_and_zero_feed_is_zero_time():
 def test_scene_geometry_has_exact_center_and_distance():
     center, distance = calculate_scene_geometry([-2, 2], [-3, 3], [10, 20])
     assert center == pytest.approx((0, 0, 15))
-    assert distance == pytest.approx(10.5)
+    assert distance == pytest.approx(1.5 * 152**0.5)
+
+
+@pytest.mark.parametrize("extent", [0.1, 10.0])
+def test_scene_geometry_includes_z_only_motion(extent):
+    center, distance = calculate_scene_geometry([0, 0], [0, 0], [0, extent])
+    assert center == pytest.approx((0, 0, extent / 2))
+    assert distance == pytest.approx(extent * 1.5)
 
 
 def test_parser_preserves_repeated_g_words_and_eval_words_keeps_all_values():

@@ -25,8 +25,10 @@ Download the current standalone Windows executable from [GitHub Releases](https:
     - [File Management](#file-management)
     - [Code Editor](#code-editor)
     - [Visualization](#visualization)
+      - [STL Reference Overlay](#stl-reference-overlay)
     - [Code Manipulation](#code-manipulation)
     - [Export](#export)
+      - [DXF Trajectory Export](#dxf-trajectory-export)
     - [Analysis](#analysis)
     - [Tokens Diagnostics](#tokens-diagnostics)
     - [Options](#options)
@@ -101,7 +103,8 @@ The project intentionally prefers explicit diagnostics over guessing unsupported
 - Recent Files list
 - Missing recent-file cleanup
 - Unsaved-changes prompt
-- Standard `.nc`, `.cnc` and `.txt` input
+- Standard `.nc`, `.cnc` and `.txt` G-code input
+- Separate `.stl` reference-model import
 
 ### Code Editor
 
@@ -119,16 +122,27 @@ The project intentionally prefers explicit diagnostics over guessing unsupported
 
 ### Visualization
 
-- Interactive 3D toolpath view
-- Top, Front and Left orthographic views
+- Interactive perspective 3D toolpath view
+- True orthographic Top, Front and Left milling views
+- ASCII and binary STL reference-model overlay
+- Solid or feature-edge STL rendering with configurable model color
+- Fit to View across the complete toolpath/STL scene
 - Milling and Lathe modes
-- Configurable grid
+- Configurable grid and optional gradient canvas background
 - Zoom controls
 - Step-by-step playback
 - Fixed-pixel playback cursor
 - Separate rapid and cutting motion rendering
 - Shift+Click trajectory picking with source-line synchronization
 - Analytical circular interpolation sampled only at the rendering boundary
+
+#### STL Reference Overlay
+
+Use **File → Import STL** or the STL toolbar action to add one reference model to the active plot. Opening an `.stl` file directly also imports it as the current overlay; **File → Clear STL** removes the model without changing the loaded G-code program or its execution result.
+
+The STL layer is visualization-only. It is parsed independently from the CNC kernel, does not modify program execution, and is not included in G-code exports. The active mesh is kept as a persistent OpenGL scene item, so changing camera views does not rebuild the STL geometry.
+
+The Plot options control STL color and solid/feature-edge rendering. **Fit to View** includes both the resolved toolpath and the active STL bounds. Top, Front and Left use true parallel projection; starting free rotation from one of those fixed views returns the plot to perspective 3D.
 
 ### Code Manipulation
 
@@ -143,14 +157,15 @@ The project intentionally prefers explicit diagnostics over guessing unsupported
 
 The exporter works from the executed logical trace rather than running a second CNC interpreter.
 
-The GUI exposes four logical output types:
+The GUI exposes five logical output types:
 
 - `TURN FULL PROGRAM`
 - `MILL FULL PROGRAM`
 - `EXPANDED EXECUTION`
 - `PLOT DATA`
+- `DXF`
 
-Expanded execution keeps arc representation (`IJK relative`, `IJK absolute`, `R`, or linearized) and G90/G91 coordinate output as separate representation options instead of separate export types. Full-program export remains source/execution-structure oriented, while Plot Data remains a raw resolved-toolpath output.
+Expanded execution keeps arc representation (`IJK relative`, `IJK absolute`, `R`, or linearized) and G90/G91 coordinate output as separate representation options instead of separate export types. It follows actual execution order for tool changes and repeated subprogram calls and preserves executed WCS, home/machine moves, threading, dwell, spindle and coolant controls. Full-program export remains source/execution-structure oriented, while Plot Data remains a raw resolved-toolpath output.
 
 Additional export options include:
 
@@ -163,6 +178,22 @@ Additional export options include:
 - Address delimiters
 
 Expanded program export follows actual execution-step order, including repeated subprogram execution.
+
+#### DXF Trajectory Export
+
+Select `DXF` in the existing Export dialog to save the complete calculated toolpath used by the Plot. The following system file dialog uses the `DXF (*.dxf)` filter. The DXF exporter consumes the current valid, complete `ExecutionResult` and its resolved `TraceMotion` geometry directly; it does not parse or interpret the G-code again. The current playback position does not truncate the exported trajectory.
+
+DXF entities and layers are written as follows:
+
+- Linear motions are exported as `LINE`.
+- Planar arcs remain analytical `ARC` entities.
+- Planar full circles are exported as `CIRCLE`.
+- Rapid motions use the `TOOLPATH_RAPID` layer.
+- Feed and cutting motions use the `TOOLPATH_CUT` layer.
+
+Kernel trace coordinates are physical millimetres, so the DXF document declares millimetre units even when the source program used inch input. In turning mode, CNC Z maps to horizontal DXF X and physical radius-X maps to vertical DXF Y, matching the Plot orientation without diameter-scale distortion. Milling coordinates retain XYZ; planar G17/G18/G19 arcs use the appropriate DXF object coordinate system. Helical interpolation is written as a 3D polyline using the already calculated Plot points because DXF has no analytical helix entity.
+
+An invalid or incomplete execution result is not exported. File-system and DXF writing errors are reported through the normal Export error dialog.
 
 ### Analysis
 
@@ -313,11 +344,12 @@ uv run --no-dev python -m app export program.nc \
 2. Select the appropriate machine mode.
 3. Configure machine coordinates, WCS and tools if required.
 4. View the resolved toolpath.
-5. Edit the source program.
-6. Refresh the execution result after changes.
-7. Inspect playback, diagnostics and statistics.
-8. Use **Settings → Tokens** when line-by-line parser and execution diagnostics are needed.
-9. Export the resolved or expanded program if required.
+5. Optionally import an STL reference model for spatial comparison with the toolpath.
+6. Edit the source program.
+7. Refresh the execution result after changes.
+8. Inspect playback, diagnostics and statistics.
+9. Use **Settings → Tokens** when line-by-line parser and execution diagnostics are needed.
+10. Export the resolved or expanded program if required.
 
 ### Main Interface
 
@@ -334,8 +366,9 @@ The left side contains the source program editor with:
 
 The right side contains the toolpath visualization with:
 
-- 3D view
-- Top / Front / Left views
+- perspective 3D view
+- true orthographic Top / Front / Left views
+- optional STL reference-model overlay
 - grid
 - zoom
 - trajectory picking
@@ -474,8 +507,10 @@ The **Settings → Options** dialog exposes:
 - application logging toggle
 - G41/G42 correction preference and arc tolerance
 - editor font, size, caret-line, EOL, whitespace and line-number presentation
-- rapid, linear, arc, current-segment and canvas colors
+- rapid, linear, arc, current-segment, canvas and STL colors
 - native color pickers and a Restore Defaults action
+- optional gradient canvas background
+- solid or feature-edge STL rendering
 - plot line thickness, canvas axes and grid visibility
 - grid step, where `0` selects adaptive spacing and a positive value records a fixed step
 
@@ -488,7 +523,8 @@ The selected encoding is used when opening and saving editor documents. The defa
 - machine coordinates
 - lathe mode
 - line colors
-- background color
+- background color and optional vertical gradient
+- STL color and solid/feature-edge mode
 - grid color
 - grid size
 - grid spacing
@@ -630,6 +666,20 @@ The CNC kernel under `app/gcode/kernel/` has no Qt dependency.
 
 The GUI does not maintain a second CNC execution engine.
 
+STL reference geometry follows a separate visualization-only path:
+
+```text
+STL file
+   ↓
+ASCII / binary STL reader
+   ↓
+StlMesh
+   ↓
+persistent OpenGL STL overlay
+```
+
+This path does not enter `ExecutionResult` and does not affect CNC interpretation.
+
 ### Execution Model
 
 Execution is occurrence-based rather than source-order based.
@@ -689,16 +739,26 @@ Resource-limit failures are returned as structured diagnostics.
 - Arcs remain analytical until rendering/export sampling
 - Statistics operate on the logical trace
 - Playback operates on the same trace used by export and analysis
+- Toolpath rendering uses a persistent VBO-backed `GL_LINES` item; playback changes the visible logical prefix instead of rebuilding geometry per frame
+- Imported STL meshes remain persistent across camera changes; solid mesh data is rebuilt only when STL appearance changes, and feature edges are cached after first use
 
 ### File Support
 
-Input:
+G-code documents:
 
 ```text
 .nc
 .cnc
 .txt
 ```
+
+3D reference models:
+
+```text
+.stl    ASCII or binary STL
+```
+
+STL files are imported into the plot as visualization overlays; they are not parsed as CNC source documents.
 
 Output:
 
@@ -768,7 +828,8 @@ app/
 │
 ├─ gcode/
 │  ├─ core.py                        formatting and generic UI-side helpers
-│  ├─ exporter.py                    trace-based export; no second CNC execution path
+│  ├─ exporter.py                    trace-based text export; no second CNC execution path
+│  ├─ dxf_exporter.py                resolved-trace DXF entities and file output
 │  ├─ trace_tools.py                 rendering sampling and trace statistics
 │  │
 │  └─ kernel/
@@ -794,7 +855,11 @@ app/
 │  ├─ main_window_file_ops.py         files, recent files, drag/drop and export
 │  ├─ main_window_editor_ops.py       editor/status/search/text transformations
 │  ├─ main_window_execution.py        kernel execution, auto-refresh, playback and statistics
-│  ├─ main_window_plot.py             OpenGL rendering, views, grids and trajectory picking
+│  ├─ main_window_plot.py             OpenGL scene lifecycle, camera views, grids and trajectory picking
+│  ├─ stl.py                          ASCII/binary STL parsing, bounds, normals and feature-edge geometry
+│  ├─ stl_overlay.py                  persistent solid/wireframe OpenGL STL representation
+│  ├─ toolpath_vbo.py                 persistent VBO-backed toolpath rendering
+│  ├─ axis_triad.py                   fixed-screen-size CNC origin triad
 │  ├─ plot_grid.py                    adaptive grid geometry
 │  ├─ plot_navigation.py              plot event/navigation helpers
 │  ├─ window_settings.py              persisted main-window settings
@@ -821,6 +886,7 @@ tests/
 ├─ test_macro_b.py                   Macro B and control-flow tests
 ├─ test_milling.py                   FANUC milling tests
 ├─ test_stabilization.py             regression and architecture stabilization tests
+├─ test_stl.py                       STL parsing, overlay, projection and scene-depth tests
 ├─ test_qt_codegen.py                isolated Qt generation and atomicity tests
 ├─ test_tokens_dialog.py             Tokens and Options GUI tests
 └─ test_turning.py                   FANUC turning tests

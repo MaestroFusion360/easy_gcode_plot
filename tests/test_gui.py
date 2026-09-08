@@ -5,11 +5,13 @@ import logging
 from pathlib import Path
 from types import SimpleNamespace
 
+import ezdxf
 import pytest
 from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
 
 from app import main_window
 from app import settings as app_settings
+from app.gcode.exporter import DXF_MODE
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace
 from app.ui import main_window_execution, main_window_plot
@@ -440,6 +442,38 @@ def test_drop_event_opens_first_local_file_only():
     assert opened == ["C:/first.nc"]
     assert event.accepted is True
     assert event.ignored is False
+
+
+def test_file_export_writes_selected_dxf_from_current_trace(monkeypatch, tmp_path):
+    result = execute("G21 G90\nG0 X1 Y2 Z3\nG1 X4 Y5 Z6 F100\nM30", language="fanuc_mill")
+    target_without_suffix = tmp_path / "toolpath"
+    monkeypatch.setattr(
+        "app.ui.main_window_file_ops.QFileDialog.getSaveFileName",
+        lambda *args: (str(target_without_suffix), "DXF (*.dxf)"),
+    )
+
+    class Window(MainWindowFileMixin):
+        exportMode = DXF_MODE
+        latheMode = False
+        execution_result = result
+        render_points = render_trace(result)
+        ui = SimpleNamespace(
+            horizontalSlider=SimpleNamespace(value=lambda: 0),
+            statusbar=_StatusBar(),
+        )
+        progressBar = SimpleNamespace(setValue=lambda value: None)
+
+        def updateData(self):
+            return True
+
+        def valueHandler(self, value):
+            assert value == 0
+
+    Window().export()
+
+    output = target_without_suffix.with_suffix(".dxf")
+    assert output.exists()
+    assert [entity.dxftype() for entity in ezdxf.readfile(output).modelspace()] == ["LINE", "LINE"]
 
 
 def test_auto_update_schedule_marks_trace_stale_without_moving_old_slider():

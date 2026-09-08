@@ -8,7 +8,8 @@ from PyQt6.QtCore import QFileInfo
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 
 from app.gcode.core import format_gcode_number
-from app.gcode.exporter import export_pgm
+from app.gcode.dxf_exporter import export_dxf
+from app.gcode.exporter import DXF_MODE, export_pgm
 from app.gcode.kernel.io import read_nc_text
 from app.settings import normalized_recent_files as _normalized_recent_files
 
@@ -158,6 +159,8 @@ class MainWindowFileMixin:
 
     def loadFile(self, fileName):
         """Load file contents into the editor and reset cursor."""
+        if Path(fileName).suffix.casefold() == ".stl":
+            return self.importStl(fileName)
         try:
             content = read_nc_text(fileName, encoding=getattr(self, "fileEncoding", "utf-8"))
         except (OSError, UnicodeError) as exc:
@@ -170,6 +173,7 @@ class MainWindowFileMixin:
             return
 
         LOGGER.info("file_opened path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
+        self._fit_view_after_program_load = True
         self.ui.editor.setText(content)
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
@@ -215,18 +219,30 @@ class MainWindowFileMixin:
 
     def export(self):
         """Export current program to a chosen file path."""
-        path, _ = QFileDialog.getSaveFileName()
+        dxf_export = int(self.exportMode) == DXF_MODE
+        file_filter = "DXF (*.dxf)" if dxf_export else "All files (*)"
+        path, _ = QFileDialog.getSaveFileName(self, "Export", "", file_filter)
         if not path:
             return
+        if dxf_export and not Path(path).suffix:
+            path += ".dxf"
         val = self.ui.horizontalSlider.value()
         if not self.updateData():
             return
         self.valueHandler(val)
         start = time.time()
         try:
-            txt = self.exportPgm()
-            with open(path, "w", encoding="utf-8") as stream:
-                stream.write(txt)
+            if dxf_export:
+                export_dxf(
+                    self.execution_result,
+                    path,
+                    turning=bool(self.latheMode),
+                    render_points=self.render_points,
+                )
+            else:
+                txt = self.exportPgm()
+                with open(path, "w", encoding="utf-8") as stream:
+                    stream.write(txt)
         except Exception as exc:  # Export/file-system errors are surfaced to the GUI.
             LOGGER.exception("export_failed path=%s", path)
             QMessageBox.warning(self, "Easy G-code Plot", str(exc))

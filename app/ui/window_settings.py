@@ -7,6 +7,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont, QVector3D
 
 from app.gcode.exporter import (
+    DXF_MODE,
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
     PLOT_DATA_MODE,
@@ -89,8 +90,15 @@ class MainWindowSettingsMixin:
         self.plotGridStep = self.settings.value("PLOT/GRID_STEP", 0.0, type=float)
         self.plotAxes = self.settings.value("PLOT/AXES", True, type=bool)
         self.plotBackground = self.settings.value("PLOT/BACKGROUND", "#ffffff")
+        self.plotBackgroundGradient = self.settings.value("PLOT/BACKGROUND_GRADIENT", False, type=bool)
+        self.stlColor = self.settings.value("PLOT/STL_COLOR", "#b0b0b0")
+        self.stlWireframe = self.settings.value("PLOT/STL_WIREFRAME", False, type=bool)
         self.plotGrid = self.settings.value("PLOT/GRID", False, type=bool)
-        self.plotGridColor = self.settings.value("PLOT/GRID_COLOR", "#d3d3d3")
+        self.plotGridColor = self.settings.value("PLOT/GRID_COLOR", "#808080")
+        if QColor(self.plotGridColor).name() == "#d3d3d3":
+            # Migrate the old low-contrast default, which disappears in the
+            # darker half of the optional background gradient.
+            self.plotGridColor = "#808080"
         self.plotGridSize = self.settings.value("PLOT/GRID_SIZE", 1000, type=int)
         self.plotGridSpacing = self.settings.value("PLOT/GRID_SPACING", 50, type=int)
         self.ui.actionGrid.setChecked(self.plotGrid)
@@ -175,7 +183,7 @@ class MainWindowSettingsMixin:
                 self.exportArcMode = legacy_mode if legacy_mode in range(4) else 0
         else:
             mode = self.settings.value("EXPORT_OPT/MODE", EXPANDED_EXECUTION_MODE, type=int)
-            self.exportMode = mode if mode in range(4) else EXPANDED_EXECUTION_MODE
+            self.exportMode = mode if mode in range(DXF_MODE + 1) else EXPANDED_EXECUTION_MODE
             arc_mode = self.settings.value("EXPORT_OPT/ARC_MODE", 0, type=int)
             self.exportArcMode = arc_mode if arc_mode in range(4) else 0
         self.forceAdr = self.settings.value("EXPORT_OPT/FORCE_ADDRESS", False, type=bool)
@@ -221,6 +229,9 @@ class MainWindowSettingsMixin:
         self.settings.setValue("GRID_STEP", self.plotGridStep)
         self.settings.setValue("AXES", self.plotAxes)
         self.settings.setValue("BACKGROUND", self.plotBackground)
+        self.settings.setValue("BACKGROUND_GRADIENT", self.plotBackgroundGradient)
+        self.settings.setValue("STL_COLOR", self.stlColor)
+        self.settings.setValue("STL_WIREFRAME", self.stlWireframe)
         self.settings.setValue("GRID", self.plotGrid)
         self.settings.setValue("GRID_COLOR", self.plotGridColor)
         self.settings.setValue("GRID_SIZE", self.plotGridSize)

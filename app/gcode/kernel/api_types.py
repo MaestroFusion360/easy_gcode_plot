@@ -140,3 +140,4 @@ class ExecutionResult:
     complete: bool = True
     language: str = "fanuc_turn"
     events: tuple[ExecutionEvent, ...] = ()
+    wcs_offsets: tuple[tuple[int, tuple[float, float, float]], ...] = ()

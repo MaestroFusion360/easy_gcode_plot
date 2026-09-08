@@ -8,7 +8,7 @@ from PyQt6.QtWidgets import QMessageBox
 
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
+from app.gcode.trace_tools import RenderLimitExceeded, format_trace_statistics, render_trace, trace_statistics
 
 AUTO_REFRESH_MAX_POINTS = 20000
 AUTO_REFRESH_DELAY_MS = 500
@@ -232,6 +232,9 @@ class MainWindowExecutionMixin:
         self._create_trace_items()
         if result.motions:
             self.valueHandler(len(result.motions), sync_editor=False)
+        if getattr(self, "_fit_view_after_program_load", False):
+            self._fit_view_after_program_load = False
+            self.fitToView()
 
     def lstExport(self):
         """Compatibility hook: export data now comes directly from ExecutionResult."""
@@ -306,12 +309,13 @@ class MainWindowExecutionMixin:
         )
 
     def statistics(self):
-        """Display path length, machining time, and limits in a message box."""
-        txt = self.toolPath() + self.toolPathLimits()
-        if txt:
-            QMessageBox.information(self, "Easy G-code Plot", txt.replace("(", "").replace(")", ""))
+        """Display path length, machining time, and limits in the statistics window."""
+        if self.execution_result is not None and self.execution_result.motions:
+            stats = trace_statistics(self.execution_result, rapid_feed=self.rapidFeed)
+            report = format_trace_statistics(stats)
         else:
-            QMessageBox.information(self, "Easy G-code Plot", "No Data Available")
+            report = "No Data Available"
+        self.statisticsDlg.show_report(report)
 
     def list_rindex(self, li, x):
         """Return the last index of x in list li."""

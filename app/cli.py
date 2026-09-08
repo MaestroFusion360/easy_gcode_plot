@@ -92,6 +92,9 @@ def main(argv: list[str] | None = None) -> int:
         _write(args.output, json.dumps(_result_document(result, include_motions=True), ensure_ascii=False, indent=2))
     elif args.command == "analyze":
         _write(args.output, json.dumps(_analysis_document(result), ensure_ascii=False, indent=2))
+    elif not result.ok or not result.complete:
+        _write(None, json.dumps(_result_document(result, include_motions=False), ensure_ascii=False, indent=2))
+        return 2
     elif args.mode == "program":
         program_exporter = export_full_program if args.lang == "fanuc_turn" else export_full_mill_program
         text = program_exporter(

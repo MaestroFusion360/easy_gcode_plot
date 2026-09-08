@@ -7,7 +7,12 @@ import pytest
 from app.gcode.kernel import cycles as cycle_module
 from app.gcode.kernel import execute
 from app.gcode.kernel.resources import ExecutionLimits
-from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
+from app.gcode.trace_tools import (
+    RenderLimitExceeded,
+    format_trace_statistics,
+    render_trace,
+    trace_statistics,
+)
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
@@ -86,6 +91,35 @@ def test_turn_statistics_report_unknown_time_when_feed_per_revolution_has_no_rpm
     assert stats["known_time_min"] == 0.0
     assert stats["unknown_time_motion_count"] == 1
     assert stats["time_complete"] is False
+
+
+def test_statistics_formatter_includes_motion_breakdown():
+    result = execute("G21 G18\nG0 X20 Z0\nG1 X30 Z0 F100\nG2 X30 Z0 I-5 K0 F100\nM30")
+    assert result.ok, result.diagnostics
+    text = format_trace_statistics(trace_statistics(result))
+    assert "Rapid motions: 1; arc motions: 1; cycle motions: 0" in text
+
+
+@pytest.mark.parametrize("cycle", [74, 75])
+def test_g74_g75_second_line_r_uses_lexical_least_input_units(cycle):
+    target_z = "-1" if cycle == 74 else "0"
+    source = f"G21 G18\nG0 X100 Z0\nG{cycle} R0.1\nG{cycle} X80 Z{target_z} P1000 Q1000 R99 F100\nM30"
+    result = execute(source)
+    assert result.ok, result.diagnostics
+    cycle_motions = [motion for motion in result.motions if motion.cycle_generated]
+    assert cycle_motions
+    assert min(min(motion.start_x, motion.end_x) for motion in cycle_motions) == pytest.approx(80.198)
+
+
+@pytest.mark.parametrize("cycle", [74, 75])
+def test_g74_g75_second_line_decimal_r_is_direct_length(cycle):
+    target_z = "-1" if cycle == 74 else "0"
+    source = f"G21 G18\nG0 X100 Z0\nG{cycle} R0.1\nG{cycle} X80 Z{target_z} P1000 Q1000 R1. F100\nM30"
+    result = execute(source)
+    assert result.ok, result.diagnostics
+    cycle_motions = [motion for motion in result.motions if motion.cycle_generated]
+    assert cycle_motions
+    assert min(min(motion.start_x, motion.end_x) for motion in cycle_motions) == pytest.approx(82.0)
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
@@ -174,6 +208,14 @@ def test_milling_unknown_position_command_fails_closed_without_losing_prior_trac
     diagnostic = next(d for d in result.diagnostics if d.code == "UNSUPPORTED_G_CODE")
     assert diagnostic.severity == "error"
     assert diagnostic.status == "unsupported"
+
+
+def test_milling_invalid_arc_preserves_prior_resolved_trace():
+    result = execute("G21 G17 G90\nG1 X10 Y0 F100\nG2 X20 Y0 R1\nG1 X30\nM30", "fanuc_mill")
+    assert not result.ok
+    assert result.complete is False
+    assert [(motion.end_x, motion.end_y, motion.end_z) for motion in result.motions] == [(10.0, 0.0, 0.0)]
+    assert any(diagnostic.code == "INVALID_GEOMETRY" for diagnostic in result.diagnostics)
 
 
 def test_turn_css_statistics_are_resolved_from_surface_speed_and_g50_limit(fixture_text):

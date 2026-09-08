@@ -1,12 +1,13 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.3.0"
+version = "1.4.0"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { file = "LICENSE.md" }
 
 dependencies = [
+    "ezdxf>=1.4.4",
     "numpy",
     "pyopengl",
     "pyqt6>=6.6,<7",

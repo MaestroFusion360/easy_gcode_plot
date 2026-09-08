@@ -768,6 +768,7 @@ def execute_milling(
                             source_nlabel=block.nlabel,
                             source_raw=block.raw,
                             source_kind="g28",
+                            tool=state.active_tool,
                         )
                     )
                 axes = {k for k in ("X", "Y", "Z") if k in words}
@@ -792,6 +793,7 @@ def execute_milling(
                             source_nlabel=block.nlabel,
                             source_raw=block.raw,
                             source_kind="g28",
+                            tool=state.active_tool,
                         )
                     )
                 ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
@@ -824,7 +826,18 @@ def execute_milling(
             pc += 1
     except Exception as exc:
         diagnostics.append(_execution_diagnostic(exc, program))
-        return ExecutionResult(False, program, tuple(instructions), (), tuple(diagnostics), tuple(executed))
+        return ExecutionResult(
+            False,
+            program,
+            tuple(instructions),
+            tuple(motions),
+            tuple(diagnostics),
+            tuple(executed),
+            signals=tuple(signals),
+            execution_steps=tuple(steps),
+            complete=False,
+            events=tuple(events),
+        )
 
     signals = tuple(signals)
     event_tuple = tuple(events)

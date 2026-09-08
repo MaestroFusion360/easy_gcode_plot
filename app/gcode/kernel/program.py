@@ -200,12 +200,6 @@ def radius_to_diameter(value: float) -> float:
     return value * 2.0
 
 
-def micron_or_mm_to_mm(value: float) -> float:
-    # OTC-style programs use micron integers (e.g. 10000 => 10.0 mm),
-    # while many training examples already use mm-scale decimal values.
-    return value / 1000.0 if abs(value) >= 100.0 else value
-
-
 def try_wcs_from_gcode(gcode: int | float | None) -> int | None:
     if gcode is None:
         return None

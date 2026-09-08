@@ -289,10 +289,42 @@ class Ui_OptionsDlg(object):
 
         self.plotForm.setLayout(4, QFormLayout.ItemRole.FieldRole, self.backgroundColorLayout)
 
+        self.backgroundGradientCheck = QCheckBox(self.plotTab)
+        self.backgroundGradientCheck.setObjectName(u"backgroundGradientCheck")
+
+        self.plotForm.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.backgroundGradientCheck)
+
+        self.stlColorLabel = QLabel(self.plotTab)
+        self.stlColorLabel.setObjectName(u"stlColorLabel")
+
+        self.plotForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.stlColorLabel)
+
+        self.stlColorLayout = QHBoxLayout()
+        self.stlColorLayout.setSpacing(6)
+        self.stlColorLayout.setObjectName(u"stlColorLayout")
+        self.stlColorEdit = QLineEdit(self.plotTab)
+        self.stlColorEdit.setObjectName(u"stlColorEdit")
+
+        self.stlColorLayout.addWidget(self.stlColorEdit)
+
+        self.stlColorButton = QPushButton(self.plotTab)
+        self.stlColorButton.setObjectName(u"stlColorButton")
+        self.stlColorButton.setMaximumSize(QSize(72, 16777215))
+
+        self.stlColorLayout.addWidget(self.stlColorButton)
+
+
+        self.plotForm.setLayout(6, QFormLayout.ItemRole.FieldRole, self.stlColorLayout)
+
+        self.stlWireframeCheck = QCheckBox(self.plotTab)
+        self.stlWireframeCheck.setObjectName(u"stlWireframeCheck")
+
+        self.plotForm.setWidget(7, QFormLayout.ItemRole.SpanningRole, self.stlWireframeCheck)
+
         self.lineWidthLabel = QLabel(self.plotTab)
         self.lineWidthLabel.setObjectName(u"lineWidthLabel")
 
-        self.plotForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.lineWidthLabel)
+        self.plotForm.setWidget(8, QFormLayout.ItemRole.LabelRole, self.lineWidthLabel)
 
         self.lineWidthSpin = QDoubleSpinBox(self.plotTab)
         self.lineWidthSpin.setObjectName(u"lineWidthSpin")
@@ -300,28 +332,28 @@ class Ui_OptionsDlg(object):
         self.lineWidthSpin.setMaximum(6.000000000000000)
         self.lineWidthSpin.setValue(1.500000000000000)
 
-        self.plotForm.setWidget(5, QFormLayout.ItemRole.FieldRole, self.lineWidthSpin)
+        self.plotForm.setWidget(8, QFormLayout.ItemRole.FieldRole, self.lineWidthSpin)
 
         self.gridStepLabel = QLabel(self.plotTab)
         self.gridStepLabel.setObjectName(u"gridStepLabel")
 
-        self.plotForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.gridStepLabel)
+        self.plotForm.setWidget(9, QFormLayout.ItemRole.LabelRole, self.gridStepLabel)
 
         self.gridStepSpin = QDoubleSpinBox(self.plotTab)
         self.gridStepSpin.setObjectName(u"gridStepSpin")
         self.gridStepSpin.setMaximum(1000000.000000000000000)
 
-        self.plotForm.setWidget(6, QFormLayout.ItemRole.FieldRole, self.gridStepSpin)
+        self.plotForm.setWidget(9, QFormLayout.ItemRole.FieldRole, self.gridStepSpin)
 
         self.axesCheck = QCheckBox(self.plotTab)
         self.axesCheck.setObjectName(u"axesCheck")
 
-        self.plotForm.setWidget(7, QFormLayout.ItemRole.SpanningRole, self.axesCheck)
+        self.plotForm.setWidget(10, QFormLayout.ItemRole.SpanningRole, self.axesCheck)
 
         self.gridCheck = QCheckBox(self.plotTab)
         self.gridCheck.setObjectName(u"gridCheck")
 
-        self.plotForm.setWidget(8, QFormLayout.ItemRole.SpanningRole, self.gridCheck)
+        self.plotForm.setWidget(11, QFormLayout.ItemRole.SpanningRole, self.gridCheck)
 
         self.tabs.addTab(self.plotTab, "")
 
@@ -388,6 +420,10 @@ class Ui_OptionsDlg(object):
         self.currentColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
         self.backgroundLabel.setText(QCoreApplication.translate("OptionsDlg", u"Canvas background", None))
         self.backgroundColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
+        self.backgroundGradientCheck.setText(QCoreApplication.translate("OptionsDlg", u"Gradient canvas background", None))
+        self.stlColorLabel.setText(QCoreApplication.translate("OptionsDlg", u"STL color", None))
+        self.stlColorButton.setText(QCoreApplication.translate("OptionsDlg", u"Pick...", None))
+        self.stlWireframeCheck.setText(QCoreApplication.translate("OptionsDlg", u"STL: edges only", None))
         self.lineWidthLabel.setText(QCoreApplication.translate("OptionsDlg", u"Line thickness (0.25\u20136.0)", None))
         self.gridStepLabel.setText(QCoreApplication.translate("OptionsDlg", u"Grid step (0 = adaptive)", None))
         self.axesCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show canvas axes", None))
