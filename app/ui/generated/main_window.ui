@@ -780,7 +780,7 @@
   <action name="actionRemoveEmptyLines">
    <property name="icon">
     <iconset resource="../../resources/files_res.qrc">
-     <normaloff>:/resource/icons/removeSpaces.png</normaloff>:/resource/icons/removeSpaces.png</iconset>
+     <normaloff>:/resource/icons/removeEmptyLines.png</normaloff>:/resource/icons/removeEmptyLines.png</iconset>
    </property>
    <property name="text">
     <string>Remove Empty Lines</string>
@@ -789,7 +789,7 @@
   <action name="actionRemoveSpaces">
    <property name="icon">
     <iconset resource="../../resources/files_res.qrc">
-     <normaloff>:/resource/icons/removeEmptyLines.png</normaloff>:/resource/icons/removeEmptyLines.png</iconset>
+     <normaloff>:/resource/icons/removeSpaces.png</normaloff>:/resource/icons/removeSpaces.png</iconset>
    </property>
    <property name="text">
     <string>Remove Spaces</string>

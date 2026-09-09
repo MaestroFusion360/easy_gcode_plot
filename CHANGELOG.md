@@ -1,9 +1,26 @@
 # Changelog
 
-## Unreleased
+## 1.4.1 - 2026-09-09
 
 - Added a translucent milling-tool preview that follows logical playback, rendering configured flat, bull-nose and ball-nose mills plus drills with 120-degree points, with a persistent Plot color setting.
 - Added a persistent five-level playback-speed slider using CNCEditor's 1000/250/100/40/10 ms logical-motion intervals.
+- Fixed milling IJK arc handling so rounded real-world arc coordinates are no longer rejected solely because the start and end radii differ slightly.
+- Fixed IJK arcs being discarded when Radius source mode is selected but the source block contains IJK coordinates and no R value.
+- Removed the unconditional `UNVERIFIED_TOOL_LENGTH_COMPENSATION` warning emitted for every milling `G43` block.
+- Changed the default arc source mode from absolute-center coordinates to incremental IJK coordinates.
+- Added a true zero-motion playback state: Stop now returns to the program start before the first motion, and the playback slider starts at zero.
+- Preserved the current playback position when the toolpath is refreshed or re-executed instead of always jumping to the end.
+- Paused playback automatically when stepping forward or backward manually.
+- Fixed playback timer handling so unrelated Qt timer events no longer advance CNC playback.
+- Made lathe/mill mode switching rebuild the toolpath without showing execution-error dialogs during the automatic refresh.
+- Improved milling-tool validation: invalid diameters and lengths, non-finite values, and impossible bull-nose corner radii are now rejected.
+- Improved file handling with NC-specific Open/Save filters, automatic `.nc` extension for unnamed NC files, corrected DXF extension handling, and atomic file writes.
+- Added protection against overwriting files that were modified externally after being opened.
+- Fixed recent-file path normalization on Windows.
+- Fixed Find, Replace and Replace All behavior, including empty-search handling, case-insensitive replacement, preserving editor selection/cursor state, and grouping Replace All into a single undo action.
+- Changed Export and Block Number dialogs so edited settings are applied only after pressing OK; Cancel now leaves existing application settings unchanged.
+- Fixed swapped icons for Remove Empty Lines and Remove Spaces.
+- Restricted application file logging to the `app` logger instead of modifying the root Python logger, and made legacy-config migration failures non-fatal.
 
 ## 1.4.0 - 2026-09-08
 
@@ -20,6 +37,7 @@
 - Automatically fit the camera to the complete scene after a newly loaded CNC program finishes building its toolpath.
 - Reworked Expanded Execution export around execution-step events so tool changes and repeated subprogram boundaries retain runtime order, sequence numbers include executable events, and the program number precedes the analysis banner.
 - Preserved WCS selection, G28/G53, G32/G33 threading, G4 dwell, spindle mode/speed/direction and coolant controls in Expanded Execution output, with WCS-aware coordinates.
+
 ## 1.3.0 - 2026-09-08
 
 - Added deterministic execution events for program start/end, subprogram start/end, tool changes and home returns across turning and milling execution.

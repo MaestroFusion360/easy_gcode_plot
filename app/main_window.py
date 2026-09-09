@@ -248,7 +248,7 @@ class MainWindow(
             self.ui.actionFront.setEnabled(False)
             self.ui.actionLeft.setEnabled(False)
             self.ui.actionGrid.setEnabled(True)
-            self.updateData()
+            self.updateData(show_errors=False)
             self.ui.graphicsView.opts["fov"] = 0.01
             self.ui.graphicsView.opts["rotationMethod"] = "quaternion"
             self.ui.graphicsView.setCameraPosition(distance=self.dist * 6000, rotation=QQuaternion(0.5, 0.5, 0.5, 0.5))
@@ -262,7 +262,7 @@ class MainWindow(
             self.ui.actionLeft.setEnabled(True)
             self.ui.actionGrid.setEnabled(False)
             self.ui.graphicsView.opts["rotationMethod"] = "euler"
-            self.updateData()
+            self.updateData(show_errors=False)
             self.view3d()
 
         self.syncGuiCapabilities()

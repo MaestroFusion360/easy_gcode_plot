@@ -57,18 +57,23 @@ class BlockNum(QDialog):
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
 
+        self.loadSettings()
+        self.accepted.connect(self._apply_and_renumber)
+
+    def showEvent(self, event):
+        self.loadSettings()
+        super().showEvent(event)
+
+    def loadSettings(self):
         self.ui.startSpinBox.setValue(self.parent().seqNumStart)
         self.ui.intervSpinBox.setValue(self.parent().seqNumIncr)
+        self.ui.spacingCmbBox.setCurrentIndex(1 if self.parent().seqNumSpacing else 0)
 
-        if self.parent().seqNumSpacing == False:
-            self.ui.spacingCmbBox.setCurrentIndex(0)
-        else:
-            self.ui.spacingCmbBox.setCurrentIndex(1)
-
-        self.ui.startSpinBox.valueChanged.connect(self.startVal)
-        self.ui.intervSpinBox.valueChanged.connect(self.incrVal)
-        self.ui.spacingCmbBox.currentIndexChanged.connect(self.spaceVal)
-        self.accepted.connect(lambda: self.parent().renumber())
+    def _apply_and_renumber(self):
+        self.startVal()
+        self.incrVal()
+        self.spaceVal(self.ui.spacingCmbBox.currentIndex())
+        self.parent().renumber()
 
     def startVal(self):
         """Store the starting sequence number chosen by the user."""
@@ -164,20 +169,29 @@ class Export(QDialog):
         self._sync_output_option_availability()
 
     def connectActions(self):
-        """Wire up dialog controls to parent setters."""
-        self.accepted.connect(lambda: self.parent().export())
-        self.ui.langCmbBox.currentIndexChanged.connect(self.exportMode)
-        self.arcOutputCmbBox.currentIndexChanged.connect(self.arcMode)
-        self.ui.forceCmbBox.currentIndexChanged.connect(self.forceAdr)
-        self.ui.incrCmbBox.currentIndexChanged.connect(self.incrMode)
-        self.ui.startLineEdit.textChanged.connect(self.startPgmText)
-        self.ui.endLineEdit.textChanged.connect(self.endPgmText)
-        self.ui.safLineCmbBox.currentIndexChanged.connect(self.safLine)
-        self.ui.seqNumCmbBox.currentIndexChanged.connect(self.seqNum)
-        self.ui.seqStartSpinBox.valueChanged.connect(self.seqNumStart)
-        self.ui.seqIntervalSpinBox.valueChanged.connect(self.seqNumIncr)
-        self.ui.delimCmbBox.currentIndexChanged.connect(self.delim)
-        self.ui.leadingZeroCmbBox.currentIndexChanged.connect(self.ledingZero)
+        """Keep edits local until OK; Cancel leaves application settings unchanged."""
+        self.accepted.connect(self._apply_and_export)
+        self.ui.langCmbBox.currentIndexChanged.connect(lambda _index: self._sync_output_option_availability())
+
+    def showEvent(self, event):
+        self.loadSettings()
+        self.sync_mode_availability(bool(self.parent().latheMode))
+        super().showEvent(event)
+
+    def _apply_and_export(self):
+        self.exportMode()
+        self.arcMode()
+        self.forceAdr(self.ui.forceCmbBox.currentIndex())
+        self.incrMode(self.ui.incrCmbBox.currentIndex())
+        self.startPgmText()
+        self.endPgmText()
+        self.safLine(self.ui.safLineCmbBox.currentIndex())
+        self.seqNum(self.ui.seqNumCmbBox.currentIndex())
+        self.seqNumStart()
+        self.seqNumIncr()
+        self.delim(self.ui.delimCmbBox.currentIndex())
+        self.ledingZero(self.ui.leadingZeroCmbBox.currentIndex())
+        self.parent().export()
 
     def exportMode(self):
         """Store the selected logical export type."""
@@ -636,11 +650,17 @@ class _MillingToolEditor(QDialog):
             self.cornerRadius.setValue(self.diameter.value() / 2.0)
 
     def validateAndAccept(self):
-        """Accept only compact milling tool numbers T1 through T99."""
+        """Accept only valid compact tool numbers and physical geometry."""
         raw = self.toolCode.text().strip().upper()
         digits = raw[1:] if raw.startswith("T") else raw
         if not digits.isdigit() or digits.startswith("0") or not 1 <= int(digits) <= 99:
             QMessageBox.warning(self, "Milling Tools", "T code must be T1-T99 without leading zeros.")
+            return
+        if self.diameter.value() <= 0.0 or self.length.value() <= 0.0:
+            QMessageBox.warning(self, "Milling Tools", "Diameter and length must be greater than zero.")
+            return
+        if self.currentType() == "mill_bull" and self.cornerRadius.value() > self.diameter.value() / 2.0:
+            QMessageBox.warning(self, "Milling Tools", "Bull corner radius cannot exceed half the diameter.")
             return
         self.accept()
 

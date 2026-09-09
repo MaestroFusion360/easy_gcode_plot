@@ -31,7 +31,8 @@ def playback_speed_level(interval_ms: int) -> int:
 class MainWindowExecutionMixin:
     def timerEvent(self, event):
         """Advance playback by logical CNC motion, not editor line."""
-        del event
+        if event.timerId() != self.timer.timerId():
+            return super().timerEvent(event)
         maximum = self.ui.horizontalSlider.maximum()
         value = self.ui.horizontalSlider.value()
         if maximum <= 0 or value >= maximum:
@@ -41,11 +42,13 @@ class MainWindowExecutionMixin:
 
     def backward(self):
         """Move one logical motion backward."""
+        self._pause_playback()
         value = self.ui.horizontalSlider.value()
         self.ui.horizontalSlider.setValue(max(self.ui.horizontalSlider.minimum(), value - 1))
 
     def forward(self):
         """Move one logical motion forward."""
+        self._pause_playback()
         value = self.ui.horizontalSlider.value()
         self.ui.horizontalSlider.setValue(min(self.ui.horizontalSlider.maximum(), value + 1))
 
@@ -57,19 +60,25 @@ class MainWindowExecutionMixin:
             self.timer.stop()
 
     def stop(self):
-        """Stop logical-motion playback and return to the first motion."""
+        """Stop logical-motion playback and return to the pre-motion state."""
         self.ui.actionPlay.setChecked(False)
         self.timer.stop()
         self.step = 0
-        if self.ui.horizontalSlider.maximum() >= 1:
-            self.ui.horizontalSlider.setValue(1)
+        self.ui.horizontalSlider.setValue(0)
+
+    def _pause_playback(self):
+        if self.ui.actionPlay.isChecked():
+            self.ui.actionPlay.setChecked(False)
+        self.timer.stop()
 
     def sliderDrag(self):
         """Synchronize editor cursor with the selected logical motion."""
         if self.ui.actionPlay.isChecked():
             self.timer.stop()
             self.ui.actionPlay.setChecked(False)
-        self._sync_editor_to_motion(self.ui.horizontalSlider.value() - 1)
+        value = self.ui.horizontalSlider.value()
+        if value > 0:
+            self._sync_editor_to_motion(value - 1)
 
     def scheduleAutoUpdate(self):
         """Mark the displayed trace stale and optionally debounce its refresh."""
@@ -136,6 +145,9 @@ class MainWindowExecutionMixin:
 
     def autoUpdate(self):
         """Debounced refresh for programs whose sampled render path is small."""
+        previous_value = (
+            self.ui.horizontalSlider.value() if getattr(self, "execution_result", None) is not None else None
+        )
         result = self._execute_editor_source(show_errors=False)
         if result is None or not result.motions:
             return
@@ -151,9 +163,9 @@ class MainWindowExecutionMixin:
             self.ui.statusbar.showMessage("Trajectory is too large for Auto Update; press Update.", 10000)
             return
         self._auto_update_deferred = False
-        self._finishDataUpdate(result, points)
+        self._finishDataUpdate(result, points, playback_value=previous_value)
 
-    def updateData(self):
+    def updateData(self, *, show_errors=True):
         """Execute editor source through the single authoritative CNC kernel."""
         if hasattr(self, "autoUpdateTimer"):
             self.autoUpdateTimer.stop()
@@ -161,7 +173,12 @@ class MainWindowExecutionMixin:
         previous_segments = max(0, len(getattr(self, "render_points", ())) - 1)
         show_progress = getattr(self, "_auto_update_deferred", False) or previous_segments > segment_limit
         MainWindowExecutionMixin._setUpdateProgress(self, 5 if show_progress else None)
-        result = self._execute_editor_source(show_errors=True)
+        previous_value = (
+            self.ui.horizontalSlider.value()
+            if getattr(self, "execution_result", None) is not None and hasattr(self, "ui")
+            else None
+        )
+        result = self._execute_editor_source(show_errors=show_errors)
         if result is None or not result.motions:
             MainWindowExecutionMixin._setUpdateProgress(self, None)
             self.clearPlot()
@@ -174,12 +191,12 @@ class MainWindowExecutionMixin:
                 arc_points_per_circle=self.arcPointsPerCircle(result),
             )
             MainWindowExecutionMixin._setUpdateProgress(self, 75)
-            self._finishDataUpdate(result, points)
+            self._finishDataUpdate(result, points, playback_value=previous_value)
             self._auto_update_deferred = False
             MainWindowExecutionMixin._setUpdateProgress(self, 100)
             QTimer.singleShot(500, lambda: MainWindowExecutionMixin._setUpdateProgress(self, None))
         else:
-            self._finishDataUpdate(result)
+            self._finishDataUpdate(result, playback_value=previous_value)
         return True
 
     def _setUpdateProgress(self, value):
@@ -194,7 +211,7 @@ class MainWindowExecutionMixin:
         self.progressBar.repaint()
         QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
 
-    def _finishDataUpdate(self, result=None, points=None):
+    def _finishDataUpdate(self, result=None, points=None, playback_value=None):
         """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
         if result is not None:
             self.execution_result = result
@@ -236,15 +253,18 @@ class MainWindowExecutionMixin:
         self.ui.actionPlay.setEnabled(enabled)
         self.ui.actionStop.setEnabled(enabled)
         self.ui.horizontalSlider.blockSignals(True)
-        self.ui.horizontalSlider.setMinimum(1)
-        self.ui.horizontalSlider.setMaximum(max(1, len(result.motions)))
+        self.ui.horizontalSlider.setMinimum(0)
+        self.ui.horizontalSlider.setMaximum(len(result.motions))
         self.ui.horizontalSlider.setPageStep(max(1, len(result.motions) // 10))
-        self.ui.horizontalSlider.setValue(max(1, len(result.motions)))
+        if getattr(self, "_fit_view_after_program_load", False) or playback_value is None:
+            playback_value = len(result.motions)
+        playback_value = max(0, min(int(playback_value), len(result.motions)))
+        self.ui.horizontalSlider.setValue(playback_value)
         self.ui.horizontalSlider.blockSignals(False)
         self.loadPlot()
         self._create_trace_items()
         if result.motions:
-            self.valueHandler(len(result.motions), sync_editor=False)
+            self.valueHandler(playback_value, sync_editor=False)
         if getattr(self, "_fit_view_after_program_load", False):
             self._fit_view_after_program_load = False
             self.fitToView()

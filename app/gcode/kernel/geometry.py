@@ -25,14 +25,15 @@ def resolve_arc(motion, *, source_arc_type=1):
         a1 = math.atan2(end[b] - center[b], end[a] - center[a])
         return 2 * math.pi if full else ((a0 - a1) if clockwise else (a1 - a0)) % (2 * math.pi)
 
-    if source_arc_type != 3 and (offsets[a] is not None or offsets[b] is not None):
+    has_ijk = offsets[a] is not None or offsets[b] is not None
+    use_ijk = has_ijk and (source_arc_type != 3 or motion.radius is None)
+    if use_ijk:
         center = list(start)
         center[a] = (offsets[a] or 0.0) + (0 if source_arc_type == 2 else start[a])
         center[b] = (offsets[b] or 0.0) + (0 if source_arc_type == 2 else start[b])
         radius = math.hypot(start[a] - center[a], start[b] - center[b])
-        r_end = math.hypot(end[a] - center[a], end[b] - center[b])
-        if radius <= 1e-10 or abs(radius - r_end) > max(0.002, radius * 1e-5):
-            raise SemanticError("INVALID_GEOMETRY", "Arc IJK radii disagree or radius is zero", "invalid_geometry")
+        if radius <= 1e-10:
+            raise SemanticError("INVALID_GEOMETRY", "Arc IJK radius is zero", "invalid_geometry")
     elif motion.radius is not None:
         radius = abs(motion.radius)
         dx, dy = end[a] - start[a], end[b] - start[b]

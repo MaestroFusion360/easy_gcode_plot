@@ -2,6 +2,7 @@
 
 import json
 import logging
+import math
 import os
 import shutil
 import sys
@@ -12,6 +13,8 @@ from PyQt6.QtCore import QSettings, QStandardPaths
 _APP_DIR = "easy-gcode-plot"
 _LOG_HANDLER_MARKER = "_easy_gcode_plot_handler"
 _LOG_PREVIOUS_LEVEL_MARKER = "_easy_gcode_plot_previous_level"
+_LOG_PREVIOUS_PROPAGATE_MARKER = "_easy_gcode_plot_previous_propagate"
+LOGGER = logging.getLogger(__name__)
 
 
 def _config_dir() -> str:
@@ -34,24 +37,29 @@ def log_path() -> str:
 
 def configure_logging(enabled: bool) -> None:
     """Enable or disable the project-owned file handler without muting third-party logging."""
-    root = logging.getLogger()
-    handlers = [handler for handler in root.handlers if getattr(handler, _LOG_HANDLER_MARKER, False)]
+    project_logger = logging.getLogger("app")
+    handlers = [handler for handler in project_logger.handlers if getattr(handler, _LOG_HANDLER_MARKER, False)]
     if enabled:
         if not handlers:
             handler = logging.FileHandler(log_path(), encoding="utf-8")
             setattr(handler, _LOG_HANDLER_MARKER, True)
-            setattr(handler, _LOG_PREVIOUS_LEVEL_MARKER, root.level)
+            setattr(handler, _LOG_PREVIOUS_LEVEL_MARKER, project_logger.level)
+            setattr(handler, _LOG_PREVIOUS_PROPAGATE_MARKER, project_logger.propagate)
             handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
             handler.setLevel(logging.DEBUG)
-            root.addHandler(handler)
-        root.setLevel(logging.DEBUG)
+            project_logger.addHandler(handler)
+        project_logger.setLevel(logging.DEBUG)
+        project_logger.propagate = False
         return
     previous_level = getattr(handlers[0], _LOG_PREVIOUS_LEVEL_MARKER, None) if handlers else None
+    previous_propagate = getattr(handlers[0], _LOG_PREVIOUS_PROPAGATE_MARKER, None) if handlers else None
     for handler in handlers:
-        root.removeHandler(handler)
+        project_logger.removeHandler(handler)
         handler.close()
     if previous_level is not None:
-        root.setLevel(previous_level)
+        project_logger.setLevel(previous_level)
+    if previous_propagate is not None:
+        project_logger.propagate = previous_propagate
 
 
 def _application_dir() -> str:
@@ -68,7 +76,10 @@ def _migrate_legacy_config() -> None:
         return
     legacy = os.path.join(_application_dir(), "config.ini")
     if os.path.exists(legacy):
-        shutil.copy2(legacy, target)
+        try:
+            shutil.copy2(legacy, target)
+        except OSError:
+            LOGGER.warning("legacy_config_migration_failed source=%s target=%s", legacy, target, exc_info=True)
 
 
 def get_settings() -> QSettings:
@@ -115,7 +126,7 @@ def normalized_tools(raw):
                 orientation = int(raw_spec.get("tipOrientation", 0))
             except (TypeError, ValueError):
                 continue
-            if radius <= 0.0 or orientation not in range(1, 10):
+            if not math.isfinite(radius) or radius <= 0.0 or orientation not in range(1, 10):
                 continue
             spec["noseRadius"] = radius
             spec["tipOrientation"] = orientation
@@ -152,14 +163,20 @@ def normalized_milling_tools(raw):
         if tool_type not in valid_types:
             continue
         try:
-            diameter = max(0.0, float(raw_spec.get("diameter", 0.0)))
-            length = max(0.0, float(raw_spec.get("length", 0.0)))
+            diameter = float(raw_spec.get("diameter", 0.0))
+            length = float(raw_spec.get("length", 0.0))
             radius = max(0.0, float(raw_spec.get("cornerRadius", 0.0)))
         except (TypeError, ValueError):
             continue
 
+        if not all(math.isfinite(value) for value in (diameter, length, radius)):
+            continue
+        if diameter <= 0.0 or length <= 0.0:
+            continue
         if tool_type == "mill_ball":
             radius = diameter / 2.0
+        elif tool_type == "mill_bull" and radius > diameter / 2.0:
+            continue
         elif tool_type != "mill_bull":
             radius = 0.0
 
@@ -182,7 +199,7 @@ def normalized_recent_files(paths, limit=RECENT_FILES_LIMIT):
     seen = set()
     for value in paths or []:
         path = str(value).strip()
-        key = path.casefold()
+        key = os.path.normcase(path)
         if not path or key in seen:
             continue
         out.append(path)

@@ -8,13 +8,14 @@ from types import SimpleNamespace
 import ezdxf
 import pytest
 from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
+from PyQt6.QtWidgets import QApplication
 
 from app import main_window
 from app import settings as app_settings
 from app.gcode.exporter import DXF_MODE
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace
-from app.ui import main_window_execution, main_window_plot
+from app.ui import main_window_execution, main_window_file_ops, main_window_plot
 from app.ui.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.main_window_execution import MainWindowExecutionMixin
 from app.ui.main_window_file_ops import MainWindowFileMixin
@@ -24,6 +25,11 @@ from app.ui.window_settings import (
     EDITOR_FONT_SIZE_KEY,
     EDITOR_FONT_WEIGHT_KEY,
 )
+
+
+@pytest.fixture
+def qt_app():
+    return QApplication.instance() or QApplication([])
 
 
 class _Editor:
@@ -226,7 +232,7 @@ def test_gui_keeps_partial_turning_trace_renderable_when_kernel_reports_unsuppor
     window = SimpleNamespace(
         _execute_editor_source=lambda *, show_errors: result,
         clearPlot=lambda: cleared.append(True),
-        _finishDataUpdate=lambda result=None, points=None: captured.append(result),
+        _finishDataUpdate=lambda result=None, points=None, playback_value=None: captured.append(result),
     )
 
     assert main_window.MainWindow.updateData(window) is True
@@ -367,7 +373,7 @@ def test_2d_picking_selects_nearest_motion_and_source_line():
 
     assert main_window.MainWindow._pick_trace_at(window, _Position()) is True
     assert selected == [1]
-    assert synced == [0]
+    assert synced == []
     assert "line 5" in messages[0][0]
 
 
@@ -446,7 +452,7 @@ def test_drop_event_opens_first_local_file_only():
 
 def test_file_export_writes_selected_dxf_from_current_trace(monkeypatch, tmp_path):
     result = execute("G21 G90\nG0 X1 Y2 Z3\nG1 X4 Y5 Z6 F100\nM30", language="fanuc_mill")
-    target_without_suffix = tmp_path / "toolpath"
+    target_without_suffix = tmp_path / "toolpath.txt"
     monkeypatch.setattr(
         "app.ui.main_window_file_ops.QFileDialog.getSaveFileName",
         lambda *args: (str(target_without_suffix), "DXF (*.dxf)"),
@@ -540,9 +546,101 @@ def test_application_logging_toggle_creates_and_closes_project_handler(monkeypat
     monkeypatch.setattr(app_settings, "_config_dir", lambda: str(tmp_path))
     app_settings.configure_logging(False)
     app_settings.configure_logging(True)
-    logging.getLogger("easy_gcode_plot.test").warning("logging-regression")
-    for handler in logging.getLogger().handlers:
+    root = logging.getLogger()
+    original_root_level = root.level
+    logging.getLogger("app.test").warning("logging-regression")
+    for handler in logging.getLogger("app").handlers:
         handler.flush()
     assert "logging-regression" in (tmp_path / "main.log").read_text(encoding="utf-8")
+    assert root.level == original_root_level
     app_settings.configure_logging(False)
-    assert not any(getattr(handler, "_easy_gcode_plot_handler", False) for handler in logging.getLogger().handlers)
+    assert not any(getattr(handler, "_easy_gcode_plot_handler", False) for handler in logging.getLogger("app").handlers)
+
+
+def test_milling_tool_normalization_rejects_impossible_geometry():
+    raw = {
+        "T1": {"type": "mill_flat", "diameter": 0, "length": 20},
+        "T2": {"type": "drill", "diameter": 5, "length": 0},
+        "T3": {"type": "mill_bull", "diameter": 10, "cornerRadius": 6, "length": 20},
+        "T4": {"type": "mill_bull", "diameter": 10, "cornerRadius": 5, "length": 20},
+        "T5": {"type": "mill_flat", "diameter": float("nan"), "length": 20},
+    }
+
+    assert main_window._normalized_milling_tools(raw) == {
+        "T4": {"type": "mill_bull", "diameter": 10.0, "cornerRadius": 5.0, "length": 20.0}
+    }
+
+
+def test_file_save_detects_external_modification(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "program.nc"
+    path.write_text("G0 X0\n", encoding="utf-8")
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    window.loadFile(str(path))
+    path.write_text("EXTERNAL CHANGE\n", encoding="utf-8")
+    window.ui.editor.setText("G1 X1\n")
+    monkeypatch.setattr(
+        main_window_file_ops.QMessageBox,
+        "warning",
+        lambda *_args, **_kwargs: main_window_file_ops.QMessageBox.StandardButton.No,
+    )
+
+    assert window.saveFile(str(path)) is False
+    assert path.read_text(encoding="utf-8") == "EXTERNAL CHANGE\n"
+    window.deleteLater()
+
+
+def test_playback_stop_has_true_zero_motion_state(qt_app):
+    window = main_window.MainWindow()
+    window.latheMode = False
+    window.ui.actionLatheMode.setChecked(False)
+    window.ui.editor.setText("G0 X10\nG1 X20 F100\nM30")
+    assert window.updateData()
+    window.stop()
+
+    assert window.ui.horizontalSlider.minimum() == 0
+    assert window.ui.horizontalSlider.value() == 0
+    assert window._toolpath_item.visible_segment_count == 0
+    window.deleteLater()
+
+
+def test_machine_mode_switch_reexecutes_silently(qt_app):
+    window = main_window.MainWindow()
+    calls = []
+    original = window._execute_editor_source
+
+    def capture(*, show_errors):
+        calls.append(show_errors)
+        return original(show_errors=False)
+
+    window._execute_editor_source = capture
+    window.ui.editor.setText("G0 X1 Y2\nM30")
+    window.ui.actionLatheMode.setChecked(True)
+    qt_app.processEvents()
+
+    assert calls
+    assert calls[-1] is False
+    window.deleteLater()
+
+
+def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
+    calls = []
+    save_target = tmp_path / "program"
+
+    monkeypatch.setattr(
+        main_window_file_ops.QFileDialog,
+        "getOpenFileName",
+        lambda *args: calls.append(("open", args[-1])) or ("", ""),
+    )
+    MainWindowFileMixin.openFile(SimpleNamespace(maybeSave=lambda: True))
+    assert calls[-1] == ("open", main_window_file_ops.NC_FILE_FILTER)
+
+    saved = []
+    monkeypatch.setattr(
+        main_window_file_ops.QFileDialog,
+        "getSaveFileName",
+        lambda *args: (str(save_target), "NC programs (*.nc *.cnc *.tap *.txt)"),
+    )
+    window = SimpleNamespace(curFile="", saveFile=lambda path: saved.append(path) or True)
+    assert MainWindowFileMixin.saveAs(window) is True
+    assert saved == [str(save_target) + ".nc"]

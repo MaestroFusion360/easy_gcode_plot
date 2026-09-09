@@ -1,11 +1,13 @@
 """Editor-facing helpers for the main window."""
 
+import logging
 import re
-import time
 
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QLabel, QMenu, QMessageBox, QProgressBar
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MainWindowEditorMixin:
@@ -18,7 +20,6 @@ class MainWindowEditorMixin:
 
     def changeLang(self, idx):
         """Switch editor lexer and fonts based on language selection."""
-        start = time.time()
         self.ui.editor.setLexer(None)
         self.ui.editor.setMarginsForegroundColor(QColor(self.marginColor))
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
@@ -43,8 +44,7 @@ class MainWindowEditorMixin:
             )
             self.ui.editor.setLexer(self.lexer)
         self.syncGuiCapabilities()
-        end = time.time()
-        print(f"Paint Execution time: {(end - start) * 1000:.3f} ms")
+        LOGGER.debug("editor lexer changed index=%d", idx)
 
     def createLabelStatBar(self):
         """Create status bar widgets for cursor info, text length, and progress."""
@@ -86,6 +86,10 @@ class MainWindowEditorMixin:
     def find(self, findText, checkCase, checkWholeWord, wrapAround):
         """Search within the editor using the provided options."""
         doc = self.ui.editor
+        if not findText:
+            return False
+        cursor = doc.getCursorPosition()
+        selection = doc.getSelection()
         forward = True
         if forward:
             line, index = doc.getSelection()[2:]
@@ -106,27 +110,64 @@ class MainWindowEditorMixin:
         if not doc.findFirst(findText, *state):
             if wrapAround:
                 doc.setCursorPosition(0, 0)
-                if not doc.findFirst(findText, *state):
-                    QMessageBox.information(self, "Easy G-code Plot", "Cannot find text:\n'%s'" % findText)
-            else:
+                if doc.findFirst(findText, *state):
+                    return True
+                self._restore_editor_state(cursor, selection)
                 QMessageBox.information(self, "Easy G-code Plot", "Cannot find text:\n'%s'" % findText)
+            else:
+                self._restore_editor_state(cursor, selection)
+                QMessageBox.information(self, "Easy G-code Plot", "Cannot find text:\n'%s'" % findText)
+            return False
+        return True
 
     def replace(self, findText, replaceText, checkCase, checkWholeWord, wrapAround):
         """Replace the current match and continue searching."""
         doc = self.ui.editor
-        if findText == doc.selectedText():
+        if not findText:
+            return
+        selected = doc.selectedText()
+        matches = selected == findText if checkCase else selected.casefold() == findText.casefold()
+        if matches:
             doc.replace(replaceText)
         self.find(findText, checkCase, checkWholeWord, wrapAround)
 
     def replaceAll(self, findText, replaceText, checkCase, checkWholeWord):
         """Replace every occurrence of the search term in the editor."""
         doc = self.ui.editor
+        if not findText:
+            return 0
+        cursor = doc.getCursorPosition()
+        selection = doc.getSelection()
         state = (False, checkCase, checkWholeWord, False, True)
-        doc.setCursorPosition(0, 0)
-        while True:
-            if not doc.findFirst(findText, *state):
-                break
-            doc.replace(replaceText)
+        count = 0
+        doc.beginUndoAction()
+        try:
+            doc.setCursorPosition(0, 0)
+            while doc.findFirst(findText, *state):
+                doc.replace(replaceText)
+                count += 1
+        finally:
+            doc.endUndoAction()
+            self._restore_editor_state(cursor, selection)
+        return count
+
+    def _clamped_position(self, line, index):
+        doc = self.ui.editor
+        last_line = max(0, doc.lines() - 1)
+        line = max(0, min(int(line), last_line))
+        length = max(0, doc.lineLength(line))
+        return line, max(0, min(int(index), length))
+
+    def _restore_editor_state(self, cursor, selection):
+        """Restore a caret or selection after an editor operation."""
+        doc = self.ui.editor
+        if selection[0] >= 0:
+            start = self._clamped_position(selection[0], selection[1])
+            end = self._clamped_position(selection[2], selection[3])
+            doc.setSelection(start[0], start[1], end[0], end[1])
+        else:
+            line, index = self._clamped_position(*cursor)
+            doc.setCursorPosition(line, index)
 
     def _process_selected_lines(self, handler):
         """Apply a line transformer to selected text or the whole document."""

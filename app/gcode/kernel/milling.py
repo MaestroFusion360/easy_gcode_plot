@@ -552,20 +552,6 @@ def execute_milling(
                 )
                 break
 
-            for g in gcodes:
-                if g == 43:
-                    diagnostics.append(
-                        Diagnostic(
-                            "UNVERIFIED_TOOL_LENGTH_COMPENSATION",
-                            "G43 tool-length compensation is tracked but the H offset is not applied "
-                            "to fanuc_mill trace geometry",
-                            "warning",
-                            "unverified",
-                            block.index + 1,
-                            block.raw,
-                        )
-                    )
-
             if "T" in words:
                 tool_value = words["T"]
                 if float(tool_value).is_integer() and 1 <= int(tool_value) <= 99:

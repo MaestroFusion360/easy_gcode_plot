@@ -1,10 +1,11 @@
 """File, recent-file, drag-and-drop, and export helpers for the main window."""
 
 import logging
+import os
 import time
 from pathlib import Path
 
-from PyQt6.QtCore import QFileInfo
+from PyQt6.QtCore import QFileInfo, QIODevice, QSaveFile
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 
 from app.gcode.core import format_gcode_number
@@ -14,6 +15,29 @@ from app.gcode.kernel.io import read_nc_text
 from app.settings import normalized_recent_files as _normalized_recent_files
 
 LOGGER = logging.getLogger(__name__)
+NC_FILE_FILTER = "NC programs (*.nc *.cnc *.tap *.txt);;STL models (*.stl);;All files (*)"
+SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.tap *.txt);;All files (*)"
+
+
+def _file_signature(path):
+    try:
+        stat = Path(path).stat()
+    except OSError:
+        return None
+    return stat.st_mtime_ns, stat.st_size
+
+
+def _atomic_write(path, text, *, encoding):
+    data = text.encode(encoding)
+    output = QSaveFile(str(path))
+    if not output.open(QIODevice.OpenModeFlag.WriteOnly):
+        raise OSError(output.errorString())
+    if output.write(data) != len(data):
+        error = output.errorString()
+        output.cancelWriting()
+        raise OSError(error)
+    if not output.commit():
+        raise OSError(output.errorString())
 
 
 class MainWindowFileMixin:
@@ -80,8 +104,8 @@ class MainWindowFileMixin:
         self._persist_recent_files()
 
     def _remove_recent_file(self, path):
-        key = str(path).casefold()
-        self.recentFiles = [item for item in self.recentFiles if item.casefold() != key]
+        key = os.path.normcase(str(path))
+        self.recentFiles = [item for item in self.recentFiles if os.path.normcase(item) != key]
         self._update_recent_files_menu()
         self._persist_recent_files()
 
@@ -102,6 +126,7 @@ class MainWindowFileMixin:
         """Clear editor contents and reset state for a new document."""
         if self.maybeSave():
             self.curFile = ""
+            self._document_disk_signature = None
             self.ui.editor.clear()
             self.setCurrentFile("")
             self.clearPlot()
@@ -110,12 +135,9 @@ class MainWindowFileMixin:
     def openFile(self):
         """Prompt for a file to open and load its contents."""
         if self.maybeSave():
-            fileName, _ = QFileDialog.getOpenFileName(self)
+            fileName, _ = QFileDialog.getOpenFileName(self, "Open", "", NC_FILE_FILTER)
             if fileName:
-                start = time.time()
                 self.loadFile(fileName)
-                end = time.time()
-                print(f"Load file time: {(end - start) * 1000:.3f} ms")
 
     def save(self):
         """Save the current file or prompt for a destination if unnamed."""
@@ -125,8 +147,10 @@ class MainWindowFileMixin:
 
     def saveAs(self):
         """Prompt for a file path and save the document there."""
-        fileName, _ = QFileDialog.getSaveFileName(self)
+        fileName, _ = QFileDialog.getSaveFileName(self, "Save As", self.curFile or "", SAVE_FILE_FILTER)
         if fileName:
+            if not Path(fileName).suffix:
+                fileName += ".nc"
             return self.saveFile(fileName)
         return False
 
@@ -174,6 +198,7 @@ class MainWindowFileMixin:
 
         LOGGER.info("file_opened path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
         self._fit_view_after_program_load = True
+        self._document_disk_signature = _file_signature(fileName)
         self.ui.editor.setText(content)
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
@@ -184,8 +209,28 @@ class MainWindowFileMixin:
 
     def saveFile(self, fileName):
         """Write editor contents to disk."""
+        same_file = (
+            bool(self.curFile)
+            and QFileInfo(fileName).absoluteFilePath().casefold()
+            == QFileInfo(self.curFile).absoluteFilePath().casefold()
+        )
+        if same_file and getattr(self, "_document_disk_signature", None) is not None:
+            if _file_signature(fileName) != self._document_disk_signature:
+                answer = QMessageBox.warning(
+                    self,
+                    "Easy G-code Plot",
+                    "The file was changed by another application. Overwrite those changes?",
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No,
+                )
+                if answer != QMessageBox.StandardButton.Yes:
+                    return False
         try:
-            Path(fileName).write_text(self.ui.editor.text(), encoding=getattr(self, "fileEncoding", "utf-8"))
+            _atomic_write(
+                fileName,
+                self.ui.editor.text(),
+                encoding=getattr(self, "fileEncoding", "utf-8"),
+            )
         except (OSError, UnicodeError) as exc:
             LOGGER.exception("file_save_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
             QMessageBox.warning(
@@ -197,6 +242,7 @@ class MainWindowFileMixin:
 
         LOGGER.info("file_saved path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
         self.setCurrentFile(fileName)
+        self._document_disk_signature = _file_signature(fileName)
         self._add_recent_file(fileName)
         return True
 
@@ -220,16 +266,22 @@ class MainWindowFileMixin:
     def export(self):
         """Export current program to a chosen file path."""
         dxf_export = int(self.exportMode) == DXF_MODE
-        file_filter = "DXF (*.dxf)" if dxf_export else "All files (*)"
+        file_filter = "DXF (*.dxf)" if dxf_export else SAVE_FILE_FILTER
         path, _ = QFileDialog.getSaveFileName(self, "Export", "", file_filter)
         if not path:
             return
-        if dxf_export and not Path(path).suffix:
-            path += ".dxf"
+        if dxf_export and Path(path).suffix.casefold() != ".dxf":
+            path = str(Path(path).with_suffix(".dxf"))
+        elif not dxf_export and not Path(path).suffix:
+            path += ".nc"
         val = self.ui.horizontalSlider.value()
         if not self.updateData():
             return
-        self.valueHandler(val)
+        slider = self.ui.horizontalSlider
+        if hasattr(slider, "setValue") and hasattr(slider, "maximum"):
+            slider.setValue(min(val, slider.maximum()))
+        else:
+            self.valueHandler(val)
         start = time.time()
         try:
             if dxf_export:
@@ -241,8 +293,7 @@ class MainWindowFileMixin:
                 )
             else:
                 txt = self.exportPgm()
-                with open(path, "w", encoding="utf-8") as stream:
-                    stream.write(txt)
+                _atomic_write(path, txt, encoding=getattr(self, "fileEncoding", "utf-8"))
         except Exception as exc:  # Export/file-system errors are surfaced to the GUI.
             LOGGER.exception("export_failed path=%s", path)
             QMessageBox.warning(self, "Easy G-code Plot", str(exc))

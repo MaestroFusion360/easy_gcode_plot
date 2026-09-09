@@ -354,8 +354,12 @@ class MainWindowPlotMixin:
         result = self.execution_result
         if result is None or best_motion is None or not 0 <= best_motion < len(result.motions):
             return False
-        self.ui.horizontalSlider.setValue(best_motion + 1)
-        self._sync_editor_to_motion(best_motion)
+        target = best_motion + 1
+        current_value = self.ui.horizontalSlider.value() if hasattr(self.ui.horizontalSlider, "value") else None
+        if current_value == target:
+            self._sync_editor_to_motion(best_motion)
+        else:
+            self.ui.horizontalSlider.setValue(target)
         source_block = result.motions[best_motion].source_block
         if source_block is not None:
             self.ui.statusbar.showMessage(
@@ -411,9 +415,9 @@ class MainWindowPlotMixin:
             self.ui.lineEditFeed,
         ):
             widget.clear()
-        self.ui.horizontalSlider.setMinimum(1)
-        self.ui.horizontalSlider.setMaximum(1)
-        self.ui.horizontalSlider.setValue(1)
+        self.ui.horizontalSlider.setMinimum(0)
+        self.ui.horizontalSlider.setMaximum(0)
+        self.ui.horizontalSlider.setValue(0)
         self.ui.actionStep_Backward.setEnabled(False)
         self.ui.actionStep_Forward.setEnabled(False)
         self.ui.actionPlay.setChecked(False)
@@ -425,6 +429,27 @@ class MainWindowPlotMixin:
         """Display one logical motion and optionally synchronize the editor cursor."""
         result = self.execution_result
         if result is None or not result.motions:
+            return
+        if value <= 0:
+            motion = result.motions[0]
+            scale_x = 0.5 if self.latheMode else 1.0
+            self.ui.lineEditX.setText(str(round(motion.start_x * scale_x, 3)))
+            self.ui.lineEditY.setText(str(round(motion.start_y, 3)))
+            self.ui.lineEditZ.setText(str(round(motion.start_z, 3)))
+            for widget in (self.ui.lineEdit_I, self.ui.lineEdit_J, self.ui.lineEdit_K, self.ui.lineEditFeed):
+                widget.clear()
+            if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
+                self._create_trace_items()
+            self._toolpath_item.set_visible_logical_count(0)
+            self._cursor_item.setData(
+                pos=[(motion.start_x, motion.start_y, motion.start_z)],
+                color=QColor(self.plotCurrentColor),
+                size=CURSOR_SIZE_PX,
+                pxMode=True,
+            )
+            tool_item = getattr(self, "_milling_tool_item", None)
+            if tool_item is not None:
+                tool_item.hide_tool()
             return
         idx = max(0, min(len(result.motions) - 1, value - 1))
         motion = result.motions[idx]

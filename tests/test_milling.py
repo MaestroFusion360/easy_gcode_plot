@@ -61,6 +61,33 @@ def test_milling_relative_absolute_and_radius_arc_encodings_render_same_contour(
         assert max(point.y for point in points) == pytest.approx(55.123, abs=0.01)
 
 
+def test_milling_rounded_ijk_arc_is_renderable_without_radius_equality_rejection():
+    source = """\
+G21 G90 G17
+G0 X5.365 Y4.496 Z0
+G2 X15 Y0 I3.768 J-4.496 F500
+M30
+"""
+    result = execute(source, language="fanuc_mill", source_arc_type=1)
+    assert result.ok, result.diagnostics
+    arc = next(motion for motion in result.motions if motion.move in (2, 3))
+    assert arc.arc is not None
+
+
+def test_milling_ijk_words_are_not_discarded_by_radius_source_mode():
+    source = """\
+G21 G90 G17
+G0 X0 Y50 Z0
+G2 X50 Y0 I0 J-50 F500
+M30
+"""
+    result = execute(source, language="fanuc_mill", source_arc_type=3)
+    assert result.ok, result.diagnostics
+    arc = next(motion for motion in result.motions if motion.move in (2, 3))
+    assert arc.arc is not None
+    assert arc.arc.radius == pytest.approx(50.0)
+
+
 def test_milling_canned_cycles_execute_exact_source_blocks_and_depths():
     result = execute(MILLING_CYCLES, language="fanuc_mill")
     assert result.ok, result.diagnostics
@@ -167,8 +194,7 @@ M30
     assert result.ok, result.diagnostics
 
     diagnostics = {item.code: item for item in result.diagnostics}
-    assert diagnostics["UNVERIFIED_TOOL_LENGTH_COMPENSATION"].status == "unverified"
-    assert diagnostics["UNVERIFIED_TOOL_LENGTH_COMPENSATION"].severity == "warning"
+    assert "UNVERIFIED_TOOL_LENGTH_COMPENSATION" not in diagnostics
     assert diagnostics["UNVERIFIED_CUTTER_COMPENSATION"].status == "unverified"
     assert diagnostics["UNVERIFIED_CUTTER_COMPENSATION"].severity == "warning"
 

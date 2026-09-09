@@ -723,6 +723,86 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     window.deleteLater()
 
 
+def test_export_dialog_cancel_discards_all_pending_values(qt_app):
+    window = MainWindow()
+    dialog = window.exportDlg
+    original = (
+        window.exportMode,
+        window.exportArcMode,
+        window.forceAdr,
+        window.startPgmExp,
+        window.seqNumStart,
+    )
+    dialog.show()
+    dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+    dialog.arcOutputCmbBox.setCurrentIndex(3)
+    dialog.ui.forceCmbBox.setCurrentIndex(1)
+    dialog.ui.startLineEdit.setText("O9999")
+    dialog.ui.seqStartSpinBox.setValue(900)
+    dialog.reject()
+
+    assert (
+        window.exportMode,
+        window.exportArcMode,
+        window.forceAdr,
+        window.startPgmExp,
+        window.seqNumStart,
+    ) == original
+    window.deleteLater()
+
+
+def test_block_number_dialog_applies_values_only_on_ok(qt_app):
+    window = MainWindow()
+    dialog = window.blockNumDlg
+    original = (window.seqNumStart, window.seqNumIncr, window.seqNumSpacing)
+    calls = []
+    window.renumber = lambda: calls.append(True)
+
+    dialog.show()
+    dialog.ui.startSpinBox.setValue(original[0] + 10)
+    dialog.ui.intervSpinBox.setValue(original[1] + 2)
+    dialog.ui.spacingCmbBox.setCurrentIndex(0 if original[2] else 1)
+    dialog.reject()
+    assert (window.seqNumStart, window.seqNumIncr, window.seqNumSpacing) == original
+    assert calls == []
+
+    dialog.show()
+    dialog.ui.startSpinBox.setValue(original[0] + 10)
+    dialog.ui.intervSpinBox.setValue(original[1] + 2)
+    dialog.ui.spacingCmbBox.setCurrentIndex(0 if original[2] else 1)
+    dialog.accept()
+    assert (window.seqNumStart, window.seqNumIncr, window.seqNumSpacing) == (
+        original[0] + 10,
+        original[1] + 2,
+        not original[2],
+    )
+    assert calls == [True]
+    window.deleteLater()
+
+
+def test_find_replace_and_replace_all_preserve_editor_state(qt_app, monkeypatch):
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    window.ui.editor.setText("g1 x1\nG1 X2\n")
+    window.ui.editor.setCursorPosition(0, 0)
+    assert window.find("g1", True, True, False) is True
+    window.replace("G1", "G0", False, True, False)
+    assert window.ui.editor.text().startswith("G0 x1")
+
+    window.ui.editor.setCursorPosition(1, 2)
+    assert window.replaceAll("g1", "G2", False, True) == 1
+    assert window.ui.editor.getCursorPosition() == (1, 2)
+    window.ui.editor.undo()
+    assert window.ui.editor.text() == "G0 x1\nG1 X2\n"
+
+    monkeypatch.setattr("app.ui.main_window_editor_ops.QMessageBox.information", lambda *_args: None)
+    window.ui.editor.setSelection(0, 0, 0, 2)
+    assert window.find("NOT_FOUND", False, False, True) is False
+    assert window.ui.editor.getSelection() == (0, 0, 0, 2)
+    assert window.find("", False, False, True) is False
+    window.deleteLater()
+
+
 def test_main_window_actions_open_the_reused_dialog_instances(qt_app):
     window = MainWindow()
     tokens = window.tokensDlg
