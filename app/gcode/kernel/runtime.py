@@ -300,6 +300,7 @@ def expand_cycle_block(
             state.active_g83_cycle = True
             state.active_g84_cycle = False
             state.active_g80 = False
+            state.g83_step_q = 0.0
             if "R" in words:
                 state.g83_retract_r = abs(scaled_word(words, "R", state.unit_scale))
             if "Q" in words:
@@ -358,6 +359,7 @@ def expand_cycle_block(
             state.active_g84_cycle = True
             state.active_g83_cycle = False
             state.active_g80 = False
+            state.g84_step_q = 0.0
             if "R" in words:
                 state.g84_retract_r = abs(scaled_word(words, "R", state.unit_scale))
             if "Q" in words:

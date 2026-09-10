@@ -6,16 +6,11 @@ from pathlib import Path
 
 
 def get_version() -> str:
-    """Return the application version, taken from ``pyproject.toml``.
+    """Return the application version from the project or installed package.
 
-    When the project is installed as a distribution the version comes from
-    package metadata; otherwise it is read directly from the source file.
+    The source tree uses ``pyproject.toml`` as the canonical version. Packaged
+    builds, where that file is unavailable, use installed distribution metadata.
     """
-    try:
-        return metadata.version("easy-gcode-plot")
-    except metadata.PackageNotFoundError:
-        pass
-
     project_root = Path(__file__).resolve().parent.parent
     pyproject = project_root / "pyproject.toml"
     if pyproject.is_file():
@@ -23,4 +18,7 @@ def get_version() -> str:
             data = tomllib.load(handle)
         return data["project"]["version"]
 
-    return "unknown"
+    try:
+        return metadata.version("easy-gcode-plot")
+    except metadata.PackageNotFoundError:
+        return "unknown"

@@ -70,6 +70,14 @@ def test_turning_drill_fixture_executes_g83_and_g84_as_axial_cycles(fixture_text
     assert min(motion.end_z for motion in result.motions) == pytest.approx(-19.09)
 
 
+def test_g83_without_q_does_not_invent_pecks_and_g84_is_one_tapping_stroke_each_way():
+    g83 = execute("G21 G18 G90\nG0 X10 Z0\nG83 Z-1 F10\nM30", "fanuc_turn")
+    g84 = execute("G21 G18 G90\nG0 X10 Z0\nG84 Z-1 Q0.2 F10\nM30", "fanuc_turn")
+
+    assert [(motion.move, motion.end_z) for motion in g83.motions[-2:]] == [(1, -1.0), (0, 0.0)]
+    assert [(motion.move, motion.end_z) for motion in g84.motions[-2:]] == [(1, -1.0), (1, 0.0)]
+
+
 def test_turning_thread_fixture_covers_g32_and_g76(fixture_text):
     result = execute(fixture_text("turning/thread.nc"), language="fanuc_turn")
     assert result.ok, result.diagnostics

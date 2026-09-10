@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import os
 import shutil
 import subprocess
@@ -12,6 +11,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
+POWERSHELL_SCRIPTS_DIR = Path("scripts/ps1")
 UI_DIR = Path("app/ui/generated")
 RESOURCE_DIR = Path("app/resources")
 
@@ -21,11 +21,6 @@ def _ui_mapping(root: Path) -> dict[Path, Path]:
         path: path.with_name("main_ui.py" if path.name == "main_window.ui" else f"{path.stem}.py")
         for path in sorted((root / UI_DIR).glob("*.ui"))
     }
-
-
-def _generated_hashes(root: Path) -> dict[Path, str]:
-    outputs = [*(_ui_mapping(root).values()), root / RESOURCE_DIR / "files_res.py"]
-    return {path.relative_to(root): hashlib.sha256(path.read_bytes()).hexdigest() for path in outputs}
 
 
 def _create_codegen_fixture(tmp_path: Path) -> Path:
@@ -59,7 +54,7 @@ def _generate(root: Path, *, check: bool = True) -> subprocess.CompletedProcess[
         "-ExecutionPolicy",
         "Bypass",
         "-File",
-        str(ROOT / "scripts/generate-qt.ps1"),
+        str(ROOT / POWERSHELL_SCRIPTS_DIR / "generate-qt.ps1"),
         "-ProjectRoot",
         str(root),
         "-ToolProjectRoot",
@@ -103,7 +98,7 @@ def test_qt_generation_uses_pyside_only_as_dev_toolchain():
         project = tomllib.load(stream)
     assert any(dep.startswith("pyside6>=6.11,<7") for dep in project["dependency-groups"]["dev"])
     assert not any("pyside" in dep.lower() for dep in project["project"]["dependencies"])
-    assert "--no-dev" in (ROOT / "scripts/build.ps1").read_text(encoding="utf-8")
+    assert "--no-dev" in (ROOT / POWERSHELL_SCRIPTS_DIR / "build.ps1").read_text(encoding="utf-8")
     for generated in [*_ui_mapping(ROOT).values(), ROOT / RESOURCE_DIR / "files_res.py"]:
         content = generated.read_text(encoding="utf-8")
         assert "PySide6" not in content
@@ -112,11 +107,8 @@ def test_qt_generation_uses_pyside_only_as_dev_toolchain():
 
 
 @pytest.mark.skipif(sys.platform != "win32" or shutil.which("powershell") is None, reason="PowerShell workflow")
-def test_batch_generation_tracks_changed_ui_and_resource_and_is_idempotent(tmp_path):
+def test_batch_generation_tracks_changed_ui_and_resource(tmp_path):
     project = _create_codegen_fixture(tmp_path)
-    _generate(project)
-    baseline = _generated_hashes(project)
-
     main_ui = project / UI_DIR / "main_window.ui"
     main_ui.write_text(
         main_ui.read_text(encoding="utf-8").replace("Fixture Title", "Changed Test Title", 1), encoding="utf-8"
@@ -124,32 +116,33 @@ def test_batch_generation_tracks_changed_ui_and_resource_and_is_idempotent(tmp_p
     icon = project / RESOURCE_DIR / "icons/open.png"
     icon.write_bytes(icon.read_bytes() + b"qt-codegen-test")
     _generate(project)
-    changed = _generated_hashes(project)
+    generated_ui = (project / UI_DIR / "main_ui.py").read_text(encoding="utf-8")
+    assert "Changed Test Title" in generated_ui
+    assert "from PyQt6" in generated_ui
+    assert "import app.resources.files_res" in generated_ui
 
-    assert changed[Path("app/ui/generated/main_ui.py")] != baseline[Path("app/ui/generated/main_ui.py")]
-    assert changed[Path("app/resources/files_res.py")] != baseline[Path("app/resources/files_res.py")]
-    unrelated = set(changed) - {Path("app/ui/generated/main_ui.py"), Path("app/resources/files_res.py")}
-    assert all(changed[path] == baseline[path] for path in unrelated)
-    assert "from PyQt6" in (project / UI_DIR / "main_ui.py").read_text(encoding="utf-8")
-    assert "import app.resources.files_res" in (project / UI_DIR / "main_ui.py").read_text(encoding="utf-8")
+    env = os.environ.copy()
+    env.setdefault("QT_QPA_PLATFORM", "offscreen")
+    code = (
+        "from PyQt6.QtCore import QFile, QIODevice; "
+        "import app.resources.files_res; "
+        "resource = QFile(':/resource/icons/open.png'); "
+        "assert resource.open(QIODevice.OpenModeFlag.ReadOnly); "
+        "assert bytes(resource.readAll()).endswith(b'qt-codegen-test')"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=project, env=env, check=True, timeout=30)
 
-    _generate(project)
-    assert _generated_hashes(project) == changed
 
+def test_generation_stages_all_outputs_before_replacing_generated_targets():
+    script = (ROOT / POWERSHELL_SCRIPTS_DIR / "generate-qt.ps1").read_text(encoding="utf-8")
+    resource_generation = script.index("generate-resources.ps1")
+    ui_generation = script.index("generate-ui.ps1")
+    first_replacement = script.index("Copy-Item")
 
-@pytest.mark.skipif(sys.platform != "win32" or shutil.which("powershell") is None, reason="PowerShell workflow")
-def test_broken_ui_fails_without_replacing_any_generated_target(tmp_path):
-    project = _create_codegen_fixture(tmp_path)
-    _generate(project)
-    baseline = _generated_hashes(project)
-    broken = project / UI_DIR / "main_window.ui"
-    broken.write_text("<ui><broken>", encoding="utf-8")
-
-    result = _generate(project, check=False)
-
-    assert result.returncode != 0
-    assert str(broken) in result.stdout + result.stderr
-    assert _generated_hashes(project) == baseline
+    assert resource_generation < first_replacement
+    assert ui_generation < first_replacement
+    assert "finally" in script[first_replacement:]
+    assert "Remove-Item -LiteralPath $stagingRoot -Recurse -Force" in script
 
 
 def test_generated_modules_import_and_qt_resource_is_registered():

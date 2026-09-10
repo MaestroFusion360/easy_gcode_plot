@@ -60,6 +60,7 @@ def test_cli_trace_serializes_one_logical_arc(tmp_path):
     assert main(["trace", str(source), "--output", str(output)]) == 0
     data = json.loads(output.read_text(encoding="utf-8"))
     assert data["ok"] is True
+    assert data["complete"] is True
     assert len(data["motions"]) == 1
     assert data["motions"][0]["move"] == 2
     assert data["motions"][0]["radius"] == 5.0
@@ -81,6 +82,7 @@ def test_cli_parse_returns_structured_error_code(tmp_path, capsys):
     assert main(["parse", str(source)]) == 2
     data = json.loads(capsys.readouterr().out)
     assert data["ok"] is False
+    assert data["complete"] is False
     assert data["diagnostics"][0]["code"] == "UNDEFINED_MACRO"
 
 
@@ -92,7 +94,9 @@ def test_cli_analyze_and_export_consume_same_execution_result(tmp_path):
 
     assert main(["analyze", str(source), "-o", str(analysis)]) == 0
     assert main(["export", str(source), "-o", str(exported)]) == 0
-    assert json.loads(analysis.read_text(encoding="utf-8"))["motion_count"] == 2
+    analysis_data = json.loads(analysis.read_text(encoding="utf-8"))
+    assert analysis_data["complete"] is True
+    assert analysis_data["motion_count"] == 2
     assert "G01 X6 Z8 F10" in exported.read_text(encoding="utf-8")
 
 
@@ -135,6 +139,10 @@ def test_gui_export_dispatch_keeps_text_modes_and_arc_options():
     plot_text = export_pgm(converted)
     assert "G2 " not in plot_text and "G3 " not in plot_text
 
+    converted.incrMode = True
+    plot_text = export_pgm(converted)
+    assert "G91" not in plot_text
+
     converted.exportMode = TURN_FULL_PROGRAM_MODE
     turn_full = export_pgm(converted)
     assert "EXPANDED TURN PROGRAM" in turn_full
@@ -147,6 +155,35 @@ def test_gui_export_dispatch_keeps_text_modes_and_arc_options():
     )
     mill_full = export_pgm(mill)
     assert "EXPANDED MILL PROGRAM" in mill_full
+
+
+def test_full_program_exports_preserve_active_wcs_coordinates():
+    turn_source = "G21 G18 G90 G54\nG0 X10 Z5\nM30"
+    turn = execute(turn_source, "fanuc_turn", wcs_offsets={54: (100.0, 0.0, 200.0)})
+    turn_text = export_full_program(turn, turn_source.splitlines(), ExportOptions(delimiter=True))
+    assert "G54" in turn_text
+    assert "G0 X10 Z5" in turn_text
+
+    mill_source = "G21 G17 G90 G54\nG0 X10 Y5 Z2\nM30"
+    mill = execute(mill_source, "fanuc_mill", wcs_offsets={54: (100.0, 200.0, 300.0)})
+    mill_text = export_full_mill_program(mill, mill_source.splitlines(), ExportOptions(delimiter=True))
+    assert "G54" in mill_text
+    assert "G0 X10 Y5 Z2" in mill_text
+
+
+@pytest.mark.parametrize(
+    ("language", "source"),
+    [
+        ("fanuc_turn", "G21 G18 G90\nG0 X10 Z0\nG2 X10 Z0 I-5 K0 F10\nM30"),
+        ("fanuc_mill", "G21 G17 G90\nG0 X10 Y0\nG2 X10 Y0 I-5 J0 F10\nM30"),
+    ],
+)
+def test_r_full_circle_export_uses_two_semicircles(language, source):
+    result = execute(source, language)
+    text = export_result(result, ExportOptions(arc_mode=2, delimiter=True))
+    arc_lines = [line for line in text.splitlines() if line.startswith("G2 ")]
+    assert len(arc_lines) == 2
+    assert all(" R5" in line for line in arc_lines)
 
 
 def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence_options():
@@ -170,11 +207,10 @@ def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence
     assert text.splitlines() == [
         "O1200",
         "N10 G00 G17 G40 G49 G80 G90",
-        "N20 G91",
-        "N30 G0 X10 Z5",
-        "N40 G1 X10 Z-5 F100",
+        "N20 G0 U10 W5",
+        "N30 G1 U10 W-5 F100",
         "",
-        "N50 M30",
+        "N40 M30",
     ]
 
 

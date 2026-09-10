@@ -675,8 +675,12 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     assert not model.item(MILL_FULL_PROGRAM_MODE).isEnabled()
 
     dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
-    assert dialog.arcOutputCmbBox.isEnabled()
+    assert not dialog.arcOutputCmbBox.isEnabled()
     assert dialog.ui.incrCmbBox.isEnabled()
+    window.ui.actionLatheMode.setChecked(False)
+    qt_app.processEvents()
+    dialog.sync_mode_availability(False)
+    assert dialog.arcOutputCmbBox.isEnabled()
     dialog.ui.langCmbBox.setCurrentIndex(PLOT_DATA_MODE)
     assert not dialog.arcOutputCmbBox.isEnabled()
     assert not dialog.ui.incrCmbBox.isEnabled()

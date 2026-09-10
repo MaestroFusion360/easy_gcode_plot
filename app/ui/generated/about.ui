@@ -110,7 +110,7 @@
    <item>
     <widget class="QLabel" name="descriptionLabel">
      <property name="text">
-      <string>Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier for turning and milling. Version 1.2.0 introduces a shared native Python CNC kernel, authoritative logical Motion Trace, Macro B/control flow, turning cycles, native XYZ milling, trajectory playback/picking and source-aware expanded program export for both machine modes.</string>
+      <string>Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier for turning and milling.</string>
      </property>
      <property name="wordWrap">
       <bool>true</bool>

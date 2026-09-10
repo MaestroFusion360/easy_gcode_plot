@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path,
+    [string]$ProjectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path,
     [string]$ToolProjectRoot = $ProjectRoot
 )
 $ErrorActionPreference = 'Stop'

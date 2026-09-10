@@ -139,6 +139,7 @@ def _execute_impl(
                 ),
             ),
             executed_blocks=(),
+            complete=False,
         )
 
     if language == "fanuc_mill":
@@ -191,6 +192,7 @@ def _execute_impl(
             motions=(),
             diagnostics=unsupported + (_diagnostic_from_exception(exc, program),),
             executed_blocks=(),
+            complete=False,
         )
 
     signals = tuple(signal for step in trace_steps for signal in step.signals)
@@ -409,6 +411,7 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
         result = _execute_impl(source, language, **options)
         motions = []
         motion_step_owners: list[int] = []
+        geometry_diagnostics: list[Diagnostic] = []
         cursor = 0
         try:
             for step_index, step in enumerate(result.execution_steps):
@@ -427,7 +430,20 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
                         else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED"),
                         threading=any(k == "G" and v in (32, 33, 76, 92) for k, v in step.words),
                     )
-                    motions.append(resolve_arc(motion, source_arc_type=source_arc_type))
+                    try:
+                        resolved = resolve_arc(motion, source_arc_type=source_arc_type)
+                    except SemanticError as exc:
+                        diagnostic = _diagnostic_from_exception(exc, result.program)
+                        if diagnostic.line is None and motion.source_block is not None:
+                            block = result.program.blocks[motion.source_block] if result.program is not None else None
+                            diagnostic = replace(
+                                diagnostic,
+                                line=motion.source_block + 1,
+                                raw=None if block is None else block.raw,
+                            )
+                        geometry_diagnostics.append(diagnostic)
+                        continue
+                    motions.append(resolved)
                     motion_step_owners.append(step_index)
                 cursor += step.emitted_count
         except Exception as exc:
@@ -463,7 +479,18 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
             )
         if not result.execution_steps:
             motions = list(result.motions)
-        diagnostics = result.diagnostics
+        if result.execution_steps:
+            emitted_counts = [0] * len(result.execution_steps)
+            for owner in motion_step_owners:
+                emitted_counts[owner] += 1
+            result = replace(
+                result,
+                execution_steps=tuple(
+                    replace(step, emitted_count=emitted_counts[index])
+                    for index, step in enumerate(result.execution_steps)
+                ),
+            )
+        diagnostics = result.diagnostics + tuple(geometry_diagnostics)
         if language == "fanuc_mill":
             motions, motion_step_owners = apply_milling_cutter_compensation_with_owners(
                 motions,
@@ -494,7 +521,8 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
             result,
             motions=tuple(motions),
             diagnostics=diagnostics,
-            complete=result.ok,
+            ok=result.ok and not any(item.severity == "error" for item in geometry_diagnostics),
+            complete=result.complete,
             language=language,
             executed_blocks=tuple(step.source_block for step in result.execution_steps),
         )

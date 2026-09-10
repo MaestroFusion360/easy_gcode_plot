@@ -116,7 +116,7 @@ class Ui_AboutDlg(object):
         AboutDlg.setWindowTitle(QCoreApplication.translate("AboutDlg", u"About Easy G-code Plot", None))
         self.titleLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot", None))
         self.versionLabel.setText(QCoreApplication.translate("AboutDlg", u"Version", None))
-        self.descriptionLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier for turning and milling. Version 1.2.0 introduces a shared native Python CNC kernel, authoritative logical Motion Trace, Macro B/control flow, turning cycles, native XYZ milling, trajectory playback/picking and source-aware expanded program export for both machine modes.", None))
+        self.descriptionLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier for turning and milling.", None))
         self.licenseLabel.setText(QCoreApplication.translate("AboutDlg", u"Free and open-source software distributed under the MIT License.", None))
         self.dateLabel.setText(QCoreApplication.translate("AboutDlg", u"\u00a9 2025\u20132026 MaestroFusion360", None))
     # retranslateUi

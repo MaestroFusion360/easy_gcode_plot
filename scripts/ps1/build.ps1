@@ -5,7 +5,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $entryPoint = Join-Path $projectRoot 'main.py'
 $separator = [System.IO.Path]::PathSeparator
 

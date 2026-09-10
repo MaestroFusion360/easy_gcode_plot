@@ -187,12 +187,12 @@ class RuntimeState:
     g94_feed: float = 0.0
     active_g83_cycle: bool = False
     g83_retract_r: float = 0.0
-    g83_step_q: float = 0.05
+    g83_step_q: float = 0.0
     g83_dwell_p: float = 0.0
     g83_feed: float = 0.0
     active_g84_cycle: bool = False
     g84_retract_r: float = 0.0
-    g84_step_q: float = 0.05
+    g84_step_q: float = 0.0
     g84_dwell_p: float = 0.0
     g84_feed: float = 0.0
     active_g80: bool = True

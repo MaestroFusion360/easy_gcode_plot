@@ -26,8 +26,14 @@ class OptionsDialog(QDialog):
             button.clicked.connect(lambda _checked=False, target=edit: self.pick_color(target))
         self.ui.buttonBox.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
         self.ui.playbackSpeedSlider.valueChanged.connect(self._update_playback_speed_label)
+        self.ui.correctionCheck.toggled.connect(self._preview_correction)
+        self._loading_values = False
+        self._correction_before_show = None
+        self._correction_preview_applied = False
 
     def showEvent(self, event):
+        self._correction_before_show = getattr(self.parent(), "correctionEnabled", True)
+        self._correction_preview_applied = False
         self.load_values()
         super().showEvent(event)
 
@@ -40,7 +46,11 @@ class OptionsDialog(QDialog):
         self.ui.loggingCheck.setChecked(getattr(window, "loggingEnabled", False))
         self.ui.autoUpdateCheck.setChecked(getattr(window, "autoUpdateEnabled", True))
         self.ui.autoUpdateMaxSegmentsSpin.setValue(getattr(window, "autoUpdateMaxSegments", 20000))
-        self.ui.correctionCheck.setChecked(getattr(window, "correctionEnabled", True))
+        self._loading_values = True
+        try:
+            self.ui.correctionCheck.setChecked(getattr(window, "correctionEnabled", True))
+        finally:
+            self._loading_values = False
         self.ui.arcToleranceSpin.setValue(getattr(window, "arcTolerance", 0.001))
         self.ui.fontCombo.setCurrentFont(QFont(window.fontFamily))
         self.ui.fontSizeSpin.setValue(window.sizeTxt)
@@ -67,7 +77,11 @@ class OptionsDialog(QDialog):
     def accept(self):
         window = self.parent()
         previous_units = getattr(window, "defaultUnits", "mm")
-        previous_correction = getattr(window, "correctionEnabled", True)
+        previous_correction = (
+            getattr(window, "correctionEnabled", True)
+            if self._correction_before_show is None
+            else self._correction_before_show
+        )
         previous_tolerance = getattr(window, "arcTolerance", 0.001)
         previous_stl_appearance = (
             getattr(window, "stlColor", "#b0b0b0"),
@@ -141,16 +155,44 @@ class OptionsDialog(QDialog):
             window.timer.start(window.speedTimer, window)
         if previous_stl_appearance != (window.stlColor, window.stlWireframe):
             window.refreshStlAppearance()
-        execution_changed = (
-            previous_units != window.defaultUnits
-            or previous_correction != window.correctionEnabled
-            or previous_tolerance != window.arcTolerance
+        correction_needs_update = (
+            previous_correction != window.correctionEnabled and not self._correction_preview_applied
         )
-        if execution_changed and getattr(window, "execution_result", None) is not None:
+        if (
+            previous_units != window.defaultUnits
+            or correction_needs_update
+            or previous_tolerance != window.arcTolerance
+        ) and getattr(window, "execution_result", None) is not None:
             window.updateData()
-        else:
+        elif not self._correction_preview_applied:
             window.refreshPlotView()
+        self._correction_before_show = None
+        self._correction_preview_applied = False
         super().accept()
+
+    def reject(self):
+        window = self.parent()
+        previous_correction = self._correction_before_show
+        if previous_correction is not None and window.correctionEnabled != previous_correction:
+            window.correctionEnabled = previous_correction
+            if getattr(window, "execution_result", None) is not None:
+                window.updateData()
+        self._correction_before_show = None
+        self._correction_preview_applied = False
+        super().reject()
+
+    def _preview_correction(self, enabled):
+        """Rebuild the current milling trace when G41/G42 correction is toggled."""
+        if self._loading_values:
+            return
+        window = self.parent()
+        if self._correction_before_show is None:
+            self._correction_before_show = getattr(window, "correctionEnabled", True)
+        if window.correctionEnabled == enabled:
+            return
+        window.correctionEnabled = enabled
+        if getattr(window, "execution_result", None) is not None:
+            self._correction_preview_applied = bool(window.updateData())
 
     def pick_color(self, target):
         color = QColorDialog.getColor(QColor(target.text()), self, "Select color")

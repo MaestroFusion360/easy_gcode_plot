@@ -51,7 +51,9 @@ def _g(move: int, leading_zero: bool) -> str:
 def _word(letter: str, value: float | None) -> str | None:
     if value is None:
         return None
-    return f"{letter}{format_gcode_number(value)}"
+    if value == 0:
+        return f"{letter}0"
+    return f"{letter}{value:.6f}".rstrip("0").rstrip(".")
 
 
 def _linearized_word(letter: str, value: float | None) -> str | None:
@@ -305,7 +307,13 @@ def _expanded_step_control(step, options: ExportOptions) -> tuple[str, bool]:
     return (" " if options.delimiter else "").join(tokens), home_or_machine_move or dwell
 
 
-def _motion_in_active_wcs(motion: TraceMotion, step, result: ExecutionResult) -> TraceMotion:
+def _motion_in_active_wcs(
+    motion: TraceMotion,
+    step,
+    result: ExecutionResult,
+    *,
+    turning: bool = False,
+) -> TraceMotion:
     offsets = dict(result.wcs_offsets)
     offset = offsets.get(step.active_wcs, (0.0, 0.0, 0.0))
     if not any(abs(value) > 1e-12 for value in offset):
@@ -314,7 +322,7 @@ def _motion_in_active_wcs(motion: TraceMotion, step, result: ExecutionResult) ->
     arc = motion.arc
     if arc is not None:
         cx, cy, cz = arc.center
-        arc = replace(arc, center=(cx - ox, cy - oy, cz - oz))
+        arc = replace(arc, center=(cx - (ox * 0.5 if turning else ox), cy - oy, cz - oz))
     return replace(
         motion,
         start_x=motion.start_x - ox,
@@ -334,13 +342,50 @@ def _append_expanded_motion(
     index: int,
     *,
     override_move: int | None = None,
+    turning: bool = False,
 ) -> None:
+    def append_line(line: str) -> None:
+        if turning and options.incremental:
+            line = line.replace("X", "U").replace("Z", "W")
+        lines.append(line)
+
+    if options.arc_mode == 2 and motion.arc is not None and motion.arc.full_circle:
+        axes = {17: (0, 1, 2), 18: (0, 2, 1), 19: (1, 2, 0)}
+        a, b, other = axes[motion.plane]
+        start = [motion.start_x * motion.x_scale, motion.start_y, motion.start_z]
+        end = [motion.end_x * motion.x_scale, motion.end_y, motion.end_z]
+        center = motion.arc.center
+        midpoint = list(start)
+        midpoint[a] = 2.0 * center[a] - start[a]
+        midpoint[b] = 2.0 * center[b] - start[b]
+        midpoint[other] = (start[other] + end[other]) / 2.0
+        midpoint_x = midpoint[0] / motion.x_scale
+        half_arc = replace(motion.arc, sweep=3.141592653589793, full_circle=False)
+        first = replace(
+            motion,
+            end_x=midpoint_x,
+            end_y=midpoint[1],
+            end_z=midpoint[2],
+            arc=half_arc,
+        )
+        second = replace(
+            motion,
+            start_x=midpoint_x,
+            start_y=midpoint[1],
+            start_z=midpoint[2],
+            arc=half_arc,
+        )
+        append_line(motion_line(first, options, override_move=override_move))
+        append_line(motion_line(second, options, override_move=override_move))
+        return
     if options.arc_mode == 3 and motion.move in (2, 3):
-        lines.extend(_linearized_lines(motion, options, index))
+        for line in _linearized_lines(motion, options, index):
+            append_line(line)
     elif options.arc_mode == 4:
-        lines.extend(_linearized_lines(motion, options, index, all_moves=True))
+        for line in _linearized_lines(motion, options, index, all_moves=True):
+            append_line(line)
     else:
-        lines.append(motion_line(motion, options, override_move=override_move))
+        append_line(motion_line(motion, options, override_move=override_move))
 
 
 def export_result(result: ExecutionResult, options: ExportOptions | None = None) -> str:
@@ -357,7 +402,8 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None)
         lines.append("(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)")
     if options.safety_line:
         lines.append("G00 G17 G40 G49 G80 G90" if options.delimiter else "G00G17G40G49G80G90")
-    if options.incremental:
+    turning = result.language == "fanuc_turn"
+    if options.incremental and not turning:
         lines.append("G91")
 
     motion_index = 0
@@ -379,15 +425,16 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None)
                 if not replaces_motions:
                     _append_expanded_motion(
                         lines,
-                        _motion_in_active_wcs(motion, step, result),
+                        _motion_in_active_wcs(motion, step, result, turning=turning),
                         options,
                         motion_index,
                         override_move=threading_code,
+                        turning=turning,
                     )
                 motion_index += 1
     else:
         for motion_index, motion in enumerate(result.motions):
-            _append_expanded_motion(lines, motion, options, motion_index)
+            _append_expanded_motion(lines, motion, options, motion_index, turning=turning)
 
     if options.include_execution_events:
         _append_blank_line(lines)
@@ -662,8 +709,10 @@ def _append_motion_chunk(
     step,
     options: ExportOptions,
     previous_end_mm: tuple[float, float] | None,
+    result: ExecutionResult,
 ) -> tuple[float, float] | None:
     for motion in motions:
+        motion = _motion_in_active_wcs(motion, step, result, turning=True)
         start_mm = (motion.start_x, motion.start_z)
         if previous_end_mm is not None and (
             abs(previous_end_mm[0] - start_mm[0]) > 1e-6 or abs(previous_end_mm[1] - start_mm[1]) > 1e-6
@@ -748,7 +797,9 @@ def export_full_program(
             lines.append(_format_comment(comment))
 
         if block.index in program_start_blocks or block.index in subprogram_target_blocks:
-            continue
+            clean = re.sub(r"\bO\d+\b", "", clean, count=1, flags=re.IGNORECASE).strip()
+            if not clean:
+                continue
         if block.flow_node is not None:
             continue
         gcodes = _g_codes(clean)
@@ -762,8 +813,8 @@ def export_full_program(
 
         if not motions:
             if block.cycle_node is not None:
-                continue
-            if 4 in gcodes or 50 in gcodes:
+                control = _geometry_block_controls(clean, suppress_compensation=compensated_geometry)
+            elif 4 in gcodes or 50 in gcodes:
                 control = clean
             elif block.motion_node is None:
                 control = clean
@@ -790,6 +841,7 @@ def export_full_program(
             step=step,
             options=options,
             previous_end_mm=previous_end_mm,
+            result=result,
         )
 
     lines.extend([_program_end_event_code(result), "%"])
@@ -832,9 +884,11 @@ def _append_mill_motion_chunk(
     *,
     step,
     options: ExportOptions,
+    result: ExecutionResult,
 ) -> None:
     step_options = replace(options, incremental=not step.absolute)
     for motion in motions:
+        motion = _motion_in_active_wcs(motion, step, result)
         lines.append(
             motion_line(
                 _scale_mill_motion(motion, unit_scale=step.unit_scale),
@@ -890,7 +944,9 @@ def export_full_mill_program(
         if not clean or clean == "%":
             continue
         if block.index in program_start_blocks or block.index in subprogram_target_blocks:
-            continue
+            clean = re.sub(r"\bO\d+\b", "", clean, count=1, flags=re.IGNORECASE).strip()
+            if not clean:
+                continue
         if block.flow_node is not None:
             continue
         if not clean and event_kinds & {SUBPROGRAM_START, SUBPROGRAM_END, PROGRAM_END}:
@@ -934,6 +990,7 @@ def export_full_mill_program(
             motions,
             step=step,
             options=options,
+            result=result,
         )
 
     lines.extend([_program_end_event_code(result), "%"])
@@ -970,6 +1027,7 @@ def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None =
             step=step,
             options=options,
             previous_end_mm=None,
+            result=result,
         )
 
     return "\n".join(_number_full_program_lines(lines, options)) + ("\n" if lines else "")
@@ -1023,7 +1081,11 @@ def export_pgm(window) -> str:
     if mode == PLOT_DATA_MODE:
         return export_result(
             result,
-            replace(_window_export_options(window, arc_mode=4), include_execution_events=False),
+            replace(
+                _window_export_options(window, arc_mode=4),
+                incremental=False,
+                include_execution_events=False,
+            ),
         )
 
     if mode == DXF_MODE:

@@ -4,7 +4,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $targets = @('main.py', 'app', 'tests')
 $uvRunArguments = @('run')
 if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {

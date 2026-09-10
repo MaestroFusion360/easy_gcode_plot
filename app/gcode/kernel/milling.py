@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .api_types import (
     Diagnostic,
@@ -109,6 +109,7 @@ class MillState:
     active_tool: str | None = None
     feed_mode: str = "per_minute"
     spindle_rpm: float | None = None
+    unknown_axes: set[str] = field(default_factory=set)
 
 
 def _xyz(words, state: MillState) -> tuple[float, float, float]:
@@ -153,7 +154,7 @@ def _execution_step(
         signals=tuple(signals),
         occurrence=occurrence,
         events=tuple(events),
-        position=_machine((state.x, state.y, state.z), state, wcs_offsets),
+        position=None if state.unknown_axes else _machine((state.x, state.y, state.z), state, wcs_offsets),
         active_wcs=state.active_wcs,
         feed_mode=state.feed_mode,
         spindle_rpm=state.spindle_rpm,
@@ -536,6 +537,8 @@ def execute_milling(
                         )
                     )
             if unknown_g and position_words:
+                _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
+                state.unknown_axes.update(letter for letter in ("X", "Y", "Z") if letter in words)
                 events.extend(occurrence_events)
                 steps.append(
                     _execution_step(
@@ -546,11 +549,11 @@ def execute_milling(
                         words=evaluated,
                         signals=occurrence_signals,
                         events=occurrence_events,
-                        stop=True,
                         wcs_offsets=wcs_offsets,
                     )
                 )
-                break
+                pc += 1
+                continue
 
             if "T" in words:
                 tool_value = words["T"]
@@ -587,6 +590,27 @@ def execute_milling(
                     )
                 )
             _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
+            if state.unknown_axes:
+                if state.absolute:
+                    for letter in tuple(state.unknown_axes):
+                        if letter in words:
+                            setattr(state, letter.lower(), words[letter] * state.unit_scale)
+                            state.unknown_axes.remove(letter)
+                events.extend(occurrence_events)
+                steps.append(
+                    _execution_step(
+                        state,
+                        block,
+                        0,
+                        len(steps),
+                        words=evaluated,
+                        signals=occurrence_signals,
+                        events=occurrence_events,
+                        wcs_offsets=wcs_offsets,
+                    )
+                )
+                pc += 1
+                continue
             if 28 in gcodes:
                 occurrence_events.append(
                     ExecutionEvent(

@@ -450,7 +450,7 @@ class Ui_OptionsDlg(object):
 #if QT_CONFIG(tooltip)
         self.autoUpdateMaxSegmentsSpin.setToolTip(QCoreApplication.translate("OptionsDlg", u"Trajectories with more sampled segments require the manual Update action", None))
 #endif // QT_CONFIG(tooltip)
-        self.correctionCheck.setText(QCoreApplication.translate("OptionsDlg", u"Correction (G41/G42) \u2014 On / Off", None))
+        self.correctionCheck.setText(QCoreApplication.translate("OptionsDlg", u"Correction (G41/G42)", None))
         self.arcToleranceLabel.setText(QCoreApplication.translate("OptionsDlg", u"Arc tolerance", None))
         self.tabs.setTabText(self.tabs.indexOf(self.generalTab), QCoreApplication.translate("OptionsDlg", u"General", None))
         self.fontLabel.setText(QCoreApplication.translate("OptionsDlg", u"Font family", None))

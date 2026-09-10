@@ -43,7 +43,15 @@ class About(QDialog):
         self.ui.setupUi(self)
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
-        self.ui.versionLabel.setText(f"Version: {get_version()}")
+        version = get_version()
+        self.ui.versionLabel.setText(f"Version: {version}")
+        self.ui.descriptionLabel.setText(
+            "Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier "
+            f"for turning and milling. Version {version} includes a shared native Python CNC "
+            "kernel, authoritative logical Motion Trace, Macro B/control flow, turning cycles, "
+            "native XYZ milling, trajectory playback/picking and source-aware expanded program "
+            "export for both machine modes."
+        )
 
 
 class BlockNum(QDialog):
@@ -220,12 +228,13 @@ class Export(QDialog):
             control.setEnabled(not dxf)
 
         converted = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
+        turning_expanded = converted and bool(self.parent().latheMode)
         self.ui.labelForce.setEnabled(converted)
         self.ui.forceCmbBox.setEnabled(converted)
         self.ui.label_Incr.setEnabled(converted)
         self.ui.incrCmbBox.setEnabled(converted)
-        self.arcOutputLabel.setEnabled(converted)
-        self.arcOutputCmbBox.setEnabled(converted)
+        self.arcOutputLabel.setEnabled(converted and not turning_expanded)
+        self.arcOutputCmbBox.setEnabled(converted and not turning_expanded)
 
     def sync_mode_availability(self, turning: bool):
         """Enable exactly the full-program mode matching the active machine profile."""

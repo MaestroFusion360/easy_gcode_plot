@@ -169,7 +169,7 @@ The GUI exposes five logical output types:
 - `PLOT DATA`
 - `DXF`
 
-Expanded execution keeps arc representation (`IJK relative`, `IJK absolute`, `R`, or linearized) and G90/G91 coordinate output as separate representation options instead of separate export types. It follows actual execution order for tool changes and repeated subprogram calls and preserves executed WCS, home/machine moves, threading, dwell, spindle and coolant controls. Full-program export remains source/execution-structure oriented, while Plot Data remains a raw resolved-toolpath output.
+Expanded execution follows actual execution order for tool changes and repeated subprogram calls and preserves executed WCS, home/machine moves, threading, dwell, spindle and coolant controls. In Milling mode, arc representation (`IJK relative`, `IJK absolute`, `R`, or linearized) and G90/G91 coordinate output remain separate representation options. In Lathe mode, generated arcs are always exported as relative I/K and the optional incremental coordinate form uses U/W; the Arc Output selector is disabled. In Milling mode, an R-format full circle is emitted as two exact R semicircles so the exported geometry remains representable without changing arc-center mode. Full-program export remains source/execution-structure oriented and converts generated trace geometry back into the active preserved WCS instead of removing WCS selection. Plot Data remains a raw resolved-toolpath output and always uses absolute resolved coordinates.
 
 Additional export options include:
 
@@ -588,9 +588,11 @@ Check:
 - execution diagnostics
 - arc interpretation settings
 - machine/WCS configuration
-- whether an unsupported position-changing controller command stopped execution
+- whether an unsupported position-changing controller command created a gap in the trace
 
-The kernel deliberately stops before some unknown position-changing semantics rather than inventing geometry.
+The kernel skips unsupported position-changing blocks, marks their addressed axes unknown, and resumes only after
+absolute coordinates establish those axes again. This preserves trustworthy geometry without inventing a connecting
+move.
 
 ### Cutter Compensation Not Visible
 
@@ -805,23 +807,40 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-Or use the project scripts on Windows:
+Or use the project scripts on Linux/macOS:
 
-```powershell
-scripts\lint.ps1 -Fix
-scripts\test.ps1
+```bash
+scripts/sh/lint.sh --fix
+scripts/sh/test.sh
 ```
 
-Build the Windows executable:
+On Windows with PowerShell:
 
 ```powershell
-.\scripts\build.ps1
+scripts\ps1\lint.ps1 -Fix
+scripts\ps1\test.ps1
+```
+
+Build an executable for the current platform:
+
+```bash
+scripts/sh/build.sh
+```
+
+On Windows:
+
+```powershell
+.\scripts\ps1\build.ps1
 ```
 
 Release automation is available through:
 
+```bash
+scripts/sh/release.sh 1.4.2 "Release 1.4.2"
+```
+
 ```powershell
-.\scripts\release.ps1
+.\scripts\ps1\release.ps1 -Version 1.4.2 -Message "Release 1.4.2"
 ```
 
 ### Code Structure
@@ -900,13 +919,17 @@ tests/
 └─ test_turning.py                   FANUC turning tests
 
 scripts/
-├─ build.ps1                         Windows executable build (runtime groups only for PyInstaller)
-├─ generate-qt.ps1                   regenerate Qt resources and all Designer Python modules
-├─ generate-resources.ps1            generate `files_res.py` with pyside6-rcc, normalize to PyQt6
-├─ generate-ui.ps1                   generate Designer modules with pyside6-uic, normalize to PyQt6
-├─ lint.ps1                          formatting and static-analysis checks
-├─ release.ps1                       release/version/tag automation
-└─ test.ps1                          project test runner
+├─ ps1/                              PowerShell entry points
+│  ├─ build.ps1                      Windows executable build
+│  ├─ generate-qt.ps1                regenerate all Qt modules
+│  ├─ generate-resources.ps1         regenerate Qt resources
+│  ├─ generate-ui.ps1                regenerate Designer modules
+│  ├─ lint.ps1                       formatting and static-analysis checks
+│  ├─ release.ps1                    release/version/tag automation
+│  ├─ start.ps1                      application launcher
+│  ├─ sync.ps1                       locked development dependency sync
+│  └─ test.ps1                       project test runner
+└─ sh/                               Bash entry points with matching responsibilities
 ```
 
 ### Development Rules
@@ -930,17 +953,28 @@ Qt Designer `.ui` files and the Qt resource collection are committed sources. Th
 
 PySide6 is installed only in the `dev` dependency group to provide the maintained `pyside6-uic` and `pyside6-rcc` command-line tools. The application runtime remains PyQt6; the generation scripts rewrite generated `PySide6` imports to `PyQt6` before updating committed Python modules. With the locked PySide6 6.11.x toolchain, Qt code generation uses Python 3.11-3.14.
 
-Regenerate everything on Windows:
+Regenerate everything on Linux/macOS:
+
+```bash
+scripts/sh/generate-qt.sh
+```
+
+On Windows:
 
 ```powershell
-.\scripts\generate-qt.ps1
+.\scripts\ps1\generate-qt.ps1
 ```
 
 Or regenerate only one side of the Qt sources:
 
+```bash
+scripts/sh/generate-ui.sh
+scripts/sh/generate-resources.sh
+```
+
 ```powershell
-.\scripts\generate-ui.ps1
-.\scripts\generate-resources.ps1
+.\scripts\ps1\generate-ui.ps1
+.\scripts\ps1\generate-resources.ps1
 ```
 
 Designer dependency mapping includes:

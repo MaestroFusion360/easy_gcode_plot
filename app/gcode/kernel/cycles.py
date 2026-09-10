@@ -894,7 +894,11 @@ def build_g83_cycle(
     if abs(target_x - stock_x) > 1e-9:
         add_motion(motions, 0, tool, Point2(target_x, stock_z))
         tool = Point2(target_x, stock_z)
-    tool = _append_peck_z_turning(motions, tool, target_z, retract_r, max(abs(step_q), 0.05), feed)
+    if abs(step_q) > 1e-9:
+        tool = _append_peck_z_turning(motions, tool, target_z, retract_r, abs(step_q), feed)
+    else:
+        add_motion_with_meta(motions, 1, tool, Point2(target_x, target_z), None, feed if feed > 0 else None)
+        tool = Point2(target_x, target_z)
     add_motion(motions, 0, tool, Point2(target_x, stock_z))
     add_motion(motions, 0, Point2(target_x, stock_z), Point2(stock_x, stock_z))
     return motions
@@ -910,17 +914,18 @@ def build_g84_cycle(
     dwell_p: float,
     feed: float,
 ) -> list[Motion]:
-    # Geometry stays equivalent to G83 in this backplot model.
-    return build_g83_cycle(
-        stock_x,
-        stock_z,
-        target_x,
-        target_z,
-        retract_r,
-        step_q,
-        dwell_p,
-        feed,
-    )
+    del retract_r, step_q, dwell_p
+    motions: list[Motion] = []
+    tool = Point2(stock_x, stock_z)
+    if abs(target_x - stock_x) > 1e-9:
+        add_motion(motions, 0, tool, Point2(target_x, stock_z))
+        tool = Point2(target_x, stock_z)
+    bottom = Point2(target_x, target_z)
+    add_motion_with_meta(motions, 1, tool, bottom, None, feed if feed > 0 else None)
+    add_motion_with_meta(motions, 1, bottom, Point2(target_x, stock_z), None, feed if feed > 0 else None)
+    if abs(target_x - stock_x) > 1e-9:
+        add_motion(motions, 0, Point2(target_x, stock_z), Point2(stock_x, stock_z))
+    return motions
 
 
 def add_g92_thread_pass(

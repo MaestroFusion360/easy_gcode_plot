@@ -37,19 +37,15 @@ function Run-Lint {
     & $PowerShellExe `
         -NoProfile `
         -ExecutionPolicy Bypass `
-        -File ".\scripts\lint.ps1" `
+        -File (Join-Path $PSScriptRoot 'lint.ps1') `
         -Fix
 
     $LintExitCode = $LASTEXITCODE
 
     if ($LintExitCode -ne 0) {
-        Write-Host ""
-        Write-Host "Lint reported issues (exit code $LintExitCode)." -ForegroundColor Yellow
-        Write-Host "Release continues." -ForegroundColor Yellow
+        throw "Lint failed (exit code $LintExitCode). Release aborted."
     }
-    else {
-        Write-Host "Lint completed successfully." -ForegroundColor Green
-    }
+    Write-Host "Lint completed successfully." -ForegroundColor Green
 
     $global:LASTEXITCODE = 0
 }
@@ -82,7 +78,7 @@ if ($ProjectVersion -ne $Version) {
 Run-Lint
 
 Run-Step "Tests" {
-    & ".\scripts\test.ps1"
+    & (Join-Path $PSScriptRoot 'test.ps1')
 }
 
 Run-Step "git diff --check" {

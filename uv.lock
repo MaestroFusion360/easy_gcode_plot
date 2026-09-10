@@ -47,8 +47,8 @@ wheels = [
 
 [[package]]
 name = "easy-gcode-plot"
-version = "1.4.1"
-source = { virtual = "." }
+version = "1.4.2"
+source = { editable = "." }
 dependencies = [
     { name = "ezdxf" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.12'" },

@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.4.2 - 2026-09-10
+
+- Changed turning and milling execution to preserve trustworthy partial traces and continue after recoverable G-code, Macro B and unsupported position-changing blocks once absolute coordinates re-establish the affected axes.
+- Changed invalid arc handling to skip only the unresolved motion while retaining later resolved motions.
+- Separated execution traversal completeness from diagnostic success and exposed `complete` in CLI JSON output; resource limits and internal kernel failures remain terminal while preserving prior motions.
+- Fixed turning G83 without Q so a new cycle does not invent or inherit peck depth, and modeled G84 tapping as a single feed stroke with return motions.
+- Preserved nominal turning geometry when configured G41/G42 tool data is invalid, reporting unverified compensation instead of discarding the trace.
+- Replaced modal GUI execution-error dialogs with status-bar diagnostics and preserved the existing Plot when a failed refresh produces no usable trace.
+- Made Linux release creation stop immediately when lint fails.
+- Refactored G-code export by output mode so Full Program, Expanded Execution and Plot Data no longer share incompatible coordinate/arc settings.
+- Fixed Full Program and Expanded Execution WCS serialization by converting generated machine-space trace geometry back into the active preserved G54-G59 coordinate system without removing WCS selection.
+- Fixed turning WCS arc-center conversion by applying the configured X offset in physical radial-X space.
+- Fixed turning Expanded incremental output to use U/W rather than milling-style G91 with X/Z deltas.
+- Fixed R arc export so resolved full circles are serialized as two exact R semicircles instead of producing an unrepresentable single R full circle or switching center representation.
+- Fixed Expanded source-unit/X-mode serialization and made Plot Data ignore stale incremental settings.
+- Increased generated export-geometry precision to six decimal places so inch output combined with nonzero WCS does not shift the reconstructed Plot through three-decimal rounding.
+- Disabled Arc Output selection for Lathe Expanded export; generated turning arcs use relative I/K only.
+
 ## 1.4.1 - 2026-09-09
 
 - Added a translucent milling-tool preview that follows logical playback, rendering configured flat, bull-nose and ball-nose mills plus drills with 120-degree points, with a persistent Plot color setting.
@@ -60,7 +78,7 @@
 - Reworked the export dialog into four logical output types with separate G90/G91 and arc-representation controls for expanded execution output, preserving the existing full-program and plot-data exporters.
 - Expanded Tokens regression coverage for Macro B flow, grouped modal words, unverified/unsupported diagnostics, fatal execution and partial turning traces.
 - Unified GUI and CLI NC-file decoding through one explicit UTF-8/Windows-1251 loader contract and added a CLI `--encoding` option.
-- Required the release version passed to `release.ps1` to match `pyproject.toml` before creating a commit or tag.
+- Required the release version passed to `scripts/ps1/release.ps1` to match `pyproject.toml` before creating a commit or tag.
 - Made CI static checks blocking and migrated legacy `config.ini` discovery away from process CWD to the stable application directory.
 - Restored the 256×256 logo in the About dialog by adding it to the compiled Qt resources and making resource-manifest validation UTF-8-safe.
 

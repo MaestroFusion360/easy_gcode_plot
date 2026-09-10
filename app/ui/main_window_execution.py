@@ -4,7 +4,6 @@ import logging
 from math import acos, ceil, floor, pi
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop, QTimer
-from PyQt6.QtWidgets import QMessageBox
 
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
@@ -110,10 +109,7 @@ class MainWindowExecutionMixin:
             len(result.motions),
             len(result.diagnostics),
         )
-        if not result.ok and show_errors:
-            message = "\n".join(f"{d.code}: {d.message}" for d in result.diagnostics) or "Unable to execute G-code"
-            QMessageBox.warning(self, "Easy G-code Plot", message)
-        elif result.diagnostics and show_errors:
+        if result.diagnostics and show_errors:
             self.ui.statusbar.showMessage("; ".join(f"{d.code}: {d.message}" for d in result.diagnostics), 10000)
         return result
 
@@ -145,9 +141,6 @@ class MainWindowExecutionMixin:
 
     def autoUpdate(self):
         """Debounced refresh for programs whose sampled render path is small."""
-        previous_value = (
-            self.ui.horizontalSlider.value() if getattr(self, "execution_result", None) is not None else None
-        )
         result = self._execute_editor_source(show_errors=False)
         if result is None or not result.motions:
             return
@@ -163,7 +156,7 @@ class MainWindowExecutionMixin:
             self.ui.statusbar.showMessage("Trajectory is too large for Auto Update; press Update.", 10000)
             return
         self._auto_update_deferred = False
-        self._finishDataUpdate(result, points, playback_value=previous_value)
+        self._finishDataUpdate(result, points)
 
     def updateData(self, *, show_errors=True):
         """Execute editor source through the single authoritative CNC kernel."""
@@ -173,11 +166,6 @@ class MainWindowExecutionMixin:
         previous_segments = max(0, len(getattr(self, "render_points", ())) - 1)
         show_progress = getattr(self, "_auto_update_deferred", False) or previous_segments > segment_limit
         MainWindowExecutionMixin._setUpdateProgress(self, 5 if show_progress else None)
-        previous_value = (
-            self.ui.horizontalSlider.value()
-            if getattr(self, "execution_result", None) is not None and hasattr(self, "ui")
-            else None
-        )
         result = self._execute_editor_source(show_errors=show_errors)
         if result is None or not result.motions:
             MainWindowExecutionMixin._setUpdateProgress(self, None)
@@ -191,12 +179,12 @@ class MainWindowExecutionMixin:
                 arc_points_per_circle=self.arcPointsPerCircle(result),
             )
             MainWindowExecutionMixin._setUpdateProgress(self, 75)
-            self._finishDataUpdate(result, points, playback_value=previous_value)
+            self._finishDataUpdate(result, points)
             self._auto_update_deferred = False
             MainWindowExecutionMixin._setUpdateProgress(self, 100)
             QTimer.singleShot(500, lambda: MainWindowExecutionMixin._setUpdateProgress(self, None))
         else:
-            self._finishDataUpdate(result, playback_value=previous_value)
+            self._finishDataUpdate(result)
         return True
 
     def _setUpdateProgress(self, value):

@@ -33,10 +33,10 @@ try {
 
     # Expected location:
     #
-    #   <project>\scripts\export-git-project.ps1
+    #   <project>\scripts\ps1\export-git-project.ps1
     #
-    # The project root is always the parent of the scripts directory.
-    $ProjectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+    # The project root is two levels above the platform-specific scripts directory.
+    $ProjectRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
     $ProjectName = Split-Path $ProjectRoot -Leaf
 
     # By default the archive is created next to the project directory.

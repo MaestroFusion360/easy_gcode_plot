@@ -200,21 +200,21 @@ def test_modal_state_on_m98_block_is_active_inside_subprogram(language):
     assert [signal.code for signal in call_step.signals] == ["M08"]
 
 
-def test_milling_unknown_position_command_fails_closed_without_losing_prior_trace():
-    result = execute("G21 G90\nG1 X10 F100\nG123 X20\nG1 X30\nM30", "fanuc_mill")
+def test_milling_unknown_position_command_resumes_after_absolute_reestablishment():
+    result = execute("G21 G90\nG1 X10 F100\nG123 X20\nG1 X30\nG1 X40\nM30", "fanuc_mill")
     assert not result.ok
-    assert result.complete is False
-    assert [(motion.end_x, motion.end_y, motion.end_z) for motion in result.motions] == [(10.0, 0.0, 0.0)]
+    assert result.complete is True
+    assert [(motion.start_x, motion.end_x) for motion in result.motions] == [(0.0, 10.0), (30.0, 40.0)]
     diagnostic = next(d for d in result.diagnostics if d.code == "UNSUPPORTED_G_CODE")
     assert diagnostic.severity == "error"
     assert diagnostic.status == "unsupported"
 
 
-def test_milling_invalid_arc_preserves_prior_resolved_trace():
+def test_milling_invalid_arc_skips_only_the_bad_motion():
     result = execute("G21 G17 G90\nG1 X10 Y0 F100\nG2 X20 Y0 R1\nG1 X30\nM30", "fanuc_mill")
     assert not result.ok
-    assert result.complete is False
-    assert [(motion.end_x, motion.end_y, motion.end_z) for motion in result.motions] == [(10.0, 0.0, 0.0)]
+    assert result.complete is True
+    assert [(motion.start_x, motion.end_x) for motion in result.motions] == [(0.0, 10.0), (20.0, 30.0)]
     assert any(diagnostic.code == "INVALID_GEOMETRY" for diagnostic in result.diagnostics)
 
 

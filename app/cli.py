@@ -44,6 +44,7 @@ def _load(path: Path, language: str, encoding: str) -> tuple[str, ExecutionResul
 def _result_document(result: ExecutionResult, *, include_motions: bool) -> dict[str, object]:
     doc: dict[str, object] = {
         "ok": result.ok,
+        "complete": result.complete,
         "instructions": [asdict(item) for item in result.instructions],
         "diagnostics": [asdict(item) for item in result.diagnostics],
         "executed_blocks": list(result.executed_blocks),
@@ -61,6 +62,7 @@ def _analysis_document(result: ExecutionResult) -> dict[str, object]:
     summary = {k: v for k, v in stats.items() if k not in {"lengths", "times"}}
     return {
         "ok": result.ok,
+        "complete": result.complete,
         "status": "verified" if result.ok and not result.diagnostics else "review",
         **summary,
         "statistics": summary,
