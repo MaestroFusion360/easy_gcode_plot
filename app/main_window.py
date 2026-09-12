@@ -1,14 +1,18 @@
 """Main application window."""
 
+import logging
+from time import perf_counter
+
 from PyQt6.QtCore import QBasicTimer, QSize, Qt, QTimer
 from PyQt6.QtGui import QAction, QActionGroup, QIcon, QQuaternion
-from PyQt6.QtWidgets import QComboBox, QMainWindow
+from PyQt6.QtWidgets import QComboBox, QMainWindow, QToolBar
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
 from app.settings import RECENT_FILES_LIMIT as _RECENT_FILES_LIMIT
 from app.settings import normalized_milling_tools, normalized_recent_files, normalized_tools
 from app.ui.dialogs import About, BlockNum, Export, Find, MillingTools, TurningTools, Wcs
 from app.ui.generated.main_ui import Ui_MainWindow
+from app.ui.help import HelpDialog
 from app.ui.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.main_window_execution import (
     AUTO_REFRESH_DELAY_MS,
@@ -30,9 +34,11 @@ from app.ui.main_window_plot import (
 from app.ui.main_window_plot import (
     MainWindowPlotMixin,
 )
+from app.ui.main_window_stock import MainWindowStockMixin
 from app.ui.options import OptionsDialog
 from app.ui.plot_navigation import PlotNavigation
 from app.ui.statistics import StatisticsDialog
+from app.ui.stock_dialog import StockDialog
 from app.ui.tokens import TokensDialog
 from app.ui.window_settings import MainWindowSettingsMixin
 
@@ -45,6 +51,8 @@ AUTO_REFRESH_MAX_POINTS = _AUTO_REFRESH_MAX_POINTS
 PICK_DISTANCE_PX = _PICK_DISTANCE_PX
 CURSOR_SIZE_PX = _CURSOR_SIZE_PX
 RAPID_COLOR = _RAPID_COLOR
+LOGGER = logging.getLogger(__name__)
+TOOLBAR_ICON_SIZE = QSize(24, 24)
 
 
 class MainWindow(
@@ -52,6 +60,7 @@ class MainWindow(
     MainWindowFileMixin,
     MainWindowEditorMixin,
     MainWindowExecutionMixin,
+    MainWindowStockMixin,
     MainWindowPlotMixin,
     QMainWindow,
 ):
@@ -71,6 +80,7 @@ class MainWindow(
         self.setWindowIcon(icon)
 
         self.loadSettings()
+        self.restoreToolbarState()
         self._initialize_runtime_helpers()
         self.connectActions()
         self.createLabelStatBar()
@@ -79,18 +89,18 @@ class MainWindow(
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
-        self.ui.actionImportSTL = QAction("Import STL...", self)
-        self.ui.actionImportSTL.setObjectName("actionImportSTL")
-        self.ui.actionImportSTL.setToolTip("Import an STL model into the 3D plot")
-        self.ui.actionImportSTL.setIcon(QIcon(":/resource/icons/3D.png"))
-        self.ui.actionClearSTL = QAction("Clear STL", self)
-        self.ui.actionClearSTL.setObjectName("actionClearSTL")
-        self.ui.actionClearSTL.setEnabled(False)
-        self.ui.menu_File.insertAction(self.ui.actionSave, self.ui.actionImportSTL)
-        self.ui.menu_File.insertAction(self.ui.actionSave, self.ui.actionClearSTL)
-        self.ui.menu_File.insertSeparator(self.ui.actionSave)
-        self.ui.toolBar.addSeparator()
-        self.ui.toolBar.addAction(self.ui.actionImportSTL)
+        for toolbar in (
+            self.ui.fileToolBar,
+            self.ui.editToolBar,
+            self.ui.cncToolBar,
+            self.ui.viewToolBar,
+            self.ui.playbackToolBar,
+        ):
+            toolbar.setIconSize(TOOLBAR_ICON_SIZE)
+        self.ui.actionStock = QAction("Stock", self)
+        self.ui.actionStock.setObjectName("actionStock")
+        self.ui.actionStock.setToolTip("Configure turning Stock Removal")
+        self.ui.menuSettings.insertAction(self.ui.actionWCS, self.ui.actionStock)
 
         self.ui.actionGroupArcType = QActionGroup(self)
         self.ui.actionGroupArcType.setExclusive(True)
@@ -101,20 +111,57 @@ class MainWindow(
         ):
             self.ui.actionGroupArcType.addAction(action)
 
-        self.ui.langCombo = QComboBox(self)
-        self.ui.langCombo.addItems(["Text File", "ISO G-Code"])
-        self.ui.langCombo.setToolTip("File Type")
-        actions = self.ui.toolBar1.actions()
+        self.ui.fileTypeCombo = QComboBox(self)
+        self.ui.fileTypeCombo.setObjectName("fileTypeCombo")
+        self.ui.fileTypeCombo.addItems(["Text File", "ISO G-Code"])
+        self.ui.fileTypeCombo.setToolTip("File Type")
+        actions = self.ui.cncToolBar.actions()
         if actions:
             first_action = actions[0]
-            self.ui.toolBar1.insertWidget(first_action, self.ui.langCombo)
-            self.ui.toolBar1.insertSeparator(first_action)
+            self.ui.cncToolBar.insertWidget(first_action, self.ui.fileTypeCombo)
+            self.ui.cncToolBar.insertSeparator(first_action)
         else:
-            self.ui.toolBar1.addWidget(self.ui.langCombo)
+            self.ui.cncToolBar.addWidget(self.ui.fileTypeCombo)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+
+    def _toolbars(self):
+        """Return toolbars in their canonical default order."""
+        return (
+            self.ui.fileToolBar,
+            self.ui.editToolBar,
+            self.ui.cncToolBar,
+            self.ui.viewToolBar,
+            self.ui.playbackToolBar,
+        )
+
+    def resetToolbarsToDefault(self):
+        """Restore all toolbars to one visible row in canonical order."""
+        for toolbar in self._toolbars():
+            self.removeToolBar(toolbar)
+        for toolbar in self._toolbars():
+            self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
+            toolbar.show()
+        self.settings.remove("GEOMETRY/TOOLBAR_STATE")
+
+    def contextMenuEvent(self, event):
+        """Offer toolbar visibility controls and a default-layout reset."""
+        widget = self.childAt(event.pos())
+        while widget is not None and not isinstance(widget, QToolBar):
+            widget = widget.parentWidget()
+        if widget is None:
+            return super().contextMenuEvent(event)
+        menu = self.createPopupMenu()
+        menu.addSeparator()
+        reset_action = menu.addAction("Reset to Default")
+        reset_action.triggered.connect(self.resetToolbarsToDefault)
+        menu.exec(event.globalPos())
+        event.accept()
 
     def _initialize_runtime_helpers(self):
         """Create dialogs and timers after persisted settings are loaded."""
         self.aboutDlg = About(self)
+        self.helpDlg = HelpDialog(self)
         self.exportDlg = Export(self)
         self.findDlg = Find(self)
         self.blockNumDlg = BlockNum(self)
@@ -124,6 +171,7 @@ class MainWindow(
         self.optionsDlg = OptionsDialog(self)
         self.tokensDlg = TokensDialog(self)
         self.statisticsDlg = StatisticsDialog(self)
+        self.stockDlg = StockDialog(self)
         self.timer = QBasicTimer()
         self.autoUpdateTimer = QTimer(self)
         self.autoUpdateTimer.setSingleShot(True)
@@ -170,6 +218,7 @@ class MainWindow(
         self.ui.actionRemoveSpaces.triggered.connect(self.removeSpaces)
         self.ui.actionRemoveEmptyLines.triggered.connect(self.removeLines)
         self.ui.actionStatistics.triggered.connect(self.statistics)
+        self.ui.actionStock.triggered.connect(self.stockDlg.show)
         self.ui.actionWCS.triggered.connect(lambda: self.wcsDlg.show())
         self.ui.actionTurningTools.triggered.connect(lambda: self.turningToolsDlg.show())
         self.ui.actionMillingTools.triggered.connect(lambda: self.millingToolsDlg.show())
@@ -209,21 +258,25 @@ class MainWindow(
         self.ui.editor.cursorPositionChanged.connect(self.plotCurLine)
         self.ui.horizontalSlider.sliderMoved.connect(self.sliderDrag)
         self.ui.horizontalSlider.valueChanged.connect(self.valueHandler)
+        self.ui.horizontalSlider.valueChanged.connect(self.updatePlaybackStatus)
         self.ui.actionAbout.triggered.connect(self.aboutDlg.show)
+        self.ui.actionFAQ.triggered.connect(self.helpDlg.show)
 
-        self.ui.langCombo.currentIndexChanged.connect(self.changeLang)
+        self.ui.fileTypeCombo.currentIndexChanged.connect(self.changeFileType)
 
     def syncGuiCapabilities(self):
         """Synchronize machine-specific actions with the active execution profile."""
         turning = bool(self.latheMode)
+        self.ui.actionStock.setEnabled(turning)
         self.ui.actionTurningTools.setEnabled(turning)
         self.ui.actionMillingTools.setEnabled(not turning)
 
-        # Arc interpretation is a kernel input for both profiles, while arc
-        # tolerance controls downstream sampling for any resolved ArcGeometry.
-        self.ui.actionRelative_to_start.setEnabled(True)
-        self.ui.actionAbsolute.setEnabled(True)
-        self.ui.actionRadius_value.setEnabled(True)
+        # Fanuc turning always interprets I/K relative to the arc start.  Keep
+        # the configurable Arc Type visible only where it is actually used.
+        self.ui.menuArc_Type.setEnabled(not turning)
+        self.ui.actionRelative_to_start.setEnabled(not turning)
+        self.ui.actionAbsolute.setEnabled(not turning)
+        self.ui.actionRadius_value.setEnabled(not turning)
         if hasattr(self, "optionsDlg"):
             self.optionsDlg.ui.arcToleranceSpin.setEnabled(True)
 
@@ -235,10 +288,16 @@ class MainWindow(
             self.arc_type = 2
         if self.ui.actionRadius_value.isChecked():
             self.arc_type = 3
+        LOGGER.info("arc_type_changed value=%d lathe=%s", self.arc_type, self.latheMode)
         self.updateData()
 
     def changeLathe(self):
         """Toggle lathe visualization mode and refresh plot accordingly."""
+        started = perf_counter()
+        if getattr(self, "_stock_animation_active", False):
+            self.ui.actionPlay.setChecked(False)
+            self.timer.stop()
+            self._leave_stock_animation()
         if self.ui.actionLatheMode.isChecked():
             self.latheMode = True
             self._view_mode = "lathe"
@@ -266,5 +325,20 @@ class MainWindow(
             self.view3d()
 
         self.syncGuiCapabilities()
+        if hasattr(self, "wcsDlg"):
+            self.wcsDlg.loadValues()
         if hasattr(self, "exportDlg"):
             self.exportDlg.sync_mode_availability(self.latheMode)
+        LOGGER.info(
+            "machine_mode_changed mode=%s duration_ms=%.3f motions=%d",
+            "lathe" if self.latheMode else "mill",
+            (perf_counter() - started) * 1000.0,
+            0 if self.execution_result is None else len(self.execution_result.motions),
+        )
+
+    def showStockChecked(self, checked):
+        """Show or hide the passive turning-stock outline immediately."""
+        self.showStock = bool(checked)
+        LOGGER.info("show_stock_changed enabled=%s lathe=%s", self.showStock, self.latheMode)
+        if hasattr(self, "_update_stock_outline"):
+            self._update_stock_outline()

@@ -5,6 +5,7 @@ from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.kernel import execute
+from app.gcode.trace_tools import trace_statistics
 from app.main_window import MainWindow
 from app.ui.statistics import StatisticsDialog
 
@@ -41,8 +42,34 @@ def test_main_window_reuses_statistics_dialog_for_current_execution(qt_app):
     assert dialog.isVisible()
     assert "Execution: complete" in dialog.reportText.toPlainText()
     assert "Motions: 2" in dialog.reportText.toPlainText()
+    assert dialog.inchesCheck.isEnabled()
     window.close()
     window.deleteLater()
+
+
+def test_statistics_inches_checkbox_converts_all_lengths_and_speeds(qt_app):
+    dialog = StatisticsDialog()
+    result = execute("G21 G90\nG0 X25.4\nG1 X50.8 F25.4\nM30", language="fanuc_mill")
+    statistics = trace_statistics(result, rapid_feed=2540.0)
+
+    dialog.show_statistics(statistics)
+    dialog.inchesCheck.setChecked(True)
+    qt_app.processEvents()
+    imperial = dialog.reportText.toPlainText()
+
+    assert "Length: 2.000 in" in imperial
+    assert "Feed length: 1.000 in" in imperial
+    assert "Average feed: 1.000 in/min" in imperial
+    assert "Assumed rapid speed: 100.000 in/min" in imperial
+    assert "Bounds in programmed coordinates (in):" in imperial
+    assert " mm" not in imperial
+
+    dialog.inchesCheck.setChecked(False)
+    metric = dialog.reportText.toPlainText()
+    assert "Length: 50.800 mm" in metric
+    assert "Assumed rapid speed: 2540.000 mm/min" in metric
+    dialog.close()
+    dialog.deleteLater()
 
 
 def test_statistics_context_menu_uses_application_copy_and_select_all_icons(qt_app):

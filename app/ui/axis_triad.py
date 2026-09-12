@@ -9,6 +9,14 @@ from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
 AXIS_LENGTH_PX = 48.0
 AXIS_DEPTH = 100
+# The triad is an orientation aid, not a lit scene object.  Keep these colors
+# invariant under camera rotation and scene lighting.
+AXIS_ORIGIN_COLOR = QColor("#ffd400")
+AXIS_COLORS = {
+    "X": QColor("#e02020"),
+    "Y": QColor("#159447"),
+    "Z": QColor("#1769d2"),
+}
 AXIS_OPAQUE_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: False,
     GL.GL_BLEND: False,
@@ -41,17 +49,17 @@ class AxisTriadItem(GLGraphicsItem):
         sphere = GLMeshItem(
             parentItem=self,
             meshdata=MeshData.sphere(rows=12, cols=18, radius=0.055),
-            color=QColor("#ffd400"),
+            color=AXIS_ORIGIN_COLOR,
             smooth=True,
-            shader="shaded",
+            shader=None,
             glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
         self._meshes.append(sphere)
 
         axes = (
-            ("X", QColor("#e02020"), (0.0, 1.0, 0.0, 90.0), (1.12, 0.0, 0.0)),
-            ("Y", QColor("#159447"), (1.0, 0.0, 0.0, -90.0), (0.0, 1.12, 0.0)),
-            ("Z", QColor("#1769d2"), None, (0.0, 0.0, 1.12)),
+            ("X", AXIS_COLORS["X"], (0.0, 1.0, 0.0, 90.0), (1.12, 0.0, 0.0)),
+            ("Y", AXIS_COLORS["Y"], (1.0, 0.0, 0.0, -90.0), (0.0, 1.12, 0.0)),
+            ("Z", AXIS_COLORS["Z"], None, (0.0, 0.0, 1.12)),
         )
         label_font = QFont("Segoe UI", 11, QFont.Weight.Bold)
         for label, color, rotation, label_position in axes:
@@ -73,7 +81,7 @@ class AxisTriadItem(GLGraphicsItem):
             meshdata=MeshData.cylinder(rows=1, cols=18, radius=[0.022, 0.022], length=0.72),
             color=color,
             smooth=True,
-            shader="shaded",
+            shader=None,
             glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
         cone = GLMeshItem(
@@ -81,7 +89,7 @@ class AxisTriadItem(GLGraphicsItem):
             meshdata=MeshData.cylinder(rows=1, cols=18, radius=[0.075, 0.0], length=0.28),
             color=color,
             smooth=True,
-            shader="shaded",
+            shader=None,
             glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
         cone.translate(0.0, 0.0, 0.72)

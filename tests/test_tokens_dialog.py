@@ -59,6 +59,26 @@ def test_turning_tip_orientation_icons_are_visible_in_editor_and_table(qt_app):
     window.deleteLater()
 
 
+@pytest.mark.parametrize("tool_type", ["face_groove", "od_groove", "id_groove"])
+def test_groove_width_is_editable_and_saved(qt_app, tool_type):
+    window = MainWindow()
+    editor = _TurningToolEditor(window, tool_code="T0808")
+    editor.toolType.setCurrentIndex(editor.toolType.findData(tool_type))
+    editor.width.setValue(6.5)
+
+    assert editor.width.isEnabled()
+    expected = {"type": tool_type, "width": 6.5}
+    if tool_type == "od_groove":
+        expected["tipOrientation"] = 3
+        assert [editor.tipOrientation.itemText(index) for index in range(editor.tipOrientation.count())] == ["P3", "P4"]
+    elif tool_type == "id_groove":
+        expected["tipOrientation"] = 2
+        assert [editor.tipOrientation.itemText(index) for index in range(editor.tipOrientation.count())] == ["P1", "P2"]
+    assert editor.value() == ("T0808", expected)
+    editor.deleteLater()
+    window.deleteLater()
+
+
 def test_rows_use_kernel_tokens_and_diagnostics():
     source = "G0 X1 Z2\nG999 X3"
     rows = rows_from_execution(source, execute(source))
@@ -351,18 +371,18 @@ def test_options_runtime_semantic_changes_reexecute_current_document(qt_app, mon
 def test_options_default_file_type_is_not_taken_from_current_editor_mode(qt_app, monkeypatch):
     window = MainWindow()
     window.defaultFileType = 1
-    window.ui.langCombo.setCurrentIndex(0)
+    window.ui.fileTypeCombo.setCurrentIndex(0)
     dialog = window.optionsDlg
     dialog.load_values()
     assert dialog.ui.fileTypeCombo.currentIndex() == 1
 
     applied = []
-    monkeypatch.setattr(window, "changeLang", applied.append)
+    monkeypatch.setattr(window, "changeFileType", applied.append)
     monkeypatch.setattr(window, "saveSettings", lambda: None)
     monkeypatch.setattr(window, "refreshPlotView", lambda: None)
     dialog.accept()
     assert window.defaultFileType == 1
-    assert window.ui.langCombo.currentIndex() == 1
+    assert window.ui.fileTypeCombo.currentIndex() == 1
     assert applied == [1]
     window.deleteLater()
 
@@ -423,15 +443,17 @@ def test_machine_specific_actions_follow_active_profile_without_restart(qt_app):
     qt_app.processEvents()
     assert window.ui.actionTurningTools.isEnabled()
     assert not window.ui.actionMillingTools.isEnabled()
-    assert window.ui.actionRelative_to_start.isEnabled()
-    assert window.ui.actionAbsolute.isEnabled()
-    assert window.ui.actionRadius_value.isEnabled()
+    assert not window.ui.menuArc_Type.isEnabled()
+    assert not window.ui.actionRelative_to_start.isEnabled()
+    assert not window.ui.actionAbsolute.isEnabled()
+    assert not window.ui.actionRadius_value.isEnabled()
     assert window.optionsDlg.ui.arcToleranceSpin.isEnabled()
 
     window.ui.actionLatheMode.setChecked(False)
     qt_app.processEvents()
     assert not window.ui.actionTurningTools.isEnabled()
     assert window.ui.actionMillingTools.isEnabled()
+    assert window.ui.menuArc_Type.isEnabled()
     assert window.ui.actionRelative_to_start.isEnabled()
     assert window.ui.actionAbsolute.isEnabled()
     assert window.ui.actionRadius_value.isEnabled()

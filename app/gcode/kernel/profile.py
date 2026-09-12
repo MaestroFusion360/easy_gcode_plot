@@ -14,7 +14,7 @@ from .program import (
 )
 
 
-def _apply_a_programming(
+def apply_a_programming(
     start_x: float,
     start_z: float,
     target_x: float,
@@ -104,7 +104,7 @@ def _clear_corner(seg: ProfileSegment) -> ProfileSegment:
     )
 
 
-def _apply_corner_direct_programming(
+def apply_corner_direct_programming(
     profile: list[ProfileSegment],
 ) -> list[ProfileSegment]:
     if len(profile) < 2:
@@ -149,33 +149,49 @@ def _apply_corner_direct_programming(
 
         if chamfer > 1e-9:
             trim = chamfer
-            if trim >= len1 - 1e-6 or trim >= len2 - 1e-6:
+            if trim > len1 + 1e-6 or trim > len2 + 1e-6:
                 segments[i] = _clear_corner(s1)
                 i += 1
                 continue
             p1 = Point2(vertex.x - d_in_x * trim, vertex.z - d_in_z * trim)
             p2 = Point2(vertex.x + d_out_x * trim, vertex.z + d_out_z * trim)
-            seg1_new = _make_line_segment(s1.block, s1.start, p1)
-            chamfer_seg = _make_line_segment(s1.block, p1, p2)
-            seg2_new = _make_line_segment(
-                s2.block,
+            remaining_in = max(0.0, len1 - trim)
+            remaining_out = max(0.0, len2 - trim)
+            replacement: list[ProfileSegment] = []
+            if remaining_in > 1e-6:
+                replacement.append(_make_line_segment(s1.block, s1.start, p1))
+            chamfer_seg = _make_line_segment(
+                s1.block,
+                p1,
                 p2,
-                s2.end,
-                corner_chamfer=s2.corner_chamfer,
-                corner_radius_cmd=s2.corner_radius_cmd,
+                corner_chamfer=s2.corner_chamfer if remaining_out <= 1e-6 else 0.0,
+                corner_radius_cmd=s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0,
             )
-            segments[i : i + 2] = [seg1_new, chamfer_seg, seg2_new]
-            i += 2
+            replacement.append(chamfer_seg)
+            if remaining_out > 1e-6:
+                replacement.append(
+                    _make_line_segment(
+                        s2.block,
+                        p2,
+                        s2.end,
+                        corner_chamfer=s2.corner_chamfer,
+                        corner_radius_cmd=s2.corner_radius_cmd,
+                    )
+                )
+            segments[i : i + 2] = replacement
+            i += len(replacement) - 1
             continue
 
         trim = fillet * math.tan(turn * 0.5)
-        if trim <= 1e-9 or trim >= len1 - 1e-6 or trim >= len2 - 1e-6:
+        if trim <= 1e-9 or trim > len1 + 1e-6 or trim > len2 + 1e-6:
             segments[i] = _clear_corner(s1)
             i += 1
             continue
 
         p1 = Point2(vertex.x - d_in_x * trim, vertex.z - d_in_z * trim)
         p2 = Point2(vertex.x + d_out_x * trim, vertex.z + d_out_z * trim)
+        remaining_in = max(0.0, len1 - trim)
+        remaining_out = max(0.0, len2 - trim)
 
         # Program geometry is interpreted in XZ, but practical turning contour orientation
         # is equivalent to a swapped plotting basis (Z as horizontal, X as vertical).
@@ -183,7 +199,9 @@ def _apply_corner_direct_programming(
         cross = d_in_z * d_out_x - d_in_x * d_out_z
         arc_move = 3 if cross > 0.0 else 2
 
-        seg1_new = _make_line_segment(s1.block, s1.start, p1)
+        replacement = []
+        if remaining_in > 1e-6:
+            replacement.append(_make_line_segment(s1.block, s1.start, p1))
         fillet_seg = ProfileSegment(
             block=s1.block,
             move=arc_move,
@@ -193,16 +211,22 @@ def _apply_corner_direct_programming(
             radius=fillet,
             has_center=False,
             center=Point2(0.0, 0.0),
+            corner_chamfer=s2.corner_chamfer if remaining_out <= 1e-6 else 0.0,
+            corner_radius_cmd=s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0,
         )
-        seg2_new = _make_line_segment(
-            s2.block,
-            p2,
-            s2.end,
-            corner_chamfer=s2.corner_chamfer,
-            corner_radius_cmd=s2.corner_radius_cmd,
-        )
-        segments[i : i + 2] = [seg1_new, fillet_seg, seg2_new]
-        i += 2
+        replacement.append(fillet_seg)
+        if remaining_out > 1e-6:
+            replacement.append(
+                _make_line_segment(
+                    s2.block,
+                    p2,
+                    s2.end,
+                    corner_chamfer=s2.corner_chamfer,
+                    corner_radius_cmd=s2.corner_radius_cmd,
+                )
+            )
+        segments[i : i + 2] = replacement
+        i += len(replacement) - 1
 
     return [_clear_corner(s) for s in segments]
 
@@ -253,7 +277,7 @@ def build_profile_segments(
             has_z = True
 
         if "A" in w:
-            tx, tz, has_x, has_z = _apply_a_programming(
+            tx, tz, has_x, has_z = apply_a_programming(
                 x,
                 z,
                 tx,
@@ -265,8 +289,8 @@ def build_profile_segments(
             )
 
         has_a = "A" in w
-        corner_chamfer = abs(w.get("C", 0.0))
-        corner_radius = abs(w.get("R", 0.0))
+        corner_chamfer = abs(w.get("C", 0.0) * unit_scale)
+        corner_radius = abs(w.get("R", 0.0) * unit_scale)
 
         if move == 1 and has_a and not (has_x or has_z):
             a_val = 180.0 - w["A"] if supplementary_angles else w["A"]
@@ -333,7 +357,7 @@ def build_profile_segments(
         )
         x, z = tx, tz
 
-    return _apply_corner_direct_programming(profile)
+    return apply_corner_direct_programming(profile)
 
 
 def normalize_sweep(gcode: int, start_a: float, end_a: float) -> float:

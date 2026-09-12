@@ -259,7 +259,18 @@ def apply_tool_nose_compensation(motions: list[Motion], tools: dict[str, dict[st
             result.extend(run)
             index = end
             continue
-        if str(tool.get("type", "")).lower() != "turning":
+        if str(tool.get("type", "")).lower() not in {
+            "turning",
+            "face_groove",
+            "od_groove",
+            "id_groove",
+            "od_80",
+            "id_80",
+            "od_35",
+            "id_35",
+            "id_cutting",
+            "od_cutting",
+        }:
             raise ToolCompensationError(f"G41/G42 requires a turning tool, got {tool.get('type')!r}.")
         try:
             radius = float(tool["noseRadius"])

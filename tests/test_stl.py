@@ -63,7 +63,7 @@ def test_main_window_imports_persists_and_clears_stl_overlay(qt_app):
     window = MainWindow()
 
     assert window.ui.actionImportSTL in window.ui.menu_File.actions()
-    assert window.ui.actionImportSTL in window.ui.toolBar.actions()
+    assert window.ui.actionImportSTL in window.ui.fileToolBar.actions()
     assert not window.ui.actionClearSTL.isEnabled()
     assert window.importStl(str(STL_FIXTURE)) is True
     overlay = window._stl_overlay

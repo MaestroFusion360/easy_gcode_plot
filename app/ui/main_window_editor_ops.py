@@ -12,14 +12,12 @@ LOGGER = logging.getLogger(__name__)
 
 class MainWindowEditorMixin:
     def updateStatusBar(self):
-        """Update status bar with text length and cursor position."""
-        text = self.ui.editor.text()
+        """Update source position without reading the complete document."""
         line, index = self.ui.editor.getCursorPosition()
-        self.chrCountLabel.setText("Length: {}".format(len(text.replace("\n", "\r\n"))))
-        self.cursorPosLabel.setText("Ln: {}/{}, Col:{}".format(line + 1, self.ui.editor.lines(), index + 1))
+        self.sourceStatusLabel.setText("Ln {} / {} | Col {}".format(line + 1, self.ui.editor.lines(), index + 1))
 
-    def changeLang(self, idx):
-        """Switch editor lexer and fonts based on language selection."""
+    def changeFileType(self, idx):
+        """Switch editor highlighting for the selected file type."""
         self.ui.editor.setLexer(None)
         self.ui.editor.setMarginsForegroundColor(QColor(self.marginColor))
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
@@ -47,22 +45,78 @@ class MainWindowEditorMixin:
         LOGGER.debug("editor lexer changed index=%d", idx)
 
     def createLabelStatBar(self):
-        """Create status bar widgets for cursor info, text length, and progress."""
+        """Create persistent execution state fields and transient progress."""
         self.progressBar = QProgressBar()
         self.progressBar.setMaximumWidth(200)
         self.progressBar.setMaximum(100)
         self.progressBar.setTextVisible(False)
         self.progressBar.hide()
-        self.chrCountLabel = QLabel()
-        self.chrCountLabel.setMinimumWidth(100)
-
-        self.cursorPosLabel = QLabel()
-        self.cursorPosLabel.setMinimumWidth(150)
-        self.ui.statusbar.addPermanentWidget(self.chrCountLabel)
-        self.ui.statusbar.addPermanentWidget(self.cursorPosLabel)
+        self.executionStatusLabel = QLabel("READY")
+        self.modeStatusLabel = QLabel("LATHE" if self.latheMode else "MILLING")
+        self.unitsStatusLabel = QLabel(getattr(self, "defaultUnits", "mm"))
+        self.sourceStatusLabel = QLabel()
+        self.traceStatusLabel = QLabel("Steps: 0 | Motions: 0")
+        self.diagnosticsStatusLabel = QLabel("\u2713")
+        self.timeStatusLabel = QLabel("Exec: --")
+        for widget in (
+            self.executionStatusLabel,
+            self.modeStatusLabel,
+            self.unitsStatusLabel,
+            self.sourceStatusLabel,
+            self.traceStatusLabel,
+            self.diagnosticsStatusLabel,
+            self.timeStatusLabel,
+        ):
+            self.ui.statusbar.addPermanentWidget(widget)
         self.ui.statusbar.addPermanentWidget(self.progressBar)
 
         self.updateStatusBar()
+
+    def updateExecutionStatus(self, state=None, result=None, elapsed_ms=None):
+        """Reflect already-resolved kernel state without running analysis."""
+        if not hasattr(self, "executionStatusLabel"):
+            return
+        result = result if result is not None else getattr(self, "execution_result", None)
+        if state is None:
+            if getattr(self, "_plot_source_stale", False) and result is not None:
+                state = "STALE"
+            elif result is None:
+                state = "READY"
+            elif not result.ok or not getattr(result, "complete", result.ok):
+                state = "ERROR"
+            elif any(getattr(item, "severity", "error").lower() == "warning" for item in result.diagnostics):
+                state = "WARNING"
+            else:
+                state = "OK"
+        self.executionStatusLabel.setText(state)
+        self.modeStatusLabel.setText("LATHE" if self.latheMode else "MILLING")
+        steps = () if result is None else getattr(result, "execution_steps", ())
+        motions = () if result is None else result.motions
+        self.traceStatusLabel.setText(f"Steps: {len(steps)} | Motions: {len(motions)}")
+        errors = sum(
+            getattr(d, "severity", "error").lower() == "error" for d in (() if result is None else result.diagnostics)
+        )
+        warnings = sum(
+            getattr(d, "severity", "error").lower() == "warning" for d in (() if result is None else result.diagnostics)
+        )
+        parts = ([f"E: {errors}"] if errors else []) + ([f"W: {warnings}"] if warnings else [])
+        self.diagnosticsStatusLabel.setText(" / ".join(parts) or "\u2713")
+        if result is not None and steps:
+            self.unitsStatusLabel.setText("inch" if float(steps[-1].unit_scale) == 25.4 else "mm")
+        else:
+            self.unitsStatusLabel.setText(getattr(self, "defaultUnits", "mm"))
+        if elapsed_ms is not None:
+            self.timeStatusLabel.setText(f"Exec: {elapsed_ms:.1f} ms")
+
+    def updatePlaybackStatus(self, value):
+        """Expose the already-available playback motion position."""
+        if not hasattr(self, "traceStatusLabel"):
+            return
+        maximum = self.ui.horizontalSlider.maximum()
+        if self.ui.actionPlay.isChecked() and maximum:
+            self.traceStatusLabel.setText(f"Motion {value} / {maximum}")
+        else:
+            self.updateExecutionStatus()
 
     def editorContextMenu(self, point):
         """Show context menu for editor editing actions."""

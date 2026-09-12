@@ -371,8 +371,14 @@ def trace_statistics(
     }
 
 
-def format_trace_statistics(stats: dict[str, object]) -> str:
-    """Format trace-only metrics; times exclude machine-dependent overhead."""
+def format_trace_statistics(stats: dict[str, object], *, inches: bool = False) -> str:
+    """Format trace-only metrics in millimetres or inches."""
+
+    length_scale = 1.0 / 25.4 if inches else 1.0
+    length_unit = "in" if inches else "mm"
+
+    def length(value):
+        return float(value) * length_scale
 
     def duration(value):
         if value is None:
@@ -385,13 +391,13 @@ def format_trace_statistics(stats: dict[str, object]) -> str:
     def section(values):
         average = values["average_feed_mm_min"]
         return [
-            f"Length: {values['total_length']:.3f} mm",
-            f"Rapid length: {values['rapid_length']:.3f} mm",
-            f"Feed length: {values['feed_length']:.3f} mm",
+            f"Length: {length(values['total_length']):.3f} {length_unit}",
+            f"Rapid length: {length(values['rapid_length']):.3f} {length_unit}",
+            f"Feed length: {length(values['feed_length']):.3f} {length_unit}",
             f"Rapid time: {duration(values['rapid_time_min'])}",
             f"Feed time: {duration(values['feed_time_min'])}",
             f"Known motion time: {duration(values['known_time_min'])}",
-            "Average feed: " + (f"{average:.3f} mm/min" if average is not None else "UNKNOWN"),
+            "Average feed: " + (f"{length(average):.3f} {length_unit}/min" if average is not None else "UNKNOWN"),
             f"Motions with unknown time: {values['unknown_time_motion_count']}",
         ]
 
@@ -403,13 +409,13 @@ def format_trace_statistics(stats: dict[str, object]) -> str:
         f"arc motions: {stats['arc_count']}; cycle motions: {stats['cycle_count']}",
         f"Estimated motion time: {duration(stats['total_time_min'])}",
         *section(stats),
-        f"Assumed rapid speed: {stats['rapid_feed_mm_min']:.3f} mm/min",
+        f"Assumed rapid speed: {length(stats['rapid_feed_mm_min']):.3f} {length_unit}/min",
         "Kinematic estimate only; excludes dwell, tool changes and acceleration.",
     ]
     if stats["bounds"] is not None:
-        lines.append("Bounds in programmed coordinates (mm):")
+        lines.append(f"Bounds in programmed coordinates ({length_unit}):")
         for axis, (low, high) in zip("XYZ", stats["bounds"]):
-            lines.append(f"{axis}: {low:.3f} / {high:.3f}")
+            lines.append(f"{axis}: {length(low):.3f} / {length(high):.3f}")
     for tool, values in stats["per_tool"].items():
         lines.extend(["", f"Tool {tool}", *section(values)])
     return "\n".join(lines)

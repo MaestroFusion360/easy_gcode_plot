@@ -1,6 +1,8 @@
 """OpenGL rendering, view, grid, and trajectory-picking helpers for the main window."""
 
+import logging
 import math
+from time import perf_counter
 
 from OpenGL import GL
 from PyQt6.QtGui import QColor, QVector3D, QVector4D
@@ -18,6 +20,7 @@ from app.ui.toolpath_vbo import ToolpathVboItem, segments_from_render_points
 PICK_DISTANCE_PX = 8.0
 CURSOR_SIZE_PX = 7.0
 RAPID_COLOR = "#d02020"
+LOGGER = logging.getLogger(__name__)
 GRID_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: True,
     GL.GL_BLEND: True,
@@ -30,6 +33,21 @@ GRID_GL_OPTIONS = {
         GL.GL_ONE_MINUS_SRC_ALPHA,
     ),
 }
+
+
+def _display_value(value, unit_scale):
+    """Format a physical millimetre value in the active program units."""
+    rounded = round(float(value) / float(unit_scale), 3)
+    return str(0.0 if rounded == 0 else rounded)
+
+
+def _lathe_arc_offsets(motion):
+    """Return relative Fanuc I/K values from resolved physical arc geometry."""
+    if motion.arc is None or motion.plane != 18:
+        return motion.i, motion.k
+    center_x, _, center_z = motion.arc.center
+    i_value = (center_x - motion.start_x * motion.x_scale) / motion.x_scale
+    return i_value, center_z - motion.start_z
 
 
 def _render_point_bounds(points):
@@ -143,6 +161,7 @@ class MainWindowPlotMixin:
     def gridChecked(self):
         """Toggle plot grid visibility and refresh the view."""
         self.plotGrid = self.ui.actionGrid.isChecked()
+        LOGGER.info("plot_grid_changed enabled=%s lathe=%s", self.plotGrid, getattr(self, "latheMode", False))
         self.loadPlot()
         self._create_trace_items()
         if self.execution_result is not None and self.execution_result.motions:
@@ -178,23 +197,26 @@ class MainWindowPlotMixin:
         return bounds
 
     def _scene_bounds(self):
+        if getattr(self, "_stock_animation_active", False) and hasattr(self, "stockFitBounds"):
+            return self.stockFitBounds()
         toolpath_bounds = self._cached_toolpath_bounds()
+        stock_bounds = self.stockFitBounds() if hasattr(self, "stockFitBounds") else None
         overlay = getattr(self, "_stl_overlay", None)
         stl_bounds = overlay.mesh.bounds if overlay is not None else None
-        if toolpath_bounds is None:
-            return stl_bounds
-        if stl_bounds is None:
-            return toolpath_bounds
+        bounds = [item for item in (toolpath_bounds, stock_bounds, stl_bounds) if item is not None]
+        if not bounds:
+            return None
         return tuple(
-            (min(toolpath_bounds[axis][0], stl_bounds[axis][0]), max(toolpath_bounds[axis][1], stl_bounds[axis][1]))
-            for axis in range(3)
+            (min(item[axis][0] for item in bounds), max(item[axis][1] for item in bounds)) for axis in range(3)
         )
 
     def fitToView(self):
         """Center and fit the complete rendered toolpath and STL in the active projection."""
+        started = perf_counter()
         bounds = self._scene_bounds()
         if bounds is None:
             self._update_adaptive_grid()
+            LOGGER.debug("fit_view skipped_no_bounds duration_ms=%.3f", (perf_counter() - started) * 1000.0)
             return
 
         spans = tuple(high - low for low, high in bounds)
@@ -249,17 +271,31 @@ class MainWindowPlotMixin:
         view.setCameraPosition(distance=distance)
         self.dist = distance
         self._update_adaptive_grid()
+        LOGGER.debug(
+            "fit_view duration_ms=%.3f mode=%s distance=%.3f bounds=%s",
+            (perf_counter() - started) * 1000.0,
+            mode,
+            distance,
+            bounds,
+        )
 
     def _create_trace_items(self):
         """Attach the persistent VBO toolpath and lightweight cursor overlay."""
+        if getattr(self, "_stock_animation_active", False):
+            self._load_stock_animation_plot()
+            return
         width = getattr(self, "plotLineWidth", 1.5)
         toolpath_item = getattr(self, "_toolpath_item", None)
         execution_result = getattr(self, "execution_result", None)
         if toolpath_item is None and execution_result is not None:
             toolpath_item = ToolpathVboItem()
             toolpath_item.set_segments(
-                segments_from_render_points(self.render_points, execution_result.motions),
-                len(execution_result.motions),
+                segments_from_render_points(
+                    self.render_points,
+                    execution_result.motions,
+                    getattr(self, "_motion_to_playback", None),
+                ),
+                len(getattr(self, "_playback_movements", execution_result.motions)),
             )
             self._toolpath_item = toolpath_item
         if toolpath_item is not None:
@@ -288,16 +324,26 @@ class MainWindowPlotMixin:
         self._milling_tool_item.set_color(getattr(self, "plotToolColor", "#4d99ff"))
         if self._milling_tool_item not in self.ui.graphicsView.items:
             self.ui.graphicsView.addItem(self._milling_tool_item)
+        if hasattr(self, "_update_stock_outline"):
+            self._update_stock_outline()
 
     def _set_trace_geometry(self):
         """Pack new trace geometry once; GPU upload remains paint-lazy."""
+        started = perf_counter()
         if getattr(self, "_toolpath_item", None) is None:
             self._toolpath_item = ToolpathVboItem()
         result = self.execution_result
         motions = result.motions if result is not None else ()
         self._toolpath_item.set_segments(
-            segments_from_render_points(self.render_points, motions),
+            segments := segments_from_render_points(self.render_points, motions),
             len(motions),
+        )
+        LOGGER.debug(
+            "toolpath_geometry_packed duration_ms=%.3f motions=%d render_points=%d segments=%d",
+            (perf_counter() - started) * 1000.0,
+            len(motions),
+            len(self.render_points),
+            len(segments),
         )
 
     def _dispose_trace_item(self):
@@ -329,6 +375,8 @@ class MainWindowPlotMixin:
 
     def _pick_trace_at(self, position):
         """Select the nearest trajectory segment on Shift+Click in a 2D view."""
+        if getattr(self, "_stock_animation_active", False):
+            return False
         view_mode = "lathe" if self.latheMode else getattr(self, "_view_mode", "3d")
         if view_mode not in {"lathe", "top", "front", "left"} or not self.render_points:
             return False
@@ -354,7 +402,8 @@ class MainWindowPlotMixin:
         result = self.execution_result
         if result is None or best_motion is None or not 0 <= best_motion < len(result.motions):
             return False
-        target = best_motion + 1
+        motion_to_playback = getattr(self, "_motion_to_playback", tuple(range(len(result.motions))))
+        target = motion_to_playback[best_motion] + 1
         current_value = self.ui.horizontalSlider.value() if hasattr(self.ui.horizontalSlider, "value") else None
         if current_value == target:
             self._sync_editor_to_motion(best_motion)
@@ -384,10 +433,17 @@ class MainWindowPlotMixin:
 
     def clearPlot(self):
         """Reset authoritative execution and render/playback state."""
+        if hasattr(self, "_clear_stock_animation"):
+            self._clear_stock_animation()
+        if hasattr(self, "_clear_stock_outline"):
+            self._clear_stock_outline()
+        self._stock_auto_suggestion = None
         self._dispose_trace_item()
         self.execution_result = None
         self.render_points = []
         self._motion_render_end = []
+        self._playback_movements = ()
+        self._motion_to_playback = ()
         self._source_motion_index = {}
         self._syncing_cursor = False
         self._fit_view_after_program_load = False
@@ -432,12 +488,15 @@ class MainWindowPlotMixin:
             return
         if value <= 0:
             motion = result.motions[0]
-            scale_x = 0.5 if self.latheMode else 1.0
-            self.ui.lineEditX.setText(str(round(motion.start_x * scale_x, 3)))
-            self.ui.lineEditY.setText(str(round(motion.start_y, 3)))
-            self.ui.lineEditZ.setText(str(round(motion.start_z, 3)))
+            unit_scale = self._motion_unit_scales[0] if getattr(self, "_motion_unit_scales", ()) else 1.0
+            self.ui.lineEditX.setText(_display_value(motion.start_x, unit_scale))
+            self.ui.lineEditY.setText(_display_value(motion.start_y, unit_scale))
+            self.ui.lineEditZ.setText(_display_value(motion.start_z, unit_scale))
             for widget in (self.ui.lineEdit_I, self.ui.lineEdit_J, self.ui.lineEdit_K, self.ui.lineEditFeed):
                 widget.clear()
+            if getattr(self, "_stock_animation_active", False):
+                self._update_stock_animation_frame(0)
+                return
             if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
                 self._create_trace_items()
             self._toolpath_item.set_visible_logical_count(0)
@@ -451,16 +510,27 @@ class MainWindowPlotMixin:
             if tool_item is not None:
                 tool_item.hide_tool()
             return
-        idx = max(0, min(len(result.motions) - 1, value - 1))
+        playback_index = max(0, min(len(self._playback_movements) - 1, value - 1))
+        playback = self._playback_movements[playback_index]
+        idx = playback.motion_end - 1
         motion = result.motions[idx]
-        scale_x = 0.5 if self.latheMode else 1.0
-        self.ui.lineEditX.setText(str(round(motion.end_x * scale_x, 3)))
-        self.ui.lineEditY.setText(str(round(motion.end_y, 3)))
-        self.ui.lineEditZ.setText(str(round(motion.end_z, 3)))
-        self.ui.lineEdit_I.setText("" if motion.i is None else str(round(motion.i, 3)))
-        self.ui.lineEdit_J.setText("" if motion.j is None else str(round(motion.j, 3)))
-        self.ui.lineEdit_K.setText("" if motion.k is None else str(round(motion.k, 3)))
-        self.ui.lineEditFeed.setText("Rapid" if motion.move == 0 else ("" if motion.feed is None else str(motion.feed)))
+        scales = getattr(self, "_motion_unit_scales", ())
+        unit_scale = scales[idx] if idx < len(scales) else 1.0
+        self.ui.lineEditX.setText(_display_value(motion.end_x, unit_scale))
+        self.ui.lineEditY.setText(_display_value(motion.end_y, unit_scale))
+        self.ui.lineEditZ.setText(_display_value(motion.end_z, unit_scale))
+        i_value, k_value = _lathe_arc_offsets(motion) if self.latheMode else (motion.i, motion.k)
+        self.ui.lineEdit_I.setText("" if i_value is None else _display_value(i_value, unit_scale))
+        self.ui.lineEdit_J.setText("" if motion.j is None else _display_value(motion.j, unit_scale))
+        self.ui.lineEdit_K.setText("" if k_value is None else _display_value(k_value, unit_scale))
+        self.ui.lineEditFeed.setText(
+            "Rapid" if motion.move == 0 else ("" if motion.feed is None else _display_value(motion.feed, unit_scale))
+        )
+        if getattr(self, "_stock_animation_active", False):
+            self._update_stock_animation_frame(value)
+            if sync_editor:
+                self._sync_editor_to_motion(idx)
+            return
         if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
             self._create_trace_items()
         self._toolpath_item.set_visible_logical_count(idx + 1)
@@ -487,6 +557,11 @@ class MainWindowPlotMixin:
 
     def loadPlot(self):
         """Redraw axes, background, and the active orthographic grid."""
+        started = perf_counter()
+        if getattr(self, "_stock_animation_active", False):
+            self._load_stock_animation_plot()
+            LOGGER.debug("plot_scene_loaded stock_animation=true duration_ms=%.3f", (perf_counter() - started) * 1000.0)
+            return
         self.ui.graphicsView.clear()
         self._cursor_item = None
         self._lathe_grid_item = None
@@ -520,6 +595,17 @@ class MainWindowPlotMixin:
         overlay = getattr(self, "_stl_overlay", None)
         if overlay is not None and overlay.item is not None:
             self.ui.graphicsView.addItem(overlay.item)
+        if hasattr(self, "_update_stock_outline"):
+            self._update_stock_outline()
+        LOGGER.debug(
+            "plot_scene_loaded stock_animation=false duration_ms=%.3f lathe=%s grid=%s axes=%s stl=%s items=%d",
+            (perf_counter() - started) * 1000.0,
+            self.latheMode,
+            self.plotGrid,
+            self.plotAxes,
+            overlay is not None,
+            len(self.ui.graphicsView.items),
+        )
 
     def _adaptive_grid_size(self):
         view = self.ui.graphicsView
@@ -621,10 +707,16 @@ class MainWindowPlotMixin:
 
     def refreshPlotView(self):
         """Redraw scene items after user-facing visual options change."""
+        started = perf_counter()
         self.loadPlot()
         self._create_trace_items()
         if self.execution_result is not None and self.execution_result.motions:
             self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
+        LOGGER.info(
+            "plot_visual_options_refreshed duration_ms=%.3f items=%d",
+            (perf_counter() - started) * 1000.0,
+            len(self.ui.graphicsView.items),
+        )
 
     def _finish_camera_change(self):
         """Fit the new camera and reorient only the existing grid."""
@@ -647,6 +739,7 @@ class MainWindowPlotMixin:
         self.ui.graphicsView.setProjectionMode("perspective")
         self.setView(60, 30, -45, use_calc_dist=False, dist_scale=1)
         self._finish_camera_change()
+        LOGGER.info("plot_view_changed mode=3d")
 
     def viewTop(self):
         """Switch camera to a true top-down orthographic view."""
@@ -655,6 +748,7 @@ class MainWindowPlotMixin:
         self.ui.graphicsView.setProjectionMode("orthographic")
         self.setView(60, 90, -90, use_calc_dist=False)
         self._finish_camera_change()
+        LOGGER.info("plot_view_changed mode=top")
 
     def viewFront(self):
         """Switch camera to a true front orthographic view."""
@@ -663,6 +757,7 @@ class MainWindowPlotMixin:
         self.ui.graphicsView.setProjectionMode("orthographic")
         self.setView(60, 0, -90, use_calc_dist=False)
         self._finish_camera_change()
+        LOGGER.info("plot_view_changed mode=front")
 
     def viewLeft(self):
         """Switch camera to a true left orthographic view."""
@@ -671,6 +766,7 @@ class MainWindowPlotMixin:
         self.ui.graphicsView.setProjectionMode("orthographic")
         self.setView(60, 0, 180, use_calc_dist=False)
         self._finish_camera_change()
+        LOGGER.info("plot_view_changed mode=left")
 
     def calcDist(self):
         """Calculate camera center/distance from the cached toolpath bounds."""

@@ -1,13 +1,15 @@
 <RCC>
   <qresource prefix="resource">
+    <file alias="FAQ.md">../../FAQ.md</file>
     <file>icons/removeEmptyLines.png</file>
     <file>icons/removeSpaces.png</file>
     <file>icons/number.png</file>
     <file>icons/arc.png</file>
     <file>icons/stat.png</file>
     <file>icons/lathe.png</file>
+    <file>icons/stl.png</file>
     <file>icons/logo.png</file>
-    <file>icons/logo_256х256.png</file>
+    <file>icons/logo_256x256.png</file>
     <file>icons/grid.png</file>
     <file>icons/step_backward.png</file>
     <file>icons/step_forward.png</file>

@@ -26,6 +26,7 @@ from .execution import (
     retain_modal_turning_cycles,
 )
 from .model import RuntimeState
+from .profile import apply_a_programming
 from .program import resolve_cycle_profile_indices
 from .resources import checkpoint
 from .runtime import expand_cycle_block
@@ -450,6 +451,7 @@ def dispatch_motion_block(
     modal_feed: float,
     unit_scale: float,
     x_is_diameter: bool,
+    supplementary_angles: bool = False,
     to_machine_fn,
     x_value_to_diameter_fn,
     x_delta_to_diameter_fn,
@@ -473,6 +475,20 @@ def dispatch_motion_block(
         tz = words["Z"] * unit_scale
     elif "W" in words:
         tz = modal_z + (words["W"] * unit_scale)
+
+    if modal_move == 1 and "A" in words:
+        has_x = "X" in words or "U" in words
+        has_z = "Z" in words or "W" in words
+        tx, tz, _has_x, _has_z = apply_a_programming(
+            modal_x,
+            modal_z,
+            tx,
+            tz,
+            has_x,
+            has_z,
+            words["A"],
+            supplementary_angle=supplementary_angles,
+        )
 
     if tx == modal_x and tz == modal_z and not (modal_move in (2, 3) and any(k in words for k in ("I", "K", "R"))):
         return MotionDispatch(True, tx, tz, None)
@@ -571,6 +587,7 @@ def dispatch_cycle_emission(
                 source_raw=src_raw,
                 source_kind="cycle",
                 compensation_applied=bool(getattr(cm, "compensation_applied", False)),
+                playback_group=getattr(cm, "playback_group", None),
             )
         )
 
@@ -1060,6 +1077,7 @@ def execute_trace_step(
         modal_feed=state.modal_feed,
         unit_scale=state.unit_scale,
         x_is_diameter=state.x_is_diameter,
+        supplementary_angles=bool(ctx.cycle_options.get("supplementary_angles", False)),
         to_machine_fn=to_machine_fn,
         x_value_to_diameter_fn=x_value_to_diameter_fn,
         x_delta_to_diameter_fn=x_delta_to_diameter_fn,

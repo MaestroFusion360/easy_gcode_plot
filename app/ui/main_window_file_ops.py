@@ -202,7 +202,7 @@ class MainWindowFileMixin:
         self.ui.editor.setText(content)
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
-        self.changeLang(self.ui.langCombo.currentIndex())
+        self.changeFileType(self.ui.fileTypeCombo.currentIndex())
         self.syncGuiCapabilities()
         self.scheduleAutoUpdate()
         self._add_recent_file(fileName)

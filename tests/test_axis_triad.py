@@ -3,7 +3,15 @@ from __future__ import annotations
 import pytest
 from OpenGL import GL
 
-from app.ui.axis_triad import AXIS_DEPTH, AXIS_LENGTH_PX, AXIS_OPAQUE_GL_OPTIONS, AXIS_TEXT_GL_OPTIONS, AxisTriadItem
+from app.ui.axis_triad import (
+    AXIS_COLORS,
+    AXIS_DEPTH,
+    AXIS_LENGTH_PX,
+    AXIS_OPAQUE_GL_OPTIONS,
+    AXIS_ORIGIN_COLOR,
+    AXIS_TEXT_GL_OPTIONS,
+    AxisTriadItem,
+)
 
 
 def test_axis_triad_has_sphere_three_arrows_and_three_labels():
@@ -60,3 +68,24 @@ def test_axis_triad_is_the_topmost_depth_independent_overlay():
     assert AXIS_TEXT_GL_OPTIONS[GL.GL_DEPTH_TEST] is False
     assert item._meshes[0]._GLGraphicsItem__glOpts[GL.GL_DEPTH_TEST] is False  # pylint: disable=protected-access
     assert item._labels[0]._GLGraphicsItem__glOpts[GL.GL_DEPTH_TEST] is False  # pylint: disable=protected-access
+
+
+def test_axis_triad_uses_fixed_unlit_colors():
+    item = AxisTriadItem()
+
+    expected = [
+        AXIS_ORIGIN_COLOR,
+        AXIS_COLORS["X"],
+        AXIS_COLORS["X"],
+        AXIS_COLORS["Y"],
+        AXIS_COLORS["Y"],
+        AXIS_COLORS["Z"],
+        AXIS_COLORS["Z"],
+    ]
+    assert [mesh.opts["color"] for mesh in item._meshes] == expected  # pylint: disable=protected-access
+    assert all(mesh.opts["shader"] is None for mesh in item._meshes)  # pylint: disable=protected-access
+    assert [label.color for label in item._labels] == [  # pylint: disable=protected-access
+        AXIS_COLORS["X"],
+        AXIS_COLORS["Y"],
+        AXIS_COLORS["Z"],
+    ]

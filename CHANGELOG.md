@@ -1,7 +1,38 @@
 # Changelog
 
+## 1.5.0 - 2026-09-12
+
+- Reworked playback around an indexed logical-movement map: one trackbar position now represents one actual CNC movement while retaining the complete detailed `TraceMotion`/render range for OpenGL and Stock Removal. Arc tessellation and G71 offset-profile chords no longer inflate the slider, while real cycle and Macro B expansions remain individually playable.
+- Split the legacy toolbar into independent File, Edit, CNC, View and Playback toolbars backed by the same `QAction` instances as the menus; added File Type, Fit to View and View 3D controls, standardized Paste on `Ctrl+V`, centralized icon sizing, and renamed the misleading `langCombo` to `fileTypeCombo`.
+- Added persistent movable-toolbar layout using `QMainWindow.saveState()`/`restoreState()`, placed all toolbars in one row by default, and added `Reset to Default` to the toolbar context menu.
+- Replaced the editor-centric Length status bar with execution-aware READY/UPDATING/OK/WARNING/ERROR/STALE state, machine mode, resolved units, source position, step/motion counts, diagnostic totals, execution time and transient progress/playback position. Cursor movement no longer reads the complete document.
+- Reorganized Options into Designer-owned General, Editor, CNC / Execution, Plot and Colors tabs, with clickable color swatches plus validated hex fields, bounded numeric controls, safe handling of invalid persisted values, and correct OK/Cancel/Restore Defaults semantics without runtime layout construction.
+- Made the X/Y/Z axis triad use fixed unlit colors so scene lighting and camera orientation cannot turn its arrows black, without changing STL, toolpath, Stock Removal or grid rendering.
+- Added `Lathe Mode` to the view toolbar immediately before Refresh, added the resource-backed STL action beside Export Data before Undo, and placed File → Import STL directly above Clear STL.
+- Added the `Show Stock` checkbox to Settings → Options → Plot immediately after Show canvas grid, with live preview/cancel handling and persistent visibility state; no separate Stock toolbar action is used.
+- Added Lathe UI boundary handling for diameter-based X/I and WCS X values, disabled inapplicable WCS Y controls, and made X/Y/Z/I/J/K/F indicators follow the active G20/G21 units of each executed motion.
+- Added relative I/K indication derived from resolved G18 arc centers for turning R arcs and generated contour motions, fixed Lathe source I/K semantics to relative offsets, and disabled the milling-only Settings → Arc Type menu in Lathe Mode.
+- Added a bottom-left Inches switch to Toolpath Statistics that converts every displayed length, speed and XYZ bound without changing physical trace data or timing.
+- Fixed G71 Type I roughing to finish with a complete contour-following pass along the signed U/W allowance profile before returning to the cycle start; OD positive U and ID negative U now leave material on the correct roughing side without duplicating the nominal finish contour.
+- Fixed Stock outline settings and automatically inferred bounds being refreshed after program changes and Refresh, instead of updating only after accepting the Stock dialog.
+- Fixed Lathe Play to build Stock Removal from the same current effective bounds as the visible outline, and changed Stop after Stock playback to restore the fully visible trajectory with the slider at 100%.
+- Expanded application diagnostics for option changes, machine/view/playback transitions, execution and plot timing, and sampled Stock Removal performance; slow Stock frames report timeline/mesh timing, profile and mesh sizes without logging every frame.
+- Added a shared Qt-free X/Z turning-tool geometry layer so the turning-tool preview and Stock Removal use the same cutter silhouette for OD80/ID80, OD35/ID35 and OD/ID groove tools.
+- Changed OD80/OD35 P3 and ID80/ID35 P2 Stock Removal from the previous nose/width approximation to sampled polygon-footprint removal along the resolved `TraceMotion`, so insert angle, main-edge angle and nose radius affect the machined profile.
+- Added OD Groove P3/P4 and ID Groove P1/P2 edge-reference selection, with legacy groove definitions defaulting to OD P3 and ID P2, and restricted the turning-tool editor to the valid orientation choices for each groove type.
+- Changed unknown or unconfigured turning tools to leave stock unchanged instead of falling back to an implicit OD80 cutter; Stock Removal remains a geometric simulation and does not require spindle-running state.
+- Added automatic turning-stock sizing from resolved G1/G2/G3 cutting motions, including cycle-generated motions and exact G18 arc extrema, while ignoring G0 positioning; the suggested bore remains zero by default.
+- Added a lightweight stock outline to the normal Lathe Plot, included configured stock in Fit View bounds, hid the outline in milling and isolated Stock Removal playback, and restored it when returning to the normal lathe plot.
+- Added Stock-dialog prefill from the current automatic stock suggestion without mutating persisted settings until OK is pressed, and refresh the suggestion after program or mode recalculation so stale dimensions are not reused.
+- Added ordinary FANUC turning source-trace support for simplified `A`, `C` and corner-`R` programming, including compact blocks without spaces: `A` resolves the missing X/Z coordinate and `C`/`R` insert chamfer/fillet transitions through the same profile helper already used by cycle contours.
+- Preserved G2/G3 `R` as arc-radius programming, applied source-unit scaling to direct-programming `C`/`R`, allowed a chamfer/fillet to consume an adjacent segment exactly, and rebuilt execution-step motion counts after inserted source transitions so playback and editor ownership remain aligned.
+- Expanded regression coverage for OD/ID insert footprints, groove P orientations, reversible playback, unknown tools, automatic stock bounds/outline refresh, cycle-generated stock sizing, and ordinary source-trace A/C/R execution.
+- Split the detailed user/developer reference from README into `FAQ.md`, added an offline Help → FAQ window below About, and embedded the FAQ in application resources for packaged builds.
+
 ## 1.4.2 - 2026-09-10
 
+- Added turning Stock Removal playback driven by the resolved execution trace, with reversible OD/ID profiles, drilling, grooving, persistent stock dimensions and geometry-specific 3D tools for Face Groove, OD Groove, ID Groove, Drill, OD80/ID80 (5-degree edge) and OD35/ID35 (3-degree edge).
+- Reset playback to the complete recalculated trajectory after source, mode or semantic setting changes so stale slider positions cannot hide updated geometry.
 - Changed turning and milling execution to preserve trustworthy partial traces and continue after recoverable G-code, Macro B and unsupported position-changing blocks once absolute coordinates re-establish the affected axes.
 - Changed invalid arc handling to skip only the unresolved motion while retaining later resolved motions.
 - Separated execution traversal completeness from diagnostic success and exposed `complete` in CLI JSON output; resource limits and internal kernel failures remain terminal while preserving prior motions.

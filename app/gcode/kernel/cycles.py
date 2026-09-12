@@ -25,6 +25,7 @@ def add_motion(
     source_nlabel: int | None = None,
     source_raw: str | None = None,
     source_kind: str = "motion",
+    playback_group: int | None = None,
 ) -> None:
     if abs(s.x - e.x) <= 1e-6 and abs(s.z - e.z) <= 1e-6:
         return
@@ -38,6 +39,7 @@ def add_motion(
             source_nlabel=source_nlabel,
             source_raw=source_raw,
             source_kind=source_kind,
+            playback_group=playback_group,
         )
     )
 
@@ -56,6 +58,7 @@ def add_motion_with_meta(
     source_nlabel: int | None = None,
     source_raw: str | None = None,
     source_kind: str = "motion",
+    playback_group: int | None = None,
 ) -> None:
     if s == e and move not in (2, 3):
         return
@@ -82,6 +85,7 @@ def add_motion_with_meta(
             source_nlabel=source_nlabel,
             source_raw=source_raw,
             source_kind=source_kind,
+            playback_group=playback_group,
         )
     )
 
@@ -257,14 +261,30 @@ def build_g71_roughing(
                     t = (next_pass_x - a.x) / (b.x - a.x)
                     t = max(0.0, min(1.0, t))
                     hit = Point2(next_pass_x, a.z + (b.z - a.z) * t)
-                    add_motion_with_meta(motions, 1, prev, hit, None, feed if feed > 0 else None)
+                    add_motion_with_meta(
+                        motions,
+                        1,
+                        prev,
+                        hit,
+                        None,
+                        feed if feed > 0 else None,
+                        playback_group=seg.playback_group,
+                    )
                     prev = hit
                     pass_done = True
                     break
                 # Follow the sampled P-Q contour directly. Splitting every
                 # chord into X/Z legs turns G02/G03 profiles into a staircase.
                 _ = idx_pair, sraw, eraw, seg
-                add_motion_with_meta(motions, 1, prev, b, None, feed if feed > 0 else None)
+                add_motion_with_meta(
+                    motions,
+                    1,
+                    prev,
+                    b,
+                    None,
+                    feed if feed > 0 else None,
+                    playback_group=seg.playback_group,
+                )
                 prev = b
             if pass_done:
                 break
@@ -278,7 +298,14 @@ def build_g71_roughing(
             break
         pass_x = min(pass_x + step_dia, limit_x) if boring_mode else max(pass_x - step_dia, limit_x)
 
-    # Return to the cycle start point once, after all roughing passes are completed.
+    # Type I ends with one complete pass along the roughing profile.  The
+    # incoming profile already includes the signed U/W finish allowances, so
+    # this pass must not reuse the original finishing contour.
+    if not type_ii:
+        add_motion(motions, 0, tool, profile[0].start)
+        _append_profile_trace(motions, profile, feed)
+
+    # Return to the cycle start point once, after roughing and contour passes.
     ensure_cycle_return(motions, cycle_start, first_axis="x")
 
     return motions
@@ -321,11 +348,13 @@ def build_offset_profile(
         return profile
 
     dense: list[Point2] = []
-    for seg in profile:
+    dense_groups: list[int] = []
+    for group, seg in enumerate(profile):
         pts = segment_points(seg, seg.start, seg.end)
         if dense and pts:
             pts = pts[1:]
         dense.extend(pts)
+        dense_groups.extend([group] * len(pts))
 
     if len(dense) < 2:
         return profile
@@ -342,7 +371,7 @@ def build_offset_profile(
         shifted.append(Point2(sxr * 2.0, sz))
 
     out: list[ProfileSegment] = []
-    for a, b in zip(shifted, shifted[1:]):
+    for index, (a, b) in enumerate(zip(shifted, shifted[1:])):
         if abs(a.x - b.x) <= 1e-6 and abs(a.z - b.z) <= 1e-6:
             continue
         out.append(
@@ -355,6 +384,7 @@ def build_offset_profile(
                 radius=0.0,
                 has_center=False,
                 center=Point2(0.0, 0.0),
+                playback_group=dense_groups[index + 1],
             )
         )
     return out if out else profile
@@ -585,6 +615,7 @@ def _shift_profile(profile: list[ProfileSegment], dx: float, dz: float) -> list[
                 radius=seg.radius,
                 has_center=seg.has_center,
                 center=Point2(seg.center.x + dx, seg.center.z + dz),
+                playback_group=seg.playback_group,
             )
         )
     return out
@@ -619,6 +650,7 @@ def _append_profile_trace(motions: list[Motion], profile: list[ProfileSegment], 
                 k=k,
                 source_block=seg.block,
                 source_kind="cycle",
+                playback_group=seg.playback_group,
             )
         else:
             add_motion_with_meta(
@@ -630,6 +662,7 @@ def _append_profile_trace(motions: list[Motion], profile: list[ProfileSegment], 
                 feed if feed > 0 else None,
                 source_block=seg.block,
                 source_kind="cycle",
+                playback_group=seg.playback_group,
             )
 
 

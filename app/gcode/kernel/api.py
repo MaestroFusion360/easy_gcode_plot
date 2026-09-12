@@ -282,6 +282,7 @@ def _trace_motion(motion: Motion) -> TraceMotion:
         compensation_applied=motion.compensation_applied,
         plane=18,
         cycle_generated=motion.source_kind == "cycle",
+        playback_group=motion.playback_group,
     )
 
 

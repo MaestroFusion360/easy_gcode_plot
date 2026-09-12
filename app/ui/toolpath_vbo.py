@@ -22,19 +22,20 @@ class ToolpathSegment:
     move: int
 
 
-def segments_from_render_points(render_points, motions) -> tuple[ToolpathSegment, ...]:
+def segments_from_render_points(render_points, motions, motion_to_playback=None) -> tuple[ToolpathSegment, ...]:
     """Convert the sampled trace to ordered ``GL_LINES`` segment pairs."""
     segments: list[ToolpathSegment] = []
     for previous, current in zip(render_points, render_points[1:]):
-        logical_index = current.motion_index
-        if not 0 <= logical_index < len(motions):
+        motion_index = current.motion_index
+        if not 0 <= motion_index < len(motions):
             continue
+        logical_index = motion_index if motion_to_playback is None else motion_to_playback[motion_index]
         segments.append(
             ToolpathSegment(
                 (previous.x, previous.y, previous.z),
                 (current.x, current.y, current.z),
                 logical_index,
-                motions[logical_index].move,
+                motions[motion_index].move,
             )
         )
     return tuple(segments)

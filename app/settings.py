@@ -10,6 +10,8 @@ from pathlib import Path
 
 from PyQt6.QtCore import QSettings, QStandardPaths
 
+from app.gcode.turning_tool_geometry import normalize_groove_orientation
+
 _APP_DIR = "easy-gcode-plot"
 _LOG_HANDLER_MARKER = "_easy_gcode_plot_handler"
 _LOG_PREVIOUS_LEVEL_MARKER = "_easy_gcode_plot_previous_level"
@@ -89,6 +91,31 @@ def get_settings() -> QSettings:
 
 
 RECENT_FILES_LIMIT = 5
+ARC_TOLERANCE_MIN = 1e-6
+ARC_TOLERANCE_MAX = 10.0
+ARC_TOLERANCE_DEFAULT = 0.001
+FONT_SIZE_MIN = 6
+FONT_SIZE_MAX = 48
+AUTO_UPDATE_SEGMENTS_MIN = 1000
+AUTO_UPDATE_SEGMENTS_MAX = 5_000_000
+LINE_WIDTH_MIN = 0.25
+LINE_WIDTH_MAX = 6.0
+
+
+def bounded_number(value, default, minimum, maximum, *, name="setting"):
+    """Return a finite persisted number constrained to its domain."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        LOGGER.warning("invalid_setting name=%s value=%r default=%s", name, value, default)
+        return default
+    if not math.isfinite(number):
+        LOGGER.warning("invalid_setting name=%s value=%r default=%s", name, value, default)
+        return default
+    bounded = min(max(number, minimum), maximum)
+    if bounded != number:
+        LOGGER.warning("clamped_setting name=%s value=%r bounded=%s", name, value, bounded)
+    return bounded
 
 
 def normalized_tools(raw):
@@ -112,7 +139,19 @@ def normalized_tools(raw):
         key = f"T{int(digits):04d}"
 
         tool_type = str(raw_spec.get("type", "turning")).strip().lower()
-        if tool_type not in {"turning", "drill"}:
+        tool_type = {"od_cutting": "od_80", "id_cutting": "id_80"}.get(tool_type, tool_type)
+        valid_types = {
+            "turning",
+            "face_groove",
+            "od_groove",
+            "id_groove",
+            "drill",
+            "od_80",
+            "id_80",
+            "od_35",
+            "id_35",
+        }
+        if tool_type not in valid_types:
             continue
         spec = {"type": tool_type}
 
@@ -120,7 +159,7 @@ def normalized_tools(raw):
         if isinstance(description, str) and description.strip():
             spec["description"] = " ".join(description.split())
 
-        if tool_type == "turning":
+        if tool_type in {"turning", "od_80", "id_80", "od_35", "id_35"}:
             try:
                 radius = float(raw_spec.get("noseRadius", 0.0))
                 orientation = int(raw_spec.get("tipOrientation", 0))
@@ -130,6 +169,33 @@ def normalized_tools(raw):
                 continue
             spec["noseRadius"] = radius
             spec["tipOrientation"] = orientation
+
+        if tool_type in {"face_groove", "od_groove", "id_groove"}:
+            try:
+                width = float(raw_spec.get("width", 0.0))
+            except (TypeError, ValueError):
+                continue
+            if not math.isfinite(width) or width <= 0.0:
+                continue
+            spec["width"] = width
+            if tool_type in {"od_groove", "id_groove"}:
+                spec["tipOrientation"] = normalize_groove_orientation(raw_spec, tool_type)
+
+        if tool_type == "drill" and any(key in raw_spec for key in ("diameter", "length", "tipAngle")):
+            try:
+                diameter = float(raw_spec.get("diameter", 0.0))
+                length = float(raw_spec.get("length", 0.0))
+                tip_angle = float(raw_spec.get("tipAngle", 118.0))
+            except (TypeError, ValueError):
+                continue
+            if (
+                not all(math.isfinite(value) for value in (diameter, length, tip_angle))
+                or diameter <= 0.0
+                or length <= 0.0
+                or not 1.0 <= tip_angle < 180.0
+            ):
+                continue
+            spec.update(diameter=diameter, length=length, tipAngle=tip_angle)
 
         tools[key] = spec
     return tools

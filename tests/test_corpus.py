@@ -18,6 +18,7 @@ EXPECTED_FIXTURES = {
     "turning/basic_turning_cycles.NC",
     "turning/compensation_control_off.nc",
     "turning/compensation_control_on.nc",
+    "turning/cycle71_ID.nc",
     "turning/drill.nc",
     "turning/thread.nc",
 }

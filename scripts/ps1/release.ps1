@@ -82,7 +82,23 @@ Run-Step "Tests" {
 }
 
 Run-Step "git diff --check" {
-    git diff --check
+    # Release scripts are non-interactive. CRLF conversion notices can flood
+    # the terminal and make Git open its pager, leaving the release apparently
+    # frozen at a ':' prompt. Keep real diff errors on stdout, but suppress the
+    # conversion notices written to stderr.
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    try {
+        # Windows PowerShell 5.1 promotes native stderr to NativeCommandError
+        # when ErrorActionPreference is Stop, even when stderr is redirected.
+        $ErrorActionPreference = "Continue"
+        git --no-pager diff --check 2>$null
+        $GitDiffExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+    }
+
+    $global:LASTEXITCODE = $GitDiffExitCode
 }
 
 Write-Host ""

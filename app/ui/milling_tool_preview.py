@@ -108,10 +108,6 @@ class MillingToolPreviewItem(GLGraphicsItem):
         return tool_type, diameter, length, corner_radius
 
     def _rebuild(self, tool_type: str, diameter: float, length: float, corner_radius: float) -> None:
-        for mesh in self._meshes:
-            mesh.setParentItem(None)
-        self._meshes.clear()
-
         radius = diameter * 0.5
         if tool_type == "drill":
             # CNCEditor's preview uses a 120-degree included drill point.
@@ -144,7 +140,18 @@ class MillingToolPreviewItem(GLGraphicsItem):
                 profile.append((length, radius))
         else:
             profile = [(0.0, radius), (length, radius)]
-        self._mesh(self._surface_of_revolution(profile))
+        meshdata = self._surface_of_revolution(profile)
+        if self._meshes:
+            # Keep the scene-registered GL item and its context lifecycle.
+            # Replacing the child after its first paint can leave the new item
+            # without a repaint/initialization on some OpenGL drivers.
+            self._meshes[0].setMeshData(meshdata=meshdata)
+            self._meshes[0].setColor(self._color)
+            for obsolete in self._meshes[1:]:
+                obsolete.setParentItem(None)
+            del self._meshes[1:]
+        else:
+            self._mesh(meshdata)
         self._geometry_key = (tool_type, diameter, length, corner_radius)
 
     @staticmethod

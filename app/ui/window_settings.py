@@ -14,6 +14,16 @@ from app.gcode.exporter import (
     TURN_FULL_PROGRAM_MODE,
 )
 from app.settings import (
+    ARC_TOLERANCE_DEFAULT,
+    ARC_TOLERANCE_MAX,
+    ARC_TOLERANCE_MIN,
+    AUTO_UPDATE_SEGMENTS_MAX,
+    AUTO_UPDATE_SEGMENTS_MIN,
+    FONT_SIZE_MAX,
+    FONT_SIZE_MIN,
+    LINE_WIDTH_MAX,
+    LINE_WIDTH_MIN,
+    bounded_number,
     configure_logging,
     get_settings,
 )
@@ -89,18 +99,28 @@ class MainWindowSettingsMixin:
         self.millingTools = _normalized_milling_tools(self.settings.value("CNC/MILLING_TOOLS_JSON", "{}"))
         self.latheMode = self.settings.value("PLOT/LATHE_MODE", False, type=bool)
         self.ui.actionLatheMode.setChecked(self.latheMode)
+        self.showStock = self.settings.value("PLOT/SHOW_STOCK", True, type=bool)
         self.plotLineColor = self.settings.value("PLOT/LINE_COLOR", "#0000ff")
         self.plotRapidColor = self.settings.value("PLOT/RAPID_COLOR", "#d02020")
         self.plotArcColor = self.settings.value("PLOT/ARC_COLOR", "#008000")
         self.plotCurrentColor = self.settings.value("PLOT/CURRENT_COLOR", "#00b7ff")
         self.plotToolColor = self.settings.value("PLOT/TOOL_COLOR", "#4d99ff")
-        self.plotLineWidth = self.settings.value("PLOT/LINE_WIDTH", 1.5, type=float)
+        self.plotLineWidth = bounded_number(
+            self.settings.value("PLOT/LINE_WIDTH", 1.5), 1.5, LINE_WIDTH_MIN, LINE_WIDTH_MAX, name="PLOT/LINE_WIDTH"
+        )
         self.plotGridStep = self.settings.value("PLOT/GRID_STEP", 0.0, type=float)
         self.plotAxes = self.settings.value("PLOT/AXES", True, type=bool)
         self.plotBackground = self.settings.value("PLOT/BACKGROUND", "#ffffff")
         self.plotBackgroundGradient = self.settings.value("PLOT/BACKGROUND_GRADIENT", False, type=bool)
         self.stlColor = self.settings.value("PLOT/STL_COLOR", "#b0b0b0")
         self.stlWireframe = self.settings.value("PLOT/STL_WIREFRAME", False, type=bool)
+        self.stockConfigured = self.settings.value("STOCK/CONFIGURED", False, type=bool)
+        self.stockEnabled = self.settings.value("STOCK/ENABLED", False, type=bool)
+        self.turnStockDiameter = self.settings.value("STOCK/DIAMETER", 50.0, type=float)
+        self.turnStockInnerDiameter = self.settings.value("STOCK/INNER_DIAMETER", 0.0, type=float)
+        self.turnStockLength = self.settings.value("STOCK/LENGTH", 100.0, type=float)
+        self.turnStockResolution = self.settings.value("STOCK/RESOLUTION", 0.5, type=float)
+        self.turnStockFrontAllowance = self.settings.value("STOCK/FRONT_ALLOWANCE", 2.0, type=float)
         self.plotGrid = self.settings.value("PLOT/GRID", False, type=bool)
         self.plotGridColor = self.settings.value("PLOT/GRID_COLOR", "#808080")
         if QColor(self.plotGridColor).name() == "#d3d3d3":
@@ -114,11 +134,25 @@ class MainWindowSettingsMixin:
         self.defaultFileType = self.settings.value("EDITOR/DEFAULT_FILE_TYPE", 0, type=int)
         self.defaultUnits = self.settings.value("CNC/DEFAULT_UNITS", "mm")
         self.correctionEnabled = self.settings.value("CNC/CORRECTION_ENABLED", True, type=bool)
-        self.arcTolerance = self.settings.value("CNC/ARC_TOLERANCE", 0.001, type=float)
+        self.arcTolerance = bounded_number(
+            self.settings.value("CNC/ARC_TOLERANCE", ARC_TOLERANCE_DEFAULT),
+            ARC_TOLERANCE_DEFAULT,
+            ARC_TOLERANCE_MIN,
+            ARC_TOLERANCE_MAX,
+            name="CNC/ARC_TOLERANCE",
+        )
         self.uiLanguage = self.settings.value("GENERAL/LANGUAGE", "en")
         self.loggingEnabled = self.settings.value("GENERAL/LOGGING", False, type=bool)
         self.autoUpdateEnabled = self.settings.value("GENERAL/AUTO_UPDATE", True, type=bool)
-        self.autoUpdateMaxSegments = self.settings.value("GENERAL/AUTO_UPDATE_MAX_SEGMENTS", 20000, type=int)
+        self.autoUpdateMaxSegments = int(
+            bounded_number(
+                self.settings.value("GENERAL/AUTO_UPDATE_MAX_SEGMENTS", 20000),
+                20000,
+                AUTO_UPDATE_SEGMENTS_MIN,
+                AUTO_UPDATE_SEGMENTS_MAX,
+                name="GENERAL/AUTO_UPDATE_MAX_SEGMENTS",
+            )
+        )
         configure_logging(self.loggingEnabled)
 
         # Editor
@@ -139,7 +173,15 @@ class MainWindowSettingsMixin:
         self.marginFontFamily = self.settings.value("EDITOR/MARGIN_FONT_FAMILY", "Courier New")
         self.marginSizeTxt = self.settings.value("EDITOR/MARGIN_FONT_SIZE", 11, type=int)
         self.fontFamily = self.settings.value(f"EDITOR/{EDITOR_FONT_FAMILY_KEY}", "Courier New")
-        self.sizeTxt = self.settings.value(f"EDITOR/{EDITOR_FONT_SIZE_KEY}", 12, type=int)
+        self.sizeTxt = int(
+            bounded_number(
+                self.settings.value(f"EDITOR/{EDITOR_FONT_SIZE_KEY}", 12),
+                12,
+                FONT_SIZE_MIN,
+                FONT_SIZE_MAX,
+                name="EDITOR/FONT_SIZE",
+            )
+        )
         self.fontWeight = self.settings.value(f"EDITOR/{EDITOR_FONT_WEIGHT_KEY}", 500, type=int)
         self.fontItalic = self.settings.value(f"EDITOR/{EDITOR_FONT_ITALIC_KEY}", False, type=bool)
 
@@ -162,7 +204,7 @@ class MainWindowSettingsMixin:
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
 
         self.lexer = GcodeLexer()
-        self.ui.langCombo.setCurrentIndex(1 if self.defaultFileType == 1 else 0)
+        self.ui.fileTypeCombo.setCurrentIndex(1 if self.defaultFileType == 1 else 0)
         self.ui.editor.setFont(
             QFont(
                 self.fontFamily,
@@ -171,7 +213,7 @@ class MainWindowSettingsMixin:
                 italic=self.fontItalic,
             )
         )
-        self.changeLang(self.ui.langCombo.currentIndex())
+        self.changeFileType(self.ui.fileTypeCombo.currentIndex())
 
         # Export / Block Numbers opt
         stored_export_mode = self.settings.value("EXPORT_OPT/MODE", None)
@@ -220,6 +262,12 @@ class MainWindowSettingsMixin:
         self.resize(widthApp, heightApp)
         self.move(x, y)
 
+    def restoreToolbarState(self):
+        """Restore the last movable-toolbar arrangement when available."""
+        state = self.settings.value("GEOMETRY/TOOLBAR_STATE")
+        if state is not None and not self.restoreState(state, 1):
+            self.resetToolbarsToDefault()
+
     def saveSettings(self):
         """Persist current settings to the ini file."""
         self.settings.beginGroup("PLOT")
@@ -230,6 +278,7 @@ class MainWindowSettingsMixin:
         self.settings.setValue("MACHINE_YPOS", self.yPosMach)
         self.settings.setValue("MACHINE_ZPOS", self.zPosMach)
         self.settings.setValue("LATHE_MODE", self.latheMode)
+        self.settings.setValue("SHOW_STOCK", self.showStock)
         self.settings.setValue("LINE_COLOR", self.plotLineColor)
         self.settings.setValue("RAPID_COLOR", self.plotRapidColor)
         self.settings.setValue("ARC_COLOR", self.plotArcColor)
@@ -246,6 +295,15 @@ class MainWindowSettingsMixin:
         self.settings.setValue("GRID_COLOR", self.plotGridColor)
         self.settings.setValue("GRID_SIZE", self.plotGridSize)
         self.settings.setValue("GRID_SPACING", self.plotGridSpacing)
+        self.settings.endGroup()
+        self.settings.beginGroup("STOCK")
+        self.settings.setValue("CONFIGURED", self.stockConfigured)
+        self.settings.setValue("ENABLED", self.stockEnabled)
+        self.settings.setValue("DIAMETER", self.turnStockDiameter)
+        self.settings.setValue("INNER_DIAMETER", self.turnStockInnerDiameter)
+        self.settings.setValue("LENGTH", self.turnStockLength)
+        self.settings.setValue("RESOLUTION", self.turnStockResolution)
+        self.settings.setValue("FRONT_ALLOWANCE", self.turnStockFrontAllowance)
         self.settings.endGroup()
         self.settings.beginGroup("CNC")
         self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
@@ -305,6 +363,7 @@ class MainWindowSettingsMixin:
         self.settings.setValue("ER_CHAR", self.er)
         self.settings.endGroup()
         self.settings.beginGroup("GEOMETRY")
+        self.settings.setValue("TOOLBAR_STATE", self.saveState(1))
         self.settings.setValue("APP_MAXIMIZED", self.isMaximized())
         if not self.isMaximized():
             self.settings.setValue("APP_HEIGHT", self.size().height())

@@ -63,6 +63,7 @@ class TraceMotion:
     spindle_running: bool = False
     compensation_status: str = "NOT_APPLIED"
     threading: bool = False
+    playback_group: int | None = None
 
 
 @dataclass(frozen=True)

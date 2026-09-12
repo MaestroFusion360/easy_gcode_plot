@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -21,6 +22,8 @@ from app.gcode.exporter import (
 )
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import arc_geometry
+
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _assert_mill_round_trip(source: str, exported: str) -> None:
@@ -98,6 +101,36 @@ def test_cli_analyze_and_export_consume_same_execution_result(tmp_path):
     assert analysis_data["complete"] is True
     assert analysis_data["motion_count"] == 2
     assert "G01 X6 Z8 F10" in exported.read_text(encoding="utf-8")
+
+
+def test_cli_cycle_export_includes_complete_final_id_g71_contour(tmp_path):
+    exported = tmp_path / "cycle71-id-expanded.nc"
+
+    assert (
+        main(
+            [
+                "export",
+                str(FIXTURES / "turning" / "cycle71_ID.nc"),
+                "--mode",
+                "cycles",
+                "-o",
+                str(exported),
+            ]
+        )
+        == 0
+    )
+
+    lines = exported.read_text(encoding="utf-8").splitlines()
+    contour_start = lines.index("G00 X89.6 Z1")
+    contour = lines[contour_start:-2]
+    assert contour[0] == "G00 X89.6 Z1"
+    assert contour[1] == "G01 X89.568007 Z0.075386 F0.25"
+    assert "G01 X84.219901 Z-30.027723 F0.25" in contour
+    assert "G01 X76.447921 Z-29.933473 F0.25" in contour
+    assert contour[-1] == "G01 X75.3 Z-145 F0.25"
+    assert len(contour) > 100
+    assert "G00 X89.8 Z1" not in lines
+    assert lines[-2:] == ["G00 X72 Z-145", "G00 X72 Z1"]
 
 
 def _window_export_harness(source: str, *, language: str, export_mode: int, arc_mode: int = 0):

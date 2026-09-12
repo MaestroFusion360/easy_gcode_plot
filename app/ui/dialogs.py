@@ -24,6 +24,7 @@ from app.gcode.exporter import (
     MILL_FULL_PROGRAM_MODE,
     TURN_FULL_PROGRAM_MODE,
 )
+from app.gcode.stock import TURNING_INSERT_TYPES, TURNING_TOOL_LABELS, canonical_turning_tool_type
 from app.ui.generated.about import Ui_AboutDlg
 from app.ui.generated.block_num import Ui_BlockNumberDlg
 from app.ui.generated.export import Ui_ExportOptDlg
@@ -360,6 +361,8 @@ class Wcs(QDialog):
 
     def loadValues(self):
         """Populate controls from the parent CNC configuration."""
+        lathe = bool(getattr(self.parent(), "latheMode", False))
+        x_ui_scale = 2.0 if lathe else 1.0
         offsets = getattr(self.parent(), "wcsOffsets", {})
         for code in range(54, 60):
             values = offsets.get(code, (0.0, 0.0, 0.0))
@@ -368,25 +371,34 @@ class Wcs(QDialog):
                 y = 0.0
             else:
                 x, y, z = values
-            getattr(self.ui, f"g{code}X").setValue(float(x))
-            getattr(self.ui, f"g{code}Y").setValue(float(y))
+            getattr(self.ui, f"g{code}X").setValue(float(x) * x_ui_scale)
+            y_input = getattr(self.ui, f"g{code}Y")
+            y_input.setValue(float(y))
+            y_input.setEnabled(not lathe)
             getattr(self.ui, f"g{code}Z").setValue(float(z))
         for axis, attr in (("X", "xPosMach"), ("Y", "yPosMach"), ("Z", "zPosMach")):
-            getattr(self.ui, f"home{axis}").setValue(float(getattr(self.parent(), attr, 0.0)))
+            scale = x_ui_scale if axis == "X" else 1.0
+            control = getattr(self.ui, f"home{axis}")
+            control.setValue(float(getattr(self.parent(), attr, 0.0)) * scale)
+            if axis == "Y":
+                control.setEnabled(not lathe)
+        self.ui.yHeader.setEnabled(not lathe)
         self.ui.homeConfiguredCheck.setChecked(bool(getattr(self.parent(), "homeConfigured", True)))
 
     def applyValues(self):
         """Store XYZ WCS and G28 values on the main window and refresh the trace."""
+        x_ui_scale = 2.0 if bool(getattr(self.parent(), "latheMode", False)) else 1.0
         self.parent().wcsOffsets = {
             code: (
-                getattr(self.ui, f"g{code}X").value(),
+                getattr(self.ui, f"g{code}X").value() / x_ui_scale,
                 getattr(self.ui, f"g{code}Y").value(),
                 getattr(self.ui, f"g{code}Z").value(),
             )
             for code in range(54, 60)
         }
         for axis, attr in (("X", "xPosMach"), ("Y", "yPosMach"), ("Z", "zPosMach")):
-            setattr(self.parent(), attr, getattr(self.ui, f"home{axis}").value())
+            scale = x_ui_scale if axis == "X" else 1.0
+            setattr(self.parent(), attr, getattr(self.ui, f"home{axis}").value() / scale)
         self.parent().homeConfigured = self.ui.homeConfiguredCheck.isChecked()
         self.parent().updateData()
 
@@ -404,25 +416,42 @@ class _TurningToolEditor(QDialog):
         form = QFormLayout()
         self.toolCode = QLineEdit(tool_code or "T0101", self)
         self.toolType = QComboBox(self)
-        self.toolType.addItems(["turning", "drill"])
-        self.toolType.setCurrentText(str(spec.get("type", "turning")))
+        for key, label in TURNING_TOOL_LABELS.items():
+            self.toolType.addItem(label, key)
+        type_index = self.toolType.findData(canonical_turning_tool_type(spec.get("type")))
+        self.toolType.setCurrentIndex(max(0, type_index))
         self.noseRadius = QDoubleSpinBox(self)
         self.noseRadius.setDecimals(3)
         self.noseRadius.setRange(0.001, 999999.999)
         self.noseRadius.setValue(float(spec.get("noseRadius", 0.4)))
         self.tipOrientation = QComboBox(self)
-        for value in range(1, 10):
-            self.tipOrientation.addItem(
-                QIcon(f":/resource/icons/orientation_box/P{value}.png"),
-                f"P{value}",
-            )
-        self.tipOrientation.setCurrentText(f"P{int(spec.get('tipOrientation', 1))}")
+        self._requested_tip_orientation = int(spec["tipOrientation"]) if "tipOrientation" in spec else None
+        self.width = QDoubleSpinBox(self)
+        self.width.setDecimals(3)
+        self.width.setRange(0.001, 10000.0)
+        self.width.setValue(float(spec.get("width", 3.0)))
+        self.diameter = QDoubleSpinBox(self)
+        self.diameter.setDecimals(3)
+        self.diameter.setRange(0.001, 10000.0)
+        self.diameter.setValue(float(spec.get("diameter", 10.0)))
+        self.length = QDoubleSpinBox(self)
+        self.length.setDecimals(3)
+        self.length.setRange(0.001, 100000.0)
+        self.length.setValue(float(spec.get("length", 50.0)))
+        self.tipAngle = QDoubleSpinBox(self)
+        self.tipAngle.setDecimals(1)
+        self.tipAngle.setRange(1.0, 179.0)
+        self.tipAngle.setValue(float(spec.get("tipAngle", 118.0)))
         self.description = QLineEdit(str(spec.get("description", "")), self)
 
         form.addRow("T code", self.toolCode)
         form.addRow("Type", self.toolType)
         form.addRow("Nose radius, mm", self.noseRadius)
         form.addRow("Tip orientation", self.tipOrientation)
+        form.addRow("Groove width, mm", self.width)
+        form.addRow("Drill diameter, mm", self.diameter)
+        form.addRow("Drill length, mm", self.length)
+        form.addRow("Drill tip angle, deg", self.tipAngle)
         form.addRow("Description", self.description)
 
         self.buttonBox = QDialogButtonBox(
@@ -435,16 +464,54 @@ class _TurningToolEditor(QDialog):
         layout = QVBoxLayout(self)
         layout.addLayout(form)
         layout.addWidget(self.buttonBox)
-        self.toolType.currentTextChanged.connect(self.updateTurningFields)
-        self.updateTurningFields(self.toolType.currentText())
+        self.toolType.currentIndexChanged.connect(self.updateTurningFields)
+        self.updateTurningFields()
         self.toolCode.selectAll()
         self.toolCode.setFocus()
 
-    def updateTurningFields(self, tool_type):
-        """Enable nose data only for turning tools."""
-        enabled = tool_type == "turning"
-        self.noseRadius.setEnabled(enabled)
-        self.tipOrientation.setEnabled(enabled)
+    def updateTurningFields(self, *_args):
+        """Expose only geometry consumed by the selected tool model."""
+        tool_type = self.toolType.currentData()
+        insert = tool_type in TURNING_INSERT_TYPES
+        groove_with_orientation = tool_type in {"od_groove", "id_groove"}
+        drill = tool_type == "drill"
+        self._sync_tip_orientation_choices(tool_type)
+        self.noseRadius.setEnabled(insert)
+        self.tipOrientation.setEnabled(insert or groove_with_orientation)
+        self.width.setEnabled(tool_type in {"face_groove", "od_groove", "id_groove"})
+        self.diameter.setEnabled(drill)
+        self.length.setEnabled(drill)
+        self.tipAngle.setEnabled(drill)
+
+    def _sync_tip_orientation_choices(self, tool_type):
+        """Restrict P choices to the orientations consumed by the selected tool."""
+        if tool_type == "od_groove":
+            choices = (3, 4)
+            default = 3
+        elif tool_type == "id_groove":
+            choices = (1, 2)
+            default = 2
+        else:
+            choices = tuple(range(1, 10))
+            default = 1
+        current = self.tipOrientation.currentData()
+        previous_tool_type = getattr(self, "_tip_orientation_tool_type", None)
+        if previous_tool_type != tool_type and self._requested_tip_orientation is None:
+            requested = None
+        else:
+            requested = current if current is not None else self._requested_tip_orientation
+        orientation = int(requested) if requested is not None and int(requested) in choices else default
+        self.tipOrientation.blockSignals(True)
+        self.tipOrientation.clear()
+        for value in choices:
+            self.tipOrientation.addItem(
+                QIcon(f":/resource/icons/orientation_box/P{value}.png"),
+                f"P{value}",
+                value,
+            )
+        self.tipOrientation.setCurrentIndex(self.tipOrientation.findData(orientation))
+        self.tipOrientation.blockSignals(False)
+        self._tip_orientation_tool_type = tool_type
 
     def validateAndAccept(self):
         """Validate the FANUC T word before accepting the editor."""
@@ -460,14 +527,22 @@ class _TurningToolEditor(QDialog):
         raw = self.toolCode.text().strip().upper()
         digits = raw[1:] if raw.startswith("T") else raw
         key = f"T{int(digits):04d}"
-        tool_type = self.toolType.currentText()
+        tool_type = self.toolType.currentData()
         spec = {"type": tool_type}
         description = " ".join(self.description.text().split())
         if description:
             spec["description"] = description
-        if tool_type == "turning":
+        if tool_type in TURNING_INSERT_TYPES:
             spec["noseRadius"] = self.noseRadius.value()
-            spec["tipOrientation"] = self.tipOrientation.currentIndex() + 1
+            spec["tipOrientation"] = int(self.tipOrientation.currentData())
+        if tool_type in {"face_groove", "od_groove", "id_groove"}:
+            spec["width"] = self.width.value()
+            if tool_type in {"od_groove", "id_groove"}:
+                spec["tipOrientation"] = int(self.tipOrientation.currentData())
+        if tool_type == "drill":
+            spec["diameter"] = self.diameter.value()
+            spec["length"] = self.length.value()
+            spec["tipAngle"] = self.tipAngle.value()
         return key, spec
 
 
@@ -480,6 +555,9 @@ class TurningTools(QDialog):
         self.ui.setupUi(self)
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.ui.titleLabel.setText("Turning Tool Geometry")
+        self.ui.helpLabel.setText("Tool geometry drives compensation, 3D playback and OD/ID Stock Removal.")
+        self.ui.toolTable.horizontalHeaderItem(3).setText("Geometry")
         self.pendingTools = {}
         self.ui.addButton.clicked.connect(self.addTool)
         self.ui.editButton.clicked.connect(self.editTool)
@@ -505,21 +583,30 @@ class TurningTools(QDialog):
         selected_row = -1
         for row, key in enumerate(sorted(self.pendingTools)):
             spec = self.pendingTools[key]
-            is_turning = spec.get("type") == "turning"
-            orientation = f"P{int(spec.get('tipOrientation', 1))}" if is_turning else "—"
-            radius = f"{float(spec.get('noseRadius', 0.0)):g}" if is_turning else "—"
+            tool_type = canonical_turning_tool_type(spec.get("type"))
+            is_insert = tool_type in TURNING_INSERT_TYPES
+            has_orientation = is_insert or tool_type in {"od_groove", "id_groove"}
+            default_orientation = 2 if tool_type == "id_groove" else 3 if tool_type == "od_groove" else 1
+            orientation_value = int(spec.get("tipOrientation", default_orientation))
+            orientation = f"P{orientation_value}" if has_orientation else "—"
+            if tool_type == "drill":
+                geometry = f"D{float(spec.get('diameter', 0.0)):g}"
+            elif tool_type in {"face_groove", "od_groove", "id_groove"}:
+                geometry = f"R{float(spec.get('noseRadius', 0.0)):g} W{float(spec.get('width', 0.0)):g}"
+            else:
+                geometry = f"R{float(spec.get('noseRadius', 0.0)):g}" if is_insert else "—"
             values = (
                 orientation,
                 key,
-                "Turning tool" if is_turning else "Drill",
-                radius,
+                TURNING_TOOL_LABELS.get(tool_type, tool_type),
+                geometry,
                 str(spec.get("description", "")),
             )
             table.insertRow(row)
             for column, value in enumerate(values):
                 item = QTableWidgetItem(value)
-                if column == 0 and is_turning:
-                    item.setIcon(QIcon(f":/resource/icons/orientation_box/P{int(spec.get('tipOrientation', 1))}.png"))
+                if column == 0 and has_orientation:
+                    item.setIcon(QIcon(f":/resource/icons/orientation_box/P{orientation_value}.png"))
                 table.setItem(row, column, item)
             if key == selected_key:
                 selected_row = row

@@ -135,6 +135,23 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     assert captured["emulate_g28_home"] is False
 
 
+def test_lathe_execution_always_uses_relative_arc_offsets(monkeypatch):
+    captured = {}
+    expected = SimpleNamespace(ok=True, diagnostics=(), motions=())
+
+    def fake_execute(source, **kwargs):
+        del source
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr(main_window_execution, "execute", fake_execute)
+    window = _gui_execution_harness("G18 G2 X20 Z-10 I-10 K0", lathe_mode=True)
+    window.arc_type = 2
+
+    assert main_window.MainWindow._execute_editor_source(window, show_errors=False) is expected
+    assert captured["source_arc_type"] == 1
+
+
 def test_legacy_config_migration_uses_application_directory_not_process_cwd(tmp_path, monkeypatch):
     app_dir = tmp_path / "app"
     app_dir.mkdir()
@@ -165,6 +182,26 @@ def test_tool_settings_normalization_matches_turning_kernel_keys():
         "T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
         "T0002": {"type": "drill", "description": "center drill"},
     }
+
+
+def test_turning_tool_geometry_types_are_normalized_for_stock_removal():
+    raw = {
+        "T0101": {"type": "face_groove", "width": 4.0},
+        "T0202": {"type": "od_groove", "width": 4.0},
+        "T0606": {"type": "id_groove", "width": 3.0},
+        "T0303": {"type": "drill", "diameter": 12.0, "length": 60.0, "tipAngle": 118.0},
+        "T0404": {"type": "id_80", "noseRadius": 0.4, "tipOrientation": 2},
+        "T0505": {"type": "od_80", "noseRadius": 0.4, "tipOrientation": 3},
+        "T0707": {"type": "od_35", "noseRadius": 0.4, "tipOrientation": 3},
+        "T0808": {"type": "id_35", "noseRadius": 0.4, "tipOrientation": 2},
+    }
+
+    expected = {
+        **raw,
+        "T0202": {"type": "od_groove", "width": 4.0, "tipOrientation": 3},
+        "T0606": {"type": "id_groove", "width": 3.0, "tipOrientation": 2},
+    }
+    assert main_window._normalized_tools(raw) == expected
 
 
 def test_editor_font_persistence_uses_existing_font_keys():
@@ -601,6 +638,74 @@ def test_playback_stop_has_true_zero_motion_state(qt_app):
     assert window.ui.horizontalSlider.minimum() == 0
     assert window.ui.horizontalSlider.value() == 0
     assert window._toolpath_item.visible_segment_count == 0
+    window.deleteLater()
+
+
+def test_turning_stock_removal_uses_play_stop_and_rebuilds_after_update(qt_app):
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    window.ui.actionLatheMode.setChecked(True)
+    window.tools = {
+        "T0101": {"type": "od_80", "noseRadius": 0.4, "tipOrientation": 3},
+    }
+    window.ui.editor.setText("G18 G90 T0101 M3\nG0 X50 Z0\nG1 X40 Z-20 F100\nM30")
+    assert window.updateData()
+    window.applyStockSettings(
+        {
+            "enabled": True,
+            "outer_diameter": 50.0,
+            "inner_diameter": 0.0,
+            "length": 40.0,
+            "front_allowance": 2.0,
+            "resolution": 1.0,
+        }
+    )
+
+    window.ui.actionPlay.setChecked(True)
+    assert window._stock_animation_active  # pylint: disable=protected-access
+    assert window._stock_item in window.ui.graphicsView.items  # pylint: disable=protected-access
+    assert window._toolpath_item not in window.ui.graphicsView.items  # pylint: disable=protected-access
+
+    window.ui.horizontalSlider.setValue(2)
+    assert window._stock_timeline.motion_count == 2  # pylint: disable=protected-access
+
+    window.applyStockSettings(
+        {
+            "enabled": True,
+            "outer_diameter": 52.0,
+            "inner_diameter": 0.0,
+            "length": 40.0,
+            "front_allowance": 3.0,
+            "resolution": 1.0,
+        }
+    )
+    assert not window._stock_animation_active  # pylint: disable=protected-access
+    assert not window.ui.actionPlay.isChecked()
+    assert not window.timer.isActive()
+    assert window._toolpath_item in window.ui.graphicsView.items  # pylint: disable=protected-access
+    window.settings.sync()
+    assert window.settings.value("STOCK/ENABLED", type=bool) is True
+    assert window.settings.value("STOCK/DIAMETER", type=float) == 52.0
+    assert window.settings.value("STOCK/LENGTH", type=float) == 40.0
+    assert window.settings.value("STOCK/FRONT_ALLOWANCE", type=float) == 3.0
+
+    assert window.updateData()
+    assert not window._stock_animation_active  # pylint: disable=protected-access
+    assert window._toolpath_item in window.ui.graphicsView.items  # pylint: disable=protected-access
+
+    window.ui.actionPlay.setChecked(True)
+    assert window._stock_animation_active  # pylint: disable=protected-access
+    window.stop()
+    assert not window._stock_animation_active  # pylint: disable=protected-access
+    assert window.ui.horizontalSlider.value() == window.ui.horizontalSlider.maximum()
+    assert window._toolpath_item in window.ui.graphicsView.items  # pylint: disable=protected-access
+    assert window._toolpath_item.visible_logical_count == window.ui.horizontalSlider.maximum()
+
+    window.ui.actionLatheMode.setChecked(False)
+    window.ui.actionPlay.setChecked(True)
+    assert not window._stock_animation_active  # pylint: disable=protected-access
+    assert window.ui.actionPlay.isChecked()
+    window.stop()
     window.deleteLater()
 
 

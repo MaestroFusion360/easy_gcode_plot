@@ -30,6 +30,7 @@ class Motion:
     compensation_mode: int = 40
     tool: str | None = None
     compensation_applied: bool = False
+    playback_group: int | None = None
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class ProfileSegment:
     center: Point2
     corner_chamfer: float = 0.0
     corner_radius_cmd: float = 0.0
+    playback_group: int | None = None
 
 
 @dataclass(frozen=True)
