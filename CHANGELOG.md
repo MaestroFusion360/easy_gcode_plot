@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.2 - 2026-09-12
+
+- Fixed Linux shell workflow orchestration so nested `.sh` scripts are invoked through `bash` and do not depend on executable file mode in CI.
+- Installed the EGL and OpenGL runtime libraries required for PyQt6 imports on clean Ubuntu CI runners.
+- Made recent-file deduplication consistently case-insensitive across Windows and Linux, including migrated Windows-style paths.
+
 ## 1.5.1 - 2026-09-12
 
 - Fixed Face Groove Stock Removal so axial feed moves subtract only the swept insert footprint and preserve material on both radial sides; rapid moves remain non-cutting and the generalized interval profile stays reversible during playback.

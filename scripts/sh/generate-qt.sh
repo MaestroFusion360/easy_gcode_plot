@@ -17,8 +17,8 @@ staging_root=$(mktemp -d "${TMPDIR:-/tmp}/easy-gcode-plot-qt-XXXXXX")
 trap 'rm -rf -- "$staging_root"' EXIT
 mkdir -p "$staging_root/ui" "$staging_root/resources"
 
-"$script_dir/generate-resources.sh" --project-root "$project_root" --output-directory "$staging_root/resources" --tool-project-root "$tool_project_root"
-"$script_dir/generate-ui.sh" --project-root "$project_root" --output-directory "$staging_root/ui" --tool-project-root "$tool_project_root"
+bash "$script_dir/generate-resources.sh" --project-root "$project_root" --output-directory "$staging_root/resources" --tool-project-root "$tool_project_root"
+bash "$script_dir/generate-ui.sh" --project-root "$project_root" --output-directory "$staging_root/ui" --tool-project-root "$tool_project_root"
 
 shopt -s nullglob
 for ui_file in "$project_root"/app/ui/generated/*.ui; do

@@ -23,8 +23,8 @@ project_version=$(uv version --short)
     printf 'Requested release %s does not match pyproject version %s.\n' "$version" "$project_version" >&2
     exit 1
 }
-"$script_dir/lint.sh" --fix
-"$script_dir/test.sh"
+bash "$script_dir/lint.sh" --fix
+bash "$script_dir/test.sh"
 git diff --check
 git status --short
 if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then

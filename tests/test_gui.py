@@ -450,7 +450,7 @@ def test_picking_is_disabled_in_3d_view():
 
 def test_recent_files_are_unique_case_insensitively_and_limited():
     recent = main_window._normalized_recent_files(
-        ["C:/A.nc", "c:/a.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc", "C:/F.nc"]
+        ["C:/A.nc", "c:\\a.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc", "C:/F.nc"]
     )
     assert recent == ["C:/A.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc"]
 

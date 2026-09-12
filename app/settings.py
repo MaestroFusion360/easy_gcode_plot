@@ -269,7 +269,10 @@ def normalized_recent_files(paths, limit=RECENT_FILES_LIMIT):
     seen = set()
     for value in paths or []:
         path = str(value).strip()
-        key = os.path.normcase(path)
+        # Recent documents may contain Windows paths even when settings are
+        # inspected or migrated on Linux. os.path.normcase() is a no-op there,
+        # so normalize separators and case explicitly for stable behavior.
+        key = path.replace("\\", "/").casefold()
         if not path or key in seen:
             continue
         out.append(path)

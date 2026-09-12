@@ -15,7 +15,7 @@ done
 
 cd "$project_root"
 if [[ $skip_tests == false ]]; then
-    "$script_dir/test.sh"
+    bash "$script_dir/test.sh"
 fi
 
 arguments=(
