@@ -12,7 +12,7 @@ from app.gcode.stock import TurningStockTimeline, profile_interval_mesh_spans
 from app.gcode.turning_tool_geometry import display_tool_geometry
 
 STOCK_COLOR = "#4fa7a0"
-TOOL_COLOR = "#d8d83a"
+TOOL_COLOR = "#ffd23f"
 STOCK_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: True,
     GL.GL_BLEND: True,
@@ -53,6 +53,28 @@ def _tool_geometry(spec: dict[str, object], stock_diameter: float):
     return display_tool_geometry(spec, stock_diameter)
 
 
+def material_interval_mesh_spans(first, second):
+    """Match radial material intervals without cross-connecting separate rings."""
+    if len(first) == len(second) and all(
+        min(outer0, outer1) > max(inner0, inner1)
+        for (inner0, outer0), (inner1, outer1) in zip(first, second, strict=True)
+    ):
+        return tuple((*interval0, *interval1) for interval0, interval1 in zip(first, second, strict=True))
+
+    # At a topology change, split the common material into independent bands.
+    # Connecting one whole interval to multiple rings produces overlapping
+    # triangles that visually fill a groove and gives the mesh non-manifold
+    # crossings. Constant overlap bands create a clean vertical transition.
+    spans = []
+    for inner0, outer0 in first:
+        for inner1, outer1 in second:
+            inner = max(inner0, inner1)
+            outer = min(outer0, outer1)
+            if outer > inner:
+                spans.append((inner, outer, inner, outer))
+    return tuple(spans)
+
+
 class TurningStockOverlayItem(GLGraphicsItem):
     """Dynamic stock section plus a 3D active turning tool."""
 
@@ -77,7 +99,10 @@ class TurningStockOverlayItem(GLGraphicsItem):
             drawFaces=True,
             drawEdges=True,
             edgeColor=QColor("#6f6f18"),
-            shader="shaded",
+            # Keep the cutting insert gold regardless of scene-light direction.
+            # This is local to the turning tool and does not alter stock, STL,
+            # grid or toolpath lighting/material state.
+            shader=None,
             glOptions=STOCK_GL_OPTIONS,
         )
         self._tool_mesh.setDepthValue(20)
@@ -108,6 +133,9 @@ class TurningStockOverlayItem(GLGraphicsItem):
         self.update()
 
     def _set_stock_mesh(self, timeline: TurningStockTimeline) -> None:
+        if any(len(intervals) != 1 for intervals in timeline.material_intervals):
+            self._set_interval_stock_mesh(timeline)
+            return
         breaks = timeline.profile_breaks
         if not breaks:
             z_values = np.asarray(timeline.z, dtype=np.float32)
@@ -155,6 +183,28 @@ class TurningStockOverlayItem(GLGraphicsItem):
                 lower = len(vertices)
                 vertices.extend(((-oa, 0.0, za), (-ia, 0.0, za), (-ib, 0.0, zb), (-ob, 0.0, zb)))
                 faces.extend(((lower, lower + 1, lower + 2), (lower, lower + 2, lower + 3)))
+        self.last_stock_vertex_count = len(vertices)
+        self.last_stock_face_count = len(faces)
+        self._stock_mesh.setMeshData(meshdata=_mesh_data(vertices, faces))
+
+    def _set_interval_stock_mesh(self, timeline: TurningStockTimeline) -> None:
+        """Render stock slices that may contain disconnected radial material."""
+        vertices = []
+        faces = []
+        for index in range(len(timeline.z) - 1):
+            z0, z1 = timeline.z[index], timeline.z[index + 1]
+            first = timeline.material_intervals[index]
+            second = timeline.material_intervals[index + 1]
+            for inner0, outer0, inner1, outer1 in material_interval_mesh_spans(first, second):
+                for za, zb, ia, oa, ib, ob in profile_interval_mesh_spans(
+                    z0, z1, inner0, outer0, inner1, outer1, timeline.profile_breaks
+                ):
+                    upper = len(vertices)
+                    vertices.extend(((ia, 0.0, za), (oa, 0.0, za), (ob, 0.0, zb), (ib, 0.0, zb)))
+                    faces.extend(((upper, upper + 1, upper + 2), (upper, upper + 2, upper + 3)))
+                    lower = len(vertices)
+                    vertices.extend(((-oa, 0.0, za), (-ia, 0.0, za), (-ib, 0.0, zb), (-ob, 0.0, zb)))
+                    faces.extend(((lower, lower + 1, lower + 2), (lower, lower + 2, lower + 3)))
         self.last_stock_vertex_count = len(vertices)
         self.last_stock_face_count = len(faces)
         self._stock_mesh.setMeshData(meshdata=_mesh_data(vertices, faces))

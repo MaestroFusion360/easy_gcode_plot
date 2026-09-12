@@ -52,7 +52,18 @@ class TurningStockSpec:
 class TurningDelta:
     """Reversible profile changes plus exact axial discontinuities for one motion."""
 
-    changes: tuple[tuple[int, float, float, float, float], ...]
+    changes: tuple[
+        tuple[
+            int,
+            float,
+            float,
+            float,
+            float,
+            tuple[tuple[float, float], ...],
+            tuple[tuple[float, float], ...],
+        ],
+        ...,
+    ]
     breaks: tuple[float, ...] = ()
 
 
@@ -227,6 +238,9 @@ class TurningStockTimeline:
         self.initial_outer = [spec.outer_diameter * 0.5] * len(self.z)
         self.inner = self.initial_inner.copy()
         self.outer = self.initial_outer.copy()
+        initial_interval = ((spec.inner_diameter * 0.5, spec.outer_diameter * 0.5),)
+        self.initial_material_intervals = [initial_interval] * len(self.z)
+        self.material_intervals = self.initial_material_intervals.copy()
         self.deltas: list[TurningDelta | None] = [None] * len(self.motions)
         self.motion_count = 0
         self.revision = 0
@@ -253,15 +267,54 @@ class TurningStockTimeline:
         if old is None:
             old_inner = self.inner[index]
             old_outer = self.outer[index]
+            old_intervals = self.material_intervals[index]
         else:
             old_inner = old[0]
             old_outer = old[2]
+            old_intervals = old[4]
         new_inner = max(self.inner[index], min(new_inner, new_outer))
         new_outer = min(self.outer[index], max(new_outer, new_inner))
         if new_inner > self.inner[index] + _EPS or new_outer < self.outer[index] - _EPS:
+            clipped = tuple(
+                (max(start, new_inner), min(end, new_outer))
+                for start, end in self.material_intervals[index]
+                if min(end, new_outer) > max(start, new_inner) + _EPS
+            )
             self.inner[index] = new_inner
             self.outer[index] = new_outer
-            changes[index] = (old_inner, new_inner, old_outer, new_outer)
+            self.material_intervals[index] = clipped
+            changes[index] = (old_inner, new_inner, old_outer, new_outer, old_intervals, clipped)
+
+    def _subtract_local_interval(self, changes, index: int, minimum_x: float, maximum_x: float) -> None:
+        """Remove one bounded radial interval while retaining material on both sides."""
+        minimum_x = max(0.0, float(minimum_x))
+        maximum_x = max(minimum_x, float(maximum_x))
+        old_intervals = self.material_intervals[index]
+        result: list[tuple[float, float]] = []
+        for start, end in old_intervals:
+            if maximum_x <= start + _EPS or minimum_x >= end - _EPS:
+                result.append((start, end))
+                continue
+            if minimum_x > start + _EPS:
+                result.append((start, min(minimum_x, end)))
+            if maximum_x < end - _EPS:
+                result.append((max(maximum_x, start), end))
+        new_intervals = tuple(result)
+        if new_intervals == old_intervals:
+            return
+        old = changes.get(index)
+        old_inner = self.inner[index] if old is None else old[0]
+        old_outer = self.outer[index] if old is None else old[2]
+        original_intervals = old_intervals if old is None else old[4]
+        if new_intervals:
+            new_inner = new_intervals[0][0]
+            new_outer = new_intervals[-1][1]
+        else:
+            new_inner = new_outer = self.inner[index]
+        self.material_intervals[index] = new_intervals
+        self.inner[index] = new_inner
+        self.outer[index] = new_outer
+        changes[index] = (old_inner, new_inner, old_outer, new_outer, original_intervals, new_intervals)
 
     def _apply_swept_footprint(
         self,
@@ -304,6 +357,33 @@ class TurningStockTimeline:
                     continue
                 self._remember(changes, index, self.inner[index], max(candidate, self.inner[index]))
 
+    def _apply_local_swept_footprint(
+        self,
+        changes,
+        start: tuple[float, float],
+        end: tuple[float, float],
+        footprint: tuple[tuple[float, float], ...],
+    ) -> None:
+        """Subtract a bounded swept cutter footprint for axial face grooving."""
+        start_x, start_z = start
+        end_x, end_z = end
+        swept = _convex_hull(
+            [
+                *((abs(float(start_x)) + x, float(start_z) + z) for x, z in footprint),
+                *((abs(float(end_x)) + x, float(end_z) + z) for x, z in footprint),
+            ]
+        )
+        if len(swept) < 3:
+            return
+        minimum_z = min(point[1] for point in swept)
+        maximum_z = max(point[1] for point in swept)
+        first = max(0, int(math.floor((minimum_z - self.z[0]) / self.step)))
+        last = min(len(self.z) - 1, int(math.ceil((maximum_z - self.z[0]) / self.step)))
+        for index in range(first, last + 1):
+            span = _horizontal_span(swept, self.z[index])
+            if span is not None:
+                self._subtract_local_interval(changes, index, *span)
+
     def _apply_drill_sample(self, changes, tip_z: float, spec) -> None:
         diameter = _positive_float(spec, "diameter")
         if diameter <= _EPS:
@@ -344,11 +424,16 @@ class TurningStockTimeline:
             self._apply_drill_sample(changes, min(position[1] for position in positions), spec)
         elif footprint is not None:
             for start, end in zip(positions, positions[1:], strict=False):
-                self._apply_swept_footprint(changes, start, end, footprint, side)
+                if tool_type == "face_groove":
+                    self._apply_local_swept_footprint(changes, start, end, footprint)
+                else:
+                    self._apply_swept_footprint(changes, start, end, footprint, side)
         return TurningDelta(
             tuple(
-                (index, old_inner, new_inner, old_outer, new_outer)
-                for index, (old_inner, new_inner, old_outer, new_outer) in sorted(changes.items())
+                (index, old_inner, new_inner, old_outer, new_outer, old_intervals, new_intervals)
+                for index, (old_inner, new_inner, old_outer, new_outer, old_intervals, new_intervals) in sorted(
+                    changes.items()
+                )
             ),
             breaks,
         )
@@ -381,9 +466,18 @@ class TurningStockTimeline:
                     delta = self._compute_delta(self.motions[index])
                     self.deltas[index] = delta
                 else:
-                    for profile_index, _old_inner, new_inner, _old_outer, new_outer in delta.changes:
+                    for (
+                        profile_index,
+                        _old_inner,
+                        new_inner,
+                        _old_outer,
+                        new_outer,
+                        _old_intervals,
+                        new_intervals,
+                    ) in delta.changes:
                         self.inner[profile_index] = new_inner
                         self.outer[profile_index] = new_outer
+                        self.material_intervals[profile_index] = new_intervals
                 self._activate_breaks(delta.breaks)
                 changed = changed or bool(delta.changes or delta.breaks)
         elif target < self.motion_count:
@@ -391,9 +485,18 @@ class TurningStockTimeline:
                 delta = self.deltas[index]
                 if delta is None:
                     continue
-                for profile_index, old_inner, _new_inner, old_outer, _new_outer in reversed(delta.changes):
+                for (
+                    profile_index,
+                    old_inner,
+                    _new_inner,
+                    old_outer,
+                    _new_outer,
+                    old_intervals,
+                    _new_intervals,
+                ) in reversed(delta.changes):
                     self.inner[profile_index] = old_inner
                     self.outer[profile_index] = old_outer
+                    self.material_intervals[profile_index] = old_intervals
                 self._deactivate_breaks(delta.breaks)
                 changed = changed or bool(delta.changes or delta.breaks)
         self.motion_count = target

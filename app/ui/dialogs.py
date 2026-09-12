@@ -422,7 +422,7 @@ class _TurningToolEditor(QDialog):
         self.toolType.setCurrentIndex(max(0, type_index))
         self.noseRadius = QDoubleSpinBox(self)
         self.noseRadius.setDecimals(3)
-        self.noseRadius.setRange(0.001, 999999.999)
+        self.noseRadius.setRange(0.0, 999999.999)
         self.noseRadius.setValue(float(spec.get("noseRadius", 0.4)))
         self.tipOrientation = QComboBox(self)
         self._requested_tip_orientation = int(spec["tipOrientation"]) if "tipOrientation" in spec else None
@@ -473,10 +473,10 @@ class _TurningToolEditor(QDialog):
         """Expose only geometry consumed by the selected tool model."""
         tool_type = self.toolType.currentData()
         insert = tool_type in TURNING_INSERT_TYPES
-        groove_with_orientation = tool_type in {"od_groove", "id_groove"}
+        groove_with_orientation = tool_type in {"face_groove", "od_groove", "id_groove"}
         drill = tool_type == "drill"
         self._sync_tip_orientation_choices(tool_type)
-        self.noseRadius.setEnabled(insert)
+        self.noseRadius.setEnabled(insert or groove_with_orientation)
         self.tipOrientation.setEnabled(insert or groove_with_orientation)
         self.width.setEnabled(tool_type in {"face_groove", "od_groove", "id_groove"})
         self.diameter.setEnabled(drill)
@@ -491,6 +491,9 @@ class _TurningToolEditor(QDialog):
         elif tool_type == "id_groove":
             choices = (1, 2)
             default = 2
+        elif tool_type == "face_groove":
+            choices = (2, 3)
+            default = 3
         else:
             choices = tuple(range(1, 10))
             default = 1
@@ -537,8 +540,8 @@ class _TurningToolEditor(QDialog):
             spec["tipOrientation"] = int(self.tipOrientation.currentData())
         if tool_type in {"face_groove", "od_groove", "id_groove"}:
             spec["width"] = self.width.value()
-            if tool_type in {"od_groove", "id_groove"}:
-                spec["tipOrientation"] = int(self.tipOrientation.currentData())
+            spec["noseRadius"] = self.noseRadius.value()
+            spec["tipOrientation"] = int(self.tipOrientation.currentData())
         if tool_type == "drill":
             spec["diameter"] = self.diameter.value()
             spec["length"] = self.length.value()
@@ -585,8 +588,10 @@ class TurningTools(QDialog):
             spec = self.pendingTools[key]
             tool_type = canonical_turning_tool_type(spec.get("type"))
             is_insert = tool_type in TURNING_INSERT_TYPES
-            has_orientation = is_insert or tool_type in {"od_groove", "id_groove"}
-            default_orientation = 2 if tool_type == "id_groove" else 3 if tool_type == "od_groove" else 1
+            has_orientation = is_insert or tool_type in {"face_groove", "od_groove", "id_groove"}
+            default_orientation = (
+                2 if tool_type == "id_groove" else 3 if tool_type in {"face_groove", "od_groove"} else 1
+            )
             orientation_value = int(spec.get("tipOrientation", default_orientation))
             orientation = f"P{orientation_value}" if has_orientation else "—"
             if tool_type == "drill":

@@ -8,6 +8,7 @@ from types import SimpleNamespace
 import ezdxf
 import pytest
 from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
+from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication
 
 from app import main_window
@@ -19,6 +20,7 @@ from app.ui import main_window_execution, main_window_file_ops, main_window_plot
 from app.ui.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.main_window_execution import MainWindowExecutionMixin
 from app.ui.main_window_file_ops import MainWindowFileMixin
+from app.ui.stock_overlay import STOCK_COLOR, TOOL_COLOR, TurningStockOverlayItem
 from app.ui.window_settings import (
     EDITOR_FONT_FAMILY_KEY,
     EDITOR_FONT_ITALIC_KEY,
@@ -133,6 +135,18 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     assert captured["home_y"] == 200.0
     assert captured["home_z"] == 50.0
     assert captured["emulate_g28_home"] is False
+    assert callable(captured["cancelled"])
+
+
+def test_reentrant_gui_execution_requests_cancellation():
+    window = _gui_execution_harness("G1 X20", lathe_mode=True)
+    window._kernel_execution_active = True
+    window._kernel_cancel_requested = False
+
+    result = main_window.MainWindow._execute_editor_source(window, show_errors=False)
+
+    assert result is None
+    assert window._kernel_cancel_requested is True
 
 
 def test_lathe_execution_always_uses_relative_arc_offsets(monkeypatch):
@@ -198,10 +212,24 @@ def test_turning_tool_geometry_types_are_normalized_for_stock_removal():
 
     expected = {
         **raw,
-        "T0202": {"type": "od_groove", "width": 4.0, "tipOrientation": 3},
-        "T0606": {"type": "id_groove", "width": 3.0, "tipOrientation": 2},
+        "T0101": {"type": "face_groove", "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
+        "T0202": {"type": "od_groove", "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
+        "T0606": {"type": "id_groove", "width": 3.0, "noseRadius": 0.0, "tipOrientation": 2},
     }
     assert main_window._normalized_tools(raw) == expected
+
+
+def test_turning_insert_is_unlit_gold_without_changing_stock_material(qt_app):
+    overlay = TurningStockOverlayItem()
+    tool_color = QColor(TOOL_COLOR)
+
+    assert tool_color.red() > 220
+    assert tool_color.green() > 170
+    assert tool_color.blue() < 100
+    assert overlay._tool_mesh.opts["color"] == tool_color
+    assert overlay._tool_mesh.opts["shader"] is None
+    assert overlay._stock_mesh.opts["color"] == QColor(STOCK_COLOR)
+    assert overlay._stock_mesh.opts["shader"] == "shaded"
 
 
 def test_editor_font_persistence_uses_existing_font_keys():

@@ -76,6 +76,8 @@ def default_groove_orientation(tool_type: str) -> int:
         return 3
     if tool_type == "id_groove":
         return 2
+    if tool_type == "face_groove":
+        return 3
     return 1
 
 
@@ -84,6 +86,8 @@ def allowed_groove_orientations(tool_type: str) -> tuple[int, ...]:
         return (3, 4)
     if tool_type == "id_groove":
         return (1, 2)
+    if tool_type == "face_groove":
+        return (2, 3)
     return ()
 
 
@@ -292,21 +296,25 @@ def turning_tool_polygon(
                 z0, z1 = 0.0, width
             else:
                 z0, z1 = -width, 0.0
-            polygon = (
+            sharp = (
                 (0.0, z0),
                 (direction * length, z0),
                 (direction * length, z1),
                 (0.0, z1),
             )
+            polygon = rounded_polygon(sharp, positive_float(spec, "noseRadius"))
     elif tool_type == "face_groove":
         width = positive_float(spec, "width", max(1.0, stock_diameter * 0.03))
         length = max(scale * 1.5, width * 2.0)
-        polygon = (
-            (-width * 0.5, 0.0),
-            (width * 0.5, 0.0),
-            (width * 0.5, length),
-            (-width * 0.5, length),
+        orientation = normalize_groove_orientation(spec, tool_type)
+        x0, x1 = (0.0, width) if orientation == 2 else (-width, 0.0)
+        sharp = (
+            (x0, 0.0),
+            (x1, 0.0),
+            (x1, length),
+            (x0, length),
         )
+        polygon = rounded_polygon(sharp, positive_float(spec, "noseRadius"))
     return polygon
 
 

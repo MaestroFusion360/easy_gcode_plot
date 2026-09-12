@@ -4,9 +4,10 @@ import math
 
 import pytest
 
-from app.gcode.kernel import TraceMotion
+from app.gcode.kernel import TraceMotion, execute
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline, profile_interval_mesh_spans
 from app.gcode.turning_tool_geometry import cutting_insert_points, display_tool_geometry, turning_tool_polygon
+from app.ui.stock_overlay import material_interval_mesh_spans
 
 
 def _at(timeline, z_value):
@@ -55,7 +56,7 @@ def test_od_groove_width_removes_outer_material_and_rewinds():
     stock = TurningStockTimeline(
         (motion,),
         TurningStockSpec(outer_diameter=50, length=40, resolution=1),
-        {"T0404": {"type": "od_groove", "width": 4.0, "noseRadius": 5.0}},
+        {"T0404": {"type": "od_groove", "width": 4.0}},
     )
     stock.set_motion_count(1)
     assert stock.outer[_at(stock, -10)] == pytest.approx(15.0)
@@ -408,3 +409,93 @@ def test_profile_break_cache_tracks_rewind_and_replay():
     assert stock.profile_breaks == ()
     stock.set_motion_count(1)
     assert stock.profile_breaks == expected
+
+
+@pytest.mark.parametrize("orientation", [2, 3])
+def test_face_groove_removes_only_local_radial_footprint_and_rewinds(orientation):
+    motion = TraceMotion(1, 40.0, -2.0, 40.0, -10.0, tool="T0202", x_scale=0.5)
+    stock = TurningStockTimeline(
+        (motion,),
+        TurningStockSpec(outer_diameter=60, inner_diameter=10, length=20, resolution=0.5),
+        {"T0202": {"type": "face_groove", "width": 3.0, "noseRadius": 0.0, "tipOrientation": orientation}},
+    )
+
+    stock.set_motion_count(1)
+    intervals = stock.material_intervals[_at(stock, -8.0)]
+    assert len(intervals) == 2
+    assert intervals[0][0] == pytest.approx(5.0)
+    assert intervals[-1][1] == pytest.approx(30.0)
+    assert stock.inner[_at(stock, -8.0)] == pytest.approx(5.0)
+    assert stock.outer[_at(stock, -8.0)] == pytest.approx(30.0)
+
+    stock.set_motion_count(0)
+    assert stock.material_intervals == stock.initial_material_intervals
+    stock.set_motion_count(1)
+    assert stock.material_intervals[_at(stock, -8.0)] == intervals
+
+
+def test_face_groove_g74_cycle_cuts_only_feed_moves_and_keeps_local_material():
+    source = """(FACE GROOVE)
+N2 T0202
+G18 G99
+G96 S450 M03
+G00 X50. Z5.
+G74 R2.
+G74 X30. Z-10. P3. Q3. F0.3
+G28 U0. W0. M09 (HOME)
+M05
+"""
+    result = execute(source, language="fanuc_turn")
+    cycle = [motion for motion in result.motions if motion.source_kind == "cycle"]
+    assert [(motion.move, motion.end_x, motion.end_z) for motion in cycle[:11]] == [
+        (1, 50.0, 2.0),
+        (0, 50.0, 4.0),
+        (1, 50.0, -1.0),
+        (0, 50.0, 1.0),
+        (1, 50.0, -4.0),
+        (0, 50.0, -2.0),
+        (1, 50.0, -7.0),
+        (0, 50.0, -5.0),
+        (1, 50.0, -10.0),
+        (0, 50.0, -8.0),
+        (0, 50.0, 5.0),
+    ]
+    assert sorted({motion.end_x for motion in cycle if motion.move == 1}) == [30.0, 32.0, 38.0, 44.0, 50.0]
+
+    tools = {"T0202": {"type": "face_groove", "width": 3.0, "noseRadius": 0.0, "tipOrientation": 3}}
+    stock = TurningStockTimeline(result.motions, TurningStockSpec(outer_diameter=60, length=30, resolution=0.5), tools)
+    rapid_index = next(
+        index for index, motion in enumerate(result.motions) if motion.source_kind == "cycle" and motion.move == 0
+    )
+    stock.set_motion_count(rapid_index)
+    before_rapid = list(stock.material_intervals)
+    stock.set_motion_count(rapid_index + 1)
+    assert stock.material_intervals == before_rapid
+    stock.set_motion_count(len(result.motions))
+    assert any(len(intervals) > 1 for intervals in stock.material_intervals)
+
+
+@pytest.mark.parametrize("tool_type,orientation", [("od_groove", 3), ("id_groove", 2), ("face_groove", 3)])
+def test_groove_radius_changes_real_cutter_footprint(tool_type, orientation):
+    sharp = turning_tool_polygon(
+        {"type": tool_type, "width": 4.0, "noseRadius": 0.0, "tipOrientation": orientation}, 50.0
+    )
+    rounded = turning_tool_polygon(
+        {"type": tool_type, "width": 4.0, "noseRadius": 0.4, "tipOrientation": orientation}, 50.0
+    )
+    assert sharp is not None and rounded is not None
+    assert len(sharp) == 4
+    assert len(rounded) > 4
+    assert rounded != sharp
+
+
+def test_interval_mesh_does_not_cross_connect_one_profile_to_two_rings():
+    spans = material_interval_mesh_spans(((0.0, 30.0),), ((0.0, 17.0), (20.0, 30.0)))
+
+    assert spans == ((0.0, 17.0, 0.0, 17.0), (20.0, 30.0, 20.0, 30.0))
+
+
+def test_interval_mesh_preserves_sloped_profiles_when_topology_matches():
+    spans = material_interval_mesh_spans(((2.0, 20.0), (24.0, 30.0)), ((3.0, 19.0), (23.0, 29.0)))
+
+    assert spans == ((2.0, 20.0, 3.0, 19.0), (24.0, 30.0, 23.0, 29.0))

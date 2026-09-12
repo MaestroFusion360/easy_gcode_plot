@@ -13,6 +13,7 @@ from app.ui.playback import build_playback_movements
 
 AUTO_REFRESH_MAX_POINTS = 20000
 AUTO_REFRESH_DELAY_MS = 500
+EXECUTION_EVENT_INTERVAL_SECONDS = 0.02
 LOGGER = logging.getLogger(__name__)
 PLAYBACK_INTERVALS_MS = (1000, 250, 100, 40, 10)
 
@@ -91,6 +92,10 @@ class MainWindowExecutionMixin:
 
     def stop(self):
         """Stop playback, completing a stock preview before restoring the trace."""
+        if getattr(self, "_kernel_execution_active", False):
+            self._kernel_cancel_requested = True
+            self.ui.statusbar.showMessage("Cancelling CNC execution...")
+            return
         stock_animation = bool(getattr(self, "_stock_animation_active", False))
         self.ui.actionPlay.setChecked(False)
         self.timer.stop()
@@ -140,6 +145,9 @@ class MainWindowExecutionMixin:
             self.autoUpdateTimer.start()
 
     def _execute_editor_source(self, *, show_errors=True):
+        if getattr(self, "_kernel_execution_active", False):
+            self._kernel_cancel_requested = True
+            return None
         started = perf_counter()
         source = self.ui.editor.text()
         language = "fanuc_turn" if self.latheMode else "fanuc_mill"
@@ -147,21 +155,36 @@ class MainWindowExecutionMixin:
         wcs_offsets = getattr(self, "wcsOffsets", None)
         if self.latheMode and wcs_offsets is not None:
             wcs_offsets = {code: (values[0] * 2.0, *values[1:]) for code, values in wcs_offsets.items()}
-        result = execute(
-            source,
-            language=language,
-            # Turning programs always use Fanuc-style I/K offsets relative to
-            # the arc start.  Arc Type is a milling-only preference in the UI.
-            source_arc_type=1 if self.latheMode else getattr(self, "arc_type", 1),
-            default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
-            tools=getattr(self, "tools", None) if getattr(self, "correctionEnabled", True) else {},
-            milling_tools=getattr(self, "millingTools", None) if getattr(self, "correctionEnabled", True) else {},
-            home_x=home_x,
-            home_y=self.yPosMach,
-            home_z=self.zPosMach,
-            wcs_offsets=wcs_offsets,
-            emulate_g28_home=getattr(self, "homeConfigured", True),
-        )
+        self._kernel_execution_active = True
+        self._kernel_cancel_requested = False
+        self._kernel_next_event_yield = started
+
+        def cancelled():
+            now = perf_counter()
+            if now >= self._kernel_next_event_yield:
+                self._kernel_next_event_yield = now + EXECUTION_EVENT_INTERVAL_SECONDS
+                QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 5)
+            return bool(self._kernel_cancel_requested)
+
+        try:
+            result = execute(
+                source,
+                language=language,
+                # Turning programs always use Fanuc-style I/K offsets relative to
+                # the arc start.  Arc Type is a milling-only preference in the UI.
+                source_arc_type=1 if self.latheMode else getattr(self, "arc_type", 1),
+                default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
+                tools=getattr(self, "tools", None) if getattr(self, "correctionEnabled", True) else {},
+                milling_tools=getattr(self, "millingTools", None) if getattr(self, "correctionEnabled", True) else {},
+                home_x=home_x,
+                home_y=self.yPosMach,
+                home_z=self.zPosMach,
+                wcs_offsets=wcs_offsets,
+                emulate_g28_home=getattr(self, "homeConfigured", True),
+                cancelled=cancelled,
+            )
+        finally:
+            self._kernel_execution_active = False
         self._last_execution_ms = (perf_counter() - started) * 1000.0
         LOGGER.debug(
             "execution language=%s ok=%s complete=%s motions=%d steps=%d diagnostics=%d duration_ms=%.3f "

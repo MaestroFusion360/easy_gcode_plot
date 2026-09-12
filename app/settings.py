@@ -178,8 +178,12 @@ def normalized_tools(raw):
             if not math.isfinite(width) or width <= 0.0:
                 continue
             spec["width"] = width
-            if tool_type in {"od_groove", "id_groove"}:
-                spec["tipOrientation"] = normalize_groove_orientation(raw_spec, tool_type)
+            try:
+                groove_radius = float(raw_spec.get("noseRadius", 0.0))
+            except (TypeError, ValueError):
+                groove_radius = 0.0
+            spec["noseRadius"] = groove_radius if math.isfinite(groove_radius) and groove_radius > 0.0 else 0.0
+            spec["tipOrientation"] = normalize_groove_orientation(raw_spec, tool_type)
 
         if tool_type == "drill" and any(key in raw_spec for key in ("diameter", "length", "tipAngle")):
             try:

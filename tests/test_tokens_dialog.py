@@ -68,12 +68,16 @@ def test_groove_width_is_editable_and_saved(qt_app, tool_type):
 
     assert editor.width.isEnabled()
     expected = {"type": tool_type, "width": 6.5}
+    expected["noseRadius"] = 0.4
     if tool_type == "od_groove":
         expected["tipOrientation"] = 3
         assert [editor.tipOrientation.itemText(index) for index in range(editor.tipOrientation.count())] == ["P3", "P4"]
     elif tool_type == "id_groove":
         expected["tipOrientation"] = 2
         assert [editor.tipOrientation.itemText(index) for index in range(editor.tipOrientation.count())] == ["P1", "P2"]
+    else:
+        expected["tipOrientation"] = 3
+        assert [editor.tipOrientation.itemText(index) for index in range(editor.tipOrientation.count())] == ["P2", "P3"]
     assert editor.value() == ("T0808", expected)
     editor.deleteLater()
     window.deleteLater()

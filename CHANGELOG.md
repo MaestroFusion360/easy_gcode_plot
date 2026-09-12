@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.5.1 - 2026-09-12
+
+- Fixed Face Groove Stock Removal so axial feed moves subtract only the swept insert footprint and preserve material on both radial sides; rapid moves remain non-cutting and the generalized interval profile stays reversible during playback.
+- Added P2/P3 Face Groove orientations and used the same orientation-aware cutter polygon for the tool preview, 3D playback and Stock Removal.
+- Added configurable corner radius for OD Groove, ID Groove and Face Groove tools, with `R0` compatibility for legacy settings and real rounded cutter footprints for preview and material removal.
+- Restored a clearly visible yellow/gold turning insert material without changing global scene lighting or the rendering of stock, STL, grid and toolpaths.
+- Added groove regressions covering the supplied G74 face-grooving cycle, local material removal, rapid/feed behavior, multiple X passes, P2/P3, rounded OD/ID/Face footprints and reversible stock playback.
+- Fixed disconnected stock-ring meshing so topology changes do not create overlapping faces and exact OD/ID groove profile breaks remain effective alongside Face Groove cuts.
+- Kept long kernel executions responsive to Qt events and made Stop, repeated Refresh and window close request cooperative cancellation.
+- Removed machine-specific window geometry from the bundled legacy configuration, constrained runtime dependency ranges and added Linux CI coverage for the shell workflow.
+
 ## 1.5.0 - 2026-09-12
 
 - Reworked playback around an indexed logical-movement map: one trackbar position now represents one actual CNC movement while retaining the complete detailed `TraceMotion`/render range for OpenGL and Stock Removal. Arc tessellation and G71 offset-profile chords no longer inflate the slider, while real cycle and Macro B expansions remain individually playable.

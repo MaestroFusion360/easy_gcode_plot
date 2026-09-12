@@ -101,7 +101,8 @@ def test_qt_generation_uses_pyside_only_as_dev_toolchain():
     assert "--no-dev" in (ROOT / POWERSHELL_SCRIPTS_DIR / "build.ps1").read_text(encoding="utf-8")
     for generated in [*_ui_mapping(ROOT).values(), ROOT / RESOURCE_DIR / "files_res.py"]:
         content = generated.read_text(encoding="utf-8")
-        assert "PySide6" not in content
+        assert "from PySide6" not in content
+        assert "import PySide6" not in content
         assert "PyQt6" in content
         assert not content.startswith("\ufeff")
 

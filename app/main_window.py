@@ -180,6 +180,11 @@ class MainWindow(
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""
+        if getattr(self, "_kernel_execution_active", False):
+            self._kernel_cancel_requested = True
+            self.ui.statusbar.showMessage("Cancelling CNC execution; close again when it has stopped.")
+            event.ignore()
+            return
         if self.maybeSave():
             self.saveSettings()
             self._dispose_trace_item()
