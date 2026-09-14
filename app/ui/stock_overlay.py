@@ -53,7 +53,7 @@ def _tool_geometry(spec: dict[str, object], stock_diameter: float):
     return display_tool_geometry(spec, stock_diameter)
 
 
-def material_interval_mesh_spans(first, second):
+def material_interval_mesh_spans(first, second, *, start_break: bool = False, end_break: bool = False):
     """Match radial material intervals without cross-connecting separate rings."""
     if len(first) == len(second) and all(
         min(outer0, outer1) > max(inner0, inner1)
@@ -72,7 +72,13 @@ def material_interval_mesh_spans(first, second):
             outer = min(outer0, outer1)
             if outer > inner:
                 spans.append((inner, outer, inner, outer))
-    return tuple(spans)
+    if spans:
+        return tuple(spans)
+    if end_break and first and not second:
+        return tuple((*interval, *interval) for interval in first)
+    if start_break and second and not first:
+        return tuple((*interval, *interval) for interval in second)
+    return ()
 
 
 class TurningStockOverlayItem(GLGraphicsItem):
@@ -195,9 +201,17 @@ class TurningStockOverlayItem(GLGraphicsItem):
             z0, z1 = timeline.z[index], timeline.z[index + 1]
             first = timeline.material_intervals[index]
             second = timeline.material_intervals[index + 1]
-            for inner0, outer0, inner1, outer1 in material_interval_mesh_spans(first, second):
+            breaks = timeline.profile_breaks
+            start_break = any(abs(value - z0) <= 1e-9 for value in breaks)
+            end_break = any(abs(value - z1) <= 1e-9 for value in breaks)
+            for inner0, outer0, inner1, outer1 in material_interval_mesh_spans(
+                first,
+                second,
+                start_break=start_break,
+                end_break=end_break,
+            ):
                 for za, zb, ia, oa, ib, ob in profile_interval_mesh_spans(
-                    z0, z1, inner0, outer0, inner1, outer1, timeline.profile_breaks
+                    z0, z1, inner0, outer0, inner1, outer1, breaks
                 ):
                     upper = len(vertices)
                     vertices.extend(((ia, 0.0, za), (oa, 0.0, za), (ob, 0.0, zb), (ib, 0.0, zb)))

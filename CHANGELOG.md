@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.5.3 - 2026-09-14
+
+- Replaced direction-bearing turning type identifiers with nine canonical geometry types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap.
+- Persisted OD, ID and Face as independent `applications` flags and routed preview, orientation, compensation and Stock Removal through canonical geometry plus application context.
+- Added idempotent `tools.db` migration on load; historical records retain application meaning and geometry fields and are immediately rewritten using canonical types without duplication.
+- Added a Qt-free SQLite tool library in `tools.db` as the authoritative store for turning and milling tool definitions.
+- Initialized new SQLite libraries directly with the current tool schema; no intermediate legacy tool import is used.
+- Added a generator for the complete auto-mode turning catalogue and made turning and milling tool-set replacement atomic.
+- Added regression coverage for deterministic catalogue generation, deletion persistence, duplicate-key protection and the settings bridge.
+- Added live previews, first-free-number duplication and JSON/CSV export to both tool-library dialogs.
+- Added Face Mill, Slot Mill, Chamfer Mill and Tap cutters plus square, round and triangular turning inserts.
+- Added a directional threading tool with Length/Diameter, E, EX and RC geometry for preview and trace playback.
+- Added Diamond 80 with OD applicability and D10 Flat Mill fallback geometry when a program does not select a configured tool.
+- Added Prev/Next Toolchange navigation and exposed the Edit and CNC Functions actions in the editor context menu.
+- Corrected the application-specific auto tracing-point catalogue, including P1/P2/P6/P7 for Diamond 35 ID and P3/P4/P7/P8 for Diamond 35 OD.
+- Corrected turning-tool geometry consistency: Triangle Insert now uses a real three-sided footprint, Round Insert uses its physical insert radius for trace-point placement, and Drill/Tap library preview reuses the shared cutter geometry used by playback and Stock Removal.
+- Added pitch- and insert-driven Stock Removal profiles for synchronized G32/G33, modal G92 and G76 cutting moves; repeated OD/ID passes deepen one phase-aligned profile, radial infeed/retract moves do not create false angled faces, and G94 remains a facing cycle.
+- Changed Stock sizing to preserve user-entered manual dimensions across Refresh and turning-tool edits; Reset to Auto, New and Open return Stock to program-derived automatic sizing.
+- Added startup Fit to View for persisted Lathe Mode after the main window is shown, so the automatic stock outline is visible immediately.
+- Consolidated tool validation under `app/tools/validation.py`, split turning/milling library dialogs out of the generic dialog module, and kept compatibility re-exports for existing callers/tests.
+- Kept `tools.db` as the single authoritative turning/milling library; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported or written.
+
 ## 1.5.2 - 2026-09-12
 
 - Fixed Linux shell workflow orchestration so nested `.sh` scripts are invoked through `bash` and do not depend on executable file mode in CI.
@@ -8,12 +30,12 @@
 
 ## 1.5.1 - 2026-09-12
 
-- Fixed Face Groove Stock Removal so axial feed moves subtract only the swept insert footprint and preserve material on both radial sides; rapid moves remain non-cutting and the generalized interval profile stays reversible during playback.
-- Added P2/P3 Face Groove orientations and used the same orientation-aware cutter polygon for the tool preview, 3D playback and Stock Removal.
-- Added configurable corner radius for OD Groove, ID Groove and Face Groove tools, with `R0` compatibility for legacy settings and real rounded cutter footprints for preview and material removal.
+- Fixed Groove + Face Stock Removal so axial feed moves subtract only the swept cutter footprint and preserve material on both radial sides; rapid moves remain non-cutting and the generalized interval profile stays reversible during playback.
+- Added P2/P3 Groove + Face orientations and used the same orientation-aware cutter polygon for the tool preview, 3D playback and Stock Removal.
+- Added configurable corner radius for Groove tools in OD, ID and Face applications, with `R0` compatibility and real rounded cutter footprints for preview and material removal.
 - Restored a clearly visible yellow/gold turning insert material without changing global scene lighting or the rendering of stock, STL, grid and toolpaths.
 - Added groove regressions covering the supplied G74 face-grooving cycle, local material removal, rapid/feed behavior, multiple X passes, P2/P3, rounded OD/ID/Face footprints and reversible stock playback.
-- Fixed disconnected stock-ring meshing so topology changes do not create overlapping faces and exact OD/ID groove profile breaks remain effective alongside Face Groove cuts.
+- Fixed disconnected stock-ring meshing so topology changes do not create overlapping faces and exact radial Groove profile breaks remain effective alongside Groove + Face cuts.
 - Kept long kernel executions responsive to Qt events and made Stop, repeated Refresh and window close request cooperative cancellation.
 - Removed machine-specific window geometry from the bundled legacy configuration, constrained runtime dependency ranges and added Linux CI coverage for the shell workflow.
 
@@ -34,10 +56,10 @@
 - Fixed Stock outline settings and automatically inferred bounds being refreshed after program changes and Refresh, instead of updating only after accepting the Stock dialog.
 - Fixed Lathe Play to build Stock Removal from the same current effective bounds as the visible outline, and changed Stop after Stock playback to restore the fully visible trajectory with the slider at 100%.
 - Expanded application diagnostics for option changes, machine/view/playback transitions, execution and plot timing, and sampled Stock Removal performance; slow Stock frames report timeline/mesh timing, profile and mesh sizes without logging every frame.
-- Added a shared Qt-free X/Z turning-tool geometry layer so the turning-tool preview and Stock Removal use the same cutter silhouette for OD80/ID80, OD35/ID35 and OD/ID groove tools.
-- Changed OD80/OD35 P3 and ID80/ID35 P2 Stock Removal from the previous nose/width approximation to sampled polygon-footprint removal along the resolved `TraceMotion`, so insert angle, main-edge angle and nose radius affect the machined profile.
-- Added OD Groove P3/P4 and ID Groove P1/P2 edge-reference selection, with legacy groove definitions defaulting to OD P3 and ID P2, and restricted the turning-tool editor to the valid orientation choices for each groove type.
-- Changed unknown or unconfigured turning tools to leave stock unchanged instead of falling back to an implicit OD80 cutter; Stock Removal remains a geometric simulation and does not require spindle-running state.
+- Added a shared Qt-free X/Z turning-tool geometry layer so preview and Stock Removal use the same Diamond 80, Diamond 35 and Groove silhouettes across OD/ID applications.
+- Changed Diamond 80/Diamond 35 Stock Removal for OD P3 and ID P2 from the previous nose/width approximation to sampled polygon-footprint removal along the resolved `TraceMotion`, so plate angle, main-edge angle and nose radius affect the machined profile.
+- Added Groove edge-reference selection for OD P3/P4 and ID P1/P2, with application-aware defaults and valid orientation choices.
+- Changed unknown or unconfigured turning tools to leave stock unchanged instead of falling back to an implicit Diamond 80 cutter; Stock Removal remains a geometric simulation and does not require spindle-running state.
 - Added automatic turning-stock sizing from resolved G1/G2/G3 cutting motions, including cycle-generated motions and exact G18 arc extrema, while ignoring G0 positioning; the suggested bore remains zero by default.
 - Added a lightweight stock outline to the normal Lathe Plot, included configured stock in Fit View bounds, hid the outline in milling and isolated Stock Removal playback, and restored it when returning to the normal lathe plot.
 - Added Stock-dialog prefill from the current automatic stock suggestion without mutating persisted settings until OK is pressed, and refresh the suggestion after program or mode recalculation so stale dimensions are not reused.
@@ -48,7 +70,7 @@
 
 ## 1.4.2 - 2026-09-10
 
-- Added turning Stock Removal playback driven by the resolved execution trace, with reversible OD/ID profiles, drilling, grooving, persistent stock dimensions and geometry-specific 3D tools for Face Groove, OD Groove, ID Groove, Drill, OD80/ID80 (5-degree edge) and OD35/ID35 (3-degree edge).
+- Added turning Stock Removal playback driven by the resolved execution trace, with reversible OD/ID profiles, drilling, grooving, persistent stock dimensions and geometry-specific 3D tools for Groove, Drill, Diamond 80 (5-degree edge) and Diamond 35 (3-degree edge) across application contexts.
 - Reset playback to the complete recalculated trajectory after source, mode or semantic setting changes so stale slider positions cannot hide updated geometry.
 - Changed turning and milling execution to preserve trustworthy partial traces and continue after recoverable G-code, Macro B and unsupported position-changing blocks once absolute coordinates re-establish the affected axes.
 - Changed invalid arc handling to skip only the unresolved motion while retaining later resolved motions.

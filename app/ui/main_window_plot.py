@@ -9,6 +9,7 @@ from PyQt6.QtGui import QColor, QVector3D, QVector4D
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 from pyqtgraph.opengl import GLGridItem, GLScatterPlotItem
 
+from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.ui.axis_triad import AxisTriadItem
 from app.ui.milling_tool_preview import MillingToolPreviewItem
 from app.ui.plot_grid import adaptive_grid_geometry
@@ -215,6 +216,11 @@ class MainWindowPlotMixin:
         started = perf_counter()
         bounds = self._scene_bounds()
         if bounds is None:
+            # A turning stock fit can leave the camera centered far from the
+            # machine origin. When switching to an empty milling scene there
+            # are no bounds to replace that center, so restore world zero.
+            if not self.latheMode:
+                self.ui.graphicsView.opts["center"] = QVector3D(0.0, 0.0, 0.0)
             self._update_adaptive_grid()
             LOGGER.debug("fit_view skipped_no_bounds duration_ms=%.3f", (perf_counter() - started) * 1000.0)
             return
@@ -230,7 +236,7 @@ class MainWindowPlotMixin:
 
         if mode == "lathe":
             # Keep the established turning fit behavior independent from milling views.
-            half_extent = max(spans[2] / 2.0, spans[0] / (2.0 * aspect))
+            half_extent = max(spans[2] / 2.0, spans[0] * aspect / 2.0)
             half_extent = max(half_extent, 0.5)
             distance = half_extent * 1.1 / math.tan(half_fov)
         else:
@@ -549,7 +555,7 @@ class MainWindowPlotMixin:
                 tool_item.hide_tool()
             else:
                 tool_item.show_tool(
-                    getattr(self, "millingTools", {}).get(motion.tool or ""),
+                    (getattr(self, "millingTools", {}).get(motion.tool) if motion.tool else DEFAULT_MILLING_TOOL),
                     (motion.end_x, motion.end_y, motion.end_z),
                 )
         if sync_editor:

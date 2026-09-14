@@ -10,6 +10,8 @@ from PyQt6.QtGui import QColor
 from pyqtgraph.opengl import GLMeshItem, MeshData
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
+from app.tools.milling_geometry import milling_geometry_key, milling_tool_profile
+
 TOOL_ALPHA = 0.45
 TOOL_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: True,
@@ -23,7 +25,9 @@ TOOL_GL_OPTIONS = {
         GL.GL_ONE_MINUS_SRC_ALPHA,
     ),
 }
-SUPPORTED_TOOL_TYPES = frozenset({"mill_flat", "mill_bull", "mill_ball", "drill"})
+SUPPORTED_TOOL_TYPES = frozenset(
+    {"mill_flat", "mill_bull", "mill_ball", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
+)
 
 
 def _tool_color(value) -> QColor:
@@ -85,61 +89,23 @@ class MillingToolPreviewItem(GLGraphicsItem):
 
     @staticmethod
     def _validated_geometry(spec):
-        if not isinstance(spec, dict):
-            return None
-        tool_type = str(spec.get("type", "")).strip().lower()
-        if tool_type not in SUPPORTED_TOOL_TYPES:
-            return None
-        try:
-            diameter = float(spec.get("diameter", 0.0))
-            length = float(spec.get("length", 0.0))
-            corner_radius = float(spec.get("cornerRadius", 0.0))
-        except (TypeError, ValueError):
-            return None
-        if diameter <= 0.0 or length <= 0.0:
-            return None
-        radius = diameter * 0.5
-        if tool_type == "mill_ball":
-            corner_radius = radius
-        elif tool_type == "mill_bull":
-            corner_radius = min(max(corner_radius, 0.0), radius)
-        else:
-            corner_radius = 0.0
-        return tool_type, diameter, length, corner_radius
+        return milling_geometry_key(spec)
 
-    def _rebuild(self, tool_type: str, diameter: float, length: float, corner_radius: float) -> None:
-        radius = diameter * 0.5
-        if tool_type == "drill":
-            # CNCEditor's preview uses a 120-degree included drill point.
-            cone_height = min(length, radius / (3.0**0.5))
-            profile = [(0.0, 0.0), (cone_height, radius), (length, radius)]
-        elif tool_type == "mill_ball":
-            # Lower hemisphere: the sphere pole is the programmed cutter tip.
-            profile = [
-                (radius * step / 12.0, math.sqrt(max(0.0, radius**2 - (radius * step / 12.0 - radius) ** 2)))
-                for step in range(13)
-            ]
-            if length > radius:
-                profile.append((length, radius))
-        elif tool_type == "mill_bull" and corner_radius > 0.0:
-            base_radius = radius - corner_radius
-            profile = [
-                (
-                    corner_radius * step / 12.0,
-                    base_radius
-                    + math.sqrt(
-                        max(
-                            0.0,
-                            corner_radius**2 - (corner_radius - corner_radius * step / 12.0) ** 2,
-                        )
-                    ),
-                )
-                for step in range(13)
-            ]
-            if length > corner_radius:
-                profile.append((length, radius))
-        else:
-            profile = [(0.0, radius), (length, radius)]
+    def _rebuild(self, *geometry_key) -> None:
+        tool_type, diameter, length, corner_radius, *extra = geometry_key
+        spec = {
+            "type": tool_type,
+            "diameter": diameter,
+            "length": length,
+            "cornerRadius": corner_radius,
+        }
+        if tool_type in {"face_mill", "slot_mill"}:
+            spec.update(cuttingHeight=extra[0], shankDiameter=extra[1])
+        elif tool_type == "chamfer_mill":
+            spec.update(tipDiameter=extra[0], chamferAngle=extra[1])
+        elif tool_type == "drill":
+            spec["tipAngle"] = extra[0]
+        profile = milling_tool_profile(spec)
         meshdata = self._surface_of_revolution(profile)
         if self._meshes:
             # Keep the scene-registered GL item and its context lifecycle.
@@ -152,7 +118,7 @@ class MillingToolPreviewItem(GLGraphicsItem):
             del self._meshes[1:]
         else:
             self._mesh(meshdata)
-        self._geometry_key = (tool_type, diameter, length, corner_radius)
+        self._geometry_key = geometry_key
 
     @staticmethod
     def _surface_of_revolution(profile, sides=32) -> MeshData:

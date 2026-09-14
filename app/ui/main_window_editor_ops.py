@@ -8,6 +8,24 @@ from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QLabel, QMenu, QMessageBox, QProgressBar
 
 LOGGER = logging.getLogger(__name__)
+_TOOLCHANGE_PATTERN = re.compile(r"T\s*\d+", re.IGNORECASE)
+
+
+def _code_without_comments(line: str) -> str:
+    """Mask comments while preserving character offsets for editor navigation."""
+    chars = list(line)
+    parentheses = 0
+    for index, char in enumerate(line):
+        if char == ";" and parentheses == 0:
+            chars[index:] = " " * (len(chars) - index)
+            break
+        if char == "(":
+            parentheses += 1
+        if parentheses:
+            chars[index] = " "
+        if char == ")" and parentheses:
+            parentheses -= 1
+    return "".join(chars)
 
 
 class MainWindowEditorMixin:
@@ -119,16 +137,46 @@ class MainWindowEditorMixin:
             self.updateExecutionStatus()
 
     def editorContextMenu(self, point):
-        """Show context menu for editor editing actions."""
-        menu = QMenu()
-        menu.addAction(self.ui.actionUndo)
-        menu.addAction(self.ui.actionRedo)
+        """Show all Edit actions followed by all CNC Functions actions."""
+        menu = QMenu(self)
+        menu.addActions(self.ui.menu_Edit.actions())
         menu.addSeparator()
-        menu.addAction(self.ui.actionCut)
-        menu.addAction(self.ui.actionCopy)
-        menu.addAction(self.ui.actionPaste)
-        menu.addAction(self.ui.actionSelectAll)
+        menu.addActions(self.ui.menuCNC_Functions.actions())
         menu.exec(self.ui.editor.mapToGlobal(point))
+
+    def previousToolchange(self):
+        """Move the editor selection to the previous T word, wrapping at the start."""
+        return self._navigate_toolchange(forward=False)
+
+    def nextToolchange(self):
+        """Move the editor selection to the next T word, wrapping at the end."""
+        return self._navigate_toolchange(forward=True)
+
+    def _navigate_toolchange(self, *, forward: bool) -> bool:
+        editor = self.ui.editor
+        matches = [
+            (line_number, match.start(), match.end())
+            for line_number in range(editor.lines())
+            for match in _TOOLCHANGE_PATTERN.finditer(_code_without_comments(editor.text(line_number)))
+        ]
+        if not matches:
+            self.ui.statusbar.showMessage("No tool changes found", 2500)
+            return False
+
+        selection = editor.getSelection()
+        if selection[0] >= 0:
+            origin = selection[2:4] if forward else selection[0:2]
+        else:
+            origin = editor.getCursorPosition()
+        if forward:
+            target = next((match for match in matches if match[:2] >= origin), matches[0])
+        else:
+            target = next((match for match in reversed(matches) if match[:2] < origin), matches[-1])
+        line, start, end = target
+        editor.setSelection(line, start, line, end)
+        editor.ensureLineVisible(line)
+        editor.setFocus()
+        return True
 
     def runFindDlg(self):
         """Show the find/replace dialog, seeding it with the current selection."""

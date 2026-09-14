@@ -223,6 +223,8 @@ class MainWindow(
         self.ui.actionRemoveSpaces.triggered.connect(self.removeSpaces)
         self.ui.actionRemoveEmptyLines.triggered.connect(self.removeLines)
         self.ui.actionStatistics.triggered.connect(self.statistics)
+        self.ui.actionPrevToolchange.triggered.connect(self.previousToolchange)
+        self.ui.actionNextToolchange.triggered.connect(self.nextToolchange)
         self.ui.actionStock.triggered.connect(self.stockDlg.show)
         self.ui.actionWCS.triggered.connect(lambda: self.wcsDlg.show())
         self.ui.actionTurningTools.triggered.connect(lambda: self.turningToolsDlg.show())
@@ -316,7 +318,10 @@ class MainWindow(
             self.ui.graphicsView.opts["fov"] = 0.01
             self.ui.graphicsView.opts["rotationMethod"] = "quaternion"
             self.ui.graphicsView.setCameraPosition(distance=self.dist * 6000, rotation=QQuaternion(0.5, 0.5, 0.5, 0.5))
-            self._update_adaptive_grid()
+            # Returning from milling leaves the camera fitted to the milling scene.
+            # Fit again after the lathe scene (including passive/auto Stock) has
+            # been rebuilt, even when the editor is empty.
+            self.fitToView()
         else:
             self.latheMode = False
             self._view_mode = "3d"

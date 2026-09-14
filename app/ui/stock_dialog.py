@@ -46,6 +46,8 @@ class StockDialog(QDialog):
         form.addRow("Z stock allowance", self.front_allowance)
         form.addRow("Accuracy", self.accuracy)
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        self.reset_auto_button = buttons.addButton("Reset to Auto", QDialogButtonBox.ButtonRole.ResetRole)
+        self.reset_auto_button.clicked.connect(self._reset_to_auto)
         buttons.accepted.connect(self._apply)
         buttons.rejected.connect(self.reject)
         layout = QVBoxLayout(self)
@@ -78,7 +80,8 @@ class StockDialog(QDialog):
         front_allowance = max(0.0, float(getattr(self.window, "turnStockFrontAllowance", 2.0)))
         self.front_allowance.setValue(front_allowance)
         suggestion = getattr(self.window, "_stock_auto_suggestion", None)
-        if suggestion is not None:
+        use_auto = not getattr(self.window, "_stock_manual_override", False)
+        if use_auto and suggestion is not None:
             self.outer.setValue(max(self.outer.minimum(), float(suggestion.outer_diameter)))
             self.inner.setValue(float(suggestion.inner_diameter))
             self.length.setValue(max(self.length.minimum(), float(suggestion.length) + front_allowance))
@@ -89,6 +92,10 @@ class StockDialog(QDialog):
         resolution = float(getattr(self.window, "turnStockResolution", 0.5))
         self.accuracy.setValue(self._accuracy_index_for_resolution(resolution))
         super().showEvent(event)
+
+    def _reset_to_auto(self):
+        self.window.resetStockToAuto()
+        self.accept()
 
     def _apply(self):
         values = {

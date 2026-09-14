@@ -110,7 +110,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
         return expected
 
     monkeypatch.setattr(main_window_execution, "execute", fake_execute)
-    tools = {"T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1}}
+    tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 1}}
     offsets = {54: (10.0, 20.0, -2.0)}
     window = SimpleNamespace(
         ui=SimpleNamespace(editor=_Editor("G54\nG1 X20 Y30 Z-5"), statusbar=_StatusBar()),
@@ -186,35 +186,54 @@ def test_legacy_config_migration_uses_application_directory_not_process_cwd(tmp_
 
 def test_tool_settings_normalization_matches_turning_kernel_keys():
     raw = {
-        "101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
+        "101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 1},
         "T2": {"type": "drill", "description": "  center   drill "},
-        "bad": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
-        "T0303": {"type": "turning", "noseRadius": 0.0, "tipOrientation": 3},
+        "bad": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 1},
+        "T0303": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.0, "tipOrientation": 3},
     }
 
     assert main_window._normalized_tools(raw) == {
-        "T0101": {"type": "turning", "noseRadius": 0.4, "tipOrientation": 1},
+        "T0101": {
+            "type": "diamond_80",
+            "applications": ["od"],
+            "noseRadius": 0.4,
+            "tipOrientation": 1,
+            "insertLength": 12.0,
+        },
         "T0002": {"type": "drill", "description": "center drill"},
     }
 
 
 def test_turning_tool_geometry_types_are_normalized_for_stock_removal():
     raw = {
-        "T0101": {"type": "face_groove", "width": 4.0},
-        "T0202": {"type": "od_groove", "width": 4.0},
-        "T0606": {"type": "id_groove", "width": 3.0},
+        "T0101": {"type": "groove", "applications": ["face"], "width": 4.0},
+        "T0202": {"type": "groove", "applications": ["od"], "width": 4.0},
+        "T0606": {"type": "groove", "applications": ["id"], "width": 3.0},
         "T0303": {"type": "drill", "diameter": 12.0, "length": 60.0, "tipAngle": 118.0},
-        "T0404": {"type": "id_80", "noseRadius": 0.4, "tipOrientation": 2},
-        "T0505": {"type": "od_80", "noseRadius": 0.4, "tipOrientation": 3},
-        "T0707": {"type": "od_35", "noseRadius": 0.4, "tipOrientation": 3},
-        "T0808": {"type": "id_35", "noseRadius": 0.4, "tipOrientation": 2},
+        "T0404": {"type": "diamond_80", "applications": ["id"], "noseRadius": 0.4, "tipOrientation": 2},
+        "T0505": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3},
+        "T0707": {"type": "diamond_35", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3},
+        "T0808": {"type": "diamond_35", "applications": ["id"], "noseRadius": 0.4, "tipOrientation": 2},
+        "T0909": {"type": "thread", "tipOrientation": 3},
     }
 
     expected = {
         **raw,
-        "T0101": {"type": "face_groove", "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
-        "T0202": {"type": "od_groove", "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
-        "T0606": {"type": "id_groove", "width": 3.0, "noseRadius": 0.0, "tipOrientation": 2},
+        "T0101": {"type": "groove", "applications": ["face"], "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
+        "T0202": {"type": "groove", "applications": ["od"], "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
+        "T0606": {"type": "groove", "applications": ["id"], "width": 3.0, "noseRadius": 0.0, "tipOrientation": 2},
+        "T0404": {**raw["T0404"], "insertLength": 12.0},
+        "T0505": {**raw["T0505"], "insertLength": 12.0},
+        "T0707": {**raw["T0707"], "insertLength": 16.0},
+        "T0808": {**raw["T0808"], "insertLength": 16.0},
+        "T0909": {
+            **raw["T0909"],
+            "applications": ["od"],
+            "insertLength": 12.0,
+            "threadAngle": 60.0,
+            "threadTipWidth": 0.8,
+            "threadCornerRadius": 0.1,
+        },
     }
     assert main_window._normalized_tools(raw) == expected
 
@@ -276,6 +295,7 @@ def test_milling_tool_settings_normalization_matches_cnceditor_geometry_rules():
             "diameter": 6.0,
             "cornerRadius": 0.0,
             "length": 70.0,
+            "tipAngle": 118.0,
             "description": "center drill",
         },
     }
@@ -674,7 +694,7 @@ def test_turning_stock_removal_uses_play_stop_and_rebuilds_after_update(qt_app):
     window.autoUpdateEnabled = False
     window.ui.actionLatheMode.setChecked(True)
     window.tools = {
-        "T0101": {"type": "od_80", "noseRadius": 0.4, "tipOrientation": 3},
+        "T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3},
     }
     window.ui.editor.setText("G18 G90 T0101 M3\nG0 X50 Z0\nG1 X40 Z-20 F100\nM30")
     assert window.updateData()

@@ -30,12 +30,13 @@ The application parses and executes source once through a shared CNC kernel. Ren
 - G-code editor with highlighting, line numbers, search/replace and cleanup tools.
 - Interactive OpenGL plot with perspective and orthographic views.
 - Logical-motion playback with source-line synchronization.
-- Lathe Stock outline and cutter-aware Stock Removal playback.
-- Turning G70–G76 cycles, tool-nose compensation and direct A/C/corner-R programming.
+- Lathe Stock outline and cutter-aware Stock Removal playback, including pitch- and insert-driven thread profiles.
+- Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs and cutter-radius compensation.
 - ASCII/binary STL reference overlay with solid and feature-edge modes.
 - Tokens diagnostics, toolpath statistics and millimetre/inch display.
 - Full-program, Expanded Execution, Plot Data and DXF exports.
+- SQLite-backed turning and milling tool libraries with live geometry preview and JSON/CSV tool export.
 - UTF-8 and Windows-1251 document support.
 
 Detailed behavior, supported commands, configuration, troubleshooting and development notes are in the [FAQ](FAQ.md). The same document is packaged with the application and opens from **Help → FAQ**.
@@ -72,6 +73,13 @@ uv run --no-dev python main.py
 
 The application reports unsupported or ambiguous controller behavior explicitly instead of guessing geometry.
 
+
+## Tool libraries
+
+Turning and milling tools are stored in the per-user SQLite database `tools.db`. The database is the single source of truth for tool definitions; `config.ini` stores application preferences and does not mirror the tool library.
+
+The turning library uses nine geometry types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face are stored separately as application flags and drive preview, trace orientation and Stock Removal without changing the geometry type.
+
 ## Supported areas
 
 | Area | Main support |
@@ -79,7 +87,7 @@ The application reports unsupported or ambiguous controller behavior explicitly 
 | Common | G00–G03, G17–G21, G28, G54–G59, G90/G91, Macro B, M98/M99 |
 | Turning | X/Z, U/W, I/K/R arcs, A/C/corner-R, G32/G33, G70–G76, G90/G92/G94 cycles, G96/G97, G98/G99 |
 | Milling | XYZ, IJK/R and helical arcs, G53, G80–G86, G94/G95, G40/G41/G42 |
-| Visualization | 3D/orthographic plot, STL overlay, turning Stock outline and removal, configured tool previews |
+| Visualization | 3D/orthographic plot, STL overlay, turning Stock outline/removal (including thread profiles), configured tool previews |
 | Export | Turning/Milling Full Program, Expanded Execution, Plot Data and DXF |
 
 See [FAQ.md](FAQ.md) for limitations and exact semantics.

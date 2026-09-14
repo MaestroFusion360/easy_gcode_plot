@@ -96,7 +96,7 @@ def test_grouped_playback_keeps_stock_timeline_on_detailed_range_boundary():
     window = MainWindow()
     window.autoUpdateEnabled = False
     window.ui.actionLatheMode.setChecked(True)
-    window.tools = {"T1111": {"type": "od_80", "noseRadius": 0.8, "tipOrientation": 3}}
+    window.tools = {"T1111": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.8, "tipOrientation": 3}}
     window.ui.editor.setText(G71_WITH_OFFSET_ARCS)
     assert window.updateData()
     window.applyStockSettings(

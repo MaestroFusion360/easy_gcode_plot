@@ -278,6 +278,9 @@
      <addaction name="actionRenumber"/>
      <addaction name="actionNumbRemove"/>
     </widget>
+    <addaction name="actionPrevToolchange"/>
+    <addaction name="actionNextToolchange"/>
+    <addaction name="separator"/>
     <addaction name="menuBlockNumbers"/>
     <addaction name="actionRemoveSpaces"/>
     <addaction name="actionRemoveEmptyLines"/>
@@ -825,6 +828,30 @@
    </property>
    <property name="text">
     <string>Statistics</string>
+   </property>
+  </action>
+  <action name="actionPrevToolchange">
+   <property name="icon">
+    <iconset resource="../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/prev_tool.png</normaloff>:/resource/icons/prev_tool.png</iconset>
+   </property>
+   <property name="text">
+    <string>Prev Toolchange</string>
+   </property>
+   <property name="toolTip">
+    <string>Go to the previous tool change in the editor</string>
+   </property>
+  </action>
+  <action name="actionNextToolchange">
+   <property name="icon">
+    <iconset resource="../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/next_tool.png</normaloff>:/resource/icons/next_tool.png</iconset>
+   </property>
+   <property name="text">
+    <string>Next Toolchange</string>
+   </property>
+   <property name="toolTip">
+    <string>Go to the next tool change in the editor</string>
    </property>
   </action>
   <action name="actionRenumber">

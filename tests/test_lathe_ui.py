@@ -49,6 +49,19 @@ def test_stl_and_lathe_toolbar_actions_are_in_the_required_order(qt_app):
     window.deleteLater()
 
 
+def test_toolchange_navigation_actions_are_in_cnc_menu_with_icons(qt_app):
+    window = _window(qt_app)
+    actions = window.ui.menuCNC_Functions.actions()
+
+    assert actions[:2] == [window.ui.actionPrevToolchange, window.ui.actionNextToolchange]
+    assert actions[2].isSeparator()
+    assert QFile(":/resource/icons/prev_tool.png").exists()
+    assert QFile(":/resource/icons/next_tool.png").exists()
+    assert not window.ui.actionPrevToolchange.icon().isNull()
+    assert not window.ui.actionNextToolchange.icon().isNull()
+    window.deleteLater()
+
+
 def test_toolbars_default_to_one_row_and_layout_can_be_reset(qt_app):
     window = _window(qt_app)
     toolbars = (

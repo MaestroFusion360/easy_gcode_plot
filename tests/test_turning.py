@@ -130,8 +130,8 @@ def test_turning_thread_fixture_covers_g32_and_g76(fixture_text):
 
 def test_turning_control_compensation_matches_computer_compensated_reference(fixture_text):
     tools = {
-        "T0101": {"type": "turning", "noseRadius": 0.8, "tipOrientation": 3},
-        "T0202": {"type": "turning", "noseRadius": 0.2, "tipOrientation": 3},
+        "T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.8, "tipOrientation": 3},
+        "T0202": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.2, "tipOrientation": 3},
     }
 
     def finish_trace(name: str):
@@ -270,3 +270,39 @@ def test_turning_direct_programming_r_does_not_reinterpret_g2_g3_arc_radius():
     assert len(arcs) == 1
     assert arcs[0].source_raw == "G3X40Z-10R10F100"
     assert arcs[0].radius == pytest.approx(10.0)
+
+
+def test_threading_flag_follows_modal_g32_until_another_motion_code_cancels_it():
+    result = execute(
+        "G21 G18 G99\nG0 X20 Z0\nG32 Z-4 F2\nZ-6\nG1 Z-8\nZ-10\nM30\n",
+        language="fanuc_turn",
+    )
+    assert result.ok, result.diagnostics
+
+    cutting = [motion for motion in result.motions if motion.move == 1]
+    assert [motion.threading for motion in cutting] == [True, True, False, False]
+    assert [motion.feed for motion in cutting[:2]] == pytest.approx([2.0, 2.0])
+
+
+def test_threading_flag_follows_modal_g92_depth_blocks():
+    result = execute(
+        "G21 G18 G99\nG0 X20 Z2\nG92 X18 Z-10 F1.5\nX17.5\nX17.0\nG0 X30\nM30\n",
+        language="fanuc_turn",
+    )
+    assert result.ok, result.diagnostics
+
+    thread_cuts = [motion for motion in result.motions if motion.move == 1]
+    assert len(thread_cuts) == 3
+    assert all(motion.threading for motion in thread_cuts)
+    assert [motion.feed for motion in thread_cuts] == pytest.approx([1.5, 1.5, 1.5])
+
+
+def test_g94_facing_cycle_is_not_published_as_threading():
+    result = execute(
+        "G21 G18 G99\nG0 X40 Z2\nG94 X20 F0.2\nM30\n",
+        language="fanuc_turn",
+    )
+    assert result.ok, result.diagnostics
+
+    assert any(motion.move == 1 for motion in result.motions)
+    assert not any(motion.threading for motion in result.motions)

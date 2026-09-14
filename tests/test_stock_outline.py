@@ -132,7 +132,7 @@ def test_lathe_fit_bounds_include_stock_when_outline_is_hidden(qt_app):
 
 def test_stock_outline_restored_after_stock_playback_stop(qt_app):
     window = _lathe_window(qt_app)
-    window.tools = {"T0101": {"type": "od_80", "noseRadius": 0.4, "tipOrientation": 3}}
+    window.tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3}}
     window.ui.editor.setText("G21 G18 G90 T0101 M3\nG0 X50 Z0\nG1 X40 Z-20 F100\nM30")
     assert window.updateData()
     window.applyStockSettings(
@@ -163,7 +163,7 @@ def test_stock_outline_restored_after_stock_playback_stop(qt_app):
 
 def test_stock_playback_uses_current_program_auto_bounds(qt_app):
     window = _lathe_window(qt_app)
-    window.tools = {"T0101": {"type": "od_80", "noseRadius": 0.4, "tipOrientation": 3}}
+    window.tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3}}
     window.ui.editor.setText("G21 G18 G90 T0101 M3\nG0 X40 Z0\nG1 X40 Z-20 F100\nM30")
     assert window.updateData()
     window.applyStockSettings(
@@ -176,6 +176,7 @@ def test_stock_playback_uses_current_program_auto_bounds(qt_app):
             "resolution": 1.0,
         }
     )
+    window.resetStockToAuto()
 
     window.ui.editor.setText("G21 G18 G90 T0101 M3\nG0 X60 Z0\nG1 X60 Z-40 F100\nM30")
     assert window.updateData()
@@ -218,7 +219,7 @@ def test_auto_stock_suggestion_replaces_stale_program_bounds(qt_app):
     window.deleteLater()
 
 
-def test_refresh_replaces_configured_outline_with_current_program_bounds(qt_app):
+def test_refresh_preserves_manually_configured_stock(qt_app):
     window = _lathe_window(qt_app)
     window.ui.editor.setText("G21 G18 G90\nG0 X20 Z0\nG1 X20 Z-10 F100\nM30")
     assert window.updateData()
@@ -238,11 +239,11 @@ def test_refresh_replaces_configured_outline_with_current_program_bounds(qt_app)
 
     assert window.stockConfigured is True
     assert window.turnStockDiameter == pytest.approx(100.0)
-    assert window.stockOutlineBounds()[0] == pytest.approx((-10.0, 10.0))
+    assert window.stockOutlineBounds()[0] == pytest.approx((-50.0, 50.0))
     window.deleteLater()
 
 
-def test_program_change_refreshes_outline_without_stock_dialog_confirmation(qt_app):
+def test_program_change_preserves_manual_stock_until_reset_to_auto(qt_app):
     window = _lathe_window(qt_app)
     window.applyStockSettings(
         {
@@ -256,11 +257,99 @@ def test_program_change_refreshes_outline_without_stock_dialog_confirmation(qt_a
     )
     window.ui.editor.setText("G21 G18 G90\nG0 X40 Z0\nG1 X40 Z-25 F100\nM30")
     assert window.updateData()
-    assert window.stockOutlineBounds()[0] == pytest.approx((-20.0, 20.0))
+    assert window.stockOutlineBounds()[0] == pytest.approx((-50.0, 50.0))
 
     window.ui.editor.setText("G21 G18 G90\nG0 X60 Z0\nG1 X60 Z-40 F100\nM30")
     assert window.updateData()
 
+    assert window.stockOutlineBounds()[0] == pytest.approx((-50.0, 50.0))
+    assert window.stockOutlineBounds()[2] == pytest.approx((-58.0, 2.0))
+
+    window.resetStockToAuto()
+
     assert window.stockOutlineBounds()[0] == pytest.approx((-30.0, 30.0))
     assert window.stockOutlineBounds()[2] == pytest.approx((-40.0, 2.0))
+    window.deleteLater()
+
+
+def test_turning_tool_save_does_not_reset_manual_stock(qt_app):
+    window = _lathe_window(qt_app)
+    window.tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3}}
+    window.ui.editor.setText("G21 G18 G90 T0101 M3\nG0 X40 Z0\nG1 X40 Z-20 F100\nM30")
+    assert window.updateData()
+    window.applyStockSettings(
+        {
+            "enabled": True,
+            "outer_diameter": 100.0,
+            "inner_diameter": 0.0,
+            "length": 60.0,
+            "front_allowance": 2.0,
+            "resolution": 1.0,
+        }
+    )
+
+    window.turningToolsDlg.pendingTools = {
+        "T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.8, "tipOrientation": 3}
+    }
+    window.turningToolsDlg.applyValues()
+
+    assert window.stockOutlineBounds()[0] == pytest.approx((-50.0, 50.0))
+    assert window.stockOutlineBounds()[2] == pytest.approx((-58.0, 2.0))
+    assert window._stock_manual_override is True  # pylint: disable=protected-access
+    window.deleteLater()
+
+
+def test_new_program_returns_stock_to_auto_mode(qt_app):
+    window = _lathe_window(qt_app)
+    window.applyStockSettings(
+        {
+            "enabled": True,
+            "outer_diameter": 100.0,
+            "inner_diameter": 0.0,
+            "length": 60.0,
+            "front_allowance": 2.0,
+            "resolution": 1.0,
+        }
+    )
+    assert window._stock_manual_override is True  # pylint: disable=protected-access
+
+    window.newFile()
+    assert window._stock_manual_override is False  # pylint: disable=protected-access
+
+    window.ui.editor.setText("G21 G18 G90\nG0 X40 Z0\nG1 X40 Z-25 F100\nM30")
+    assert window.updateData()
+    assert window.stockOutlineBounds()[0] == pytest.approx((-20.0, 20.0))
+    assert window.stockOutlineBounds()[2] == pytest.approx((-25.0, 2.0))
+    window.deleteLater()
+
+
+def test_empty_program_refits_configured_stock_when_returning_to_lathe(qt_app):
+    window = _lathe_window(qt_app)
+    window.applyStockSettings(
+        {
+            "enabled": True,
+            "outer_diameter": 100.0,
+            "inner_diameter": 0.0,
+            "length": 60.0,
+            "front_allowance": 2.0,
+            "resolution": 1.0,
+        }
+    )
+    window.ui.editor.setText("")
+    window.fitToView()
+
+    window.ui.actionLatheMode.setChecked(False)
+    qt_app.processEvents()
+    assert not _outline_items(window)
+
+    window.ui.actionLatheMode.setChecked(True)
+    qt_app.processEvents()
+
+    assert _outline_items(window)
+    bounds = window._scene_bounds()  # pylint: disable=protected-access
+    assert bounds[0] == pytest.approx((-50.0, 50.0))
+    assert bounds[2] == pytest.approx((-58.0, 2.0))
+    center = window.ui.graphicsView.opts["center"]
+    assert center.x() == pytest.approx(0.0)
+    assert center.z() == pytest.approx(-28.0)
     window.deleteLater()

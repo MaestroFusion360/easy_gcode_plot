@@ -7,6 +7,7 @@ from dataclasses import replace
 
 from .api_types import Diagnostic, ExecutionResult, ExecutionStep, SemanticInstruction, TraceMotion
 from .events import program_end_code
+from .execution import CYCLE_CODES, MOTION_CODES
 from .geometry import resolve_arc
 from .lang import UndefinedMacroVariableError, try_literal_int
 from .milling import execute_milling
@@ -17,6 +18,39 @@ from .resources import ExecutionBudget, ExecutionLimits, SemanticError, active_b
 from .trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
+
+
+def _threading_step_flags(steps: tuple[ExecutionStep, ...]) -> tuple[bool, ...]:
+    """Resolve explicit and modal FANUC threading blocks for published motions.
+
+    G32/G33 are modal motion commands, while G92 is a modal turning cycle whose
+    following X/U-only blocks emit additional thread passes.  The native trace
+    keeps enough execution-step information to recover both forms here without
+    changing the public motion contract.  G76 is explicit and therefore only
+    marks the motions emitted by its own block.
+    """
+    flags: list[bool] = []
+    modal_thread_move = False
+    active_g92 = False
+    for step in steps:
+        words = tuple(step.words)
+        all_g = tuple(value for letter, value in words if letter == "G")
+        explicit_motion_or_cycle = tuple(code for code in all_g if code in MOTION_CODES or code in CYCLE_CODES)
+        has_position = any(letter in {"X", "U", "Z", "W"} for letter, _value in words)
+        has_g92_depth = any(letter in {"X", "U"} for letter, _value in words)
+
+        explicit_thread = any(code in {32, 33, 76, 92} for code in all_g)
+        modal_g32_g33 = modal_thread_move and not explicit_motion_or_cycle and has_position
+        modal_g92 = active_g92 and not explicit_motion_or_cycle and has_g92_depth
+        flags.append(explicit_thread or modal_g32_g33 or modal_g92)
+
+        if explicit_motion_or_cycle:
+            modal_thread_move = any(code in {32, 33} for code in explicit_motion_or_cycle)
+            active_g92 = 92 in explicit_motion_or_cycle and has_g92_depth
+
+    return tuple(flags)
+
+
 SUPPORTED_G_CODES = frozenset(
     {
         0,
@@ -415,6 +449,11 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
         geometry_diagnostics: list[Diagnostic] = []
         cursor = 0
         try:
+            threading_steps = (
+                _threading_step_flags(result.execution_steps)
+                if language == "fanuc_turn"
+                else (False,) * len(result.execution_steps)
+            )
             for step_index, step in enumerate(result.execution_steps):
                 for motion in result.motions[cursor : cursor + step.emitted_count]:
                     motion = replace(
@@ -429,7 +468,7 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
                         compensation_status="APPLIED"
                         if motion.compensation_applied
                         else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED"),
-                        threading=any(k == "G" and v in (32, 33, 76, 92) for k, v in step.words),
+                        threading=threading_steps[step_index] and motion.move == 1,
                     )
                     try:
                         resolved = resolve_arc(motion, source_arc_type=source_arc_type)

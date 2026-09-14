@@ -7,6 +7,7 @@ This document is the detailed user and developer reference for Easy G-Code Plot.
 - [Getting started](#getting-started)
 - [Interface and playback](#interface-and-playback)
 - [Lathe mode](#lathe-mode)
+- [Tool libraries](#tool-libraries)
 - [Turning Stock Removal](#turning-stock-removal)
 - [Mill mode](#mill-mode)
 - [Units and arc programming](#units-and-arc-programming)
@@ -114,13 +115,33 @@ The second G71 block uses signed X allowance U and axial allowance W. For outsid
 
 Type I roughing ends with one full pass along the roughing profile that already includes U/W allowance. It does not reuse the nominal finishing contour, so the roughing pass does not overlap the later finish-tool path.
 
+## Tool libraries
+
+### Where are tools stored?
+
+Turning and milling tool definitions are stored in the per-user SQLite database:
+
+```text
+%LOCALAPPDATA%\easy-gcode-plot\tools.db
+```
+
+`tools.db` is authoritative. `config.ini` stores UI, editor, plot, WCS, Stock and other application preferences; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported into a current database and are not used as a fallback write target.
+
+### What can the tool-library dialogs do?
+
+Both turning and milling libraries provide live preview, Add/Edit/Remove, first-free-number Duplicate and single-tool JSON/CSV export. Turning tools use category-oriented editing and persist canonical geometry types independently from the OD, ID and Face application checkboxes.
+
+### Which turning tool geometries are available?
+
+The library supports exactly nine canonical types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face are application flags rather than tool types. Triangle uses a true three-sided footprint; Round uses `Length/Diameter` as its physical diameter.
+
 ## Turning Stock Removal
 
 ### How are initial Stock dimensions selected?
 
 The resolved G1/G2/G3 cutting trace supplies an automatic minimum outside diameter and length. Rapid G0 outliers are ignored, cycle-generated cutting motions are included, and G18 arc extrema are evaluated analytically. The suggested inside diameter is zero.
 
-The normal Lathe plot displays this stock as a lightweight outline when `Show Stock` is enabled. **Settings → Stock** is prefilled from the current suggestion, but persistent settings change only after pressing OK.
+The normal Lathe plot displays this stock as a lightweight outline when `Show Stock` is enabled. **Settings → Stock** is prefilled from the current suggestion, but persistent settings change only after pressing OK. If Lathe Mode is already active when the application starts, Fit to View is scheduled after the window is shown so the inferred stock is visible immediately.
 
 ### What can I configure in Settings → Stock?
 
@@ -133,13 +154,15 @@ The normal Lathe plot displays this stock as a lightweight outline when `Show St
 
 ### Does Play use the same bounds as the visible outline?
 
-Yes. Refresh and program changes update the automatic suggestion, and both the outline and Stock Timeline use the same effective stock specification. Starting Play no longer falls back to stale saved dimensions.
+Yes. In Auto mode, Refresh and program changes update the suggestion, and both the outline and Stock Timeline use the same effective stock specification. After the user accepts explicit Stock dimensions, those values become a manual override and survive Refresh and tool-library edits. **Reset to Auto**, **New** and opening another program return Stock to program-derived sizing.
 
 ### Which turning tools remove material?
 
-Supported tool geometries include Face Groove, OD Groove, ID Groove, Drill, OD80, ID80, OD35 and ID35. The Stock simulation and turning-tool preview share one cutter silhouette implementation.
+Supported geometry includes Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face applicability selects the machining context. Preview and Stock Removal share the turning cutter geometry where the operation is footprint-based.
 
-OD80/OD35 P3, ID80/ID35 P2, OD Groove P3/P4 and ID Groove P1/P2 use their configured insert or groove footprint. Unknown or unconfigured tools leave the stock unchanged instead of using an assumed cutter.
+Threading is a deliberate Stock Removal exception: synchronized G32/G33, modal G92 and G76 cutting moves generate a deterministic longitudinal thread section. Programmed X sets the root depth, F sets the pitch, and the configured thread angle and RC shape the flanks and rounded root. Repeated passes deepen the same phase-aligned profile, while radial infeed/retract moves do not sweep the full insert body into false angled end faces. The axisymmetric stock model renders this section rather than a 3D helix. G94 remains a facing cycle.
+
+Unknown or unconfigured tools leave stock unchanged instead of using an assumed cutter.
 
 ### Is Stock Removal a machine simulation?
 
@@ -153,10 +176,9 @@ The normal 3D view uses perspective projection. Top, Front and Left are true ort
 
 ### Which milling tools can be previewed?
 
-- Flat end mill.
-- Bull-nose mill.
-- Ball end mill.
-- Drill with a 120-degree point.
+- Flat, bull-nose and ball end mills.
+- Face, slot and chamfer mills.
+- Drill and tap.
 
 The translucent preview follows the active motion endpoint and uses the tool configured in **Settings → Milling Tools**.
 
@@ -276,9 +298,10 @@ On Windows:
 
 ```text
 %LOCALAPPDATA%\easy-gcode-plot\config.ini
+%LOCALAPPDATA%\easy-gcode-plot\tools.db
 ```
 
-A legacy `config.ini` beside the launcher may be migrated on first run.
+`config.ini` contains application preferences; `tools.db` contains the authoritative turning/milling tool library. A legacy `config.ini` beside the launcher may be migrated on first run.
 
 ### What is available in Settings → Options?
 
@@ -345,7 +368,8 @@ Use `--encoding cp1251` for Windows-1251 input. Export modes include `program` a
 
 - `app/gcode/kernel/` owns CNC parsing, execution, cycles and analytical geometry.
 - `app/gcode/trace_tools.py` owns render sampling and statistics derived from the resolved trace.
-- `app/ui/` owns PyQt GUI behavior.
+- `app/ui/` owns PyQt GUI behavior; `tool_dialogs.py` contains the turning/milling library editors while `dialogs.py` contains general dialogs.
+- `app/tools/` owns tool definitions, SQLite persistence and validation/normalization.
 - `app/ui/generated/` contains Qt Designer sources and generated PyQt-compatible modules.
 - `app/resources/files_res.qrc` is the resource manifest.
 - `tests/` contains kernel, GUI, CLI, export, Stock and code-generation regressions.

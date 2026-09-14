@@ -11,6 +11,7 @@ from pyqtgraph.opengl import GLLinePlotItem
 
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline
 from app.gcode.turning_stock_bounds import auto_turning_stock_suggestion, stock_outline_bounds
+from app.tools.definitions import DEFAULT_TURNING_TOOL
 from app.ui.stock_overlay import TurningStockOverlayItem
 
 STOCK_OUTLINE_COLOR = "#4fa7a0"
@@ -50,6 +51,7 @@ class MainWindowStockMixin:
         self.turnStockFrontAllowance = spec.front_z
         self.stockEnabled = bool(values.get("enabled", True))
         self.stockConfigured = True
+        self._stock_manual_override = True
         self._stock_outline_use_configured = True
         if getattr(self, "_stock_animation_active", False):
             self.ui.actionPlay.setChecked(False)
@@ -69,12 +71,26 @@ class MainWindowStockMixin:
         )
         self.ui.statusbar.showMessage("Turning stock configured", 5000)
 
+    def resetStockToAuto(self, *, refresh: bool = True) -> None:
+        """Return stock sizing to program-driven auto mode until the user edits Stock again."""
+        self._stock_manual_override = False
+        self._stock_outline_use_configured = False
+        if getattr(self, "_stock_animation_active", False):
+            self.ui.actionPlay.setChecked(False)
+            self.timer.stop()
+            self._leave_stock_animation()
+        if refresh:
+            self._refresh_auto_stock_suggestion()
+            self._update_stock_outline()
+            self.ui.statusbar.showMessage("Turning stock set to Auto", 5000)
+
     def _refresh_auto_stock_suggestion(self) -> None:
         result = getattr(self, "execution_result", None)
         motions = () if result is None else result.motions
         self._stock_auto_suggestion = auto_turning_stock_suggestion(motions) if self.latheMode and motions else None
         if self._stock_auto_suggestion is not None:
-            self._stock_outline_use_configured = False
+            if not getattr(self, "_stock_manual_override", False):
+                self._stock_outline_use_configured = False
             LOGGER.debug(
                 "stock_auto_bounds outer_diameter=%.3f inner_diameter=%.3f length=%.3f motions=%d",
                 self._stock_auto_suggestion.outer_diameter,
@@ -299,7 +315,7 @@ class MainWindowStockMixin:
             motion.start_x * 0.5 if count <= 0 else motion.end_x * 0.5,
             motion.start_z if count <= 0 else motion.end_z,
         )
-        tool_spec = self.tools.get(motion.tool or "", {})
+        tool_spec = self.tools.get(motion.tool) if motion.tool else DEFAULT_TURNING_TOOL
         mesh_started = perf_counter()
         render_now = perf_counter()
         last_render = getattr(self, "_stock_last_render_at", 0.0)

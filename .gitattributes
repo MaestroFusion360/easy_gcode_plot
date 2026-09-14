@@ -1,0 +1,10 @@
+# Keep Windows project files consistent across Git and IDE settings.
+* text=auto eol=crlf
+
+# Shell scripts are executed by Bash in Linux CI and must stay LF.
+*.sh text eol=lf
+
+# Preserve binary assets byte-for-byte.
+*.ico binary
+*.png binary
+*.stl binary

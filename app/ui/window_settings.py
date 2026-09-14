@@ -1,7 +1,5 @@
 """Persistence and editor/plot preference handling for the main window."""
 
-import json
-
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QColor, QFont, QVector3D
@@ -26,15 +24,13 @@ from app.settings import (
     bounded_number,
     configure_logging,
     get_settings,
-)
-from app.settings import (
-    normalized_milling_tools as _normalized_milling_tools,
+    load_milling_tools,
+    load_turning_tools,
+    save_milling_tools,
+    save_turning_tools,
 )
 from app.settings import (
     normalized_recent_files as _normalized_recent_files,
-)
-from app.settings import (
-    normalized_tools as _normalized_tools,
 )
 from app.ui.lexer import GcodeLexer
 from app.ui.main_window_execution import playback_interval_ms, playback_speed_level
@@ -95,8 +91,8 @@ class MainWindowSettingsMixin:
             )
             for code in range(54, 60)
         }
-        self.tools = _normalized_tools(self.settings.value("CNC/TOOLS_JSON", "{}"))
-        self.millingTools = _normalized_milling_tools(self.settings.value("CNC/MILLING_TOOLS_JSON", "{}"))
+        self.tools = load_turning_tools()
+        self.millingTools = load_milling_tools()
         self.latheMode = self.settings.value("PLOT/LATHE_MODE", False, type=bool)
         self.ui.actionLatheMode.setChecked(self.latheMode)
         self.showStock = self.settings.value("PLOT/SHOW_STOCK", True, type=bool)
@@ -315,11 +311,8 @@ class MainWindowSettingsMixin:
             self.settings.setValue(f"G{code}_X", x_offset)
             self.settings.setValue(f"G{code}_Y", y_offset)
             self.settings.setValue(f"G{code}_Z", z_offset)
-        self.settings.setValue("TOOLS_JSON", json.dumps(self.tools, ensure_ascii=False, sort_keys=True))
-        self.settings.setValue(
-            "MILLING_TOOLS_JSON",
-            json.dumps(self.millingTools, ensure_ascii=False, sort_keys=True),
-        )
+        save_turning_tools(self.tools)
+        save_milling_tools(self.millingTools)
         self.settings.endGroup()
         self.settings.beginGroup("EDITOR")
         self.settings.setValue("CARETLINE_COLOR", self.caretLineColor)

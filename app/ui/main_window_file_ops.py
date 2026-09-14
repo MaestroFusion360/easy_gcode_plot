@@ -130,6 +130,8 @@ class MainWindowFileMixin:
             self.ui.editor.clear()
             self.setCurrentFile("")
             self.clearPlot()
+            if hasattr(self, "resetStockToAuto"):
+                self.resetStockToAuto(refresh=False)
             self.syncGuiCapabilities()
 
     def openFile(self):
@@ -197,6 +199,8 @@ class MainWindowFileMixin:
             return
 
         LOGGER.info("file_opened path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
+        if hasattr(self, "resetStockToAuto"):
+            self.resetStockToAuto(refresh=False)
         self._fit_view_after_program_load = True
         self._document_disk_signature = _file_signature(fileName)
         self.ui.editor.setText(content)
