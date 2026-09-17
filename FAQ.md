@@ -127,9 +127,17 @@ Turning and milling tool definitions are stored in the per-user SQLite database:
 
 `tools.db` is authoritative. `config.ini` stores UI, editor, plot, WCS, Stock and other application preferences; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported into a current database and are not used as a fallback write target.
 
-### What can the tool-library dialogs do?
+### What can Tool Library do?
 
-Both turning and milling libraries provide live preview, Add/Edit/Remove, first-free-number Duplicate and single-tool JSON/CSV export. Turning tools use category-oriented editing and persist canonical geometry types independently from the OD, ID and Face application checkboxes.
+`Settings → Tool Library` is one resizable window with Milling and Turning tabs. Each tab shows **Current Program** and **Saved Library** side by side with a viewport-fitted live preview. Current Program supports editing geometry, assigning geometry from a saved tool and staging a program tool for the library. Saved Library supports staged Add/Edit/Remove, first-free-number Duplicate and complete-library JSON/CSV export for the active tab. **OK** commits the final working copy to `tools.db`; **Cancel** discards all Saved Library changes made since the window opened. Export never includes temporary Current Program assignments. Turning tools use category-oriented editing and persist canonical geometry types independently from the OD, ID and Face application checkboxes.
+
+### How are tools from the current program added?
+
+Before execution and when Tool Library is opened, Update/Auto Update discover literal T selections into the temporary Current Program setup. They do **not** write discovered tools into `tools.db`. Turning keys retain the packed tool/offset number (`T0909`); milling keys use the tool number (`T03` becomes `T3`). New/Open starts a fresh temporary setup while Saved Library remains unchanged.
+
+Inline tool comments, named headers such as `(T3 D=6. CR=0. - FLAT END MILL)`, and nearby preceding operation comments supply descriptions and recognized geometry. Examples include `OD ROUGH R0.8`, `ID ROUGH R0.8`, `GROOVE H4`, `DRILL`, `TAP`, `THREAD`, `BALL`, `FACE MILL`, and `CHAMFER`. Recognized dimensions follow the units active at the T selection. When no explicit type hint is present, operation context selects D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92; other selections use Diamond 80 OD or D10 Flat Mill. Explicit comment hints take priority, and retained Current Program geometry can be edited or staged for Saved Library.
+
+Comment-only T references do not create tools. Macro expressions such as `T#1` are not evaluated by discovery. Current Program changes remain temporary. Persistent Saved Library changes happen only when Tool Library is accepted with **OK**.
 
 ### Which turning tool geometries are available?
 
@@ -162,7 +170,7 @@ Supported geometry includes Diamond 80, Diamond 35, Square, Round, Triangle, Gro
 
 Threading is a deliberate Stock Removal exception: synchronized G32/G33, modal G92 and G76 cutting moves generate a deterministic longitudinal thread section. Programmed X sets the root depth, F sets the pitch, and the configured thread angle and RC shape the flanks and rounded root. Repeated passes deepen the same phase-aligned profile, while radial infeed/retract moves do not sweep the full insert body into false angled end faces. The axisymmetric stock model renders this section rather than a 3D helix. G94 remains a facing cycle.
 
-Unknown or unconfigured tools leave stock unchanged instead of using an assumed cutter.
+Missing tool selections use the standard Diamond 80 OD geometry for Stock Removal and its preview. Literal T selections are normally added to the temporary Current Program setup before execution, so their recognized or edited geometry is already available for playback without writing to Saved Library.
 
 ### Is Stock Removal a machine simulation?
 
@@ -180,7 +188,7 @@ The normal 3D view uses perspective projection. Top, Front and Left are true ort
 - Face, slot and chamfer mills.
 - Drill and tap.
 
-The translucent preview follows the active motion endpoint and uses the tool configured in **Settings → Milling Tools**.
+The translucent preview follows the active motion endpoint and uses the tool configured in **Settings → Tool Library → Milling**.
 
 ### How does milling cutter compensation work?
 

@@ -5,10 +5,9 @@ from PyQt6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
 from app.settings import normalized_milling_tools, normalized_tools
-from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.milling_geometry import milling_tool_profile
 from app.ui.milling_tool_preview import TOOL_ALPHA, MillingToolPreviewItem
-from app.ui.tool_library_preview import ToolLibraryPreview
+from app.ui.tool_library_preview import ToolLibraryPreview, ToolLibraryPreviewPane
 
 
 @pytest.fixture(scope="module")
@@ -127,7 +126,7 @@ def test_main_window_preview_tracks_logical_motion_and_is_hidden_for_turning(qt_
     window.deleteLater()
 
 
-def test_milling_tool_dialog_refreshes_visible_drill_geometry_in_place(qt_app):
+def test_milling_program_tool_change_refreshes_visible_drill_geometry_in_place(qt_app):
     window = MainWindow()
     window.ui.actionLatheMode.setChecked(False)
     window.millingTools = {"T1": {"type": "drill", "diameter": 3.0, "cornerRadius": 0.0, "length": 30.0}}
@@ -136,10 +135,8 @@ def test_milling_tool_dialog_refreshes_visible_drill_geometry_in_place(qt_app):
     tool_item = window._milling_tool_item  # pylint: disable=protected-access
     mesh = tool_item.meshes[0]
 
-    window.millingToolsDlg.pendingTools = {
-        "T1": {"type": "drill", "diameter": 10.0, "cornerRadius": 0.0, "length": 30.0}
-    }
-    window.millingToolsDlg.applyValues()
+    window.millingTools["T1"] = {"type": "drill", "diameter": 10.0, "cornerRadius": 0.0, "length": 30.0}
+    assert window.updateData()
 
     assert tool_item.visible()
     assert tool_item.meshes == (mesh,)
@@ -157,31 +154,28 @@ def test_new_milling_types_have_3d_geometry(qt_app, tool_type):
     assert item.meshes
 
 
-def test_empty_tool_dialogs_clear_preview_and_duplicate_to_first_free_code(qt_app):
+def test_unified_tool_library_clears_empty_program_previews_and_duplicates_saved_tool(qt_app):
     window = MainWindow()
     window.tools = {}
     window.millingTools = {}
-    window.turningToolsDlg.loadValues()
-    window.millingToolsDlg.loadValues()
+    dialog = window.toolLibraryDlg
+    dialog.refresh()
 
-    assert window.turningToolsDlg.preview.spec == {}
-    assert window.millingToolsDlg.preview.spec == {}
+    assert dialog.pages["turning"]["preview"].spec == {}
+    assert dialog.pages["milling"]["preview"].spec == {}
 
-    window.turningToolsDlg.pendingTools = {"T0001": dict(DEFAULT_TURNING_TOOL)}
-    window.turningToolsDlg.refreshTable("T0001")
-    window.turningToolsDlg.duplicateTool()
-    assert window.turningToolsDlg.pendingTools["T0002"] == DEFAULT_TURNING_TOOL
-
-    window.millingToolsDlg.pendingTools = {"T1": dict(DEFAULT_MILLING_TOOL)}
-    window.millingToolsDlg.refreshTable("T1")
-    window.millingToolsDlg.duplicateTool()
-    assert window.millingToolsDlg.pendingTools["T2"] == DEFAULT_MILLING_TOOL
+    original = dict(window.millingToolLibrary["T1"])
+    dialog.begin_session()
+    dialog.refresh("milling", selected_library="T1")
+    dialog.duplicate_library_tool("milling")
+    assert dialog.library_tools("milling")["T2"] == original
+    assert "T2" not in window.millingToolLibrary
     window.deleteLater()
 
 
 def test_tool_preview_zoom_changes_scrollable_canvas_size(qt_app):
     window = MainWindow()
-    preview = window.turningToolsDlg.preview
+    preview = window.toolLibraryDlg.pages["turning"]["preview"]
     original_size = preview.size()
 
     preview.set_zoom(2.0)
@@ -190,6 +184,20 @@ def test_tool_preview_zoom_changes_scrollable_canvas_size(qt_app):
     assert preview.width() == original_size.width() * 2
     assert preview.height() == original_size.height() * 2
     window.deleteLater()
+
+
+def test_tool_preview_fit_uses_available_viewport(qt_app):
+    pane = ToolLibraryPreviewPane()
+    pane.resize(600, 500)
+    pane.show()
+    qt_app.processEvents()
+
+    pane.fit_preview()
+
+    available = min(pane.scrollArea.viewport().width(), pane.scrollArea.viewport().height())
+    assert pane.preview.width() > 240
+    assert pane.preview.width() <= available
+    pane.deleteLater()
 
 
 def test_new_tool_types_are_normalized():

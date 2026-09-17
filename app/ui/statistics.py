@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFontDatabase, QIcon, QTextCursor
-from PyQt6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout, QPlainTextEdit, QVBoxLayout
+from PyQt6.QtWidgets import QDialog
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources.
 from app.gcode.trace_tools import format_trace_statistics
+from app.ui.generated.statistics import Ui_StatisticsDialog
 
 
 class StatisticsDialog(QDialog):
@@ -17,38 +18,19 @@ class StatisticsDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setObjectName("statisticsDialog")
-        self.setWindowTitle(self._REPORT_HEADING)
+        self.ui = Ui_StatisticsDialog()
+        self.ui.setupUi(self)
         if parent is not None:
             self.setWindowIcon(parent.windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
-        self.resize(680, 620)
-        self.setMinimumSize(480, 320)
-
-        self.inchesCheck = QCheckBox("Inches", self)
-        self.inchesCheck.setObjectName("statisticsInchesCheck")
-        self.inchesCheck.setToolTip("Display all lengths and speeds in inches")
+        self.inchesCheck = self.ui.inchesCheck
+        self.reportText = self.ui.reportText
+        self.buttons = self.ui.buttonBox
         self.inchesCheck.toggled.connect(self._refresh_statistics_report)
         self._statistics = None
-
-        self.reportText = QPlainTextEdit(self)
-        self.reportText.setObjectName("statisticsReportText")
-        self.reportText.setReadOnly(True)
-        self.reportText.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
         self.reportText.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
-        self.reportText.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.reportText.customContextMenuRequested.connect(self._show_report_context_menu)
-
-        self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=self)
         self.buttons.rejected.connect(self.close)
-
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.reportText)
-        controls = QHBoxLayout()
-        controls.addWidget(self.inchesCheck)
-        controls.addStretch()
-        controls.addWidget(self.buttons)
-        layout.addLayout(controls)
 
     def show_report(self, report: str) -> None:
         """Replace the report, reset scrolling and bring the dialog forward."""

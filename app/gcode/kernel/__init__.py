@@ -1,7 +1,15 @@
 """Native FANUC CNC kernel public API."""
 
-from .api import Diagnostic, ExecutionResult, SemanticInstruction, TraceMotion, execute
-from .api_types import ExecutionEvent, ExecutionStep, MachineSignal
+from .api import execute
+from .api_types import (
+    Diagnostic,
+    ExecutionEvent,
+    ExecutionResult,
+    ExecutionStep,
+    MachineSignal,
+    SemanticInstruction,
+    TraceMotion,
+)
 from .ast import (
     AstNode,
     AstWord,

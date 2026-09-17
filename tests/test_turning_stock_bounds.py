@@ -16,6 +16,7 @@ def test_auto_stock_uses_cutting_motions_and_ignores_rapid_outliers():
     assert suggestion.outer_diameter == pytest.approx(40.0)
     assert suggestion.inner_diameter == pytest.approx(0.0)
     assert suggestion.length == pytest.approx(25.0)
+    assert suggestion.front_z == pytest.approx(0.0)
 
 
 def test_auto_stock_returns_none_without_cutting_motions():
@@ -42,12 +43,12 @@ def test_auto_stock_uses_exact_g18_arc_extrema():
     assert suggestion.length == pytest.approx(20.0)
 
 
-def test_auto_stock_includes_cycle_generated_cutting_motions():
-    result = execute("G21 G18 G90\nG0 X100 Z0\nG74 R0.1\nG74 X80 Z-1 P1000 Q1000 R1. F100\nM30")
-    assert any(motion.cycle_generated for motion in result.motions)
+def test_auto_stock_preserves_positive_z_work_offset():
+    result = execute("G21 G18 G90\nG0 X160 Z180\nG1 X140 Z180 F100\nG1 X100 Z100\nG1 X40 Z40\nM30")
 
     suggestion = auto_turning_stock_suggestion(result.motions)
 
     assert suggestion is not None
-    assert suggestion.outer_diameter >= 80.0
-    assert suggestion.length == pytest.approx(1.0)
+    assert suggestion.outer_diameter == pytest.approx(160.0)
+    assert suggestion.length == pytest.approx(140.0)
+    assert suggestion.front_z == pytest.approx(180.0)

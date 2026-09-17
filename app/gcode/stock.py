@@ -464,7 +464,7 @@ class TurningStockTimeline:
         changes: dict[int, tuple[float, float, float, float]] = {}
         if motion.move not in (1, 2, 3):
             return TurningDelta(())
-        spec = self.tools.get(motion.tool) if motion.tool else DEFAULT_TURNING_TOOL
+        spec = self.tools.get(motion.tool, DEFAULT_TURNING_TOOL)
         if not isinstance(spec, dict):
             return TurningDelta(())
         tool_type = canonical_turning_tool_type(spec.get("type"))

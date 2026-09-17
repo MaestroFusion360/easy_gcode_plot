@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$targets = @('main.py', 'app', 'tests')
+$targets = @('main.py', 'app', 'tests', 'scripts/check_complexity.py')
 $uvRunArguments = @('run')
 if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
     $uvRunArguments += '--active'
@@ -35,6 +35,11 @@ try {
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
+    }
+
+    & uv @uvRunArguments python scripts/check_complexity.py
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
 
     & uv @uvRunArguments pylint @targets

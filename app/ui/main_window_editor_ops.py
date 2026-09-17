@@ -5,7 +5,7 @@ import re
 
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtGui import QColor, QFont
-from PyQt6.QtWidgets import QLabel, QMenu, QMessageBox, QProgressBar
+from PyQt6.QtWidgets import QLabel, QMenu, QMessageBox
 
 LOGGER = logging.getLogger(__name__)
 _TOOLCHANGE_PATTERN = re.compile(r"T\s*\d+", re.IGNORECASE)
@@ -63,12 +63,7 @@ class MainWindowEditorMixin:
         LOGGER.debug("editor lexer changed index=%d", idx)
 
     def createLabelStatBar(self):
-        """Create persistent execution state fields and transient progress."""
-        self.progressBar = QProgressBar()
-        self.progressBar.setMaximumWidth(200)
-        self.progressBar.setMaximum(100)
-        self.progressBar.setTextVisible(False)
-        self.progressBar.hide()
+        """Create persistent execution state fields."""
         self.executionStatusLabel = QLabel("READY")
         self.modeStatusLabel = QLabel("LATHE" if self.latheMode else "MILLING")
         self.unitsStatusLabel = QLabel(getattr(self, "defaultUnits", "mm"))
@@ -86,8 +81,6 @@ class MainWindowEditorMixin:
             self.timeStatusLabel,
         ):
             self.ui.statusbar.addPermanentWidget(widget)
-        self.ui.statusbar.addPermanentWidget(self.progressBar)
-
         self.updateStatusBar()
 
     def updateExecutionStatus(self, state=None, result=None, elapsed_ms=None):

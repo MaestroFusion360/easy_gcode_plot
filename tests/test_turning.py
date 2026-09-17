@@ -54,6 +54,41 @@ M30
     assert contour_passes[-1].end_x == pytest.approx(expected_rough_x)
 
 
+def test_g70_uses_cycle_call_position_to_approach_the_finish_profile():
+    source = """\
+G21 G18 G90
+G0 X200 Z220
+G0 X160 Z180
+G71 U7 R1
+G71 P14 Q20 U4 W2 F0.3
+N14 G0 X40
+G1 W-40
+X60 W-30
+W-20
+X100 W-10
+W-20
+N20 X140 W-20
+G70 P14 Q20
+M30
+"""
+
+    result = execute(source, language="fanuc_turn")
+    assert result.ok, result.diagnostics
+
+    finish = [
+        motion
+        for motion in result.motions
+        if motion.source_kind == "cycle" and motion.source_raw and motion.source_raw.startswith("G70")
+    ]
+    assert finish
+    assert finish[0].move == 0
+    assert (finish[0].start_x, finish[0].start_z) == pytest.approx((160.0, 180.0))
+    assert (finish[0].end_x, finish[0].end_z) == pytest.approx((40.0, 180.0))
+    assert finish[1].move == 1
+    assert (finish[1].start_x, finish[1].start_z) == pytest.approx((40.0, 180.0))
+    assert (finish[1].end_x, finish[1].end_z) == pytest.approx((40.0, 140.0))
+
+
 @pytest.mark.parametrize(
     ("x_mode", "start_x", "end_x", "source_arc_type", "arc_words"),
     [

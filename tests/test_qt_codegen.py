@@ -93,6 +93,31 @@ def test_qt_source_generated_mapping_and_resource_manifest_are_complete():
             assert used <= aliases
 
 
+def test_ui_sources_use_qt6_scoped_enum_names():
+    forbidden = (
+        "QDialogButtonBox::Close",
+        "QDialogButtonBox::Cancel",
+        "QDialogButtonBox::Ok",
+        "QPlainTextEdit::NoWrap",
+        "QAbstractItemView::SelectRows",
+        "QAbstractItemView::SingleSelection",
+        "QAbstractItemView::NoEditTriggers",
+        "QFrame::NoFrame",
+        "QSlider::TicksBelow",
+        "Qt::AlignCenter",
+        "Qt::CustomContextMenu",
+        "<enum>Qt::Horizontal</enum>",
+        "<enum>Qt::Vertical</enum>",
+    )
+    offenders = {}
+    for path in sorted((ROOT / UI_DIR).glob("*.ui")):
+        text = path.read_text(encoding="utf-8")
+        matches = [token for token in forbidden if token in text]
+        if matches:
+            offenders[path.name] = matches
+    assert not offenders, f"Qt5-style enum aliases in Designer sources: {offenders}"
+
+
 def test_qt_generation_uses_pyside_only_as_dev_toolchain():
     with (ROOT / "pyproject.toml").open("rb") as stream:
         project = tomllib.load(stream)

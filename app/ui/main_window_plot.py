@@ -5,6 +5,7 @@ import math
 from time import perf_counter
 
 from OpenGL import GL
+from PyQt6.QtCore import QSignalBlocker
 from PyQt6.QtGui import QColor, QVector3D, QVector4D
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 from pyqtgraph.opengl import GLGridItem, GLScatterPlotItem
@@ -433,7 +434,10 @@ class MainWindowPlotMixin:
             return
         self._syncing_cursor = True
         try:
-            self.ui.editor.setCursorPosition(block, 0)
+            with QSignalBlocker(self.ui.editor):
+                self.ui.editor.setCursorPosition(block, 0)
+            if hasattr(self, "updateStatusBar"):
+                self.updateStatusBar()
         finally:
             self._syncing_cursor = False
 
@@ -446,6 +450,8 @@ class MainWindowPlotMixin:
         self._stock_auto_suggestion = None
         self._dispose_trace_item()
         self.execution_result = None
+        self._deferred_execution_result = None
+        self._deferred_execution_source = None
         self.render_points = []
         self._motion_render_end = []
         self._playback_movements = ()
@@ -555,7 +561,7 @@ class MainWindowPlotMixin:
                 tool_item.hide_tool()
             else:
                 tool_item.show_tool(
-                    (getattr(self, "millingTools", {}).get(motion.tool) if motion.tool else DEFAULT_MILLING_TOOL),
+                    getattr(self, "millingTools", {}).get(motion.tool, DEFAULT_MILLING_TOOL),
                     (motion.end_x, motion.end_y, motion.end_z),
                 )
         if sync_editor:
@@ -693,10 +699,30 @@ class MainWindowPlotMixin:
         self._milling_grid_center = snapped
 
     def plotCurLine(self):
-        """Map the current source line to its last logical motion."""
-        if self._syncing_cursor or getattr(self, "_plot_source_stale", False):
+        """Map a user-selected source line to playback when playback is idle."""
+        # Playback/trackbar state is authoritative while Play is running.  Macro
+        # expansion can revisit the same source lines many times; letting those
+        # cursor updates drive the slider would jump back to the first occurrence
+        # and can trap playback in a short loop.
+        if self._syncing_cursor or getattr(self, "_plot_source_stale", False) or self.ui.actionPlay.isChecked():
             return
         line = self.ui.editor.getCursorPosition()[0]
+
+        # Playback controls and the trackbar are authoritative.  Macro expansion
+        # can produce many motions from the same source line; after a Step or
+        # slider move, the programmatic editor cursor update may arrive after the
+        # slider has already advanced.  If the editor already points at the source
+        # line represented by the current playback frame, do not remap that line
+        # back to its first expanded occurrence.
+        value = self.ui.horizontalSlider.value()
+        movements = getattr(self, "_playback_movements", ())
+        result = self.execution_result
+        if result is not None and 0 < value <= len(movements):
+            current = movements[value - 1]
+            motion_index = current.motion_end - 1
+            if 0 <= motion_index < len(result.motions) and result.motions[motion_index].source_block == line:
+                return
+
         idx = self._source_motion_index.get(line)
         if idx is not None:
             self.ui.horizontalSlider.setValue(idx + 1)

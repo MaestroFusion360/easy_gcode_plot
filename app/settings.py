@@ -21,6 +21,10 @@ _LOG_PREVIOUS_PROPAGATE_MARKER = "_easy_gcode_plot_previous_propagate"
 LOGGER = logging.getLogger(__name__)
 
 
+class ToolLibraryLoadError(RuntimeError):
+    """The persistent tool library could not be read safely."""
+
+
 def _config_dir() -> str:
     """Return the per-user config directory (``%APPDATA%\\easy-gcode-plot``)."""
     base = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericConfigLocation)
@@ -99,7 +103,7 @@ ARC_TOLERANCE_DEFAULT = 0.001
 FONT_SIZE_MIN = 6
 FONT_SIZE_MAX = 48
 AUTO_UPDATE_SEGMENTS_MIN = 1000
-AUTO_UPDATE_SEGMENTS_MAX = 5_000_000
+AUTO_UPDATE_SEGMENTS_MAX = 2_147_483_647
 LINE_WIDTH_MIN = 0.25
 LINE_WIDTH_MAX = 6.0
 
@@ -150,14 +154,11 @@ def get_tool_library():
 
 
 def load_turning_tools() -> dict[str, dict]:
-    """Load turning tools and idempotently persist the canonical model."""
+    """Load a normalized view without modifying stored or unknown records."""
     try:
         library = get_tool_library()
         stored = library.tools_by_kind("turning")
-        normalized = normalized_tools(stored)
-        if normalized != stored:
-            library.sync_kind("turning", normalized)
-        return normalized
+        return normalized_tools(stored)
     except Exception:
         LOGGER.warning("tool_library_load_failed kind=turning", exc_info=True)
         return {}
@@ -172,6 +173,23 @@ def load_milling_tools() -> dict[str, dict]:
         return {}
 
 
+def load_tool_libraries() -> tuple[dict[str, dict], dict[str, dict]]:
+    """Load both tool kinds or fail without presenting partial data as empty."""
+    path = "tools.db"
+    try:
+        path = tool_library_path()
+        library = get_tool_library()
+        turning = normalized_tools(library.tools_by_kind("turning"))
+        milling = normalized_milling_tools(library.tools_by_kind("milling"))
+        return turning, milling
+    except Exception as exc:
+        LOGGER.warning("tool_library_load_failed path=%s", path, exc_info=True)
+        raise ToolLibraryLoadError(
+            f"Could not read the tool library:\n{path}\n\n"
+            "Tool Library has been disabled to protect the existing database."
+        ) from exc
+
+
 def save_turning_tools(tools: dict[str, dict]) -> bool:
     """Persist the complete normalized turning-tool set atomically."""
     try:
@@ -179,6 +197,34 @@ def save_turning_tools(tools: dict[str, dict]) -> bool:
         return True
     except Exception:
         LOGGER.warning("tool_library_save_failed kind=turning", exc_info=True)
+        return False
+
+
+def save_library_edits(kind, original, edited):
+    """Persist only explicit library edits; automatic setup never calls this."""
+    normalize = normalized_tools if kind == "turning" else normalized_milling_tools
+    try:
+        get_tool_library().apply_edits(kind, original, normalize(edited))
+        return True
+    except Exception:
+        LOGGER.warning("tool_library_edit_failed kind=%s", kind, exc_info=True)
+        return False
+
+
+def save_library_changes(originals, edited):
+    """Persist all changed tool kinds in one SQLite transaction."""
+    changes = {}
+    for kind in ("milling", "turning"):
+        normalize = normalized_tools if kind == "turning" else normalized_milling_tools
+        if edited[kind] != originals[kind]:
+            changes[kind] = (originals[kind], normalize(edited[kind]))
+    if not changes:
+        return True
+    try:
+        get_tool_library().apply_edits_by_kind(changes)
+        return True
+    except Exception:
+        LOGGER.warning("tool_library_transaction_failed", exc_info=True)
         return False
 
 

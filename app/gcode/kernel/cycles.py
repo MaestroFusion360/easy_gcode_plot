@@ -1,16 +1,19 @@
 """FANUC turning, grooving, drilling, tapping, and threading cycle expansion."""
 
-# ruff: noqa: F403,F405
-
 from __future__ import annotations
 
-# The cycle builders form one cohesive donor subsystem; star imports preserve
-# its tested internal surface until the next behavior-preserving cleanup pass.
-# pylint: disable=wildcard-import,unused-wildcard-import,unnecessary-list-index-lookup,chained-comparison
+# pylint: disable=unnecessary-list-index-lookup,chained-comparison
 import math
 
-from .model import *  # noqa: F403
-from .profile import *  # noqa: F403
+from .model import Motion, Point2, ProfileSegment
+from .profile import (
+    arc_center_from_r,
+    clip_polyline_max_x,
+    clip_polyline_min_x,
+    segment_points,
+    try_compute_signed_arc_radius_from_center,
+    try_find_entry_on_profile,
+)
 from .program import radius_to_diameter
 from .resources import SemanticError, checkpoint, require_progress
 
@@ -416,8 +419,14 @@ def is_boring_cycle(profile: list[ProfileSegment], finish_u: float, stock_x: flo
     return stock_near_low_side and direction_up
 
 
-def build_finish_contour(profile: list[ProfileSegment]) -> list[Motion]:
+def build_finish_contour(
+    profile: list[ProfileSegment],
+    *,
+    entry_start: Point2 | None = None,
+) -> list[Motion]:
     motions: list[Motion] = []
+    if profile and entry_start is not None:
+        add_motion(motions, 0, entry_start, profile[0].start)
     for seg in profile:
         if seg.move in (2, 3):
             r = seg.radius if seg.has_radius else None

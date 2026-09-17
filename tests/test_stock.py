@@ -372,7 +372,7 @@ def test_groove_width_is_swept_along_diagonal_trace(
         assert 10.0 < middle < 15.0
 
 
-def test_unknown_turning_tool_does_not_remove_stock():
+def test_unknown_turning_tool_uses_default_geometry_to_remove_stock():
     motion = TraceMotion(1, 40.0, 0.0, 40.0, -20.0, tool="T9999", x_scale=0.5, spindle_running=True)
     stock = TurningStockTimeline(
         (motion,),
@@ -383,6 +383,8 @@ def test_unknown_turning_tool_does_not_remove_stock():
     stock.set_motion_count(1)
 
     assert stock.inner == stock.initial_inner
+    assert any(current < initial for current, initial in zip(stock.outer, stock.initial_outer, strict=True))
+    stock.set_motion_count(0)
     assert stock.outer == stock.initial_outer
 
 

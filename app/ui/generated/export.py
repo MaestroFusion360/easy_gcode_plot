@@ -23,8 +23,8 @@ class Ui_ExportOptDlg(object):
     def setupUi(self, ExportOptDlg):
         if not ExportOptDlg.objectName():
             ExportOptDlg.setObjectName(u"ExportOptDlg")
-        ExportOptDlg.resize(380, 380)
-        ExportOptDlg.setMinimumSize(QSize(380, 380))
+        ExportOptDlg.resize(380, 430)
+        ExportOptDlg.setMinimumSize(QSize(380, 430))
         self.verticalLayout = QVBoxLayout(ExportOptDlg)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.gridLayout = QGridLayout()
@@ -164,6 +164,20 @@ class Ui_ExportOptDlg(object):
 
         self.gridLayout.addWidget(self.labelLeadingZero, 10, 0, 1, 1)
 
+        self.arcOutputLabel = QLabel(ExportOptDlg)
+        self.arcOutputLabel.setObjectName(u"arcOutputLabel")
+
+        self.gridLayout.addWidget(self.arcOutputLabel, 11, 0, 1, 1)
+
+        self.arcOutputCmbBox = QComboBox(ExportOptDlg)
+        self.arcOutputCmbBox.addItem("")
+        self.arcOutputCmbBox.addItem("")
+        self.arcOutputCmbBox.addItem("")
+        self.arcOutputCmbBox.addItem("")
+        self.arcOutputCmbBox.setObjectName(u"arcOutputCmbBox")
+
+        self.gridLayout.addWidget(self.arcOutputCmbBox, 11, 1, 1, 1)
+
 
         self.verticalLayout.addLayout(self.gridLayout)
 
@@ -197,7 +211,7 @@ class Ui_ExportOptDlg(object):
         self.safLineCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"No", None))
         self.safLineCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"Yes", None))
 
-        self.label_Lang.setText(QCoreApplication.translate("ExportOptDlg", u"G-code", None))
+        self.label_Lang.setText(QCoreApplication.translate("ExportOptDlg", u"Export Type", None))
         self.delimCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"No", None))
         self.delimCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"Yes", None))
 
@@ -210,14 +224,14 @@ class Ui_ExportOptDlg(object):
         self.langCmbBox.setItemText(6, QCoreApplication.translate("ExportOptDlg", u"EXPANDED MILL PROGRAM", None))
 
         self.label_seqInterval.setText(QCoreApplication.translate("ExportOptDlg", u"Seq. Num. Interval", None))
-        self.label_Incr.setText(QCoreApplication.translate("ExportOptDlg", u"Incremental Mode", None))
+        self.label_Incr.setText(QCoreApplication.translate("ExportOptDlg", u"Coordinates", None))
         self.label_StartText.setText(QCoreApplication.translate("ExportOptDlg", u"Start Program Text", None))
         self.label_Delim.setText(QCoreApplication.translate("ExportOptDlg", u"Delimeter", None))
         self.seqNumCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"No", None))
         self.seqNumCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"Yes", None))
 
-        self.incrCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"No", None))
-        self.incrCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"Yes", None))
+        self.incrCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"G90 Absolute", None))
+        self.incrCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"G91 Incremental", None))
 
         self.forceCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"No", None))
         self.forceCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"Yes", None))
@@ -229,4 +243,10 @@ class Ui_ExportOptDlg(object):
         self.leadingZeroCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"Yes", None))
 
         self.labelLeadingZero.setText(QCoreApplication.translate("ExportOptDlg", u"Leading Zero (G,M,T,H,D)", None))
+        self.arcOutputLabel.setText(QCoreApplication.translate("ExportOptDlg", u"Arc Output", None))
+        self.arcOutputCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"IJK RELATIVE", None))
+        self.arcOutputCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"IJK ABSOLUTE", None))
+        self.arcOutputCmbBox.setItemText(2, QCoreApplication.translate("ExportOptDlg", u"R RADIUS", None))
+        self.arcOutputCmbBox.setItemText(3, QCoreApplication.translate("ExportOptDlg", u"LINEARIZED", None))
+
     # retranslateUi

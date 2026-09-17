@@ -1,7 +1,7 @@
 """General application dialogs unrelated to tool-library editing."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QComboBox, QDialog, QLabel
+from PyQt6.QtWidgets import QDialog
 
 from app import get_version
 from app.gcode.exporter import (
@@ -15,7 +15,6 @@ from app.ui.generated.block_num import Ui_BlockNumberDlg
 from app.ui.generated.export import Ui_ExportOptDlg
 from app.ui.generated.find_replace import Ui_Find
 from app.ui.generated.wcs import Ui_WcsDlg
-from app.ui.tool_dialogs import MillingTools, TurningTools, _export_tool_file, _TurningToolEditor
 
 __all__ = (
     "About",
@@ -23,10 +22,6 @@ __all__ = (
     "Export",
     "Find",
     "Wcs",
-    "TurningTools",
-    "MillingTools",
-    "_TurningToolEditor",
-    "_export_tool_file",
 )
 
 
@@ -127,27 +122,13 @@ class Export(QDialog):
         self.sync_mode_availability(bool(self.parent().latheMode))
 
     def _configure_export_mode_ui(self):
-        """Separate export type from coordinate and arc representation options."""
-        self.ui.label_Lang.setText("Export Type")
+        """Populate export choices while Designer owns the complete dialog structure."""
         self.ui.langCmbBox.clear()
         self.ui.langCmbBox.addItems(self._MODE_LABELS)
-
-        self.ui.label_Incr.setText("Coordinates")
-        self.ui.incrCmbBox.setItemText(0, "G90 Absolute")
-        self.ui.incrCmbBox.setItemText(1, "G91 Incremental")
-
-        grid = self.ui.gridLayout
-        grid.removeWidget(self.ui.label_Incr)
-        grid.removeWidget(self.ui.incrCmbBox)
-        grid.addWidget(self.ui.label_Incr, 11, 0)
-        grid.addWidget(self.ui.incrCmbBox, 11, 1)
-
-        self.arcOutputLabel = QLabel("Arc Output", self)
-        self.arcOutputCmbBox = QComboBox(self)
-        self.arcOutputCmbBox.addItems(self._ARC_LABELS)
-        grid.addWidget(self.arcOutputLabel, 12, 0)
-        grid.addWidget(self.arcOutputCmbBox, 12, 1)
-        self.setMinimumHeight(max(self.minimumHeight(), 430))
+        self.ui.incrCmbBox.clear()
+        self.ui.incrCmbBox.addItems(("G90 Absolute", "G91 Incremental"))
+        self.ui.arcOutputCmbBox.clear()
+        self.ui.arcOutputCmbBox.addItems(self._ARC_LABELS)
 
     def _set_parent_bool(self, combo, attr_name, true_index=1):
         """Update a boolean attribute on the parent using combo index."""
@@ -160,7 +141,7 @@ class Export(QDialog):
     def loadSettings(self):
         """Populate UI fields with current export preferences."""
         self.ui.langCmbBox.setCurrentIndex(self.parent().exportMode)
-        self.arcOutputCmbBox.setCurrentIndex(self.parent().exportArcMode)
+        self.ui.arcOutputCmbBox.setCurrentIndex(self.parent().exportArcMode)
         self._set_combo_from_bool(self.ui.forceCmbBox, self.parent().forceAdr)
         self._set_combo_from_bool(self.ui.incrCmbBox, self.parent().incrMode)
         self.ui.startLineEdit.setText(self.parent().startPgmExp)
@@ -205,7 +186,7 @@ class Export(QDialog):
 
     def arcMode(self):
         """Store the arc representation used by expanded execution output."""
-        self.parent().exportArcMode = self.arcOutputCmbBox.currentIndex()
+        self.parent().exportArcMode = self.ui.arcOutputCmbBox.currentIndex()
 
     def _sync_output_option_availability(self):
         """Enable only options consumed by the selected exporter."""
@@ -230,8 +211,8 @@ class Export(QDialog):
         self.ui.forceCmbBox.setEnabled(converted)
         self.ui.label_Incr.setEnabled(converted)
         self.ui.incrCmbBox.setEnabled(converted)
-        self.arcOutputLabel.setEnabled(converted and not turning_expanded)
-        self.arcOutputCmbBox.setEnabled(converted and not turning_expanded)
+        self.ui.arcOutputLabel.setEnabled(converted and not turning_expanded)
+        self.ui.arcOutputCmbBox.setEnabled(converted and not turning_expanded)
 
     def sync_mode_availability(self, turning: bool):
         """Enable exactly the full-program mode matching the active machine profile."""

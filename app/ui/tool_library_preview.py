@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPointF, Qt
+from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QSizePolicy, QWidget
 
 from app.gcode.turning_tool_geometry import display_tool_geometry, lathe_view_point
 from app.tools.milling_geometry import milling_tool_profile
+from app.ui.generated.tool_library_preview import Ui_ToolLibraryPreviewPane
 
 
 class ToolLibraryPreview(QWidget):
@@ -57,7 +58,7 @@ class ToolLibraryPreview(QWidget):
         length = max(point[0] for point in profile)
         radius = max(point[1] for point in profile)
         span = max(length, radius * 2.0, 1.0)
-        scale = 90.0 / span * self.zoom
+        scale = min(self.width(), self.height()) * 0.8 / span
         height = length * scale
         painter.translate(0.0, height / 2.0)
 
@@ -83,7 +84,7 @@ class ToolLibraryPreview(QWidget):
         min_z = min(point[1] for point in points)
         max_z = max(point[1] for point in points)
         span = max(max_x - min_x, max_z - min_z, 1.0)
-        scale = 80.0 / span * self.zoom
+        scale = min(self.width(), self.height()) * 0.8 / span
         center_x = (min_x + max_x) * 0.5
         center_z = (min_z + max_z) * 0.5
         path = QPainterPath()
@@ -110,39 +111,26 @@ class ToolLibraryPreview(QWidget):
 
 
 class ToolLibraryPreviewPane(QWidget):
-    """Scrollable preview viewport with explicit zoom controls."""
+    """Scrollable preview viewport whose static controls come from Designer."""
 
-    def __init__(self, kind: str, parent=None):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.preview = ToolLibraryPreview(kind, self)
-        self.scrollArea = QScrollArea(self)
+        self.ui = Ui_ToolLibraryPreviewPane()
+        self.ui.setupUi(self)
+        self.preview = ToolLibraryPreview("milling", self)
+        self.scrollArea = self.ui.scrollArea
         self.scrollArea.setWidget(self.preview)
-        self.scrollArea.setWidgetResizable(False)
-        self.scrollArea.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.scrollArea.setFrameShape(QScrollArea.Shape.NoFrame)
         self.scrollArea.setStyleSheet("QScrollArea, QScrollArea > QWidget { background: #f7f8fa; }")
+        self.ui.zoomOutButton.clicked.connect(lambda: self.preview.set_zoom(self.preview.zoom - 0.25))
+        self.ui.fitButton.clicked.connect(self.fit_preview)
+        self.ui.zoomInButton.clicked.connect(lambda: self.preview.set_zoom(self.preview.zoom + 0.25))
 
-        controls = QHBoxLayout()
-        controls.setContentsMargins(0, 0, 0, 0)
-        controls.addWidget(QLabel("Red cross: trace point", self))
-        controls.addStretch()
-        for text, callback in (
-            ("−", lambda: self.preview.set_zoom(self.preview.zoom - 0.25)),
-            ("Fit", self.fit_preview),
-            ("+", lambda: self.preview.set_zoom(self.preview.zoom + 0.25)),
-        ):
-            button = QToolButton(self)
-            button.setText(text)
-            button.setToolTip({"−": "Zoom out", "Fit": "Fit preview", "+": "Zoom in"}[text])
-            button.clicked.connect(callback)
-            controls.addWidget(button)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.addWidget(self.scrollArea)
-        layout.addLayout(controls)
+    def set_kind(self, kind: str) -> None:
+        """Switch the preview geometry family used by this Designer-owned pane."""
+        self.preview.kind = kind
+        self.preview.set_tool(None)
 
     def fit_preview(self):
         viewport = self.scrollArea.viewport().size()
-        zoom = min(viewport.width(), viewport.height()) / 240.0
-        self.preview.set_zoom(min(1.0, max(0.5, zoom)))
+        available = max(1, min(viewport.width(), viewport.height()) - 12)
+        self.preview.set_zoom(available / 240.0)

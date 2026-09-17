@@ -2,7 +2,7 @@ from __future__ import annotations
 
 # Interpreter dispatch exits early for each explicit CNC motion/cycle opcode.
 # pylint: disable=too-many-return-statements
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 
 from .api_types import ExecutionEvent
 from .ast import CycleAstNode, MotionAstNode
@@ -25,7 +25,15 @@ from .execution import (
     flow_control_mcode,
     retain_modal_turning_cycles,
 )
-from .model import RuntimeState
+from .interpreter_types import (
+    CycleDispatch,
+    CycleEmissionDispatch,
+    G28Dispatch,
+    MotionDispatch,
+    TraceExecutionContext,
+    TraceRuntimeState,
+    TraceStepSnapshot,
+)
 from .profile import apply_a_programming
 from .program import resolve_cycle_profile_indices
 from .resources import checkpoint
@@ -34,142 +42,6 @@ from .signals import signals_for_words
 
 _X_AXIS_WORDS = ("X", "U")
 _Z_AXIS_WORDS = ("Z", "W")
-
-
-@dataclass
-class TraceRuntimeState:
-    modal_x: float = 0.0
-    modal_z: float = 0.0
-    modal_feed: float = 0.0
-    modal_move: int = 0
-    unit_scale: float = 1.0
-    active_g90: bool = False
-    active_g92: bool = False
-    active_g94: bool = False
-    active_g83: bool = False
-    active_g84: bool = False
-    active_g80: bool = True
-    active_wcs: int = 54
-    x_is_diameter: bool = True
-    rough_idx: int = 0
-    finish_idx: int = 0
-    unknown_x_after_g28: bool = False
-    unknown_z_after_g28: bool = False
-    position_unknown_reason: str | None = None
-    compensation_mode: int = 40
-    active_tool: str | None = None
-    vars_map: dict[str, float] | None = None
-    feed_mode: str = "per_revolution"
-    spindle_rpm: float | None = None
-    spindle_mode: str = "rpm"
-    surface_speed_m_min: float | None = None
-    spindle_limit_rpm: float | None = None
-    spindle_running: bool = False
-
-    def __post_init__(self) -> None:
-        if self.vars_map is None:
-            self.vars_map = {}
-
-
-@dataclass
-class TraceExecutionContext:
-    state: TraceRuntimeState
-    pc: int = 0
-    guard: int = 0
-    call_stack: list[tuple[int, int, int]] | None = None
-    max_call_depth: int = 64
-    cycle_state: RuntimeState = field(default_factory=RuntimeState)
-    cycle_options: dict = field(default_factory=dict)
-    words: tuple = ()
-    signals: tuple = ()
-    events: tuple[ExecutionEvent, ...] = ()
-    program_started: bool = False
-    program_start_block: int = 0
-    program_number: int | None = None
-    label_to_index: dict[int, int] | None = None
-    olabel_to_index: dict[int, int] | None = None
-    contour_block_indices: set[int] | None = None
-    while_to_end: dict[int, int] | None = None
-    end_to_while: dict[int, int] | None = None
-
-    def __post_init__(self) -> None:
-        if self.call_stack is None:
-            self.call_stack = []
-        if self.label_to_index is None:
-            self.label_to_index = {}
-        if self.olabel_to_index is None:
-            self.olabel_to_index = {}
-        if self.contour_block_indices is None:
-            self.contour_block_indices = set()
-        if self.while_to_end is None:
-            self.while_to_end = {}
-        if self.end_to_while is None:
-            self.end_to_while = {}
-
-
-@dataclass(frozen=True)
-class TraceStepSnapshot:
-    pc_before: int
-    pc_after: int
-    source_block: int
-    source_nlabel: int | None
-    stop: bool
-    emitted_count: int
-    modal_x: float
-    modal_z: float
-    modal_move: int
-    unit_scale: float
-    active_wcs: int
-    x_is_diameter: bool
-    contour_definition: bool
-    variables: tuple[tuple[str, float], ...] = ()
-    words: tuple = ()
-    signals: tuple = ()
-    events: tuple[ExecutionEvent, ...] = ()
-    feed_mode: str = "per_revolution"
-    spindle_rpm: float | None = None
-    spindle_mode: str = "rpm"
-    surface_speed_m_min: float | None = None
-    spindle_limit_rpm: float | None = None
-    spindle_running: bool = False
-
-
-@dataclass(frozen=True)
-class CycleDispatch:
-    is_cycle_exec: bool
-    use_finish_cycle: bool
-    active_g90: bool
-    active_g92: bool
-    active_g94: bool
-    active_g83: bool
-    active_g84: bool
-    active_g80: bool
-
-
-@dataclass(frozen=True)
-class G28Dispatch:
-    handled: bool
-    new_modal_x: float
-    new_modal_z: float
-    emitted_motions: list[object]
-
-
-@dataclass(frozen=True)
-class MotionDispatch:
-    handled: bool
-    new_modal_x: float
-    new_modal_z: float
-    emitted_motion: object | None
-
-
-@dataclass(frozen=True)
-class CycleEmissionDispatch:
-    handled: bool
-    emitted_motions: list[object]
-    new_modal_x: float
-    new_modal_z: float
-    new_rough_idx: int
-    new_finish_idx: int
 
 
 def _has_any_word(words: dict[str, float], keys: tuple[str, ...]) -> bool:
@@ -807,52 +679,7 @@ def execute_trace_step(
             for item in items
         ]
 
-    for candidate in all_g:
-        wcs_code = try_wcs_from_gcode_fn(candidate)
-        if wcs_code is not None:
-            old_x, old_z = wcs_off_fn(state.active_wcs)
-            new_x, new_z = wcs_off_fn(wcs_code)
-            state.modal_x += old_x - new_x
-            state.modal_z += old_z - new_z
-            state.active_wcs = wcs_code
-
-    # Modal words on an M98 block are active for the called subprogram.  Apply
-    # state-only words before transferring control; the source block is not
-    # revisited after M99 returns.
-    if 20 in all_g:
-        state.unit_scale = 25.4
-    if 21 in all_g:
-        state.unit_scale = 1.0
-    if 190 in all_g:
-        state.x_is_diameter = True
-    if 191 in all_g:
-        state.x_is_diameter = False
-    if 98 in all_g:
-        state.feed_mode = "per_minute"
-    if 99 in all_g:
-        state.feed_mode = "per_revolution"
-    if 50 in all_g and "S" in words:
-        state.spindle_limit_rpm = words["S"]
-    if 96 in all_g:
-        state.spindle_mode = "css"
-        if "S" in words:
-            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1.0 else 1.0)
-        state.spindle_rpm = None
-    elif 97 in all_g:
-        state.spindle_mode = "rpm"
-        if "S" in words:
-            state.spindle_rpm = words["S"]
-    elif "S" in words and 50 not in all_g:
-        if state.spindle_mode == "css":
-            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1.0 else 1.0)
-        else:
-            state.spindle_rpm = words["S"]
-    if 3 in all_m or 4 in all_m:
-        state.spindle_running = True
-    if 5 in all_m:
-        state.spindle_running = False
-    if "F" in words:
-        state.modal_feed = words["F"] * state.unit_scale
+    _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn, wcs_off_fn)
 
     for reference_code in (28, 30):
         if reference_code in all_g:
@@ -883,61 +710,8 @@ def execute_trace_step(
         max_call_depth=ctx.max_call_depth,
     )
     ctx.call_stack = sub_flow.call_stack
-    if flow_mcode == 98 and sub_flow.handled and not sub_flow.stop:
-        target_block = sub_flow.next_pc
-        event_list.append(
-            ExecutionEvent(
-                SUBPROGRAM_START,
-                block.index,
-                code=(f"O{int(words['P'])}" if "P" in words else None),
-                program_number=subprogram_number(program, target_block),
-                call_depth=len(sub_flow.call_stack),
-                target_block=target_block,
-            )
-        )
-    elif flow_mcode == 99 and sub_flow.handled:
-        if call_stack_before:
-            current_target = call_stack_before[-1][1]
-            current_program = subprogram_number(program, current_target)
-            event_list.append(
-                ExecutionEvent(
-                    SUBPROGRAM_END,
-                    block.index,
-                    code="M99",
-                    program_number=current_program,
-                    call_depth=len(call_stack_before),
-                    target_block=current_target,
-                )
-            )
-            if sub_flow.next_pc == current_target and len(sub_flow.call_stack) == len(call_stack_before):
-                event_list.append(
-                    ExecutionEvent(
-                        SUBPROGRAM_START,
-                        block.index,
-                        code=(f"O{current_program}" if current_program is not None else None),
-                        program_number=current_program,
-                        call_depth=len(sub_flow.call_stack),
-                        target_block=current_target,
-                    )
-                )
-        else:
-            event_list.append(
-                ExecutionEvent(
-                    PROGRAM_END,
-                    block.index,
-                    code="M99",
-                    program_number=ctx.program_number,
-                )
-            )
-    elif flow_mcode in (2, 30) and sub_flow.handled:
-        event_list.append(
-            ExecutionEvent(
-                PROGRAM_END,
-                block.index,
-                code=f"M{int(flow_mcode):02d}",
-                program_number=ctx.program_number,
-            )
-        )
+    _record_turning_flow_events(flow_mcode, sub_flow, words, program, block, ctx, call_stack_before, event_list)
+
     ctx.events = tuple(event_list)
     if sub_flow.handled:
         if sub_flow.stop:
@@ -1015,6 +789,153 @@ def execute_trace_step(
         ctx.pc += 1
         return False, motions
 
+    return _execute_turning_motion(
+        ast_node,
+        words,
+        state,
+        gcode,
+        ctx,
+        emulate_g28_home,
+        home_x,
+        home_z,
+        to_machine_fn,
+        wcs_off_fn,
+        x_value_to_diameter_fn,
+        x_delta_to_diameter_fn,
+        motion_ctor,
+        point_ctor,
+        block,
+        motions,
+        tagged,
+    )
+
+
+def _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn, wcs_off_fn):
+    for candidate in all_g:
+        wcs_code = try_wcs_from_gcode_fn(candidate)
+        if wcs_code is not None:
+            old_x, old_z = wcs_off_fn(state.active_wcs)
+            new_x, new_z = wcs_off_fn(wcs_code)
+            state.modal_x += old_x - new_x
+            state.modal_z += old_z - new_z
+            state.active_wcs = wcs_code
+
+    # Modal words on an M98 block are active for the called subprogram.  Apply
+    # state-only words before transferring control; the source block is not
+    # revisited after M99 returns.
+    if 20 in all_g:
+        state.unit_scale = 25.4
+    if 21 in all_g:
+        state.unit_scale = 1.0
+    if 190 in all_g:
+        state.x_is_diameter = True
+    if 191 in all_g:
+        state.x_is_diameter = False
+    if 98 in all_g:
+        state.feed_mode = "per_minute"
+    if 99 in all_g:
+        state.feed_mode = "per_revolution"
+    if 50 in all_g and "S" in words:
+        state.spindle_limit_rpm = words["S"]
+    if 96 in all_g:
+        state.spindle_mode = "css"
+        if "S" in words:
+            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1.0 else 1.0)
+        state.spindle_rpm = None
+    elif 97 in all_g:
+        state.spindle_mode = "rpm"
+        if "S" in words:
+            state.spindle_rpm = words["S"]
+    elif "S" in words and 50 not in all_g:
+        if state.spindle_mode == "css":
+            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1.0 else 1.0)
+        else:
+            state.spindle_rpm = words["S"]
+    if 3 in all_m or 4 in all_m:
+        state.spindle_running = True
+    if 5 in all_m:
+        state.spindle_running = False
+    if "F" in words:
+        state.modal_feed = words["F"] * state.unit_scale
+
+
+def _record_turning_flow_events(flow_mcode, sub_flow, words, program, block, ctx, call_stack_before, event_list):
+    if flow_mcode == 98 and sub_flow.handled and not sub_flow.stop:
+        target_block = sub_flow.next_pc
+        event_list.append(
+            ExecutionEvent(
+                SUBPROGRAM_START,
+                block.index,
+                code=(f"O{int(words['P'])}" if "P" in words else None),
+                program_number=subprogram_number(program, target_block),
+                call_depth=len(sub_flow.call_stack),
+                target_block=target_block,
+            )
+        )
+    elif flow_mcode == 99 and sub_flow.handled:
+        if call_stack_before:
+            current_target = call_stack_before[-1][1]
+            current_program = subprogram_number(program, current_target)
+            event_list.append(
+                ExecutionEvent(
+                    SUBPROGRAM_END,
+                    block.index,
+                    code="M99",
+                    program_number=current_program,
+                    call_depth=len(call_stack_before),
+                    target_block=current_target,
+                )
+            )
+            if sub_flow.next_pc == current_target and len(sub_flow.call_stack) == len(call_stack_before):
+                event_list.append(
+                    ExecutionEvent(
+                        SUBPROGRAM_START,
+                        block.index,
+                        code=(f"O{current_program}" if current_program is not None else None),
+                        program_number=current_program,
+                        call_depth=len(sub_flow.call_stack),
+                        target_block=current_target,
+                    )
+                )
+        else:
+            event_list.append(
+                ExecutionEvent(
+                    PROGRAM_END,
+                    block.index,
+                    code="M99",
+                    program_number=ctx.program_number,
+                )
+            )
+    elif flow_mcode in (2, 30) and sub_flow.handled:
+        event_list.append(
+            ExecutionEvent(
+                PROGRAM_END,
+                block.index,
+                code=f"M{int(flow_mcode):02d}",
+                program_number=ctx.program_number,
+            )
+        )
+
+
+def _execute_turning_motion(
+    ast_node,
+    words,
+    state,
+    gcode,
+    ctx,
+    emulate_g28_home,
+    home_x,
+    home_z,
+    to_machine_fn,
+    wcs_off_fn,
+    x_value_to_diameter_fn,
+    x_delta_to_diameter_fn,
+    motion_ctor,
+    point_ctor,
+    block,
+    motions,
+    tagged,
+):
     has_pos = has_position_words(ast_node, words)
     state.modal_move = resolve_modal_move(ast_node, gcode, state.modal_move)
     non_motion_g = gcode is not None and gcode not in (0, 1, 2, 3, 32, 33) and gcode not in POSITION_NEUTRAL_GCODES

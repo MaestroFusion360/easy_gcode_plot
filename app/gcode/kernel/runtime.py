@@ -150,6 +150,72 @@ def expand_cycle_block(
         state.active_g84_cycle = False
         state.active_g80 = True
 
+    cycle_line_consumed |= _expand_g90(gcode, rough_cycles, state, words)
+
+    cycle_line_consumed |= _expand_g92(gcode, rough_cycles, state, words)
+
+    cycle_line_consumed |= _expand_g94(gcode, rough_cycles, state, words)
+
+    cycle_line_consumed |= _expand_g83(
+        _cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words
+    )
+
+    cycle_line_consumed |= _expand_g84(
+        _cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words
+    )
+
+    _expand_g71(
+        blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+    )
+
+    _expand_g72(
+        blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+    )
+
+    _expand_g73(
+        blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+    )
+
+    _expand_g74(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
+
+    _expand_g75(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
+
+    _expand_g76(gcode, rough_cycles, state, words)
+
+    _expand_g70(
+        blocks, compensated_profile, finish_cycles, gcode, mark_compensated, pc, state, supplementary_angles, words
+    )
+
+    cycle_pos_locked = cycle_line_consumed or gcode in (
+        70,
+        71,
+        72,
+        73,
+        74,
+        75,
+        76,
+        83,
+        84,
+        90,
+        92,
+        94,
+    )
+    if "X" in words and not cycle_pos_locked:
+        state.modal_x = x_value_to_diameter(scaled_word(words, "X", state.unit_scale), state.x_is_diameter)
+    elif "U" in words and gcode not in (70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92):
+        state.modal_x += x_delta_to_diameter(scaled_word(words, "U", state.unit_scale), state.x_is_diameter)
+    if "Z" in words and not cycle_pos_locked:
+        state.modal_z = scaled_word(words, "Z", state.unit_scale)
+    elif "W" in words and gcode not in (70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92):
+        state.modal_z += scaled_word(words, "W", state.unit_scale)
+    if "F" in words:
+        state.modal_feed = scaled_word(words, "F", state.unit_scale)
+
+    return rough_cycles, finish_cycles
+
+
+def _expand_g90(gcode, rough_cycles, state, words):
+    cycle_line_consumed = False
     can_continue_g90 = state.active_g90_cycle and gcode is None and ("X" in words or "U" in words)
     is_g90_cycle_line = (gcode == 90 and ("X" in words or "U" in words)) or can_continue_g90
     if is_g90_cycle_line:
@@ -197,6 +263,11 @@ def expand_cycle_block(
             state.modal_x = cyc[-1].end.x
             state.modal_z = cyc[-1].end.z
 
+    return cycle_line_consumed
+
+
+def _expand_g92(gcode, rough_cycles, state, words):
+    cycle_line_consumed = False
     can_continue_g92 = state.active_g92_cycle and gcode is None and ("X" in words or "U" in words)
     is_g92_cycle_line = (gcode == 92 and ("X" in words or "U" in words)) or can_continue_g92
     if is_g92_cycle_line:
@@ -243,6 +314,11 @@ def expand_cycle_block(
             state.modal_x = cyc[-1].end.x
             state.modal_z = cyc[-1].end.z
 
+    return cycle_line_consumed
+
+
+def _expand_g94(gcode, rough_cycles, state, words):
+    cycle_line_consumed = False
     can_continue_g94 = state.active_g94_cycle and gcode is None and ("Z" in words or "W" in words)
     is_g94_cycle_line = (gcode == 94 and ("X" in words or "U" in words)) or can_continue_g94
     if is_g94_cycle_line:
@@ -292,6 +368,11 @@ def expand_cycle_block(
             state.modal_x = cyc[-1].end.x
             state.modal_z = cyc[-1].end.z
 
+    return cycle_line_consumed
+
+
+def _expand_g83(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words):
+    cycle_line_consumed = False
     can_continue_g83 = state.active_g83_cycle and gcode is None and any(k in words for k in ("X", "U", "Z", "W"))
     is_g83_cycle_line = (gcode == 83 and any(k in words for k in ("X", "U", "Z", "W"))) or can_continue_g83
     if is_g83_cycle_line:
@@ -351,6 +432,11 @@ def expand_cycle_block(
             state.modal_x = cyc[-1].end.x
             state.modal_z = cyc[-1].end.z
 
+    return cycle_line_consumed
+
+
+def _expand_g84(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words):
+    cycle_line_consumed = False
     can_continue_g84 = state.active_g84_cycle and gcode is None and any(k in words for k in ("X", "U", "Z", "W"))
     is_g84_cycle_line = (gcode == 84 and any(k in words for k in ("X", "U", "Z", "W"))) or can_continue_g84
     if is_g84_cycle_line:
@@ -410,6 +496,12 @@ def expand_cycle_block(
             state.modal_x = cyc[-1].end.x
             state.modal_z = cyc[-1].end.z
 
+    return cycle_line_consumed
+
+
+def _expand_g71(
+    blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+):
     if gcode == 71:
         if "P" not in words and "U" in words and "R" in words:
             assert state.g71_first is not None
@@ -471,6 +563,10 @@ def expand_cycle_block(
                     state.modal_x = cyc[-1].end.x
                     state.modal_z = cyc[-1].end.z
 
+
+def _expand_g72(
+    blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+):
     if gcode == 72:
         if "P" not in words and "W" in words and "R" in words:
             assert state.g72_first is not None
@@ -532,6 +628,10 @@ def expand_cycle_block(
                     state.modal_x = cyc[-1].end.x
                     state.modal_z = cyc[-1].end.z
 
+
+def _expand_g73(
+    blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+):
     if gcode == 73:
         if "P" not in words and ("U" in words or "W" in words) and "R" in words:
             assert state.g73_first is not None
@@ -583,6 +683,8 @@ def expand_cycle_block(
                     state.modal_x = cyc[-1].end.x
                     state.modal_z = cyc[-1].end.z
 
+
+def _expand_g74(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words):
     if gcode == 74:
         if "X" not in words and "Z" not in words and "R" in words:
             assert state.g74_first is not None
@@ -629,6 +731,8 @@ def expand_cycle_block(
                 state.modal_x = cyc[-1].end.x
                 state.modal_z = cyc[-1].end.z
 
+
+def _expand_g75(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words):
     if gcode == 75:
         if "X" not in words and "Z" not in words and "R" in words:
             assert state.g75_first is not None
@@ -671,6 +775,8 @@ def expand_cycle_block(
                 state.modal_x = cyc[-1].end.x
                 state.modal_z = cyc[-1].end.z
 
+
+def _expand_g76(gcode, rough_cycles, state, words):
     if gcode == 76:
         # FANUC two-line G76: Q in the first line and P/Q in the second
         # line are integer least-input increments.  For metric turning they
@@ -711,6 +817,10 @@ def expand_cycle_block(
                 state.modal_x = cyc[-1].end.x
                 state.modal_z = cyc[-1].end.z
 
+
+def _expand_g70(
+    blocks, compensated_profile, finish_cycles, gcode, mark_compensated, pc, state, supplementary_angles, words
+):
     if gcode == 70 and "P" in words and "Q" in words:
         p = int(words["P"])
         q = int(words["Q"])
@@ -747,37 +857,13 @@ def expand_cycle_block(
                 supplementary_angles=supplementary_angles,
             )
             profile, profile_was_compensated = compensated_profile(profile, p_index, q_index)
-            fcyc = build_finish_contour(profile)
+            fcyc = build_finish_contour(
+                profile,
+                entry_start=Point2(state.modal_x, state.modal_z),
+            )
             fcyc = mark_compensated(fcyc, profile_was_compensated)
             ensure_cycle_return(fcyc, Point2(state.modal_x, state.modal_z), first_axis="x")
             finish_cycles.append(fcyc)
             if fcyc:
                 state.modal_x = fcyc[-1].end.x
                 state.modal_z = fcyc[-1].end.z
-
-    cycle_pos_locked = cycle_line_consumed or gcode in (
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        83,
-        84,
-        90,
-        92,
-        94,
-    )
-    if "X" in words and not cycle_pos_locked:
-        state.modal_x = x_value_to_diameter(scaled_word(words, "X", state.unit_scale), state.x_is_diameter)
-    elif "U" in words and gcode not in (70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92):
-        state.modal_x += x_delta_to_diameter(scaled_word(words, "U", state.unit_scale), state.x_is_diameter)
-    if "Z" in words and not cycle_pos_locked:
-        state.modal_z = scaled_word(words, "Z", state.unit_scale)
-    elif "W" in words and gcode not in (70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92):
-        state.modal_z += scaled_word(words, "W", state.unit_scale)
-    if "F" in words:
-        state.modal_feed = scaled_word(words, "F", state.unit_scale)
-
-    return rough_cycles, finish_cycles

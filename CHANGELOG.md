@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.5.4 - 2026-09-16
+
+- Unified turning and milling tool management under one `Tool Library` window with separate Milling/Turning tabs and explicit `Current Program` versus persistent `Saved Library` areas.
+- Kept discovered T selections temporary per open program; inferred geometry from inline, named-tool and nearby operation comments, preserved descriptions, and used standard geometry when no type was recognized. New/Open resets temporary program assignments without modifying `tools.db`.
+- Added explicit assignment/copy operations between Current Program and Saved Library while preserving the NC program's T number.
+- Changed Tool Library export to write the complete Saved Library of the active machine kind as JSON or CSV instead of exporting only the selected tool.
+- Moved code-built dialogs and tool editors to Qt Designer `.ui` sources and removed the obsolete separate turning/milling tool forms and collection classes. Generated Python UI/resource modules remain build artifacts produced by the existing generation scripts.
+- Normalized Designer sources to Qt 6 scoped enum names and hardened UI generation against PySide6-to-PyQt6 enum alias mismatches.
+- Used standard tool geometry for unknown selections in Stock Removal and playback instead of silently leaving stock unchanged or hiding the tool.
+- Staged Saved Library Add/Edit/Duplicate/Remove operations in the Tool Library window; OK commits the final state to `tools.db`, while Cancel discards the staged changes and Current Program remains temporary.
+- Improved Tool Library layout and preview behavior with compact resizable defaults, borderless sections, larger table space and viewport-aware automatic Fit for selected Current Program and Saved Library tools.
+- Inferred temporary Current Program fallback geometry from the active tool's operation: D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92, while retaining D10 Flat Mill and Diamond 80 OD as the general defaults and preserving explicit comment hints.
+- Made Tool Library OK commit Milling and Turning changes in a single SQLite transaction, eliminating partial cross-tab saves and compensating rollback.
+- Reported tool-library read failures explicitly at startup and disabled Tool Library editing instead of presenting an unreadable `tools.db` as an empty library.
+- Made Linux and Windows CI regenerate Qt sources and fail on any modified or untracked generated output before tests or packaging.
+- Removed the redundant status-bar progress indicator; long CNC execution now uses only the cancellable execution dialog.
+- Restarted ordinary playback from the beginning when Play is pressed at the completed end of a trajectory.
+- Refreshed the plot immediately when opening a new NC program, regardless of the Auto Update setting, so geometry from the previously opened file is never left on screen.
+- Made Playback controls authoritative over editor-line synchronization: Play, Step Forward, Step Backward and manual trackbar movement now advance correctly through expanded Macro B execution even when multiple execution steps originate from the same source line.
+- Fixed lathe Auto Stock for programs located in positive Z coordinates and separated absolute stock front position from front allowance, so opening or confirming the Stock dialog no longer shifts automatically detected stock back into negative Z.
+- Fixed G70 finishing so the cycle first approaches the profile start from the actual G70 call position instead of beginning the finish contour with a discontinuous jump.
+- Renamed the automatic refresh threshold to `Auto update max points`, removed the hidden point ceiling from manual Update, and reused an already computed kernel result when an oversized automatic render is completed manually.
+- Delayed the cancellable execution dialog until a calculation has run for two seconds, while keeping execution immediate; fast runs no longer flash a modal window, and the worker shutdown path no longer relies on a nested `QDialog.exec()` lifecycle that could crash Qt on Windows.
+- Split the oversized GUI and dialog regression suites into focused test modules covering actions, execution, files, plotting, settings, views, export, options and turning-tool editing.
+
 ## 1.5.3 - 2026-09-14
 
 - Replaced direction-bearing turning type identifiers with nine canonical geometry types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap.

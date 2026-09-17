@@ -7,13 +7,13 @@
     <x>0</x>
     <y>0</y>
     <width>380</width>
-    <height>380</height>
+    <height>430</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
     <width>380</width>
-    <height>380</height>
+    <height>430</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -66,7 +66,7 @@
      <item row="0" column="0">
       <widget class="QLabel" name="label_Lang">
        <property name="text">
-        <string>G-code</string>
+        <string>Export Type</string>
        </property>
       </widget>
      </item>
@@ -143,7 +143,7 @@
      <item row="2" column="0">
       <widget class="QLabel" name="label_Incr">
        <property name="text">
-        <string>Incremental Mode</string>
+        <string>Coordinates</string>
        </property>
       </widget>
      </item>
@@ -179,12 +179,12 @@
       <widget class="QComboBox" name="incrCmbBox">
        <item>
         <property name="text">
-         <string>No</string>
+         <string>G90 Absolute</string>
         </property>
        </item>
        <item>
         <property name="text">
-         <string>Yes</string>
+         <string>G91 Incremental</string>
         </property>
        </item>
       </widget>
@@ -256,6 +256,21 @@
        <property name="text">
         <string>Leading Zero (G,M,T,H,D)</string>
        </property>
+      </widget>
+     </item>
+     <item row="11" column="0">
+      <widget class="QLabel" name="arcOutputLabel">
+       <property name="text">
+        <string>Arc Output</string>
+       </property>
+      </widget>
+     </item>
+     <item row="11" column="1">
+      <widget class="QComboBox" name="arcOutputCmbBox">
+       <item><property name="text"><string>IJK RELATIVE</string></property></item>
+       <item><property name="text"><string>IJK ABSOLUTE</string></property></item>
+       <item><property name="text"><string>R RADIUS</string></property></item>
+       <item><property name="text"><string>LINEARIZED</string></property></item>
       </widget>
      </item>
     </layout>

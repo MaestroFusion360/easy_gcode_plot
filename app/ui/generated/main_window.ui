@@ -240,8 +240,7 @@
     <addaction name="actionLatheMode"/>
     <addaction name="separator"/>
     <addaction name="actionWCS"/>
-    <addaction name="actionTurningTools"/>
-    <addaction name="actionMillingTools"/>
+    <addaction name="actionToolLibrary"/>
     <addaction name="separator"/>
     <addaction name="actionOptions"/>
     <addaction name="actionTokens"/>
@@ -768,14 +767,9 @@
     <string>WCS</string>
    </property>
   </action>
-  <action name="actionTurningTools">
+  <action name="actionToolLibrary">
    <property name="text">
-    <string>Turning Tools</string>
-   </property>
-  </action>
-  <action name="actionMillingTools">
-   <property name="text">
-    <string>Milling Tools</string>
+    <string>Tool Library</string>
    </property>
   </action>
   <action name="actionOptions">

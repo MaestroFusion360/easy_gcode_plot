@@ -101,7 +101,7 @@ class Ui_OptionsDlg(object):
         self.autoUpdateMaxSegmentsSpin = QSpinBox(self.generalTab)
         self.autoUpdateMaxSegmentsSpin.setObjectName(u"autoUpdateMaxSegmentsSpin")
         self.autoUpdateMaxSegmentsSpin.setMinimum(1000)
-        self.autoUpdateMaxSegmentsSpin.setMaximum(5000000)
+        self.autoUpdateMaxSegmentsSpin.setMaximum(2147483647)
         self.autoUpdateMaxSegmentsSpin.setSingleStep(5000)
         self.autoUpdateMaxSegmentsSpin.setValue(20000)
 
@@ -452,6 +452,9 @@ class Ui_OptionsDlg(object):
         self.loggingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Enable application log", None))
         self.autoUpdateCheck.setText(QCoreApplication.translate("OptionsDlg", u"Auto update plot while editing", None))
         self.autoUpdateMaxSegmentsLabel.setText(QCoreApplication.translate("OptionsDlg", u"Auto update max segments", None))
+#if QT_CONFIG(tooltip)
+        self.autoUpdateMaxSegmentsSpin.setToolTip(QCoreApplication.translate("OptionsDlg", u"Maximum sampled points for automatic refresh only. Manual Update has no hidden render limit.", None))
+#endif // QT_CONFIG(tooltip)
         self.tabs.setTabText(self.tabs.indexOf(self.generalTab), QCoreApplication.translate("OptionsDlg", u"General", None))
         self.fontLabel.setText(QCoreApplication.translate("OptionsDlg", u"Font family", None))
         self.fontSizeLabel.setText(QCoreApplication.translate("OptionsDlg", u"Font size", None))

@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.5.3"
+version = "1.5.4"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -58,6 +58,16 @@ extend-exclude = [
 
 [tool.ruff.lint]
 select = ["E4", "E9", "F", "I"]
+
+# Both lint entrypoints also run scripts/check_complexity.py with C901,
+# PLR0912 and PLR0915. Reviewed per-function ceilings live in
+# scripts/complexity_baseline.json; new functions use these strict defaults.
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-branches = 12
+max-statements = 50
 
 [tool.ruff.format]
 quote-style = "double"

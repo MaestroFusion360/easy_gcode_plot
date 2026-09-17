@@ -1,19 +1,20 @@
 """Execution, playback, auto-refresh, and statistics helpers for the main window."""
 
 import logging
-from math import acos, ceil, floor, pi
+from copy import deepcopy
+from math import asin, ceil, floor, pi, sqrt
+from threading import Event
 from time import perf_counter
-
-from PyQt6.QtCore import QCoreApplication, QEventLoop, QTimer
 
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
+from app.tools.setup import refresh_setup
+from app.ui.execution_worker import run_execution
 from app.ui.playback import build_playback_movements
 
 AUTO_REFRESH_MAX_POINTS = 20000
 AUTO_REFRESH_DELAY_MS = 500
-EXECUTION_EVENT_INTERVAL_SECONDS = 0.02
 LOGGER = logging.getLogger(__name__)
 PLAYBACK_INTERVALS_MS = (1000, 250, 100, 40, 10)
 
@@ -67,11 +68,16 @@ class MainWindowExecutionMixin:
     def play(self):
         """Start or pause playback of toolpath highlighting."""
         if self.ui.actionPlay.isChecked():
-            if self.latheMode and getattr(self, "stockEnabled", False) and hasattr(self, "_start_stock_animation"):
+            stock_playback = (
+                self.latheMode and getattr(self, "stockEnabled", False) and hasattr(self, "_start_stock_animation")
+            )
+            if stock_playback:
                 if not self._start_stock_animation():
                     self.ui.actionPlay.setChecked(False)
                     self.timer.stop()
                     return
+            elif self.ui.horizontalSlider.value() >= self.ui.horizontalSlider.maximum():
+                self.ui.horizontalSlider.setValue(self.ui.horizontalSlider.minimum())
             self.timer.start(self.speedTimer, self)
             LOGGER.info(
                 "playback_started lathe=%s stock_animation=%s value=%d maximum=%d interval_ms=%d",
@@ -133,12 +139,16 @@ class MainWindowExecutionMixin:
 
     def scheduleAutoUpdate(self):
         """Mark the displayed trace stale and optionally debounce its refresh."""
+        if getattr(self, "_loading_document", False):
+            return
         self.autoUpdateTimer.stop()
         if getattr(self, "_stock_animation_active", False):
             self.ui.actionPlay.setChecked(False)
             self.timer.stop()
             self._leave_stock_animation()
         self._plot_source_stale = True
+        self._deferred_execution_result = None
+        self._deferred_execution_source = None
         if hasattr(self, "updateExecutionStatus"):
             self.updateExecutionStatus("STALE")
         if getattr(self, "autoUpdateEnabled", True):
@@ -150,6 +160,7 @@ class MainWindowExecutionMixin:
             return None
         started = perf_counter()
         source = self.ui.editor.text()
+        MainWindowExecutionMixin.discover_program_tools(self, source)
         language = "fanuc_turn" if self.latheMode else "fanuc_mill"
         home_x = self.xPosMach * 2.0 if self.latheMode else self.xPosMach
         wcs_offsets = getattr(self, "wcsOffsets", None)
@@ -157,32 +168,32 @@ class MainWindowExecutionMixin:
             wcs_offsets = {code: (values[0] * 2.0, *values[1:]) for code, values in wcs_offsets.items()}
         self._kernel_execution_active = True
         self._kernel_cancel_requested = False
-        self._kernel_next_event_yield = started
+        cancellation = Event()
 
         def cancelled():
-            now = perf_counter()
-            if now >= self._kernel_next_event_yield:
-                self._kernel_next_event_yield = now + EXECUTION_EVENT_INTERVAL_SECONDS
-                QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 5)
-            return bool(self._kernel_cancel_requested)
+            return cancellation.is_set() or bool(self._kernel_cancel_requested)
 
         try:
-            result = execute(
-                source,
-                language=language,
+            options = {
+                "language": language,
                 # Turning programs always use Fanuc-style I/K offsets relative to
                 # the arc start.  Arc Type is a milling-only preference in the UI.
-                source_arc_type=1 if self.latheMode else getattr(self, "arc_type", 1),
-                default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
-                tools=getattr(self, "tools", None) if getattr(self, "correctionEnabled", True) else {},
-                milling_tools=getattr(self, "millingTools", None) if getattr(self, "correctionEnabled", True) else {},
-                home_x=home_x,
-                home_y=self.yPosMach,
-                home_z=self.zPosMach,
-                wcs_offsets=wcs_offsets,
-                emulate_g28_home=getattr(self, "homeConfigured", True),
-                cancelled=cancelled,
-            )
+                "source_arc_type": 1 if self.latheMode else getattr(self, "arc_type", 1),
+                "default_unit_scale": 25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
+                "tools": getattr(self, "tools", None) if getattr(self, "correctionEnabled", True) else {},
+                "milling_tools": getattr(self, "millingTools", None)
+                if getattr(self, "correctionEnabled", True)
+                else {},
+                "home_x": home_x,
+                "home_y": self.yPosMach,
+                "home_z": self.zPosMach,
+                "wcs_offsets": wcs_offsets,
+                "emulate_g28_home": getattr(self, "homeConfigured", True),
+                "cancelled": cancelled,
+            }
+            # Freeze mutable setup data before handing execution to the worker.
+            options = deepcopy(options)
+            result = run_execution(self, execute, source, options, cancellation.set)
         finally:
             self._kernel_execution_active = False
         self._last_execution_ms = (perf_counter() - started) * 1000.0
@@ -202,6 +213,22 @@ class MainWindowExecutionMixin:
             self.ui.statusbar.showMessage("; ".join(f"{d.code}: {d.message}" for d in result.diagnostics), 10000)
         return result
 
+    def discover_program_tools(self, source):
+        attribute = "tools" if self.latheMode else "millingTools"
+        current = getattr(self, attribute, None)
+        if current is None:
+            current = {}
+            setattr(self, attribute, current)
+        inference = getattr(self, "program_tool_inference", {})
+        inference[attribute] = refresh_setup(
+            source,
+            current,
+            inference.get(attribute, {}),
+            turning=self.latheMode,
+            default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
+        )
+        self.program_tool_inference = inference
+
     def arcPointsPerCircle(self, result):
         """Convert the configured maximum chord error to a sampling count."""
         radii = [motion.arc.radius for motion in result.motions if motion.arc is not None]
@@ -209,8 +236,8 @@ class MainWindowExecutionMixin:
             return 3
         radius = max(radii)
         tolerance = min(max(self.arcTolerance, 1e-9), radius * 2)
-        angle = acos(max(-1.0, min(1.0, 1.0 - tolerance / radius)))
-        return max(3, ceil(pi / angle)) if angle > 0 else 314
+        angle = 2.0 * asin(sqrt((tolerance / radius) * 0.5))
+        return max(3, ceil(pi / angle)) if angle > 0 else 3
 
     def analyzeEditorSource(self):
         """Return a fresh kernel analysis for read-only UI consumers."""
@@ -230,6 +257,8 @@ class MainWindowExecutionMixin:
 
     def autoUpdate(self):
         """Debounced refresh for programs whose sampled render path is small."""
+        if getattr(self, "_kernel_execution_active", False):
+            return False
         if getattr(self, "_stock_animation_active", False):
             self._clear_stock_animation()
         result = self._execute_editor_source(show_errors=False)
@@ -238,21 +267,28 @@ class MainWindowExecutionMixin:
                 self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
             return
         try:
+            auto_limit = max(1, int(getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)))
             points = render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
                 arc_points_per_circle=self.arcPointsPerCircle(result),
-                max_points=getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS) + 1,
+                max_points=auto_limit,
             )
         except RenderLimitExceeded:
             self._auto_update_deferred = True
-            self.ui.statusbar.showMessage("Trajectory is too large for Auto Update; press Update.", 10000)
+            self._deferred_execution_result = result
+            self._deferred_execution_source = self.ui.editor.text()
+            self.ui.statusbar.showMessage(
+                f"Trajectory exceeds the Auto Update limit of {auto_limit:,} points; press Update.", 10000
+            )
             return
         self._auto_update_deferred = False
         self._finishDataUpdate(result, points)
 
     def updateData(self, *, show_errors=True):
         """Execute editor source through the single authoritative CNC kernel."""
+        if getattr(self, "_kernel_execution_active", False):
+            return False
         if hasattr(self, "updateExecutionStatus"):
             self.updateExecutionStatus("UPDATING")
         if getattr(self, "_stock_animation_active", False):
@@ -261,64 +297,48 @@ class MainWindowExecutionMixin:
             self._clear_stock_animation()
         if hasattr(self, "autoUpdateTimer"):
             self.autoUpdateTimer.stop()
-        segment_limit = getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)
-        previous_segments = max(0, len(getattr(self, "render_points", ())) - 1)
-        show_progress = getattr(self, "_auto_update_deferred", False) or previous_segments > segment_limit
-        MainWindowExecutionMixin._setUpdateProgress(self, 5 if show_progress else None)
-        result = self._execute_editor_source(show_errors=show_errors)
+        source = self.ui.editor.text()
+        deferred_result = getattr(self, "_deferred_execution_result", None)
+        if deferred_result is not None and getattr(self, "_deferred_execution_source", None) == source:
+            result = deferred_result
+        else:
+            self._deferred_execution_result = None
+            self._deferred_execution_source = None
+            result = self._execute_editor_source(show_errors=show_errors)
         if result is None or not result.motions:
-            MainWindowExecutionMixin._setUpdateProgress(self, None)
             self.clearPlot()
             if hasattr(self, "updateExecutionStatus"):
                 self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
             return False
-        if show_progress:
-            MainWindowExecutionMixin._setUpdateProgress(self, 40)
+        points = render_trace(
+            result,
+            lathe_radius_view=self.latheMode,
+            arc_points_per_circle=self.arcPointsPerCircle(result),
+        )
+        self._finishDataUpdate(result, points)
+        self._auto_update_deferred = False
+        return True
+
+    def _finishDataUpdate(self, result=None, points=None, playback_value=None):
+        """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
+        started = perf_counter()
+        result = result if result is not None else self.execution_result
+        if result is None:
+            return False
+        render_started = perf_counter()
+        if points is None:
             points = render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
                 arc_points_per_circle=self.arcPointsPerCircle(result),
             )
-            MainWindowExecutionMixin._setUpdateProgress(self, 75)
-            self._finishDataUpdate(result, points)
-            self._auto_update_deferred = False
-            MainWindowExecutionMixin._setUpdateProgress(self, 100)
-            QTimer.singleShot(500, lambda: MainWindowExecutionMixin._setUpdateProgress(self, None))
-        else:
-            self._finishDataUpdate(result)
-        return True
-
-    def _setUpdateProgress(self, value):
-        """Show a painted stage indicator for long synchronous updates."""
-        if not hasattr(self, "progressBar"):
-            return
-        if value is None:
-            self.progressBar.hide()
-            return
-        self.progressBar.show()
-        self.progressBar.setValue(value)
-        self.progressBar.repaint()
-        QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
-
-    def _finishDataUpdate(self, result=None, points=None, playback_value=None):
-        """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
-        started = perf_counter()
-        if result is not None:
-            self.execution_result = result
-            self._plot_source_stale = False
-        result = self.execution_result
-        if result is None:
-            return
+        self._deferred_execution_result = None
+        self._deferred_execution_source = None
+        self.execution_result = result
+        self.render_points = points
+        self._plot_source_stale = False
         if hasattr(self, "updateExecutionStatus"):
             self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
-        render_started = perf_counter()
-        self.render_points = points
-        if self.render_points is None:
-            self.render_points = render_trace(
-                result,
-                lathe_radius_view=self.latheMode,
-                arc_points_per_circle=self.arcPointsPerCircle(result),
-            )
         render_ms = (perf_counter() - render_started) * 1000.0
         self._playback_movements, self._motion_to_playback = build_playback_movements(result.motions)
         self._source_motion_index = {}

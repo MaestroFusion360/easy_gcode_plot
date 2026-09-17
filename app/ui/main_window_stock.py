@@ -30,25 +30,28 @@ class MainWindowStockMixin:
             inner_diameter=self.turnStockInnerDiameter,
             length=self.turnStockLength,
             resolution=self.turnStockResolution,
-            front_z=self.turnStockFrontAllowance,
+            front_z=getattr(self, "turnStockFrontZ", self.turnStockFrontAllowance),
         )
         spec.validate()
         return spec
 
     def applyStockSettings(self, values):
+        front_allowance = float(values.get("front_allowance", getattr(self, "turnStockFrontAllowance", 2.0)))
+        front_z = float(values.get("front_z", getattr(self, "turnStockFrontZ", front_allowance)))
         spec = TurningStockSpec(
             outer_diameter=float(values["outer_diameter"]),
             inner_diameter=float(values.get("inner_diameter", 0.0)),
             length=float(values["length"]),
             resolution=float(values["resolution"]),
-            front_z=float(values.get("front_allowance", getattr(self, "turnStockFrontAllowance", 2.0))),
+            front_z=front_z,
         )
         spec.validate()
         self.turnStockDiameter = spec.outer_diameter
         self.turnStockInnerDiameter = spec.inner_diameter
         self.turnStockLength = spec.length
         self.turnStockResolution = spec.resolution
-        self.turnStockFrontAllowance = spec.front_z
+        self.turnStockFrontAllowance = front_allowance
+        self.turnStockFrontZ = spec.front_z
         self.stockEnabled = bool(values.get("enabled", True))
         self.stockConfigured = True
         self._stock_manual_override = True
@@ -92,10 +95,11 @@ class MainWindowStockMixin:
             if not getattr(self, "_stock_manual_override", False):
                 self._stock_outline_use_configured = False
             LOGGER.debug(
-                "stock_auto_bounds outer_diameter=%.3f inner_diameter=%.3f length=%.3f motions=%d",
+                "stock_auto_bounds outer_diameter=%.3f inner_diameter=%.3f length=%.3f front_z=%.3f motions=%d",
                 self._stock_auto_suggestion.outer_diameter,
                 self._stock_auto_suggestion.inner_diameter,
                 self._stock_auto_suggestion.length,
+                self._stock_auto_suggestion.front_z,
                 len(motions),
             )
         else:
@@ -115,7 +119,7 @@ class MainWindowStockMixin:
             inner_diameter=float(suggestion.inner_diameter),
             length=float(suggestion.length) + front_allowance,
             resolution=float(getattr(self, "turnStockResolution", 0.5)),
-            front_z=front_allowance,
+            front_z=float(suggestion.front_z) + front_allowance,
         )
 
     def _stock_outline_spec(self):
@@ -315,7 +319,7 @@ class MainWindowStockMixin:
             motion.start_x * 0.5 if count <= 0 else motion.end_x * 0.5,
             motion.start_z if count <= 0 else motion.end_z,
         )
-        tool_spec = self.tools.get(motion.tool) if motion.tool else DEFAULT_TURNING_TOOL
+        tool_spec = self.tools.get(motion.tool, DEFAULT_TURNING_TOOL)
         mesh_started = perf_counter()
         render_now = perf_counter()
         last_render = getattr(self, "_stock_last_render_at", 0.0)

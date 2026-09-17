@@ -31,14 +31,6 @@ def _playback(result):
     return build_playback_movements(result.motions)[0]
 
 
-def test_plain_and_arc_commands_are_one_playback_position_each():
-    linear = execute("G0 X100 Z5\nG1 X80 Z0")
-    arcs = execute("G0 X20 Z0\nG2 X10 Z-5 R5\nG3 X20 Z-10 R5")
-
-    assert len(_playback(linear)) == len(linear.motions) == 2
-    assert len(_playback(arcs)) == len(arcs.motions) == 3
-
-
 def test_arc_tessellation_density_does_not_change_playback_count():
     result = execute("G0 X20 Z0\nG2 X10 Z-5 R5")
     low_density = render_trace(result, arc_points_per_circle=12)

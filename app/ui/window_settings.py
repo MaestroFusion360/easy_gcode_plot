@@ -21,13 +21,11 @@ from app.settings import (
     FONT_SIZE_MIN,
     LINE_WIDTH_MAX,
     LINE_WIDTH_MIN,
+    ToolLibraryLoadError,
     bounded_number,
     configure_logging,
     get_settings,
-    load_milling_tools,
-    load_turning_tools,
-    save_milling_tools,
-    save_turning_tools,
+    load_tool_libraries,
 )
 from app.settings import (
     normalized_recent_files as _normalized_recent_files,
@@ -91,8 +89,7 @@ class MainWindowSettingsMixin:
             )
             for code in range(54, 60)
         }
-        self.tools = load_turning_tools()
-        self.millingTools = load_milling_tools()
+        self._load_tool_libraries()
         self.latheMode = self.settings.value("PLOT/LATHE_MODE", False, type=bool)
         self.ui.actionLatheMode.setChecked(self.latheMode)
         self.showStock = self.settings.value("PLOT/SHOW_STOCK", True, type=bool)
@@ -117,6 +114,14 @@ class MainWindowSettingsMixin:
         self.turnStockLength = self.settings.value("STOCK/LENGTH", 100.0, type=float)
         self.turnStockResolution = self.settings.value("STOCK/RESOLUTION", 0.5, type=float)
         self.turnStockFrontAllowance = self.settings.value("STOCK/FRONT_ALLOWANCE", 2.0, type=float)
+        # FRONT_Z is the absolute front face of manually configured stock.
+        # Older settings used FRONT_ALLOWANCE for both meanings, so fall back to
+        # that value until the first manual stock save writes FRONT_Z explicitly.
+        self.turnStockFrontZ = self.settings.value(
+            "STOCK/FRONT_Z",
+            self.turnStockFrontAllowance,
+            type=float,
+        )
         self.plotGrid = self.settings.value("PLOT/GRID", False, type=bool)
         self.plotGridColor = self.settings.value("PLOT/GRID_COLOR", "#808080")
         if QColor(self.plotGridColor).name() == "#d3d3d3":
@@ -264,6 +269,18 @@ class MainWindowSettingsMixin:
         if state is not None and not self.restoreState(state, 1):
             self.resetToolbarsToDefault()
 
+    def _load_tool_libraries(self):
+        self._tool_library_load_error = None
+        try:
+            self.turningToolLibrary, self.millingToolLibrary = load_tool_libraries()
+        except ToolLibraryLoadError as exc:
+            self.turningToolLibrary = {}
+            self.millingToolLibrary = {}
+            self._tool_library_load_error = str(exc)
+        self.tools = {}
+        self.millingTools = {}
+        self.program_tool_inference = {}
+
     def saveSettings(self):
         """Persist current settings to the ini file."""
         self.settings.beginGroup("PLOT")
@@ -300,6 +317,7 @@ class MainWindowSettingsMixin:
         self.settings.setValue("LENGTH", self.turnStockLength)
         self.settings.setValue("RESOLUTION", self.turnStockResolution)
         self.settings.setValue("FRONT_ALLOWANCE", self.turnStockFrontAllowance)
+        self.settings.setValue("FRONT_Z", self.turnStockFrontZ)
         self.settings.endGroup()
         self.settings.beginGroup("CNC")
         self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
@@ -311,8 +329,6 @@ class MainWindowSettingsMixin:
             self.settings.setValue(f"G{code}_X", x_offset)
             self.settings.setValue(f"G{code}_Y", y_offset)
             self.settings.setValue(f"G{code}_Z", z_offset)
-        save_turning_tools(self.tools)
-        save_milling_tools(self.millingTools)
         self.settings.endGroup()
         self.settings.beginGroup("EDITOR")
         self.settings.setValue("CARETLINE_COLOR", self.caretLineColor)

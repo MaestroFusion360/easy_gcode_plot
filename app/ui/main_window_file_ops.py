@@ -13,6 +13,7 @@ from app.gcode.dxf_exporter import export_dxf
 from app.gcode.exporter import DXF_MODE, export_pgm
 from app.gcode.kernel.io import read_nc_text
 from app.settings import normalized_recent_files as _normalized_recent_files
+from app.tools.setup import reset_program_setup
 
 LOGGER = logging.getLogger(__name__)
 NC_FILE_FILTER = "NC programs (*.nc *.cnc *.tap *.txt);;STL models (*.stl);;All files (*)"
@@ -125,6 +126,7 @@ class MainWindowFileMixin:
     def newFile(self):
         """Clear editor contents and reset state for a new document."""
         if self.maybeSave():
+            reset_program_setup(self)
             self.curFile = ""
             self._document_disk_signature = None
             self.ui.editor.clear()
@@ -198,17 +200,30 @@ class MainWindowFileMixin:
             )
             return
 
+        reset_program_setup(self)
         LOGGER.info("file_opened path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
         if hasattr(self, "resetStockToAuto"):
             self.resetStockToAuto(refresh=False)
+        # Opening another program invalidates the previous trajectory immediately.
+        # Do not force an unbounded manual Update here: large programs must keep
+        # the normal Auto Update point limit and must not block file opening.
+        self.clearPlot()
         self._fit_view_after_program_load = True
         self._document_disk_signature = _file_signature(fileName)
-        self.ui.editor.setText(content)
+        if hasattr(self, "autoUpdateTimer"):
+            self.autoUpdateTimer.stop()
+        self._loading_document = True
+        try:
+            self.ui.editor.setText(content)
+        finally:
+            self._loading_document = False
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
         self.changeFileType(self.ui.fileTypeCombo.currentIndex())
         self.syncGuiCapabilities()
-        self.scheduleAutoUpdate()
+        # Build the new program immediately even when Auto Update is disabled,
+        # while preserving the automatic render-point limit during file open.
+        self.autoUpdate()
         self._add_recent_file(fileName)
 
     def saveFile(self, fileName):
@@ -304,7 +319,6 @@ class MainWindowFileMixin:
             return
         end = time.time()
         LOGGER.info("export_completed path=%s duration_ms=%.3f", path, (end - start) * 1000)
-        self.progressBar.setValue(0)
         self.ui.statusbar.showMessage(f"Export Execution time: {(end - start) * 1000:.3f} ms", 10000)
 
     def exportPgm(self):

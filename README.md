@@ -73,22 +73,23 @@ uv run --no-dev python main.py
 
 The application reports unsupported or ambiguous controller behavior explicitly instead of guessing geometry.
 
+## Tool Library
 
-## Tool libraries
+`Settings → Tool Library` is the single tool-management window for both Milling and Turning. Each tab separates **Current Program** T-slot assignments from the persistent **Saved Library** and provides an automatically fitted preview of the selected tool. Current Program tools are temporary: literal T selections are discovered from the open NC program, comments are used to infer descriptions/type/dimensions when possible, and operation context selects D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92. Otherwise discovery uses D10 Flat Mill or Diamond 80 OD. New/Open resets these temporary assignments.
 
-Turning and milling tools are stored in the per-user SQLite database `tools.db`. The database is the single source of truth for tool definitions; `config.ini` stores application preferences and does not mirror the tool library.
+Saved Library tools are stored in the per-user SQLite database `tools.db`; `config.ini` stores application preferences and does not mirror tool definitions. Assigning a saved tool copies its geometry into the selected Current Program T slot without changing that program T number. Add/Edit/Duplicate/Remove and Save to Library change a working copy inside the dialog: **OK** commits its final state to `tools.db`, while **Cancel** discards it. Discovery and Current Program edits never write program tools automatically. Export writes the complete current working copy for the active machine kind as JSON or CSV, not only the selected row.
 
 The turning library uses nine geometry types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face are stored separately as application flags and drive preview, trace orientation and Stock Removal without changing the geometry type.
 
 ## Supported areas
 
-| Area | Main support |
-| --- | --- |
-| Common | G00–G03, G17–G21, G28, G54–G59, G90/G91, Macro B, M98/M99 |
-| Turning | X/Z, U/W, I/K/R arcs, A/C/corner-R, G32/G33, G70–G76, G90/G92/G94 cycles, G96/G97, G98/G99 |
-| Milling | XYZ, IJK/R and helical arcs, G53, G80–G86, G94/G95, G40/G41/G42 |
+| Area          | Main support                                                                                                           |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Common        | G00–G03, G17–G21, G28, G54–G59, G90/G91, Macro B, M98/M99                                                              |
+| Turning       | X/Z, U/W, I/K/R arcs, A/C/corner-R, G32/G33, G70–G76, G90/G92/G94 cycles, G96/G97, G98/G99                             |
+| Milling       | XYZ, IJK/R and helical arcs, G53, G80–G86, G94/G95, G40/G41/G42                                                        |
 | Visualization | 3D/orthographic plot, STL overlay, turning Stock outline/removal (including thread profiles), configured tool previews |
-| Export | Turning/Milling Full Program, Expanded Execution, Plot Data and DXF |
+| Export        | Turning/Milling Full Program, Expanded Execution, Plot Data and DXF                                                    |
 
 See [FAQ.md](FAQ.md) for limitations and exact semantics.
 

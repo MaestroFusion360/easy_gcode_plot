@@ -5,12 +5,12 @@ from time import perf_counter
 
 from PyQt6.QtCore import QBasicTimer, QSize, Qt, QTimer
 from PyQt6.QtGui import QAction, QActionGroup, QIcon, QQuaternion
-from PyQt6.QtWidgets import QComboBox, QMainWindow, QToolBar
+from PyQt6.QtWidgets import QComboBox, QMainWindow, QMessageBox, QToolBar
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
 from app.settings import RECENT_FILES_LIMIT as _RECENT_FILES_LIMIT
 from app.settings import normalized_milling_tools, normalized_recent_files, normalized_tools
-from app.ui.dialogs import About, BlockNum, Export, Find, MillingTools, TurningTools, Wcs
+from app.ui.dialogs import About, BlockNum, Export, Find, Wcs
 from app.ui.generated.main_ui import Ui_MainWindow
 from app.ui.help import HelpDialog
 from app.ui.main_window_editor_ops import MainWindowEditorMixin
@@ -40,6 +40,7 @@ from app.ui.plot_navigation import PlotNavigation
 from app.ui.statistics import StatisticsDialog
 from app.ui.stock_dialog import StockDialog
 from app.ui.tokens import TokensDialog
+from app.ui.tool_library_dialog import ToolLibraryDialog
 from app.ui.window_settings import MainWindowSettingsMixin
 
 # Backward-compatible helper names used by existing GUI tests and callers.
@@ -166,8 +167,7 @@ class MainWindow(
         self.findDlg = Find(self)
         self.blockNumDlg = BlockNum(self)
         self.wcsDlg = Wcs(self)
-        self.turningToolsDlg = TurningTools(self)
-        self.millingToolsDlg = MillingTools(self)
+        self._initialize_tool_dialogs()
         self.optionsDlg = OptionsDialog(self)
         self.tokensDlg = TokensDialog(self)
         self.statisticsDlg = StatisticsDialog(self)
@@ -177,6 +177,17 @@ class MainWindow(
         self.autoUpdateTimer.setSingleShot(True)
         self.autoUpdateTimer.setInterval(AUTO_REFRESH_DELAY_MS)
         self.autoUpdateTimer.timeout.connect(self.autoUpdate)
+
+    def _initialize_tool_dialogs(self):
+        self.toolLibraryDlg = ToolLibraryDialog(self)
+        self.ui.actionToolLibrary.triggered.connect(self.toolLibraryDlg.show)
+        if self._tool_library_load_error:
+            self.ui.actionToolLibrary.setEnabled(False)
+            self.ui.actionToolLibrary.setToolTip("Tool Library is unavailable because tools.db could not be read")
+            QTimer.singleShot(0, self._show_tool_library_load_error)
+
+    def _show_tool_library_load_error(self):
+        QMessageBox.critical(self, "Tool Library", self._tool_library_load_error)
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""
@@ -227,8 +238,6 @@ class MainWindow(
         self.ui.actionNextToolchange.triggered.connect(self.nextToolchange)
         self.ui.actionStock.triggered.connect(self.stockDlg.show)
         self.ui.actionWCS.triggered.connect(lambda: self.wcsDlg.show())
-        self.ui.actionTurningTools.triggered.connect(lambda: self.turningToolsDlg.show())
-        self.ui.actionMillingTools.triggered.connect(lambda: self.millingToolsDlg.show())
         self.ui.actionOptions.triggered.connect(self.optionsDlg.show)
         self.ui.actionTokens.triggered.connect(self.tokensDlg.show)
 
@@ -275,8 +284,7 @@ class MainWindow(
         """Synchronize machine-specific actions with the active execution profile."""
         turning = bool(self.latheMode)
         self.ui.actionStock.setEnabled(turning)
-        self.ui.actionTurningTools.setEnabled(turning)
-        self.ui.actionMillingTools.setEnabled(not turning)
+        self.ui.actionToolLibrary.setEnabled(not self._tool_library_load_error)
 
         # Fanuc turning always interprets I/K relative to the arc start.  Keep
         # the configurable Arc Type visible only where it is actually used.

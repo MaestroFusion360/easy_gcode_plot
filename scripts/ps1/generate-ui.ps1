@@ -23,8 +23,17 @@ function Convert-GeneratedUiCode([string]$Content) {
     $enumAliases = @{
         'Qt.Horizontal' = 'Qt.Orientation.Horizontal'
         'Qt.Vertical' = 'Qt.Orientation.Vertical'
+        'Qt.AlignCenter' = 'Qt.AlignmentFlag.AlignCenter'
+        'Qt.CustomContextMenu' = 'Qt.ContextMenuPolicy.CustomContextMenu'
         'QDialogButtonBox.Ok' = 'QDialogButtonBox.StandardButton.Ok'
         'QDialogButtonBox.Cancel' = 'QDialogButtonBox.StandardButton.Cancel'
+        'QDialogButtonBox.Close' = 'QDialogButtonBox.StandardButton.Close'
+        'QPlainTextEdit.NoWrap' = 'QPlainTextEdit.LineWrapMode.NoWrap'
+        'QSlider.TicksBelow' = 'QSlider.TickPosition.TicksBelow'
+        'QFrame.NoFrame' = 'QFrame.Shape.NoFrame'
+        'QAbstractItemView.SelectRows' = 'QAbstractItemView.SelectionBehavior.SelectRows'
+        'QAbstractItemView.SingleSelection' = 'QAbstractItemView.SelectionMode.SingleSelection'
+        'QAbstractItemView.NoEditTriggers' = 'QAbstractItemView.EditTrigger.NoEditTriggers'
     }
     foreach ($alias in $enumAliases.Keys) { $result = $result.Replace($alias, $enumAliases[$alias]) }
     $result = [regex]::Replace($result, '(?m)^(?:from\s+\S+\s+import\s+files_res_rc|import\s+files_res_rc)\r?\n', '')

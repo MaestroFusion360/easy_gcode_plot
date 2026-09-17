@@ -2,141 +2,54 @@
 
 from __future__ import annotations
 
-import re
 from dataclasses import replace
 
-from .api_types import Diagnostic, ExecutionResult, ExecutionStep, SemanticInstruction, TraceMotion
+from .api_conversion import semantic_instructions as _semantic_instructions
+from .api_conversion import trace_motion as _trace_motion
+from .api_types import (
+    Diagnostic,
+    ExecutionResult,
+    ExecutionStep,
+    SemanticInstruction,  # noqa: F401 - compatibility re-export
+    TraceMotion,  # noqa: F401 - compatibility re-export
+)
+from .coordinates import WcsOffset, WcsOffsets  # noqa: F401 - compatibility re-export
+from .coordinates import milling_wcs_offsets as _mill_wcs_offsets
+from .coordinates import published_wcs_offsets as _result_wcs_offsets
+from .coordinates import turning_wcs_offsets as _turn_wcs_offsets
+from .diagnostics import SUPPORTED_TURNING_G_CODES as SUPPORTED_G_CODES  # noqa: F401
+from .diagnostics import (
+    diagnostic_from_exception as _diagnostic_from_exception,
+)
+from .diagnostics import (
+    fractional_code_diagnostics as _fractional_code_diagnostics,
+)
+from .diagnostics import (
+    unsupported_turning_g_diagnostics as _unsupported_g_diagnostics,
+)
 from .events import program_end_code
-from .execution import CYCLE_CODES, MOTION_CODES
 from .geometry import resolve_arc
-from .lang import UndefinedMacroVariableError, try_literal_int
 from .milling import execute_milling
 from .milling_compensation import apply_milling_cutter_compensation_with_owners
 from .model import Motion, Point2, Program
 from .program import eval_words, parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
 from .resources import ExecutionBudget, ExecutionLimits, SemanticError, active_budget
 from .trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
+from .trace_metadata import threading_step_flags as _threading_step_flags
+
+__all__ = (
+    "Diagnostic",
+    "ExecutionResult",
+    "SUPPORTED_G_CODES",
+    "SUPPORTED_LANGUAGES",
+    "SemanticInstruction",
+    "TraceMotion",
+    "WcsOffset",
+    "WcsOffsets",
+    "execute",
+)
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
-
-
-def _threading_step_flags(steps: tuple[ExecutionStep, ...]) -> tuple[bool, ...]:
-    """Resolve explicit and modal FANUC threading blocks for published motions.
-
-    G32/G33 are modal motion commands, while G92 is a modal turning cycle whose
-    following X/U-only blocks emit additional thread passes.  The native trace
-    keeps enough execution-step information to recover both forms here without
-    changing the public motion contract.  G76 is explicit and therefore only
-    marks the motions emitted by its own block.
-    """
-    flags: list[bool] = []
-    modal_thread_move = False
-    active_g92 = False
-    for step in steps:
-        words = tuple(step.words)
-        all_g = tuple(value for letter, value in words if letter == "G")
-        explicit_motion_or_cycle = tuple(code for code in all_g if code in MOTION_CODES or code in CYCLE_CODES)
-        has_position = any(letter in {"X", "U", "Z", "W"} for letter, _value in words)
-        has_g92_depth = any(letter in {"X", "U"} for letter, _value in words)
-
-        explicit_thread = any(code in {32, 33, 76, 92} for code in all_g)
-        modal_g32_g33 = modal_thread_move and not explicit_motion_or_cycle and has_position
-        modal_g92 = active_g92 and not explicit_motion_or_cycle and has_g92_depth
-        flags.append(explicit_thread or modal_g32_g33 or modal_g92)
-
-        if explicit_motion_or_cycle:
-            modal_thread_move = any(code in {32, 33} for code in explicit_motion_or_cycle)
-            active_g92 = 92 in explicit_motion_or_cycle and has_g92_depth
-
-    return tuple(flags)
-
-
-SUPPORTED_G_CODES = frozenset(
-    {
-        0,
-        1,
-        2,
-        3,
-        4,
-        18,
-        20,
-        21,
-        28,
-        30,
-        32,
-        33,
-        40,
-        41,
-        42,
-        50,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        80,
-        83,
-        84,
-        90,
-        91,
-        92,
-        94,
-        96,
-        97,
-        98,
-        99,
-        190,
-        191,
-    }
-)
-_LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
-
-
-WcsOffset = tuple[float, float] | tuple[float, float, float]
-WcsOffsets = dict[int, WcsOffset]
-
-
-def _mill_wcs_offsets(wcs_offsets: WcsOffsets | None) -> dict[int, tuple[float, float, float]]:
-    """Normalize public WCS values to XYZ for the milling kernel."""
-    out = {}
-    for code, values in (wcs_offsets or {}).items():
-        if len(values) == 2:
-            x, z = values
-            out[code] = (float(x), 0.0, float(z))
-        else:
-            x, y, z = values
-            out[code] = (float(x), float(y), float(z))
-    return out
-
-
-def _turn_wcs_offsets(wcs_offsets: WcsOffsets | None) -> dict[int, tuple[float, float]]:
-    """Normalize public WCS values to XZ for the turning kernel."""
-    out = {}
-    for code, values in (wcs_offsets or {}).items():
-        if len(values) == 2:
-            x, z = values
-        else:
-            x, _y, z = values
-        out[code] = (float(x), float(z))
-    return out
-
-
-def _result_wcs_offsets(
-    offsets: dict[int, tuple[float, float] | tuple[float, float, float]],
-) -> tuple[tuple[int, tuple[float, float, float]], ...]:
-    normalized = []
-    for code, values in sorted(offsets.items()):
-        xyz = (values[0], 0.0, values[1]) if len(values) == 2 else values
-        normalized.append((int(code), tuple(float(value) for value in xyz)))
-    return tuple(normalized)
 
 
 def _execute_impl(
@@ -268,173 +181,6 @@ def _execute_impl(
         events=events,
         wcs_offsets=_result_wcs_offsets(turn_offsets),
     )
-
-
-def _semantic_instructions(program: Program | None) -> tuple[SemanticInstruction, ...]:
-    if program is None or program.ast is None:
-        return ()
-    out: list[SemanticInstruction] = []
-    for node in program.ast.nodes:
-        g_codes = tuple(
-            code for word in node.words if word.letter == "G" and (code := try_literal_int(word.expr)) is not None
-        )
-        m_codes = tuple(
-            code for word in node.words if word.letter == "M" and (code := try_literal_int(word.expr)) is not None
-        )
-        out.append(
-            SemanticInstruction(
-                kind=node.kind,
-                block_index=node.block_index,
-                raw=node.raw,
-                words=tuple((word.letter, word.expr) for word in node.words),
-                g_codes=g_codes,
-                m_codes=m_codes,
-                nlabel=node.nlabel,
-                olabel=node.olabel,
-            )
-        )
-    return tuple(out)
-
-
-def _trace_motion(motion: Motion) -> TraceMotion:
-    return TraceMotion(
-        move=motion.move,
-        start_x=motion.start.x,
-        start_z=motion.start.z,
-        end_x=motion.end.x,
-        end_z=motion.end.z,
-        radius=motion.radius,
-        feed=motion.feed,
-        i=motion.i,
-        k=motion.k,
-        source_block=motion.source_block,
-        source_nlabel=motion.source_nlabel,
-        source_raw=motion.source_raw,
-        source_kind=motion.source_kind,
-        compensation_mode=motion.compensation_mode,
-        tool=motion.tool,
-        compensation_applied=motion.compensation_applied,
-        plane=18,
-        cycle_generated=motion.source_kind == "cycle",
-        playback_group=motion.playback_group,
-    )
-
-
-def _diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagnostic:
-    message = str(exc)
-    code = "EXECUTION_ERROR"
-    lowered = message.lower()
-    current: BaseException | None = exc
-    seen: set[int] = set()
-    undefined_macro = False
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, UndefinedMacroVariableError):
-            undefined_macro = True
-            break
-        current = current.__cause__ or current.__context__
-    if undefined_macro or "undefined macro variable" in lowered:
-        code = "UNDEFINED_MACRO"
-    elif "missing goto target" in lowered or "missing if/goto target" in lowered:
-        code = "FLOW_TARGET_MISSING"
-    elif "m98 targets missing" in lowered:
-        code = "SUBPROGRAM_MISSING"
-    elif "call depth exceeds" in lowered:
-        code = "CALL_DEPTH_EXCEEDED"
-    elif "m98" in lowered:
-        code = "SUBPROGRAM_ERROR"
-    elif "guard reached" in lowered:
-        code = "EXECUTION_GUARD"
-    elif "g83/g84 cycle remains active" in lowered:
-        code = "UNCLOSED_CYCLE"
-
-    line = None
-    match = _LINE_RE.search(message)
-    if match is not None:
-        line = int(match.group(1))
-
-    raw = None
-    if program is not None and line is not None and 1 <= line <= len(program.blocks):
-        raw = program.blocks[line - 1].raw
-    current = exc
-    while current is not None:
-        if isinstance(current, SemanticError):
-            return Diagnostic(current.code, message, status=current.status, line=line, raw=raw)
-        current = current.__cause__
-    return Diagnostic(code=code, message=message, status="malformed", line=line, raw=raw)
-
-
-def _unsupported_g_diagnostics(program: Program) -> tuple[Diagnostic, ...]:
-    diagnostics: list[Diagnostic] = []
-    for block in program.blocks:
-        if any(word.letter == "Y" for word in block.parsed_words):
-            diagnostics.append(
-                Diagnostic(
-                    code="UNSUPPORTED_AXIS",
-                    message="Y-axis motion is not modeled for fanuc_turn",
-                    severity="error",
-                    status="unsupported",
-                    line=block.index + 1,
-                    raw=block.raw,
-                )
-            )
-        for word in block.parsed_words:
-            if word.letter != "G":
-                continue
-            try:
-                value = float(word.expr)
-            except ValueError:
-                continue
-            code = int(value)
-            if value == code and code not in SUPPORTED_G_CODES:
-                affects_geometry = code in {17, 19} or any(
-                    item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words
-                )
-                diagnostics.append(
-                    Diagnostic(
-                        code="UNSUPPORTED_G_CODE",
-                        message=f"G{code} is not modeled for fanuc_turn",
-                        severity="error" if affects_geometry else "warning",
-                        status="unsupported" if affects_geometry else "unverified",
-                        line=block.index + 1,
-                        raw=block.raw,
-                    )
-                )
-    return tuple(diagnostics)
-
-
-def _fractional_code_diagnostics(program: Program, steps) -> tuple[Diagnostic, ...]:
-    """Report evaluated fractional G/M words without coercing them to integer codes."""
-    diagnostics: list[Diagnostic] = []
-    seen: set[tuple[int, str, float]] = set()
-    for step in steps:
-        block_index = step.source_block
-        if block_index is None or not 0 <= block_index < len(program.blocks):
-            continue
-        block = program.blocks[block_index]
-        affects_geometry = any(item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words)
-        for letter, raw_value in step.words:
-            if letter not in {"G", "M"}:
-                continue
-            value = float(raw_value)
-            if value.is_integer():
-                continue
-            key = (block_index, letter, value)
-            if key in seen:
-                continue
-            seen.add(key)
-            is_g = letter == "G"
-            diagnostics.append(
-                Diagnostic(
-                    code="UNSUPPORTED_G_CODE" if is_g else "UNSUPPORTED_M_CODE",
-                    message=f"{letter}{value:g} is not modeled for fanuc_turn",
-                    severity="error" if is_g and affects_geometry else "warning",
-                    status="unsupported" if is_g and affects_geometry else "unverified",
-                    line=block.index + 1,
-                    raw=block.raw,
-                )
-            )
-    return tuple(diagnostics)
 
 
 def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, source_arc_type=1, **options):

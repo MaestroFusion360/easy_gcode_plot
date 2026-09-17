@@ -2,17 +2,9 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
-    QCheckBox,
-    QDialog,
-    QDialogButtonBox,
-    QDoubleSpinBox,
-    QFormLayout,
-    QMessageBox,
-    QSlider,
-    QVBoxLayout,
-)
+from PyQt6.QtWidgets import QDialog, QMessageBox
+
+from app.ui.generated.stock import Ui_StockDialog
 
 _ACCURACY_RESOLUTIONS = (2.0, 1.0, 0.5, 0.25, 0.1)
 _DEFAULT_ACCURACY_INDEX = _ACCURACY_RESOLUTIONS.index(0.5)
@@ -23,47 +15,21 @@ class StockDialog(QDialog):
 
     def __init__(self, window):
         super().__init__(window)
+        self.ui = Ui_StockDialog()
+        self.ui.setupUi(self)
         self.window = window
-        self.setWindowTitle("Stock")
-        self.enabled = QCheckBox("Run Stock Removal when Play is pressed", self)
-        self.outer = self._spin(0.01, 100000.0, 50.0)
-        self.inner = self._spin(0.0, 100000.0, 0.0)
-        self.length = self._spin(0.01, 100000.0, 100.0)
-        self.front_allowance = self._spin(0.0, 100000.0, 2.0)
-        self.accuracy = QSlider(Qt.Orientation.Horizontal, self)
-        self.accuracy.setRange(0, len(_ACCURACY_RESOLUTIONS) - 1)
-        self.accuracy.setSingleStep(1)
-        self.accuracy.setPageStep(1)
-        self.accuracy.setTickInterval(1)
-        self.accuracy.setTickPosition(QSlider.TickPosition.TicksBelow)
-        self.accuracy.setValue(_DEFAULT_ACCURACY_INDEX)
-        self.accuracy.setToolTip("Higher accuracy gives a finer stock model and uses more processing time.")
-
-        form = QFormLayout()
-        form.addRow("Outside diameter", self.outer)
-        form.addRow("Inside diameter", self.inner)
-        form.addRow("Length", self.length)
-        form.addRow("Z stock allowance", self.front_allowance)
-        form.addRow("Accuracy", self.accuracy)
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
-        self.reset_auto_button = buttons.addButton("Reset to Auto", QDialogButtonBox.ButtonRole.ResetRole)
+        self.enabled = self.ui.enabledCheck
+        self.outer = self.ui.outerSpin
+        self.inner = self.ui.innerSpin
+        self.length = self.ui.lengthSpin
+        self.front_allowance = self.ui.frontAllowanceSpin
+        self.accuracy = self.ui.accuracySlider
+        self.reset_auto_button = self.ui.resetAutoButton
+        self._front_base_z = 0.0
         self.reset_auto_button.clicked.connect(self._reset_to_auto)
-        buttons.accepted.connect(self._apply)
-        buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        layout.addWidget(self.enabled)
-        layout.addLayout(form)
-        layout.addWidget(buttons)
+        self.ui.buttonBox.accepted.connect(self._apply)
+        self.ui.buttonBox.rejected.connect(self.reject)
         self.resize(430, self.sizeHint().height())
-
-    @staticmethod
-    def _spin(minimum, maximum, value):
-        spin = QDoubleSpinBox()
-        spin.setRange(minimum, maximum)
-        spin.setDecimals(3)
-        spin.setValue(value)
-        spin.setSuffix(" mm")
-        return spin
 
     @staticmethod
     def _accuracy_index_for_resolution(resolution: float) -> int:
@@ -82,10 +48,19 @@ class StockDialog(QDialog):
         suggestion = getattr(self.window, "_stock_auto_suggestion", None)
         use_auto = not getattr(self.window, "_stock_manual_override", False)
         if use_auto and suggestion is not None:
+            self._front_base_z = float(suggestion.front_z)
             self.outer.setValue(max(self.outer.minimum(), float(suggestion.outer_diameter)))
             self.inner.setValue(float(suggestion.inner_diameter))
             self.length.setValue(max(self.length.minimum(), float(suggestion.length) + front_allowance))
         else:
+            manual_front = float(
+                getattr(
+                    self.window,
+                    "turnStockFrontZ",
+                    getattr(self.window, "turnStockFrontAllowance", 2.0),
+                )
+            )
+            self._front_base_z = manual_front - front_allowance
             self.outer.setValue(getattr(self.window, "turnStockDiameter", 50.0))
             self.inner.setValue(getattr(self.window, "turnStockInnerDiameter", 0.0))
             self.length.setValue(getattr(self.window, "turnStockLength", 100.0))
@@ -98,12 +73,14 @@ class StockDialog(QDialog):
         self.accept()
 
     def _apply(self):
+        front_allowance = self.front_allowance.value()
         values = {
             "enabled": self.enabled.isChecked(),
             "outer_diameter": self.outer.value(),
             "inner_diameter": self.inner.value(),
             "length": self.length.value(),
-            "front_allowance": self.front_allowance.value(),
+            "front_allowance": front_allowance,
+            "front_z": self._front_base_z + front_allowance,
             "resolution": self.resolution(),
         }
         try:

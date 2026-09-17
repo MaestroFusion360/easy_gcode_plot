@@ -288,10 +288,8 @@ def test_turning_tool_save_does_not_reset_manual_stock(qt_app):
         }
     )
 
-    window.turningToolsDlg.pendingTools = {
-        "T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.8, "tipOrientation": 3}
-    }
-    window.turningToolsDlg.applyValues()
+    window.tools["T0101"] = {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.8, "tipOrientation": 3}
+    assert window.updateData()
 
     assert window.stockOutlineBounds()[0] == pytest.approx((-50.0, 50.0))
     assert window.stockOutlineBounds()[2] == pytest.approx((-58.0, 2.0))

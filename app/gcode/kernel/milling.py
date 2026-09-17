@@ -555,40 +555,8 @@ def execute_milling(
                 pc += 1
                 continue
 
-            if "T" in words:
-                tool_value = words["T"]
-                if float(tool_value).is_integer() and 1 <= int(tool_value) <= 99:
-                    state.selected_tool = f"T{int(tool_value)}"
-                    state.selected_tool_block = block.index
-                else:
-                    state.selected_tool = None
-                    state.selected_tool_block = None
-                    diagnostics.append(
-                        Diagnostic(
-                            "UNSUPPORTED_TOOL_NUMBER",
-                            "Milling tool number must be in the T1-T99 range",
-                            "warning",
-                            "unsupported",
-                            block.index + 1,
-                            block.raw,
-                        )
-                    )
-            if 6 in codes.all_m:
-                previous_tool = state.active_tool
-                changed_tool = state.selected_tool
-                if changed_tool is not None:
-                    state.active_tool = changed_tool
-                occurrence_events.append(
-                    ExecutionEvent(
-                        TOOL_CHANGE,
-                        block.index,
-                        code="M06",
-                        tool=changed_tool,
-                        previous_tool=previous_tool,
-                        call_depth=len(call_stack),
-                        related_block=state.selected_tool_block,
-                    )
-                )
+            _apply_milling_tool_change(block, state, words, codes, diagnostics, occurrence_events, call_stack)
+
             _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
             if state.unknown_axes:
                 if state.absolute:
@@ -644,61 +612,10 @@ def execute_milling(
                 call_stack=call_stack,
             )
             call_stack = sub.call_stack
-            if flow_mcode == 98 and sub.handled and not sub.stop:
-                target_block = sub.next_pc
-                occurrence_events.append(
-                    ExecutionEvent(
-                        SUBPROGRAM_START,
-                        block.index,
-                        code=(f"O{int(words['P'])}" if "P" in words else None),
-                        program_number=subprogram_number(program, target_block),
-                        call_depth=len(call_stack),
-                        target_block=target_block,
-                    )
-                )
-            elif flow_mcode == 99 and sub.handled:
-                if call_stack_before:
-                    current_target = call_stack_before[-1][1]
-                    current_program = subprogram_number(program, current_target)
-                    occurrence_events.append(
-                        ExecutionEvent(
-                            SUBPROGRAM_END,
-                            block.index,
-                            code="M99",
-                            program_number=current_program,
-                            call_depth=len(call_stack_before),
-                            target_block=current_target,
-                        )
-                    )
-                    if sub.next_pc == current_target and len(call_stack) == len(call_stack_before):
-                        occurrence_events.append(
-                            ExecutionEvent(
-                                SUBPROGRAM_START,
-                                block.index,
-                                code=(f"O{current_program}" if current_program is not None else None),
-                                program_number=current_program,
-                                call_depth=len(call_stack),
-                                target_block=current_target,
-                            )
-                        )
-                else:
-                    occurrence_events.append(
-                        ExecutionEvent(
-                            PROGRAM_END,
-                            block.index,
-                            code="M99",
-                            program_number=program_number,
-                        )
-                    )
-            elif flow_mcode in (2, 30) and sub.handled:
-                occurrence_events.append(
-                    ExecutionEvent(
-                        PROGRAM_END,
-                        block.index,
-                        code=f"M{int(flow_mcode):02d}",
-                        program_number=program_number,
-                    )
-                )
+            _record_milling_flow_events(
+                flow_mcode, sub, words, program, block, program_number, call_stack, call_stack_before, occurrence_events
+            )
+
             if sub.handled:
                 if sub.stop:
                     events.extend(occurrence_events)
@@ -734,89 +651,7 @@ def execute_milling(
 
             motion_start = len(motions)
 
-            action_g = None
-            for g in gcodes:
-                if g in (0, 1, 2, 3, 28, 53, 80, 81, 82, 83, 84, 85, 86):
-                    action_g = g
-            if action_g is not None and action_g not in (80, 81, 82, 83, 84, 85, 86):
-                # Match CncKernelCli: an explicit motion/reference command ends
-                # a modal drilling cycle even without a separate G80 block.
-                state.cycle = 80
-
-            for g in gcodes:
-                if g in (0, 1, 2, 3):
-                    state.move = g
-                elif g in (80, 81, 82, 83, 84, 85, 86):
-                    if g in (81, 82, 83, 84, 85, 86) and state.cycle == 80:
-                        state.cycle_initial_z = state.z
-                    state.cycle = g
-
-            if 4 in gcodes:
-                pass
-            elif 53 in gcodes:
-                m = _machine_coordinate_motion(block, state, words, wcs_offsets=wcs_offsets)
-                if m:
-                    checkpoint("generated_motions")
-                    motions.append(m)
-            elif 28 in gcodes:
-                mid = _xyz(words, state)
-                sm = _machine((state.x, state.y, state.z), state, wcs_offsets)
-                mm = _machine(mid, state, wcs_offsets)
-                if sm != mm:
-                    checkpoint("generated_motions")
-                    motions.append(
-                        TraceMotion(
-                            0,
-                            sm[0],
-                            sm[2],
-                            mm[0],
-                            mm[2],
-                            start_y=sm[1],
-                            end_y=mm[1],
-                            plane=state.plane,
-                            source_block=block.index,
-                            source_nlabel=block.nlabel,
-                            source_raw=block.raw,
-                            source_kind="g28",
-                            tool=state.active_tool,
-                        )
-                    )
-                axes = {k for k in ("X", "Y", "Z") if k in words}
-                target = (
-                    home[0] if "X" in axes else mm[0],
-                    home[1] if "Y" in axes else mm[1],
-                    home[2] if "Z" in axes else mm[2],
-                )
-                if mm != target:
-                    checkpoint("generated_motions")
-                    motions.append(
-                        TraceMotion(
-                            0,
-                            mm[0],
-                            mm[2],
-                            target[0],
-                            target[2],
-                            start_y=mm[1],
-                            end_y=target[1],
-                            plane=state.plane,
-                            source_block=block.index,
-                            source_nlabel=block.nlabel,
-                            source_raw=block.raw,
-                            source_kind="g28",
-                            tool=state.active_tool,
-                        )
-                    )
-                ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
-                state.x, state.y, state.z = target[0] - ox, target[1] - oy, target[2] - oz
-            elif state.cycle in (81, 82, 83, 84, 85, 86) and any(k in words for k in ("X", "Y", "Z", "R")):
-                motions.extend(_drill(block, state, words, wcs_offsets=wcs_offsets))
-            elif state.cycle == 80 and (
-                any(k in words for k in ("X", "Y", "Z")) or any(g in (0, 1, 2, 3) for g in gcodes)
-            ):
-                m = _motion(block, state, words, wcs_offsets=wcs_offsets)
-                if m:
-                    checkpoint("generated_motions")
-                    motions.append(m)
+            _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets)
 
             if motions and (not executed or executed[-1] != block.index):
                 executed.append(block.index)
@@ -863,3 +698,184 @@ def execute_milling(
         execution_steps=tuple(steps),
         events=event_tuple,
     )
+
+
+def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets):
+    action_g = None
+    for g in gcodes:
+        if g in (0, 1, 2, 3, 28, 53, 80, 81, 82, 83, 84, 85, 86):
+            action_g = g
+    if action_g is not None and action_g not in (80, 81, 82, 83, 84, 85, 86):
+        # Match CncKernelCli: an explicit motion/reference command ends
+        # a modal drilling cycle even without a separate G80 block.
+        state.cycle = 80
+
+    for g in gcodes:
+        if g in (0, 1, 2, 3):
+            state.move = g
+        elif g in (80, 81, 82, 83, 84, 85, 86):
+            if g in (81, 82, 83, 84, 85, 86) and state.cycle == 80:
+                state.cycle_initial_z = state.z
+            state.cycle = g
+
+    if 4 in gcodes:
+        pass
+    elif 53 in gcodes:
+        m = _machine_coordinate_motion(block, state, words, wcs_offsets=wcs_offsets)
+        if m:
+            checkpoint("generated_motions")
+            motions.append(m)
+    elif 28 in gcodes:
+        mid = _xyz(words, state)
+        sm = _machine((state.x, state.y, state.z), state, wcs_offsets)
+        mm = _machine(mid, state, wcs_offsets)
+        if sm != mm:
+            checkpoint("generated_motions")
+            motions.append(
+                TraceMotion(
+                    0,
+                    sm[0],
+                    sm[2],
+                    mm[0],
+                    mm[2],
+                    start_y=sm[1],
+                    end_y=mm[1],
+                    plane=state.plane,
+                    source_block=block.index,
+                    source_nlabel=block.nlabel,
+                    source_raw=block.raw,
+                    source_kind="g28",
+                    tool=state.active_tool,
+                )
+            )
+        axes = {k for k in ("X", "Y", "Z") if k in words}
+        target = (
+            home[0] if "X" in axes else mm[0],
+            home[1] if "Y" in axes else mm[1],
+            home[2] if "Z" in axes else mm[2],
+        )
+        if mm != target:
+            checkpoint("generated_motions")
+            motions.append(
+                TraceMotion(
+                    0,
+                    mm[0],
+                    mm[2],
+                    target[0],
+                    target[2],
+                    start_y=mm[1],
+                    end_y=target[1],
+                    plane=state.plane,
+                    source_block=block.index,
+                    source_nlabel=block.nlabel,
+                    source_raw=block.raw,
+                    source_kind="g28",
+                    tool=state.active_tool,
+                )
+            )
+        ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
+        state.x, state.y, state.z = target[0] - ox, target[1] - oy, target[2] - oz
+    elif state.cycle in (81, 82, 83, 84, 85, 86) and any(k in words for k in ("X", "Y", "Z", "R")):
+        motions.extend(_drill(block, state, words, wcs_offsets=wcs_offsets))
+    elif state.cycle == 80 and (any(k in words for k in ("X", "Y", "Z")) or any(g in (0, 1, 2, 3) for g in gcodes)):
+        m = _motion(block, state, words, wcs_offsets=wcs_offsets)
+        if m:
+            checkpoint("generated_motions")
+            motions.append(m)
+
+
+def _apply_milling_tool_change(block, state, words, codes, diagnostics, occurrence_events, call_stack):
+    if "T" in words:
+        tool_value = words["T"]
+        if float(tool_value).is_integer() and 1 <= int(tool_value) <= 99:
+            state.selected_tool = f"T{int(tool_value)}"
+            state.selected_tool_block = block.index
+        else:
+            state.selected_tool = None
+            state.selected_tool_block = None
+            diagnostics.append(
+                Diagnostic(
+                    "UNSUPPORTED_TOOL_NUMBER",
+                    "Milling tool number must be in the T1-T99 range",
+                    "warning",
+                    "unsupported",
+                    block.index + 1,
+                    block.raw,
+                )
+            )
+    if 6 in codes.all_m:
+        previous_tool = state.active_tool
+        changed_tool = state.selected_tool
+        if changed_tool is not None:
+            state.active_tool = changed_tool
+        occurrence_events.append(
+            ExecutionEvent(
+                TOOL_CHANGE,
+                block.index,
+                code="M06",
+                tool=changed_tool,
+                previous_tool=previous_tool,
+                call_depth=len(call_stack),
+                related_block=state.selected_tool_block,
+            )
+        )
+
+
+def _record_milling_flow_events(
+    flow_mcode, sub, words, program, block, program_number, call_stack, call_stack_before, occurrence_events
+):
+    if flow_mcode == 98 and sub.handled and not sub.stop:
+        target_block = sub.next_pc
+        occurrence_events.append(
+            ExecutionEvent(
+                SUBPROGRAM_START,
+                block.index,
+                code=(f"O{int(words['P'])}" if "P" in words else None),
+                program_number=subprogram_number(program, target_block),
+                call_depth=len(call_stack),
+                target_block=target_block,
+            )
+        )
+    elif flow_mcode == 99 and sub.handled:
+        if call_stack_before:
+            current_target = call_stack_before[-1][1]
+            current_program = subprogram_number(program, current_target)
+            occurrence_events.append(
+                ExecutionEvent(
+                    SUBPROGRAM_END,
+                    block.index,
+                    code="M99",
+                    program_number=current_program,
+                    call_depth=len(call_stack_before),
+                    target_block=current_target,
+                )
+            )
+            if sub.next_pc == current_target and len(call_stack) == len(call_stack_before):
+                occurrence_events.append(
+                    ExecutionEvent(
+                        SUBPROGRAM_START,
+                        block.index,
+                        code=(f"O{current_program}" if current_program is not None else None),
+                        program_number=current_program,
+                        call_depth=len(call_stack),
+                        target_block=current_target,
+                    )
+                )
+        else:
+            occurrence_events.append(
+                ExecutionEvent(
+                    PROGRAM_END,
+                    block.index,
+                    code="M99",
+                    program_number=program_number,
+                )
+            )
+    elif flow_mcode in (2, 30) and sub.handled:
+        occurrence_events.append(
+            ExecutionEvent(
+                PROGRAM_END,
+                block.index,
+                code=f"M{int(flow_mcode):02d}",
+                program_number=program_number,
+            )
+        )

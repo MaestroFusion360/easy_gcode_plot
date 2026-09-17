@@ -164,6 +164,55 @@ class ToolLibrary:
                 (normalized_kind, normalized_key),
             )
 
+    def add_missing_tools(self, kind: str, tools: dict[str, dict]) -> dict[str, dict]:
+        """Insert candidates atomically without updating any existing record."""
+        kind = _validate_kind(kind)
+        now = _now()
+        rows = [
+            (kind, _validate_key(key), json.dumps(_validate_spec(spec), ensure_ascii=False), now, now)
+            for key, spec in tools.items()
+        ]
+        with self._lock, self._conn:
+            self._conn.executemany(
+                "INSERT INTO tools(kind, key, spec_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?) "
+                "ON CONFLICT(kind, key) DO NOTHING",
+                rows,
+            )
+            return {key: self.get_tool(kind, key).spec for _, key, *_ in rows}
+
+    def apply_edits(self, kind, original, edited):
+        """Commit explicit edits only, preserving records absent from the editor."""
+        kind = _validate_kind(kind)
+        with self._lock, self._conn:
+            self._apply_edits(kind, original, edited)
+
+    def apply_edits_by_kind(self, changes):
+        """Commit multiple kind-specific edits in one SQLite transaction."""
+        prepared = [(_validate_kind(kind), original, edited) for kind, (original, edited) in changes.items()]
+        with self._lock, self._conn:
+            for kind, original, edited in prepared:
+                self._apply_edits(kind, original, edited)
+
+    def _apply_edits(self, kind, original, edited):
+        for key in original.keys() - edited.keys():
+            self._conn.execute("DELETE FROM tools WHERE kind = ? AND key = ?", (kind, _validate_key(key)))
+        for key, spec in edited.items():
+            if key not in original:
+                self._insert_entry(kind, key, spec)
+            elif spec != original[key]:
+                payload = json.dumps(_validate_spec(spec), ensure_ascii=False)
+                self._conn.execute(
+                    "UPDATE tools SET spec_json = ?, updated_at = ? WHERE kind = ? AND key = ?",
+                    (payload, _now(), kind, _validate_key(key)),
+                )
+
+    def _insert_entry(self, kind, key, spec):
+        now = _now()
+        self._conn.execute(
+            "INSERT INTO tools(kind, key, spec_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+            (kind, _validate_key(key), json.dumps(_validate_spec(spec), ensure_ascii=False), now, now),
+        )
+
     def duplicate_tool(self, kind: str, key: str, new_key: str) -> None:
         normalized_kind = _validate_kind(kind)
         normalized_key = _validate_key(key)

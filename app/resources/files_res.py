@@ -6,229 +6,234 @@
 from PyQt6 import QtCore
 
 qt_resource_data = b"\
-\x00\x00K\xb4\
+\x00\x00Uq\
 #\
  Easy G-Code Plo\
-t FAQ\x0a\x0aThis docu\
-ment is the deta\
-iled user and de\
-veloper referenc\
-e for Easy G-Cod\
-e Plot. It is al\
-so available off\
-line from **Help\
- \xe2\x86\x92 FAQ** insid\
-e the applicatio\
-n.\x0a\x0a## Contents\x0a\
-\x0a- [Getting star\
-ted](#getting-st\
-arted)\x0a- [Interf\
-ace and playback\
-](#interface-and\
--playback)\x0a- [La\
-the mode](#lathe\
--mode)\x0a- [Tool l\
-ibraries](#tool-\
-libraries)\x0a- [Tu\
-rning Stock Remo\
-val](#turning-st\
-ock-removal)\x0a- [\
-Mill mode](#mill\
--mode)\x0a- [Units \
-and arc programm\
-ing](#units-and-\
-arc-programming)\
-\x0a- [Supported G-\
-code](#supported\
--g-code)\x0a- [STL \
-reference overla\
-y](#stl-referenc\
-e-overlay)\x0a- [St\
-atistics, diagno\
-stics and export\
-](#statistics-di\
-agnostics-and-ex\
-port)\x0a- [Configu\
+t FAQ\x0d\x0a\x0d\x0aThis do\
+cument is the de\
+tailed user and \
+developer refere\
+nce for Easy G-C\
+ode Plot. It is \
+also available o\
+ffline from **He\
+lp \xe2\x86\x92 FAQ** ins\
+ide the applicat\
+ion.\x0d\x0a\x0d\x0a## Conte\
+nts\x0d\x0a\x0d\x0a- [Gettin\
+g started](#gett\
+ing-started)\x0d\x0a- \
+[Interface and p\
+layback](#interf\
+ace-and-playback\
+)\x0d\x0a- [Lathe mode\
+](#lathe-mode)\x0d\x0a\
+- [Tool librarie\
+s](#tool-librari\
+es)\x0d\x0a- [Turning \
+Stock Removal](#\
+turning-stock-re\
+moval)\x0d\x0a- [Mill \
+mode](#mill-mode\
+)\x0d\x0a- [Units and \
+arc programming]\
+(#units-and-arc-\
+programming)\x0d\x0a- \
+[Supported G-cod\
+e](#supported-g-\
+code)\x0d\x0a- [STL re\
+ference overlay]\
+(#stl-reference-\
+overlay)\x0d\x0a- [Sta\
+tistics, diagnos\
+tics and export]\
+(#statistics-dia\
+gnostics-and-exp\
+ort)\x0d\x0a- [Configu\
 ration](#configu\
-ration)\x0a- [Troub\
-leshooting](#tro\
-ubleshooting)\x0a- \
-[CLI](#cli)\x0a- [D\
-evelopment](#dev\
-elopment)\x0a\x0a## Ge\
-tting started\x0a\x0a#\
-## What is Easy \
-G-Code Plot?\x0a\x0aEa\
-sy G-Code Plot i\
-s a desktop edit\
-or, analyzer, si\
-mulator and trac\
-e exporter for F\
-ANUC-style turni\
-ng and milling p\
-rograms. The GUI\
- and CLI use the\
- same CNC kernel\
- and the same re\
-solved `Executio\
-nResult`.\x0a\x0a### H\
-ow do I install \
-it?\x0a\x0aThe simples\
-t Windows instal\
-lation is the st\
-andalone executa\
-ble from [GitHub\
- Releases](https\
-://github.com/Ma\
-estroFusion360/e\
-asy_gcode_plot/r\
-eleases). It doe\
-s not require a \
-separate Python \
-installation.\x0a\x0aT\
-o run from sourc\
-e, install Pytho\
-n 3.11+ and [uv]\
-(https://docs.as\
-tral.sh/uv/), th\
-en run:\x0a\x0a```bash\
-\x0agit clone https\
-://github.com/Ma\
-estroFusion360/e\
-asy_gcode_plot.g\
-it\x0acd easy_gcode\
-_plot\x0auv sync --\
-no-dev\x0auv run --\
-no-dev python ma\
-in.py\x0a```\x0a\x0a### W\
-hat is the norma\
-l workflow?\x0a\x0a1. \
-Open or drag a G\
--code file into \
-the application.\
-\x0a2. Select `Lath\
-e Mode` for turn\
-ing or leave it \
-disabled for mil\
-ling.\x0a3. Configu\
-re WCS, machine \
-home and tools w\
-hen the program \
-requires them.\x0a4\
-. Press `Refresh\
-` after editing \
-if Auto Update i\
-s disabled or de\
-ferred.\x0a5. Inspe\
-ct the plot, pla\
-yback, Tokens di\
-agnostics and St\
-atistics.\x0a6. Exp\
-ort the source s\
-tructure, expand\
-ed execution, pl\
-ot data or DXF w\
-hen required.\x0a\x0a#\
-# Interface and \
-playback\x0a\x0a### Wh\
-at is shown in t\
-he two main pane\
-ls?\x0a\x0aThe left pa\
-nel is a QScinti\
-lla editor with \
-syntax highlight\
-ing, line number\
-s, search/replac\
-e and cleanup co\
-mmands. The righ\
-t panel is the O\
-penGL toolpath v\
-iew with grid, a\
-xes, zoom, fixed\
- views, trajecto\
-ry picking and p\
-layback.\x0a\x0a### Wh\
-at do the playba\
-ck controls do?\x0a\
-\x0a- `Step Backwar\
-d` and `Step For\
-ward` move by on\
-e resolved logic\
-al motion.\x0a- `Pl\
-ay` advances thr\
-ough the same tr\
-ace used by rend\
-ering, statistic\
-s and export.\x0a- \
-`Stop` returns o\
-rdinary playback\
- to the zero-mot\
-ion state.\x0a- Whe\
-n Lathe Stock Re\
-moval playback i\
-s active, `Stop`\
- completes the p\
-review, restores\
- the normal plot\
- and leaves the \
-slider at 100%.\x0a\
-\x0aPlayback speed \
-levels 1\xe2\x80\x935 cor\
-respond to 1000,\
- 250, 100, 40 an\
-d 10 ms per logi\
-cal motion.\x0a\x0a###\
+ration)\x0d\x0a- [Trou\
+bleshooting](#tr\
+oubleshooting)\x0d\x0a\
+- [CLI](#cli)\x0d\x0a-\
+ [Development](#\
+development)\x0d\x0a\x0d\x0a\
+## Getting start\
+ed\x0d\x0a\x0d\x0a### What i\
+s Easy G-Code Pl\
+ot?\x0d\x0a\x0d\x0aEasy G-Co\
+de Plot is a des\
+ktop editor, ana\
+lyzer, simulator\
+ and trace expor\
+ter for FANUC-st\
+yle turning and \
+milling programs\
+. The GUI and CL\
+I use the same C\
+NC kernel and th\
+e same resolved \
+`ExecutionResult\
+`.\x0d\x0a\x0d\x0a### How do\
+ I install it?\x0d\x0a\
+\x0d\x0aThe simplest W\
+indows installat\
+ion is the stand\
+alone executable\
+ from [GitHub Re\
+leases](https://\
+github.com/Maest\
+roFusion360/easy\
+_gcode_plot/rele\
+ases). It does n\
+ot require a sep\
+arate Python ins\
+tallation.\x0d\x0a\x0d\x0aTo\
+ run from source\
+, install Python\
+ 3.11+ and [uv](\
+https://docs.ast\
+ral.sh/uv/), the\
+n run:\x0d\x0a\x0d\x0a```bas\
+h\x0d\x0agit clone htt\
+ps://github.com/\
+MaestroFusion360\
+/easy_gcode_plot\
+.git\x0d\x0acd easy_gc\
+ode_plot\x0d\x0auv syn\
+c --no-dev\x0d\x0auv r\
+un --no-dev pyth\
+on main.py\x0d\x0a```\x0d\
+\x0a\x0d\x0a### What is t\
+he normal workfl\
+ow?\x0d\x0a\x0d\x0a1. Open o\
+r drag a G-code \
+file into the ap\
+plication.\x0d\x0a2. S\
+elect `Lathe Mod\
+e` for turning o\
+r leave it disab\
+led for milling.\
+\x0d\x0a3. Configure W\
+CS, machine home\
+ and tools when \
+the program requ\
+ires them.\x0d\x0a4. P\
+ress `Refresh` a\
+fter editing if \
+Auto Update is d\
+isabled or defer\
+red.\x0d\x0a5. Inspect\
+ the plot, playb\
+ack, Tokens diag\
+nostics and Stat\
+istics.\x0d\x0a6. Expo\
+rt the source st\
+ructure, expande\
+d execution, plo\
+t data or DXF wh\
+en required.\x0d\x0a\x0d\x0a\
+## Interface and\
+ playback\x0d\x0a\x0d\x0a###\
+ What is shown i\
+n the two main p\
+anels?\x0d\x0a\x0d\x0aThe le\
+ft panel is a QS\
+cintilla editor \
+with syntax high\
+lighting, line n\
+umbers, search/r\
+eplace and clean\
+up commands. The\
+ right panel is \
+the OpenGL toolp\
+ath view with gr\
+id, axes, zoom, \
+fixed views, tra\
+jectory picking \
+and playback.\x0d\x0a\x0d\
+\x0a### What do the\
+ playback contro\
+ls do?\x0d\x0a\x0d\x0a- `Ste\
+p Backward` and \
+`Step Forward` m\
+ove by one resol\
+ved logical moti\
+on.\x0d\x0a- `Play` ad\
+vances through t\
+he same trace us\
+ed by rendering,\
+ statistics and \
+export.\x0d\x0a- `Stop\
+` returns ordina\
+ry playback to t\
+he zero-motion s\
+tate.\x0d\x0a- When La\
+the Stock Remova\
+l playback is ac\
+tive, `Stop` com\
+pletes the previ\
+ew, restores the\
+ normal plot and\
+ leaves the slid\
+er at 100%.\x0d\x0a\x0d\x0aP\
+layback speed le\
+vels 1\xe2\x80\x935 corre\
+spond to 1000, 2\
+50, 100, 40 and \
+10 ms per logica\
+l motion.\x0d\x0a\x0d\x0a###\
  How do I locate\
  a plotted move \
-in the editor?\x0a\x0a\
-Use Shift+Click \
-near the traject\
-ory. The applica\
-tion selects the\
- owning source b\
-lock and moves t\
-he logical-motio\
-n slider to that\
- move. A canned-\
-cycle source blo\
-ck can own multi\
-ple generated mo\
-tions.\x0a\x0a### Why \
-does Auto Update\
- sometimes ask m\
-e to press Refre\
-sh?\x0a\x0aAuto Update\
- has a configura\
-ble sampled-segm\
-ent limit. Large\
- programs are le\
-ft unchanged unt\
-il an explicit R\
-efresh so that t\
-yping remains re\
-sponsive. Manual\
- refresh display\
-s staged progres\
-s for a large tr\
-ace.\x0a\x0a## Lathe m\
-ode\x0a\x0a### Where a\
-re the Lathe con\
-trols?\x0a\x0a`Lathe M\
-ode` is on the v\
-iew toolbar imme\
-diately before `\
-Refresh`. `Show \
-Stock` is not a \
-toolbar button; \
-it is a checkbox\
- in **Settings \xe2\
-\x86\x92 Options \xe2\x86\x92 P\
-lot**, immediate\
-ly after `Show c\
-anvas grid`.\x0a\x0a##\
-# How is X displ\
-ayed in Lathe Mo\
-de?\x0a\x0aProgrammed \
+in the editor?\x0d\x0a\
+\x0d\x0aUse Shift+Clic\
+k near the traje\
+ctory. The appli\
+cation selects t\
+he owning source\
+ block and moves\
+ the logical-mot\
+ion slider to th\
+at move. A canne\
+d-cycle source b\
+lock can own mul\
+tiple generated \
+motions.\x0d\x0a\x0d\x0a### \
+Why does Auto Up\
+date sometimes a\
+sk me to press R\
+efresh?\x0d\x0a\x0d\x0aAuto \
+Update has a con\
+figurable sample\
+d-segment limit.\
+ Large programs \
+are left unchang\
+ed until an expl\
+icit Refresh so \
+that typing rema\
+ins responsive. \
+Manual refresh d\
+isplays staged p\
+rogress for a la\
+rge trace.\x0d\x0a\x0d\x0a##\
+ Lathe mode\x0d\x0a\x0d\x0a#\
+## Where are the\
+ Lathe controls?\
+\x0d\x0a\x0d\x0a`Lathe Mode`\
+ is on the view \
+toolbar immediat\
+ely before `Refr\
+esh`. `Show Stoc\
+k` is not a tool\
+bar button; it i\
+s a checkbox in \
+**Settings \xe2\x86\x92 O\
+ptions \xe2\x86\x92 Plot*\
+*, immediately a\
+fter `Show canva\
+s grid`.\x0d\x0a\x0d\x0a### \
+How is X display\
+ed in Lathe Mode\
+?\x0d\x0a\x0d\x0aProgrammed \
 X and I values a\
 re shown using t\
 urning diameter \
@@ -238,450 +243,588 @@ d analytical geo\
 metry retain the\
 ir physical radi\
 al representatio\
-n internally.\x0a\x0aT\
-he WCS dialog fo\
-llows the same b\
-oundary: Lathe X\
- is entered and \
-displayed as a d\
-iameter, while t\
-he internal phys\
-ical offset rema\
-ins radial. Y co\
-ntrols are disab\
-led in Lathe Mod\
-e.\x0a\x0a### Does the\
- indicator follo\
-w G20 and G21?\x0a\x0a\
-Yes. X, Y, Z, I,\
- J, K and F are \
-displayed in the\
- active units of\
- the selected ex\
-ecuted block:\x0a\x0a-\
- `G20` displays \
-inches and inch-\
-based feed value\
-s;\x0a- `G21` displ\
-ays millimetres \
-and millimetre-b\
-ased feed values\
-.\x0a\x0aThe kernel co\
-ntinues to norma\
-lize physical ge\
-ometry to millim\
-etres; conversio\
-n occurs only at\
- the UI boundary\
-.\x0a\x0a### Why do I/\
-K appear for an \
-arc programmed w\
-ith R?\x0a\x0aFor reso\
-lved G18 turning\
- arcs, the UI de\
-rives relative I\
-/K from the anal\
-ytical center. T\
-his also covers \
-generated arcs f\
-rom cycles and s\
-implified contou\
-r programming. T\
-urning always us\
-es FANUC-style I\
-/K offsets relat\
-ive to the arc s\
-tart.\x0a\x0a### Why i\
-s Settings \xe2\x86\x92 A\
-rc Type disabled\
- in Lathe Mode?\x0a\
-\x0aArc Type contro\
-ls milling sourc\
-e interpretation\
-. Turning I/K se\
-mantics are fixe\
-d to relative of\
-fsets, while R r\
-emains radius pr\
-ogramming. Disab\
-ling the milling\
--only choice avo\
-ids presenting a\
- setting that do\
-es not apply to \
-Lathe execution.\
-\x0a\x0a### What simpl\
-ified turning pr\
-ogramming is sup\
-ported?\x0a\x0aOrdinar\
-y G1 source bloc\
-ks support:\x0a\x0a- `\
-A` angle program\
-ming with one mi\
-ssing X or Z coo\
-rdinate;\x0a- `C` c\
-orner chamfers;\x0a\
-- corner `R` fil\
-lets.\x0a\x0aCompact b\
-locks without sp\
-aces are accepte\
-d. `G2/G3 R` rem\
-ains circular ra\
-dius programming\
- and is not trea\
-ted as a corner \
-fillet.\x0a\x0a### How\
- are G71 finishi\
-ng allowances ha\
-ndled?\x0a\x0aThe seco\
-nd G71 block use\
-s signed X allow\
-ance U and axial\
- allowance W. Fo\
-r outside turnin\
-g, positive U le\
-aves outside mat\
-erial. For insid\
-e boring, negati\
-ve U leaves mate\
-rial toward the \
-bore interior. T\
-he sign and cont\
-our direction di\
-stinguish OD fro\
-m ID behavior.\x0a\x0a\
-Type I roughing \
-ends with one fu\
-ll pass along th\
-e roughing profi\
-le that already \
-includes U/W all\
-owance. It does \
-not reuse the no\
-minal finishing \
-contour, so the \
-roughing pass do\
-es not overlap t\
-he later finish-\
-tool path.\x0a\x0a\x0a## \
-Tool libraries\x0a\x0a\
-### Where are to\
-ols stored?\x0a\x0aTur\
-ning and milling\
- tool definition\
-s are stored in \
-the per-user SQL\
-ite database:\x0a\x0a`\
-``text\x0a%LOCALAPP\
-DATA%\x5ceasy-gcode\
--plot\x5ctools.db\x0a`\
-``\x0a\x0a`tools.db` i\
-s authoritative.\
- `config.ini` st\
-ores UI, editor,\
- plot, WCS, Stoc\
-k and other appl\
-ication preferen\
-ces; legacy `CNC\
-/TOOLS_JSON` and\
- `CNC/MILLING_TO\
-OLS_JSON` values\
- are not importe\
-d into a current\
- database and ar\
-e not used as a \
-fallback write t\
-arget.\x0a\x0a### What\
- can the tool-li\
-brary dialogs do\
-?\x0a\x0aBoth turning \
-and milling libr\
-aries provide li\
-ve preview, Add/\
-Edit/Remove, fir\
-st-free-number D\
-uplicate and sin\
-gle-tool JSON/CS\
-V export. Turnin\
-g tools use cate\
-gory-oriented ed\
-iting and persis\
-t canonical geom\
-etry types indep\
-endently from th\
-e OD, ID and Fac\
-e application ch\
-eckboxes.\x0a\x0a### W\
-hich turning too\
-l geometries are\
- available?\x0a\x0aThe\
- library support\
-s exactly nine c\
-anonical types: \
-Diamond 80, Diam\
-ond 35, Square, \
-Round, Triangle,\
- Groove, Thread,\
- Drill and Tap. \
-OD, ID and Face \
-are application \
-flags rather tha\
-n tool types. Tr\
-iangle uses a tr\
-ue three-sided f\
-ootprint; Round \
-uses `Length/Dia\
-meter` as its ph\
-ysical diameter.\
-\x0a\x0a## Turning Sto\
-ck Removal\x0a\x0a### \
-How are initial \
-Stock dimensions\
- selected?\x0a\x0aThe \
-resolved G1/G2/G\
-3 cutting trace \
-supplies an auto\
-matic minimum ou\
-tside diameter a\
-nd length. Rapid\
- G0 outliers are\
- ignored, cycle-\
-generated cuttin\
-g motions are in\
-cluded, and G18 \
-arc extrema are \
-evaluated analyt\
-ically. The sugg\
-ested inside dia\
-meter is zero.\x0a\x0a\
-The normal Lathe\
- plot displays t\
-his stock as a l\
-ightweight outli\
-ne when `Show St\
-ock` is enabled.\
- **Settings \xe2\x86\x92 \
-Stock** is prefi\
-lled from the cu\
-rrent suggestion\
-, but persistent\
- settings change\
- only after pres\
-sing OK. If Lath\
-e Mode is alread\
-y active when th\
-e application st\
-arts, Fit to Vie\
-w is scheduled a\
-fter the window \
-is shown so the \
-inferred stock i\
-s visible immedi\
-ately.\x0a\x0a### What\
- can I configure\
- in Settings \xe2\x86\x92\
- Stock?\x0a\x0a- Enabl\
-e or disable Sto\
-ck Removal on Pl\
-ay.\x0a- Outside di\
-ameter.\x0a- Existi\
-ng inside diamet\
-er.\x0a- Stock leng\
-th.\x0a- Front Z st\
-ock allowance.\x0a-\
- Accuracy, which\
- selects the axi\
-al profile resol\
-ution.\x0a\x0a### Does\
- Play use the sa\
-me bounds as the\
- visible outline\
-?\x0a\x0aYes. In Auto \
-mode, Refresh an\
-d program change\
-s update the sug\
-gestion, and bot\
-h the outline an\
-d Stock Timeline\
- use the same ef\
-fective stock sp\
-ecification. Aft\
-er the user acce\
-pts explicit Sto\
-ck dimensions, t\
-hose values beco\
-me a manual over\
-ride and survive\
- Refresh and too\
-l-library edits.\
- **Reset to Auto\
-**, **New** and \
-opening another \
-program return S\
-tock to program-\
-derived sizing.\x0a\
+n internally.\x0d\x0a\x0d\
+\x0aThe WCS dialog \
+follows the same\
+ boundary: Lathe\
+ X is entered an\
+d displayed as a\
+ diameter, while\
+ the internal ph\
+ysical offset re\
+mains radial. Y \
+controls are dis\
+abled in Lathe M\
+ode.\x0d\x0a\x0d\x0a### Does\
+ the indicator f\
+ollow G20 and G2\
+1?\x0d\x0a\x0d\x0aYes. X, Y,\
+ Z, I, J, K and \
+F are displayed \
+in the active un\
+its of the selec\
+ted executed blo\
+ck:\x0d\x0a\x0d\x0a- `G20` d\
+isplays inches a\
+nd inch-based fe\
+ed values;\x0d\x0a- `G\
+21` displays mil\
+limetres and mil\
+limetre-based fe\
+ed values.\x0d\x0a\x0d\x0aTh\
+e kernel continu\
+es to normalize \
+physical geometr\
+y to millimetres\
+; conversion occ\
+urs only at the \
+UI boundary.\x0d\x0a\x0d\x0a\
+### Why do I/K a\
+ppear for an arc\
+ programmed with\
+ R?\x0d\x0a\x0d\x0aFor resol\
+ved G18 turning \
+arcs, the UI der\
+ives relative I/\
+K from the analy\
+tical center. Th\
+is also covers g\
+enerated arcs fr\
+om cycles and si\
+mplified contour\
+ programming. Tu\
+rning always use\
+s FANUC-style I/\
+K offsets relati\
+ve to the arc st\
+art.\x0d\x0a\x0d\x0a### Why \
+is Settings \xe2\x86\x92 \
+Arc Type disable\
+d in Lathe Mode?\
+\x0d\x0a\x0d\x0aArc Type con\
+trols milling so\
+urce interpretat\
+ion. Turning I/K\
+ semantics are f\
+ixed to relative\
+ offsets, while \
+R remains radius\
+ programming. Di\
+sabling the mill\
+ing-only choice \
+avoids presentin\
+g a setting that\
+ does not apply \
+to Lathe executi\
+on.\x0d\x0a\x0d\x0a### What \
+simplified turni\
+ng programming i\
+s supported?\x0d\x0a\x0d\x0a\
+Ordinary G1 sour\
+ce blocks suppor\
+t:\x0d\x0a\x0d\x0a- `A` angl\
+e programming wi\
+th one missing X\
+ or Z coordinate\
+;\x0d\x0a- `C` corner \
+chamfers;\x0d\x0a- cor\
+ner `R` fillets.\
+\x0d\x0a\x0d\x0aCompact bloc\
+ks without space\
+s are accepted. \
+`G2/G3 R` remain\
+s circular radiu\
+s programming an\
+d is not treated\
+ as a corner fil\
+let.\x0d\x0a\x0d\x0a### How \
+are G71 finishin\
+g allowances han\
+dled?\x0d\x0a\x0d\x0aThe sec\
+ond G71 block us\
+es signed X allo\
+wance U and axia\
+l allowance W. F\
+or outside turni\
+ng, positive U l\
+eaves outside ma\
+terial. For insi\
+de boring, negat\
+ive U leaves mat\
+erial toward the\
+ bore interior. \
+The sign and con\
+tour direction d\
+istinguish OD fr\
+om ID behavior.\x0d\
+\x0a\x0d\x0aType I roughi\
+ng ends with one\
+ full pass along\
+ the roughing pr\
+ofile that alrea\
+dy includes U/W \
+allowance. It do\
+es not reuse the\
+ nominal finishi\
+ng contour, so t\
+he roughing pass\
+ does not overla\
+p the later fini\
+sh-tool path.\x0d\x0a\x0d\
+\x0a## Tool librari\
+es\x0d\x0a\x0d\x0a### Where \
+are tools stored\
+?\x0d\x0a\x0d\x0aTurning and\
+ milling tool de\
+finitions are st\
+ored in the per-\
+user SQLite data\
+base:\x0d\x0a\x0d\x0a```text\
+\x0d\x0a%LOCALAPPDATA%\
+\x5ceasy-gcode-plot\
+\x5ctools.db\x0d\x0a```\x0d\x0a\
+\x0d\x0a`tools.db` is \
+authoritative. `\
+config.ini` stor\
+es UI, editor, p\
+lot, WCS, Stock \
+and other applic\
+ation preference\
+s; legacy `CNC/T\
+OOLS_JSON` and `\
+CNC/MILLING_TOOL\
+S_JSON` values a\
+re not imported \
+into a current d\
+atabase and are \
+not used as a fa\
+llback write tar\
+get.\x0d\x0a\x0d\x0a### What\
+ can Tool Librar\
+y do?\x0d\x0a\x0d\x0a`Settin\
+gs \xe2\x86\x92 Tool Libr\
+ary` is one resi\
+zable window wit\
+h Milling and Tu\
+rning tabs. Each\
+ tab shows **Cur\
+rent Program** a\
+nd **Saved Libra\
+ry** side by sid\
+e with a viewpor\
+t-fitted live pr\
+eview. Current P\
+rogram supports \
+editing geometry\
+, assigning geom\
+etry from a save\
+d tool and stagi\
+ng a program too\
+l for the librar\
+y. Saved Library\
+ supports staged\
+ Add/Edit/Remove\
+, first-free-num\
+ber Duplicate an\
+d complete-libra\
+ry JSON/CSV expo\
+rt for the activ\
+e tab. **OK** co\
+mmits the final \
+working copy to \
+`tools.db`; **Ca\
+ncel** discards \
+all Saved Librar\
+y changes made s\
+ince the window \
+opened. Export n\
+ever includes te\
+mporary Current \
+Program assignme\
+nts. Turning too\
+ls use category-\
+oriented editing\
+ and persist can\
+onical geometry \
+types independen\
+tly from the OD,\
+ ID and Face app\
+lication checkbo\
+xes.\x0d\x0a\x0d\x0a### How \
+are tools from t\
+he current progr\
+am added?\x0d\x0a\x0d\x0aBef\
+ore execution an\
+d when Tool Libr\
+ary is opened, U\
+pdate/Auto Updat\
+e discover liter\
+al T selections \
+into the tempora\
+ry Current Progr\
+am setup. They d\
+o **not** write \
+discovered tools\
+ into `tools.db`\
+. Turning keys r\
+etain the packed\
+ tool/offset num\
+ber (`T0909`); m\
+illing keys use \
+the tool number \
+(`T03` becomes `\
+T3`). New/Open s\
+tarts a fresh te\
+mporary setup wh\
+ile Saved Librar\
+y remains unchan\
+ged.\x0d\x0a\x0d\x0aInline t\
+ool comments, na\
+med headers such\
+ as `(T3 D=6. CR\
+=0. - FLAT END M\
+ILL)`, and nearb\
+y preceding oper\
+ation comments s\
+upply descriptio\
+ns and recognize\
+d geometry. Exam\
+ples include `OD\
+ ROUGH R0.8`, `I\
+D ROUGH R0.8`, `\
+GROOVE H4`, `DRI\
+LL`, `TAP`, `THR\
+EAD`, `BALL`, `F\
+ACE MILL`, and `\
+CHAMFER`. Recogn\
+ized dimensions \
+follow the units\
+ active at the T\
+ selection. When\
+ no explicit typ\
+e hint is presen\
+t, operation con\
+text selects D10\
+ Drill for G81-G\
+83, D10 Tap for \
+G84 and OD Threa\
+d for turning G3\
+2/G33/G76/G92; o\
+ther selections \
+use Diamond 80 O\
+D or D10 Flat Mi\
+ll. Explicit com\
+ment hints take \
+priority, and re\
+tained Current P\
+rogram geometry \
+can be edited or\
+ staged for Save\
+d Library.\x0d\x0a\x0d\x0aCo\
+mment-only T ref\
+erences do not c\
+reate tools. Mac\
+ro expressions s\
+uch as `T#1` are\
+ not evaluated b\
+y discovery. Cur\
+rent Program cha\
+nges remain temp\
+orary. Persisten\
+t Saved Library \
+changes happen o\
+nly when Tool Li\
+brary is accepte\
+d with **OK**.\x0d\x0a\
+\x0d\x0a### Which turn\
+ing tool geometr\
+ies are availabl\
+e?\x0d\x0a\x0d\x0aThe librar\
+y supports exact\
+ly nine canonica\
+l types: Diamond\
+ 80, Diamond 35,\
+ Square, Round, \
+Triangle, Groove\
+, Thread, Drill \
+and Tap. OD, ID \
+and Face are app\
+lication flags r\
+ather than tool \
+types. Triangle \
+uses a true thre\
+e-sided footprin\
+t; Round uses `L\
+ength/Diameter` \
+as its physical \
+diameter.\x0d\x0a\x0d\x0a## \
+Turning Stock Re\
+moval\x0d\x0a\x0d\x0a### How\
+ are initial Sto\
+ck dimensions se\
+lected?\x0d\x0a\x0d\x0aThe r\
+esolved G1/G2/G3\
+ cutting trace s\
+upplies an autom\
+atic minimum out\
+side diameter an\
+d length. Rapid \
+G0 outliers are \
+ignored, cycle-g\
+enerated cutting\
+ motions are inc\
+luded, and G18 a\
+rc extrema are e\
+valuated analyti\
+cally. The sugge\
+sted inside diam\
+eter is zero.\x0d\x0a\x0d\
+\x0aThe normal Lath\
+e plot displays \
+this stock as a \
+lightweight outl\
+ine when `Show S\
+tock` is enabled\
+. **Settings \xe2\x86\x92\
+ Stock** is pref\
+illed from the c\
+urrent suggestio\
+n, but persisten\
+t settings chang\
+e only after pre\
+ssing OK. If Lat\
+he Mode is alrea\
+dy active when t\
+he application s\
+tarts, Fit to Vi\
+ew is scheduled \
+after the window\
+ is shown so the\
+ inferred stock \
+is visible immed\
+iately.\x0d\x0a\x0d\x0a### W\
+hat can I config\
+ure in Settings \
+\xe2\x86\x92 Stock?\x0d\x0a\x0d\x0a- \
+Enable or disabl\
+e Stock Removal \
+on Play.\x0d\x0a- Outs\
+ide diameter.\x0d\x0a-\
+ Existing inside\
+ diameter.\x0d\x0a- St\
+ock length.\x0d\x0a- F\
+ront Z stock all\
+owance.\x0d\x0a- Accur\
+acy, which selec\
+ts the axial pro\
+file resolution.\
+\x0d\x0a\x0d\x0a### Does Pla\
+y use the same b\
+ounds as the vis\
+ible outline?\x0d\x0a\x0d\
+\x0aYes. In Auto mo\
+de, Refresh and \
+program changes \
+update the sugge\
+stion, and both \
+the outline and \
+Stock Timeline u\
+se the same effe\
+ctive stock spec\
+ification. After\
+ the user accept\
+s explicit Stock\
+ dimensions, tho\
+se values become\
+ a manual overri\
+de and survive R\
+efresh and tool-\
+library edits. *\
+*Reset to Auto**\
+, **New** and op\
+ening another pr\
+ogram return Sto\
+ck to program-de\
+rived sizing.\x0d\x0a\x0d\
 \x0a### Which turni\
 ng tools remove \
-material?\x0a\x0aSuppo\
-rted geometry in\
-cludes Diamond 8\
-0, Diamond 35, S\
-quare, Round, Tr\
-iangle, Groove, \
-Thread, Drill an\
-d Tap. OD, ID an\
-d Face applicabi\
-lity selects the\
- machining conte\
-xt. Preview and \
-Stock Removal sh\
-are the turning \
-cutter geometry \
-where the operat\
-ion is footprint\
--based.\x0a\x0aThreadi\
-ng is a delibera\
-te Stock Removal\
- exception: sync\
-hronized G32/G33\
-, modal G92 and \
-G76 cutting move\
-s generate a det\
-erministic longi\
-tudinal thread s\
-ection. Programm\
-ed X sets the ro\
-ot depth, F sets\
- the pitch, and \
-the configured t\
-hread angle and \
-RC shape the fla\
-nks and rounded \
-root. Repeated p\
-asses deepen the\
- same phase-alig\
-ned profile, whi\
-le radial infeed\
-/retract moves d\
-o not sweep the \
-full insert body\
- into false angl\
-ed end faces. Th\
-e axisymmetric s\
-tock model rende\
-rs this section \
-rather than a 3D\
- helix. G94 rema\
-ins a facing cyc\
-le.\x0a\x0aUnknown or \
-unconfigured too\
-ls leave stock u\
-nchanged instead\
- of using an ass\
-umed cutter.\x0a\x0a##\
-# Is Stock Remov\
-al a machine sim\
-ulation?\x0a\x0aNo. It\
- is a geometric \
-material-removal\
- preview driven \
-by resolved moti\
-ons and configur\
-ed cutter geomet\
-ry. It does not \
-model accelerati\
-on, collision, w\
-orkholding, spin\
-dle dynamics or \
-machine safety.\x0a\
-\x0a## Mill mode\x0a\x0a#\
-## Which views a\
-re available?\x0a\x0aT\
-he normal 3D vie\
-w uses perspecti\
-ve projection. T\
-op, Front and Le\
-ft are true orth\
-ographic views. \
-Starting free or\
-bit from a fixed\
- view returns th\
-e scene to persp\
-ective.\x0a\x0a### Whi\
-ch milling tools\
- can be previewe\
-d?\x0a\x0a- Flat, bull\
--nose and ball e\
-nd mills.\x0a- Face\
-, slot and chamf\
-er mills.\x0a- Dril\
-l and tap.\x0a\x0aThe \
-translucent prev\
-iew follows the \
-active motion en\
-dpoint and uses \
-the tool configu\
-red in **Setting\
-s \xe2\x86\x92 Milling To\
-ols**.\x0a\x0a### How \
-does milling cut\
-ter compensation\
- work?\x0a\x0aG40/G41/\
-G42 uses the con\
-figured tool dia\
-meter for suppor\
-ted G17 line, ar\
-c and compatible\
- helical contour\
-s. Entry, steady\
- contour, corner\
- stitching and e\
-xit transitions \
-are resolved aga\
-inst the execute\
-d trace. Unsuppo\
-rted cases remai\
-n marked `UNVERI\
-FIED` rather tha\
-n being presente\
-d as corrected g\
-eometry.\x0a\x0a### Is\
+material?\x0d\x0a\x0d\x0aSup\
+ported geometry \
+includes Diamond\
+ 80, Diamond 35,\
+ Square, Round, \
+Triangle, Groove\
+, Thread, Drill \
+and Tap. OD, ID \
+and Face applica\
+bility selects t\
+he machining con\
+text. Preview an\
+d Stock Removal \
+share the turnin\
+g cutter geometr\
+y where the oper\
+ation is footpri\
+nt-based.\x0d\x0a\x0d\x0aThr\
+eading is a deli\
+berate Stock Rem\
+oval exception: \
+synchronized G32\
+/G33, modal G92 \
+and G76 cutting \
+moves generate a\
+ deterministic l\
+ongitudinal thre\
+ad section. Prog\
+rammed X sets th\
+e root depth, F \
+sets the pitch, \
+and the configur\
+ed thread angle \
+and RC shape the\
+ flanks and roun\
+ded root. Repeat\
+ed passes deepen\
+ the same phase-\
+aligned profile,\
+ while radial in\
+feed/retract mov\
+es do not sweep \
+the full insert \
+body into false \
+angled end faces\
+. The axisymmetr\
+ic stock model r\
+enders this sect\
+ion rather than \
+a 3D helix. G94 \
+remains a facing\
+ cycle.\x0d\x0a\x0d\x0aMissi\
+ng tool selectio\
+ns use the stand\
+ard Diamond 80 O\
+D geometry for S\
+tock Removal and\
+ its preview. Li\
+teral T selectio\
+ns are normally \
+added to the tem\
+porary Current P\
+rogram setup bef\
+ore execution, s\
+o their recogniz\
+ed or edited geo\
+metry is already\
+ available for p\
+layback without \
+writing to Saved\
+ Library.\x0d\x0a\x0d\x0a###\
+ Is Stock Remova\
+l a machine simu\
+lation?\x0d\x0a\x0d\x0aNo. I\
+t is a geometric\
+ material-remova\
+l preview driven\
+ by resolved mot\
+ions and configu\
+red cutter geome\
+try. It does not\
+ model accelerat\
+ion, collision, \
+workholding, spi\
+ndle dynamics or\
+ machine safety.\
+\x0d\x0a\x0d\x0a## Mill mode\
+\x0d\x0a\x0d\x0a### Which vi\
+ews are availabl\
+e?\x0d\x0a\x0d\x0aThe normal\
+ 3D view uses pe\
+rspective projec\
+tion. Top, Front\
+ and Left are tr\
+ue orthographic \
+views. Starting \
+free orbit from \
+a fixed view ret\
+urns the scene t\
+o perspective.\x0d\x0a\
+\x0d\x0a### Which mill\
+ing tools can be\
+ previewed?\x0d\x0a\x0d\x0a-\
+ Flat, bull-nose\
+ and ball end mi\
+lls.\x0d\x0a- Face, sl\
+ot and chamfer m\
+ills.\x0d\x0a- Drill a\
+nd tap.\x0d\x0a\x0d\x0aThe t\
+ranslucent previ\
+ew follows the a\
+ctive motion end\
+point and uses t\
+he tool configur\
+ed in **Settings\
+ \xe2\x86\x92 Tool Librar\
+y \xe2\x86\x92 Milling**.\
+\x0d\x0a\x0d\x0a### How does\
+ milling cutter \
+compensation wor\
+k?\x0d\x0a\x0d\x0aG40/G41/G4\
+2 uses the confi\
+gured tool diame\
+ter for supporte\
+d G17 line, arc \
+and compatible h\
+elical contours.\
+ Entry, steady c\
+ontour, corner s\
+titching and exi\
+t transitions ar\
+e resolved again\
+st the executed \
+trace. Unsupport\
+ed cases remain \
+marked `UNVERIFI\
+ED` rather than \
+being presented \
+as corrected geo\
+metry.\x0d\x0a\x0d\x0a### Is\
  G43 tool-length\
  geometry applie\
-d?\x0a\x0aG43/G49 and \
-H values are tra\
-cked for executi\
-on/export contex\
-t, but H-offset \
-geometry is not \
-currently applie\
-d to the trace.\x0a\
-\x0a## Units and ar\
-c programming\x0a\x0a#\
-## What does the\
- default unit op\
-tion do?\x0a\x0aThe de\
-fault millimetre\
-/inch option ini\
-tializes executi\
-on only until th\
-e program explic\
-itly selects G20\
- or G21. Explici\
-t program codes \
-always take prec\
-edence.\x0a\x0a### Wha\
-t does Arc Type \
-control in Mill \
-Mode?\x0a\x0a- IJK rel\
-ative to the arc\
- start.\x0a- IJK ab\
-solute center co\
-ordinates.\x0a- Pre\
-fer R when both \
-center words and\
- a radius are pr\
-esent.\x0a\x0aAnalytic\
+d?\x0d\x0a\x0d\x0aG43/G49 an\
+d H values are t\
+racked for execu\
+tion/export cont\
+ext, but H-offse\
+t geometry is no\
+t currently appl\
+ied to the trace\
+.\x0d\x0a\x0d\x0a## Units an\
+d arc programmin\
+g\x0d\x0a\x0d\x0a### What do\
+es the default u\
+nit option do?\x0d\x0a\
+\x0d\x0aThe default mi\
+llimetre/inch op\
+tion initializes\
+ execution only \
+until the progra\
+m explicitly sel\
+ects G20 or G21.\
+ Explicit progra\
+m codes always t\
+ake precedence.\x0d\
+\x0a\x0d\x0a### What does\
+ Arc Type contro\
+l in Mill Mode?\x0d\
+\x0a\x0d\x0a- IJK relativ\
+e to the arc sta\
+rt.\x0d\x0a- IJK absol\
+ute center coord\
+inates.\x0d\x0a- Prefe\
+r R when both ce\
+nter words and a\
+ radius are pres\
+ent.\x0d\x0a\x0d\x0aAnalytic\
 al arc center, r\
 adius, sweep, pl\
 ane and directio\
@@ -690,93 +833,96 @@ nce by the kerne\
 l. Rendering onl\
 y samples the re\
 sulting geometry\
-.\x0a\x0a### Are full \
-circles supporte\
-d?\x0a\x0aYes. When ex\
-porting an R-for\
-mat full circle,\
- Expanded Execut\
-ion emits two ex\
-act R semicircle\
-s because one R \
-block cannot uni\
-quely represent \
-a full circle.\x0a\x0a\
-## Supported G-c\
-ode\x0a\x0a### Common \
-execution\x0a\x0a- `G0\
-0/G01/G02/G03` m\
-otion.\x0a- `G17/G1\
-8/G19` planes wh\
-ere applicable.\x0a\
-- `G20/G21` unit\
-s.\x0a- `G28` confi\
-gured reference \
-return.\x0a- `G54-G\
-59` work coordin\
-ate systems.\x0a- `\
-G90/G91` absolut\
-e/incremental pr\
-ogramming where \
-applicable.\x0a- Ma\
+.\x0d\x0a\x0d\x0a### Are ful\
+l circles suppor\
+ted?\x0d\x0a\x0d\x0aYes. Whe\
+n exporting an R\
+-format full cir\
+cle, Expanded Ex\
+ecution emits tw\
+o exact R semici\
+rcles because on\
+e R block cannot\
+ uniquely repres\
+ent a full circl\
+e.\x0d\x0a\x0d\x0a## Support\
+ed G-code\x0d\x0a\x0d\x0a###\
+ Common executio\
+n\x0d\x0a\x0d\x0a- `G00/G01/\
+G02/G03` motion.\
+\x0d\x0a- `G17/G18/G19\
+` planes where a\
+pplicable.\x0d\x0a- `G\
+20/G21` units.\x0d\x0a\
+- `G28` configur\
+ed reference ret\
+urn.\x0d\x0a- `G54-G59\
+` work coordinat\
+e systems.\x0d\x0a- `G\
+90/G91` absolute\
+/incremental pro\
+gramming where a\
+pplicable.\x0d\x0a- Ma\
 cro B expression\
 s and assignment\
-s.\x0a- `IF/GOTO` a\
-nd `WHILE/END`.\x0a\
-- `M98/M99` subp\
-rogram execution\
-.\x0a- `M00/M01/M02\
-/M03/M04/M05/M08\
-/M09/M30` signal\
-s and program co\
-ntrol.\x0a\x0a### FANU\
-C milling\x0a\x0a- XYZ\
- motion and heli\
-cal interpolatio\
-n.\x0a- G53 machine\
--coordinate moti\
-on.\x0a- G80/G81/G8\
-2/G83/G84/G85/G8\
-6 canned cycles.\
-\x0a- G98/G99 canne\
-d-cycle return m\
-odes.\x0a- G94/G95 \
-feed modes.\x0a- Co\
-nfigured milling\
- tools and cutte\
-r-radius compens\
-ation.\x0a\x0a### FANU\
-C turning\x0a\x0a- X/Z\
+s.\x0d\x0a- `IF/GOTO` \
+and `WHILE/END`.\
+\x0d\x0a- `M98/M99` su\
+bprogram executi\
+on.\x0d\x0a- `M00/M01/\
+M02/M03/M04/M05/\
+M08/M09/M30` sig\
+nals and program\
+ control.\x0d\x0a\x0d\x0a###\
+ FANUC milling\x0d\x0a\
+\x0d\x0a- XYZ motion a\
+nd helical inter\
+polation.\x0d\x0a- G53\
+ machine-coordin\
+ate motion.\x0d\x0a- G\
+80/G81/G82/G83/G\
+84/G85/G86 canne\
+d cycles.\x0d\x0a- G98\
+/G99 canned-cycl\
+e return modes.\x0d\
+\x0a- G94/G95 feed \
+modes.\x0d\x0a- Config\
+ured milling too\
+ls and cutter-ra\
+dius compensatio\
+n.\x0d\x0a\x0d\x0a### FANUC \
+turning\x0d\x0a\x0d\x0a- X/Z\
  and U/W motion \
 with diameter/ra\
-dius handling.\x0a-\
- I/K/R circular \
-interpolation.\x0a-\
- Direct A/C/corn\
-er-R programming\
-.\x0a- G32/G33 thre\
-ading motion.\x0a- \
-G70\xe2\x80\x93G76 cycles\
-.\x0a- Modal G90/G9\
-2/G94 turning cy\
-cles.\x0a- Turning \
-G83/G84.\x0a- G96/G\
-97 spindle modes\
- and G98/G99 fee\
-d modes.\x0a- Confi\
-gured tool-nose \
-compensation.\x0a\x0aC\
-ontroller-depend\
-ent semantics th\
-at cannot be res\
-olved safely pro\
-duce diagnostics\
- instead of gues\
-sed geometry.\x0a\x0a#\
-# STL reference \
-overlay\x0a\x0a### How\
- do I load or cl\
-ear an STL?\x0a\x0aUse\
+dius handling.\x0d\x0a\
+- I/K/R circular\
+ interpolation.\x0d\
+\x0a- Direct A/C/co\
+rner-R programmi\
+ng.\x0d\x0a- G32/G33 t\
+hreading motion.\
+\x0d\x0a- G70\xe2\x80\x93G76 cy\
+cles.\x0d\x0a- Modal G\
+90/G92/G94 turni\
+ng cycles.\x0d\x0a- Tu\
+rning G83/G84.\x0d\x0a\
+- G96/G97 spindl\
+e modes and G98/\
+G99 feed modes.\x0d\
+\x0a- Configured to\
+ol-nose compensa\
+tion.\x0d\x0a\x0d\x0aControl\
+ler-dependent se\
+mantics that can\
+not be resolved \
+safely produce d\
+iagnostics inste\
+ad of guessed ge\
+ometry.\x0d\x0a\x0d\x0a## ST\
+L reference over\
+lay\x0d\x0a\x0d\x0a### How d\
+o I load or clea\
+r an STL?\x0d\x0a\x0d\x0aUse\
  **File \xe2\x86\x92 Impo\
 rt STL** or the \
 STL toolbar acti\
@@ -789,52 +935,53 @@ ile menu, Import\
 tl` file directl\
 y also replaces \
 the active refer\
-ence overlay.\x0a\x0a#\
-## Does STL affe\
-ct G-code execut\
-ion?\x0a\x0aNo. ASCII \
-and binary STL a\
-re parsed throug\
-h a visualizatio\
-n-only path. The\
- model is not pa\
-rt of `Execution\
-Result`, does no\
-t change CNC int\
-erpretation and \
-is not included \
-in G-code export\
-s.\x0a\x0a### What dis\
-play options are\
- available?\x0a\x0aPlo\
-t options provid\
-e STL color and \
-solid or feature\
--edge rendering.\
- Fit to View inc\
-ludes both toolp\
-ath and STL boun\
-ds. The imported\
- mesh remains a \
-persistent OpenG\
-L item across ca\
-mera changes.\x0a\x0a#\
-# Statistics, di\
-agnostics and ex\
-port\x0a\x0a### What d\
-oes Toolpath Sta\
-tistics contain?\
-\x0a\x0aThe resizable \
-Statistics windo\
-w shows logical \
-motion counts, l\
-ength breakdown,\
- known/unknown t\
-ime, average fee\
-d, assumed rapid\
- speed, XYZ boun\
-ds and per-tool \
-sections.\x0a\x0aSelec\
+ence overlay.\x0d\x0a\x0d\
+\x0a### Does STL af\
+fect G-code exec\
+ution?\x0d\x0a\x0d\x0aNo. AS\
+CII and binary S\
+TL are parsed th\
+rough a visualiz\
+ation-only path.\
+ The model is no\
+t part of `Execu\
+tionResult`, doe\
+s not change CNC\
+ interpretation \
+and is not inclu\
+ded in G-code ex\
+ports.\x0d\x0a\x0d\x0a### Wh\
+at display optio\
+ns are available\
+?\x0d\x0a\x0d\x0aPlot option\
+s provide STL co\
+lor and solid or\
+ feature-edge re\
+ndering. Fit to \
+View includes bo\
+th toolpath and \
+STL bounds. The \
+imported mesh re\
+mains a persiste\
+nt OpenGL item a\
+cross camera cha\
+nges.\x0d\x0a\x0d\x0a## Stat\
+istics, diagnost\
+ics and export\x0d\x0a\
+\x0d\x0a### What does \
+Toolpath Statist\
+ics contain?\x0d\x0a\x0d\x0a\
+The resizable St\
+atistics window \
+shows logical mo\
+tion counts, len\
+gth breakdown, k\
+nown/unknown tim\
+e, average feed,\
+ assumed rapid s\
+peed, XYZ bounds\
+ and per-tool se\
+ctions.\x0d\x0a\x0d\x0aSelec\
 t `Inches` at th\
 e bottom-left of\
  the window to c\
@@ -844,382 +991,391 @@ peed and bound f\
 rom millimetres \
 to inches. Timin\
 g and counts are\
- unchanged.\x0a\x0a###\
- Why is machinin\
-g time UNKNOWN?\x0a\
-\x0aOne or more mot\
-ions lack a trus\
-tworthy physical\
- feed rate. A co\
-mmon cause is fe\
-ed-per-revolutio\
-n execution with\
-out a known spin\
-dle RPM. The app\
-lication reports\
- unknown time in\
-stead of treatin\
-g that feed as m\
-illimetres per m\
-inute.\x0a\x0a### What\
- is the Tokens w\
-indow for?\x0a\x0a**Se\
-ttings \xe2\x86\x92 Token\
-s** shows parser\
- words, evaluate\
-d values, source\
- position, execu\
-tion status and \
-diagnostics. Sus\
-picious or unsup\
-ported rows are \
-highlighted and \
-can be copied or\
- exported as CSV\
-.\x0a\x0a### Which exp\
-ort types are av\
-ailable?\x0a\x0a- Turn\
-ing Full Program\
-.\x0a- Milling Full\
- Program.\x0a- Expa\
-nded Execution.\x0a\
-- Plot Data.\x0a- D\
-XF trajectory.\x0a\x0a\
-Expanded Executi\
-on follows actua\
-l occurrence ord\
-er, including su\
-bprogram calls a\
-nd generated cyc\
-le motions. It p\
-reserves relevan\
-t WCS, home retu\
-rns, threading, \
-dwell, spindle a\
-nd coolant event\
-s.\x0a\x0aIn Lathe mod\
-e, generated arc\
-s use relative I\
-/K and increment\
-al coordinates u\
-se U/W. In Mill \
-mode, coordinate\
- and arc output \
-representations \
-are configurable\
-.\x0a\x0aDXF uses sepa\
-rate rapid and c\
-utting layers. T\
-urning uses plot\
--aligned Z/X ent\
-ities; milling e\
-xports 3D line/a\
-rc/circle geomet\
-ry where represe\
-ntable.\x0a\x0a## Conf\
-iguration\x0a\x0a### W\
-here is configur\
-ation stored?\x0a\x0aO\
-n Windows:\x0a\x0a```t\
-ext\x0a%LOCALAPPDAT\
-A%\x5ceasy-gcode-pl\
-ot\x5cconfig.ini\x0a%L\
+ unchanged.\x0d\x0a\x0d\x0a#\
+## Why is machin\
+ing time UNKNOWN\
+?\x0d\x0a\x0d\x0aOne or more\
+ motions lack a \
+trustworthy phys\
+ical feed rate. \
+A common cause i\
+s feed-per-revol\
+ution execution \
+without a known \
+spindle RPM. The\
+ application rep\
+orts unknown tim\
+e instead of tre\
+ating that feed \
+as millimetres p\
+er minute.\x0d\x0a\x0d\x0a##\
+# What is the To\
+kens window for?\
+\x0d\x0a\x0d\x0a**Settings \xe2\
+\x86\x92 Tokens** show\
+s parser words, \
+evaluated values\
+, source positio\
+n, execution sta\
+tus and diagnost\
+ics. Suspicious \
+or unsupported r\
+ows are highligh\
+ted and can be c\
+opied or exporte\
+d as CSV.\x0d\x0a\x0d\x0a###\
+ Which export ty\
+pes are availabl\
+e?\x0d\x0a\x0d\x0a- Turning \
+Full Program.\x0d\x0a-\
+ Milling Full Pr\
+ogram.\x0d\x0a- Expand\
+ed Execution.\x0d\x0a-\
+ Plot Data.\x0d\x0a- D\
+XF trajectory.\x0d\x0a\
+\x0d\x0aExpanded Execu\
+tion follows act\
+ual occurrence o\
+rder, including \
+subprogram calls\
+ and generated c\
+ycle motions. It\
+ preserves relev\
+ant WCS, home re\
+turns, threading\
+, dwell, spindle\
+ and coolant eve\
+nts.\x0d\x0a\x0d\x0aIn Lathe\
+ mode, generated\
+ arcs use relati\
+ve I/K and incre\
+mental coordinat\
+es use U/W. In M\
+ill mode, coordi\
+nate and arc out\
+put representati\
+ons are configur\
+able.\x0d\x0a\x0d\x0aDXF use\
+s separate rapid\
+ and cutting lay\
+ers. Turning use\
+s plot-aligned Z\
+/X entities; mil\
+ling exports 3D \
+line/arc/circle \
+geometry where r\
+epresentable.\x0d\x0a\x0d\
+\x0a## Configuratio\
+n\x0d\x0a\x0d\x0a### Where i\
+s configuration \
+stored?\x0d\x0a\x0d\x0aOn Wi\
+ndows:\x0d\x0a\x0d\x0a```tex\
+t\x0d\x0a%LOCALAPPDATA\
+%\x5ceasy-gcode-plo\
+t\x5cconfig.ini\x0d\x0a%L\
 OCALAPPDATA%\x5ceas\
 y-gcode-plot\x5ctoo\
-ls.db\x0a```\x0a\x0a`conf\
-ig.ini` contains\
- application pre\
-ferences; `tools\
-.db` contains th\
-e authoritative \
-turning/milling \
-tool library. A \
-legacy `config.i\
-ni` beside the l\
-auncher may be m\
-igrated on first\
- run.\x0a\x0a### What \
-is available in \
-Settings \xe2\x86\x92 Opt\
-ions?\x0a\x0a- UTF-8 o\
-r Windows-1251 d\
-ocument encoding\
-.\x0a- Default Text\
-/ISO editor mode\
- and default uni\
-ts.\x0a- Applicatio\
-n logging.\x0a- G41\
-/G42 correction \
-and arc toleranc\
-e.\x0a- Editor font\
- and visual sett\
-ings.\x0a- Plot col\
-ors, line thickn\
-ess, axes and gr\
-id.\x0a- `Show Stoc\
-k` immediately a\
-fter `Show canva\
-s grid`.\x0a- Canva\
-s gradient and S\
-TL appearance.\x0a-\
- Playback speed \
-and adaptive/fix\
-ed grid spacing.\
-\x0a\x0a### Where is t\
-he log file?\x0a\x0aWh\
-en logging is en\
-abled:\x0a\x0a```text\x0a\
-%LOCALAPPDATA%\x5ce\
-asy-gcode-plot\x5cm\
-ain.log\x0a```\x0a\x0aThe\
- application log\
-ger records star\
-tup, file operat\
-ions, execution \
-summaries, expor\
-t completion and\
- related errors.\
-\x0a\x0aWith DEBUG log\
-ging enabled it \
-also records app\
-lied/cancelled O\
-ptions changes, \
-machine and came\
-ra-view switches\
-, playback state\
-, execution/rend\
-er/geometry-pack\
- timing, Stock T\
-imeline dimensio\
-ns and sampled S\
-tock Removal fra\
-me performance. \
-A `stock_frame` \
-entry separates \
-`timeline_ms` fr\
-om `mesh_ms` and\
- includes profil\
-e-point, vertex \
-and face counts.\
- Frames taking a\
-t least 100 ms a\
-re logged as war\
-nings, rate-limi\
-ted to avoid mak\
-ing an existing \
-slowdown worse.\x0a\
-\x0a## Troubleshoot\
-ing\x0a\x0a### The plo\
-t is empty\x0a\x0aChec\
-k the selected m\
-achine mode, exe\
-cution diagnosti\
-cs, WCS/home val\
-ues and whether \
-the program cont\
-ains supported m\
-otion. Unsupport\
-ed position-chan\
-ging commands ca\
-n create an unkn\
-own-axis gap; th\
-e trace resumes \
-only after absol\
-ute coordinates \
-re-establish the\
- affected axes.\x0a\
-\x0a### Cutter comp\
-ensation is not \
-visible\x0a\x0aVerify \
-that G41/G42 is \
-active, the sele\
-cted tool is con\
-figured and its \
-geometry is vali\
-d. Inspect Token\
-s for `UNVERIFIE\
-D` compensation.\
- Milling compens\
-ation requires a\
- supported conto\
-ur; turning comp\
-ensation require\
-s a valid nose r\
-adius and orient\
-ation.\x0a\x0a### Stoc\
-k outline change\
-s after Refresh \
-but Play shows o\
-ld stock\x0a\x0aCurren\
-t versions rebui\
-ld Stock Timelin\
-e from the same \
-effective auto/c\
-onfigured bounds\
- used by the out\
-line. If this st\
-ill occurs, conf\
-irm that the edi\
-tor was refreshe\
-d successfully a\
-nd that Stock Re\
-moval is enabled\
-.\x0a\x0a### Export fa\
-ils\x0a\x0aCheck the s\
-elected machine \
-profile and outp\
-ut mode, executi\
-on diagnostics, \
-custom header/fo\
-oter content and\
- filesystem perm\
-issions. Export \
-intentionally re\
-fuses to invent \
-missing geometry\
-.\x0a\x0a### A large p\
-rogram does not \
-update while typ\
-ing\x0a\x0aPress Refre\
-sh. The automati\
-c sampled-segmen\
-t limit is inten\
-ded to prevent e\
-xpensive continu\
-ous rebuilding w\
-hile editing.\x0a\x0a#\
-# CLI\x0a\x0aThe GUI a\
-nd CLI share the\
- same kernel:\x0a\x0a`\
-``bash\x0auv run --\
-no-dev python -m\
- app parse progr\
-am.nc --lang fan\
-uc_turn\x0auv run -\
--no-dev python -\
-m app trace prog\
-ram.nc --lang fa\
-nuc_turn -o trac\
-e.json\x0auv run --\
-no-dev python -m\
- app analyze pro\
-gram.nc --lang f\
-anuc_turn\x0auv run\
- --no-dev python\
- -m app export p\
-rogram.nc --lang\
- fanuc_turn -o e\
-xpanded.nc\x0a```\x0a\x0a\
-Use `--encoding \
-cp1251` for Wind\
-ows-1251 input. \
-Export modes inc\
-lude `program` a\
-nd `cycles`; use\
- `--lang fanuc_m\
-ill` for milling\
-.\x0a\x0a## Developmen\
-t\x0a\x0a### How is th\
-e project organi\
-zed?\x0a\x0a- `app/gco\
-de/kernel/` owns\
- CNC parsing, ex\
-ecution, cycles \
-and analytical g\
-eometry.\x0a- `app/\
-gcode/trace_tool\
-s.py` owns rende\
-r sampling and s\
-tatistics derive\
-d from the resol\
-ved trace.\x0a- `ap\
-p/ui/` owns PyQt\
- GUI behavior; `\
-tool_dialogs.py`\
- contains the tu\
-rning/milling li\
-brary editors wh\
-ile `dialogs.py`\
- contains genera\
-l dialogs.\x0a- `ap\
-p/tools/` owns t\
-ool definitions,\
- SQLite persiste\
-nce and validati\
-on/normalization\
-.\x0a- `app/ui/gene\
-rated/` contains\
- Qt Designer sou\
-rces and generat\
-ed PyQt-compatib\
-le modules.\x0a- `a\
-pp/resources/fil\
-es_res.qrc` is t\
-he resource mani\
-fest.\x0a- `tests/`\
- contains kernel\
-, GUI, CLI, expo\
-rt, Stock and co\
-de-generation re\
-gressions.\x0a\x0aCNC \
-semantics belong\
- in the kernel. \
-GUI rendering, s\
-tatistics and ex\
-port consume `Ex\
-ecutionResult` a\
-nd must not inde\
-pendently reinte\
-rpret source com\
-mands.\x0a\x0a### How \
-do I run checks?\
-\x0a\x0a```bash\x0auv syn\
-c --group dev\x0auv\
- run pytest\x0auv r\
-un ruff check .\x0a\
-uv run ruff form\
-at --check .\x0a```\
-\x0a\x0aPowerShell ent\
-ry points are av\
-ailable under `s\
-cripts/ps1/`, an\
-d matching shell\
- scripts are und\
-er `scripts/sh/`\
-.\x0a\x0a### How are Q\
-t files regenera\
-ted?\x0a\x0aEdit canon\
-ical `.ui` and `\
-.qrc` sources, t\
-hen regenerate o\
-nce:\x0a\x0a```powersh\
-ell\x0a.\x5cscripts\x5cps\
-1\x5cgenerate-qt.ps\
-1\x0a```\x0a\x0aGenerated\
- Python modules \
-must not be edit\
-ed manually. PyS\
-ide6 supplies ma\
-intained code-ge\
-neration tools i\
-n the developmen\
-t dependency gro\
-up; the applicat\
-ion runtime rema\
-ins PyQt6.\x0a\x0a### \
-How do I build o\
-r release?\x0a\x0a```p\
-owershell\x0a.\x5cscri\
-pts\x5cps1\x5cbuild.ps\
-1\x0a.\x5cscripts\x5cps1\x5c\
-release.ps1 -Ver\
-sion 1.5.0 -Mess\
-age \x22Release 1.5\
-.0\x22\x0a```\x0a\x0a## Lice\
-nse\x0a\x0aMIT License\
- \xe2\x80\x94 see [LICENS\
-E.md](LICENSE.md\
-).\x0a\
+ls.db\x0d\x0a```\x0d\x0a\x0d\x0a`c\
+onfig.ini` conta\
+ins application \
+preferences; `to\
+ols.db` contains\
+ the authoritati\
+ve turning/milli\
+ng tool library.\
+ A legacy `confi\
+g.ini` beside th\
+e launcher may b\
+e migrated on fi\
+rst run.\x0d\x0a\x0d\x0a### \
+What is availabl\
+e in Settings \xe2\x86\
+\x92 Options?\x0d\x0a\x0d\x0a- \
+UTF-8 or Windows\
+-1251 document e\
+ncoding.\x0d\x0a- Defa\
+ult Text/ISO edi\
+tor mode and def\
+ault units.\x0d\x0a- A\
+pplication loggi\
+ng.\x0d\x0a- G41/G42 c\
+orrection and ar\
+c tolerance.\x0d\x0a- \
+Editor font and \
+visual settings.\
+\x0d\x0a- Plot colors,\
+ line thickness,\
+ axes and grid.\x0d\
+\x0a- `Show Stock` \
+immediately afte\
+r `Show canvas g\
+rid`.\x0d\x0a- Canvas \
+gradient and STL\
+ appearance.\x0d\x0a- \
+Playback speed a\
+nd adaptive/fixe\
+d grid spacing.\x0d\
+\x0a\x0d\x0a### Where is \
+the log file?\x0d\x0a\x0d\
+\x0aWhen logging is\
+ enabled:\x0d\x0a\x0d\x0a```\
+text\x0d\x0a%LOCALAPPD\
+ATA%\x5ceasy-gcode-\
+plot\x5cmain.log\x0d\x0a`\
+``\x0d\x0a\x0d\x0aThe applic\
+ation logger rec\
+ords startup, fi\
+le operations, e\
+xecution summari\
+es, export compl\
+etion and relate\
+d errors.\x0d\x0a\x0d\x0aWit\
+h DEBUG logging \
+enabled it also \
+records applied/\
+cancelled Option\
+s changes, machi\
+ne and camera-vi\
+ew switches, pla\
+yback state, exe\
+cution/render/ge\
+ometry-pack timi\
+ng, Stock Timeli\
+ne dimensions an\
+d sampled Stock \
+Removal frame pe\
+rformance. A `st\
+ock_frame` entry\
+ separates `time\
+line_ms` from `m\
+esh_ms` and incl\
+udes profile-poi\
+nt, vertex and f\
+ace counts. Fram\
+es taking at lea\
+st 100 ms are lo\
+gged as warnings\
+, rate-limited t\
+o avoid making a\
+n existing slowd\
+own worse.\x0d\x0a\x0d\x0a##\
+ Troubleshooting\
+\x0d\x0a\x0d\x0a### The plot\
+ is empty\x0d\x0a\x0d\x0aChe\
+ck the selected \
+machine mode, ex\
+ecution diagnost\
+ics, WCS/home va\
+lues and whether\
+ the program con\
+tains supported \
+motion. Unsuppor\
+ted position-cha\
+nging commands c\
+an create an unk\
+nown-axis gap; t\
+he trace resumes\
+ only after abso\
+lute coordinates\
+ re-establish th\
+e affected axes.\
+\x0d\x0a\x0d\x0a### Cutter c\
+ompensation is n\
+ot visible\x0d\x0a\x0d\x0aVe\
+rify that G41/G4\
+2 is active, the\
+ selected tool i\
+s configured and\
+ its geometry is\
+ valid. Inspect \
+Tokens for `UNVE\
+RIFIED` compensa\
+tion. Milling co\
+mpensation requi\
+res a supported \
+contour; turning\
+ compensation re\
+quires a valid n\
+ose radius and o\
+rientation.\x0d\x0a\x0d\x0a#\
+## Stock outline\
+ changes after R\
+efresh but Play \
+shows old stock\x0d\
+\x0a\x0d\x0aCurrent versi\
+ons rebuild Stoc\
+k Timeline from \
+the same effecti\
+ve auto/configur\
+ed bounds used b\
+y the outline. I\
+f this still occ\
+urs, confirm tha\
+t the editor was\
+ refreshed succe\
+ssfully and that\
+ Stock Removal i\
+s enabled.\x0d\x0a\x0d\x0a##\
+# Export fails\x0d\x0a\
+\x0d\x0aCheck the sele\
+cted machine pro\
+file and output \
+mode, execution \
+diagnostics, cus\
+tom header/foote\
+r content and fi\
+lesystem permiss\
+ions. Export int\
+entionally refus\
+es to invent mis\
+sing geometry.\x0d\x0a\
+\x0d\x0a### A large pr\
+ogram does not u\
+pdate while typi\
+ng\x0d\x0a\x0d\x0aPress Refr\
+esh. The automat\
+ic sampled-segme\
+nt limit is inte\
+nded to prevent \
+expensive contin\
+uous rebuilding \
+while editing.\x0d\x0a\
+\x0d\x0a## CLI\x0d\x0a\x0d\x0aThe \
+GUI and CLI shar\
+e the same kerne\
+l:\x0d\x0a\x0d\x0a```bash\x0d\x0au\
+v run --no-dev p\
+ython -m app par\
+se program.nc --\
+lang fanuc_turn\x0d\
+\x0auv run --no-dev\
+ python -m app t\
+race program.nc \
+--lang fanuc_tur\
+n -o trace.json\x0d\
+\x0auv run --no-dev\
+ python -m app a\
+nalyze program.n\
+c --lang fanuc_t\
+urn\x0d\x0auv run --no\
+-dev python -m a\
+pp export progra\
+m.nc --lang fanu\
+c_turn -o expand\
+ed.nc\x0d\x0a```\x0d\x0a\x0d\x0aUs\
+e `--encoding cp\
+1251` for Window\
+s-1251 input. Ex\
+port modes inclu\
+de `program` and\
+ `cycles`; use `\
+--lang fanuc_mil\
+l` for milling.\x0d\
+\x0a\x0d\x0a## Developmen\
+t\x0d\x0a\x0d\x0a### How is \
+the project orga\
+nized?\x0d\x0a\x0d\x0a- `app\
+/gcode/kernel/` \
+owns CNC parsing\
+, execution, cyc\
+les and analytic\
+al geometry.\x0d\x0a- \
+`app/gcode/trace\
+_tools.py` owns \
+render sampling \
+and statistics d\
+erived from the \
+resolved trace.\x0d\
+\x0a- `app/ui/` own\
+s PyQt GUI behav\
+ior; `tool_dialo\
+gs.py` contains \
+the turning/mill\
+ing library edit\
+ors while `dialo\
+gs.py` contains \
+general dialogs.\
+\x0d\x0a- `app/tools/`\
+ owns tool defin\
+itions, SQLite p\
+ersistence and v\
+alidation/normal\
+ization.\x0d\x0a- `app\
+/ui/generated/` \
+contains Qt Desi\
+gner sources and\
+ generated PyQt-\
+compatible modul\
+es.\x0d\x0a- `app/reso\
+urces/files_res.\
+qrc` is the reso\
+urce manifest.\x0d\x0a\
+- `tests/` conta\
+ins kernel, GUI,\
+ CLI, export, St\
+ock and code-gen\
+eration regressi\
+ons.\x0d\x0a\x0d\x0aCNC sema\
+ntics belong in \
+the kernel. GUI \
+rendering, stati\
+stics and export\
+ consume `Execut\
+ionResult` and m\
+ust not independ\
+ently reinterpre\
+t source command\
+s.\x0d\x0a\x0d\x0a### How do\
+ I run checks?\x0d\x0a\
+\x0d\x0a```bash\x0d\x0auv sy\
+nc --group dev\x0d\x0a\
+uv run pytest\x0d\x0au\
+v run ruff check\
+ .\x0d\x0auv run ruff \
+format --check .\
+\x0d\x0a```\x0d\x0a\x0d\x0aPowerSh\
+ell entry points\
+ are available u\
+nder `scripts/ps\
+1/`, and matchin\
+g shell scripts \
+are under `scrip\
+ts/sh/`.\x0d\x0a\x0d\x0a### \
+How are Qt files\
+ regenerated?\x0d\x0a\x0d\
+\x0aEdit canonical \
+`.ui` and `.qrc`\
+ sources, then r\
+egenerate once:\x0d\
+\x0a\x0d\x0a```powershell\
+\x0d\x0a.\x5cscripts\x5cps1\x5c\
+generate-qt.ps1\x0d\
+\x0a```\x0d\x0a\x0d\x0aGenerate\
+d Python modules\
+ must not be edi\
+ted manually. Py\
+Side6 supplies m\
+aintained code-g\
+eneration tools \
+in the developme\
+nt dependency gr\
+oup; the applica\
+tion runtime rem\
+ains PyQt6.\x0d\x0a\x0d\x0a#\
+## How do I buil\
+d or release?\x0d\x0a\x0d\
+\x0a```powershell\x0d\x0a\
+.\x5cscripts\x5cps1\x5cbu\
+ild.ps1\x0d\x0a.\x5cscrip\
+ts\x5cps1\x5crelease.p\
+s1 -Version 1.5.\
+0 -Message \x22Rele\
+ase 1.5.0\x22\x0d\x0a```\x0d\
+\x0a\x0d\x0a## License\x0d\x0a\x0d\
+\x0aMIT License \xe2\x80\x94\
+ see [LICENSE.md\
+](LICENSE.md).\x0d\x0a\
+\
 \x00\x00\x02\xdb\
 \x89\
 PNG\x0d\x0a\x1a\x0a\x00\x00\x00\x0dIHDR\x00\
@@ -5564,105 +5720,105 @@ qt_resource_struct = b"\
 \x00\x00\x00\x16\x00\x02\x00\x00\x00(\x00\x00\x00\x04\
 \x00\x00\x00\x00\x00\x00\x00\x00\
 \x00\x00\x00&\x00\x00\x00\x00\x00\x01\x00\x00\x00\x00\
-\x00\x00\x01\xa0\xa1\xac?\x95\
-\x00\x00\x00j\x00\x00\x00\x00\x00\x01\x00\x00T\xa1\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02\xe2\x00\x00\x00\x00\x00\x01\x00\x00\xd1\xcc\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\x10\x00\x00\x00\x00\x00\x01\x00\x00\xf1\xf1\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01\xd0\x00\x00\x00\x00\x00\x01\x00\x00w]\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02|\x00\x00\x00\x00\x00\x01\x00\x00\x8en\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02,\x00\x00\x00\x00\x00\x01\x00\x00\x81\xa3\
-\x00\x00\x01\xa0\x96\xf73\x10\
+\x00\x00\x01\xa0\xae\x5c\xa9\xbf\
+\x00\x00\x00j\x00\x00\x00\x00\x00\x01\x00\x00^^\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02\xe2\x00\x00\x00\x00\x00\x01\x00\x00\xdb\x89\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\x10\x00\x00\x00\x00\x00\x01\x00\x00\xfb\xae\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01\xd0\x00\x00\x00\x00\x00\x01\x00\x00\x81\x1a\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02|\x00\x00\x00\x00\x00\x01\x00\x00\x98+\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02,\x00\x00\x00\x00\x00\x01\x00\x00\x8b`\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
 \x00\x00\x03\xec\x00\x02\x00\x00\x00\x09\x00\x00\x00,\
 \x00\x00\x00\x00\x00\x00\x00\x00\
-\x00\x00\x01\x16\x00\x00\x00\x00\x00\x01\x00\x00d\xf1\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02\x06\x00\x00\x00\x00\x00\x01\x00\x00~\x8f\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03\x0a\x00\x00\x00\x00\x00\x01\x00\x00\xd3\xa9\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x00\x8c\x00\x00\x00\x00\x00\x01\x00\x00V\xcd\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02H\x00\x00\x00\x00\x00\x01\x00\x00\x84\xdb\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01R\x00\x00\x00\x00\x00\x01\x00\x00h\x93\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03N\x00\x00\x00\x00\x00\x01\x00\x00\xda\x19\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01\xec\x00\x00\x00\x00\x00\x01\x00\x00|1\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01\xba\x00\x00\x00\x00\x00\x01\x00\x00t\xfd\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02\xca\x00\x00\x00\x00\x00\x01\x00\x00\xcdB\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02^\x00\x00\x00\x00\x00\x01\x00\x00\x89\xd1\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x00\xa0\x00\x00\x00\x00\x00\x01\x00\x00Y\xf9\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01\xa4\x00\x00\x00\x00\x00\x01\x00\x00s\x83\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01\x8a\x00\x00\x00\x00\x00\x01\x00\x00p\x0f\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03d\x00\x00\x00\x00\x00\x01\x00\x00\xdb\x9e\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03\xc6\x00\x00\x00\x00\x00\x01\x00\x00\xed\x0b\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x02\xb4\x00\x00\x00\x00\x00\x01\x00\x00\xcb\x00\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04&\x00\x00\x00\x00\x00\x01\x00\x00\xf3\xb7\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x00\xca\x00\x00\x00\x00\x00\x01\x00\x00`\xae\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04>\x00\x00\x00\x00\x00\x01\x00\x00\xf5\x1c\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03\x9a\x00\x00\x00\x00\x00\x01\x00\x00\xe2\xee\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03\xb2\x00\x00\x00\x00\x00\x01\x00\x00\xebq\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01\x00\x00\x00\x00\x00\x00\x01\x00\x00dN\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x00\xde\x00\x00\x00\x00\x00\x01\x00\x00c*\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04R\x00\x00\x00\x00\x00\x01\x00\x00\xfa\x99\
-\x00\x00\x01\xa0\x9c\xaf\xcc\x90\
-\x00\x00\x008\x00\x00\x00\x00\x00\x01\x00\x00K\xb8\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x00\xb4\x00\x00\x00\x00\x00\x01\x00\x00_\x07\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x00N\x00\x00\x00\x00\x00\x01\x00\x00N\x97\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03 \x00\x00\x00\x00\x00\x01\x00\x00\xd6\xad\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x01j\x00\x00\x00\x00\x00\x01\x00\x00j\x04\
-\x00\x00\x01\xa0\x9e\xf6x\xa0\
-\x00\x00\x01<\x00\x00\x00\x00\x00\x01\x00\x00f\xd8\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x03z\x00\x00\x00\x00\x00\x01\x00\x00\xdc\xa8\
-\x00\x00\x01\xa0\x9e\xf7S`\
-\x00\x00\x02\x8e\x00\x00\x00\x00\x00\x01\x00\x00\x90\x10\
-\x00\x00\x01\xa0\x9f\xb6\xcb\x00\
-\x00\x00\x04\xc6\x00\x00\x00\x00\x00\x01\x00\x01A\x84\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\xea\x00\x00\x00\x00\x00\x01\x00\x01C\xe6\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\xa2\x00\x00\x00\x00\x00\x01\x00\x01?&\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04~\x00\x00\x00\x00\x00\x01\x00\x01<\xb5\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\x90\x00\x00\x00\x00\x00\x01\x00\x01=\xee\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\xb4\x00\x00\x00\x00\x00\x01\x00\x01@Y\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\xd8\x00\x00\x00\x00\x00\x01\x00\x01B\xb1\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04\xfc\x00\x00\x00\x00\x00\x01\x00\x01Ei\
-\x00\x00\x01\xa0\x96\xf73\x10\
-\x00\x00\x04l\x00\x00\x00\x00\x00\x01\x00\x01;\x8a\
-\x00\x00\x01\xa0\x96\xf73\x10\
+\x00\x00\x01\x16\x00\x00\x00\x00\x00\x01\x00\x00n\xae\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02\x06\x00\x00\x00\x00\x00\x01\x00\x00\x88L\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03\x0a\x00\x00\x00\x00\x00\x01\x00\x00\xddf\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x00\x8c\x00\x00\x00\x00\x00\x01\x00\x00`\x8a\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02H\x00\x00\x00\x00\x00\x01\x00\x00\x8e\x98\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01R\x00\x00\x00\x00\x00\x01\x00\x00rP\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03N\x00\x00\x00\x00\x00\x01\x00\x00\xe3\xd6\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01\xec\x00\x00\x00\x00\x00\x01\x00\x00\x85\xee\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01\xba\x00\x00\x00\x00\x00\x01\x00\x00~\xba\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02\xca\x00\x00\x00\x00\x00\x01\x00\x00\xd6\xff\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02^\x00\x00\x00\x00\x00\x01\x00\x00\x93\x8e\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x00\xa0\x00\x00\x00\x00\x00\x01\x00\x00c\xb6\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01\xa4\x00\x00\x00\x00\x00\x01\x00\x00}@\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01\x8a\x00\x00\x00\x00\x00\x01\x00\x00y\xcc\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03d\x00\x00\x00\x00\x00\x01\x00\x00\xe5[\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03\xc6\x00\x00\x00\x00\x00\x01\x00\x00\xf6\xc8\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02\xb4\x00\x00\x00\x00\x00\x01\x00\x00\xd4\xbd\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04&\x00\x00\x00\x00\x00\x01\x00\x00\xfdt\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x00\xca\x00\x00\x00\x00\x00\x01\x00\x00jk\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04>\x00\x00\x00\x00\x00\x01\x00\x00\xfe\xd9\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03\x9a\x00\x00\x00\x00\x00\x01\x00\x00\xec\xab\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03\xb2\x00\x00\x00\x00\x00\x01\x00\x00\xf5.\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01\x00\x00\x00\x00\x00\x00\x01\x00\x00n\x0b\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x00\xde\x00\x00\x00\x00\x00\x01\x00\x00l\xe7\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04R\x00\x00\x00\x00\x00\x01\x00\x01\x04V\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x008\x00\x00\x00\x00\x00\x01\x00\x00Uu\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x00\xb4\x00\x00\x00\x00\x00\x01\x00\x00h\xc4\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x00N\x00\x00\x00\x00\x00\x01\x00\x00XT\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03 \x00\x00\x00\x00\x00\x01\x00\x00\xe0j\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01j\x00\x00\x00\x00\x00\x01\x00\x00s\xc1\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x01<\x00\x00\x00\x00\x00\x01\x00\x00p\x95\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x03z\x00\x00\x00\x00\x00\x01\x00\x00\xe6e\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x02\x8e\x00\x00\x00\x00\x00\x01\x00\x00\x99\xcd\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\xc6\x00\x00\x00\x00\x00\x01\x00\x01KA\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\xea\x00\x00\x00\x00\x00\x01\x00\x01M\xa3\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\xa2\x00\x00\x00\x00\x00\x01\x00\x01H\xe3\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04~\x00\x00\x00\x00\x00\x01\x00\x01Fr\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\x90\x00\x00\x00\x00\x00\x01\x00\x01G\xab\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\xb4\x00\x00\x00\x00\x00\x01\x00\x01J\x16\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\xd8\x00\x00\x00\x00\x00\x01\x00\x01Ln\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04\xfc\x00\x00\x00\x00\x00\x01\x00\x01O&\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
+\x00\x00\x04l\x00\x00\x00\x00\x00\x01\x00\x01EG\
+\x00\x00\x01\xa0\xab\x00\x9f\xe0\
 "
 
 def qInitResources():
