@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.5.6 - 2026-09-17
+
+- Added a Russian user interface. The language is selected in `Settings -> Options -> General` and applied after restarting the application; English technical logging, kernel diagnostics and G-code comments are intentionally unchanged.
+- Added a `Light`/`Dark` theme selector next to the language option. The application uses Qt's native color-scheme support with a palette fallback, plus editor and plot colors; standard plot colors follow the active theme while user-customized plot colors are preserved.
+- Light and Dark use the native platform `QStyle` where it supports the requested scheme. Windows 11 keeps Qt's native Windows 11 style; Windows 10 falls back from the legacy `windowsvista` style to the palette-aware `windows` style in Dark mode because the native Vista theme engine can otherwise leave menus, toolbars and input controls light. QScintilla and plot colors remain theme-aware, and switching between Text and ISO G-code still reapplies the editor chrome.
+- Added Qt translation generation (`pyside6-lupdate`/`pyside6-lrelease`) to the Qt codegen pipeline: `translations/app_ru.ts` is the tracked source and the compiled `app_ru.qm` is embedded in the Qt resources as a generated artifact.
+- Recolored the `Fit to View` toolbar icon so it stays visible on the dark theme.
+- Restored fast NC file opening by removing the 1.5.4 forced synchronous Auto Update from `Open`; the previous plot is cleared immediately, normal Auto Update settings are respected, and long calculations use delayed execution feedback while short calculations avoid a modal flash.
+- Moved tool discovery plus trace sampling into the worker path so slow calculations are covered by the delayed cancellable execution dialog without reintroducing a status-bar progress bar.
+- Added an `inches` display switch to Stock and WCS and to both Turning and Milling Tool Library add/edit forms; stored geometry and WCS values remain millimetres.
+- Avoided unnecessary re-execution before Export when the current trace is already valid, moved export generation/writing through the delayed cancellable execution dialog, and kept total export timing in the status bar.
+- Fixed Expanded Execution formatting so Delimiter always inserts a space after sequence numbers, and fixed G91 export so I/J/K are emitted incrementally even when Absolute IJK is selected.
+- Reorganized the `tests/` tree into domain subpackages (`core`, `dialects`, `stock`, `tooling`, `export`, `gui`, `render`, `meta`) and split the oversized stock-removal and CLI/exporter suites into focused modules; shared fixtures and helper imports now resolve from the `tests` root.
+- Grouped the Qt Designer sources and their generated modules under `app/ui/generated/main`, `app/ui/generated/dialogs` and `app/ui/generated/editors`, and updated the Windows and shell generation scripts to recurse and mirror the category directories.
+- Updated locked dependencies: numpy 2.5.3, fonttools 4.65.0, platformdirs 4.11.9, pyinstaller 6.22.3 and ruff 0.16.8.
+- Split `app/ui/` into `dialogs/`, `plot/`, `windows/` and `support/` packages, rewrote all application and test imports plus the Designer custom-widget headers, and remapped the complexity baseline to the new module paths.
+- Made the Tokens window a standard resizable window with minimize and maximize controls and removed its in-content Close button.
+- Fixed the FAQ table of contents in the Help window by resolving `#section` links to the matching document headings.
+
 ## 1.5.4 - 2026-09-16
 
 - Unified turning and milling tool management under one `Tool Library` window with separate Milling/Turning tabs and explicit `Current Program` versus persistent `Saved Library` areas.

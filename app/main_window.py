@@ -3,45 +3,45 @@
 import logging
 from time import perf_counter
 
-from PyQt6.QtCore import QBasicTimer, QSize, Qt, QTimer
+from PyQt6.QtCore import QBasicTimer, QCoreApplication, QSize, Qt, QTimer
 from PyQt6.QtGui import QAction, QActionGroup, QIcon, QQuaternion
 from PyQt6.QtWidgets import QComboBox, QMainWindow, QMessageBox, QToolBar
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
 from app.settings import RECENT_FILES_LIMIT as _RECENT_FILES_LIMIT
 from app.settings import normalized_milling_tools, normalized_recent_files, normalized_tools
-from app.ui.dialogs import About, BlockNum, Export, Find, Wcs
-from app.ui.generated.main_ui import Ui_MainWindow
-from app.ui.help import HelpDialog
-from app.ui.main_window_editor_ops import MainWindowEditorMixin
-from app.ui.main_window_execution import (
+from app.ui.dialogs.general import About, BlockNum, Export, Find, Wcs
+from app.ui.dialogs.help import HelpDialog
+from app.ui.dialogs.options import OptionsDialog
+from app.ui.dialogs.statistics import StatisticsDialog
+from app.ui.dialogs.stock_dialog import StockDialog
+from app.ui.dialogs.tokens import TokensDialog
+from app.ui.dialogs.tool_library_dialog import ToolLibraryDialog
+from app.ui.generated.main.main_ui import Ui_MainWindow
+from app.ui.plot.plot_navigation import PlotNavigation
+from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
+from app.ui.windows.main_window_execution import (
     AUTO_REFRESH_DELAY_MS,
     MainWindowExecutionMixin,
 )
-from app.ui.main_window_execution import (
+from app.ui.windows.main_window_execution import (
     AUTO_REFRESH_MAX_POINTS as _AUTO_REFRESH_MAX_POINTS,
 )
-from app.ui.main_window_file_ops import MainWindowFileMixin
-from app.ui.main_window_plot import (
+from app.ui.windows.main_window_file_ops import MainWindowFileMixin
+from app.ui.windows.main_window_plot import (
     CURSOR_SIZE_PX as _CURSOR_SIZE_PX,
 )
-from app.ui.main_window_plot import (
+from app.ui.windows.main_window_plot import (
     PICK_DISTANCE_PX as _PICK_DISTANCE_PX,
 )
-from app.ui.main_window_plot import (
+from app.ui.windows.main_window_plot import (
     RAPID_COLOR as _RAPID_COLOR,
 )
-from app.ui.main_window_plot import (
+from app.ui.windows.main_window_plot import (
     MainWindowPlotMixin,
 )
-from app.ui.main_window_stock import MainWindowStockMixin
-from app.ui.options import OptionsDialog
-from app.ui.plot_navigation import PlotNavigation
-from app.ui.statistics import StatisticsDialog
-from app.ui.stock_dialog import StockDialog
-from app.ui.tokens import TokensDialog
-from app.ui.tool_library_dialog import ToolLibraryDialog
-from app.ui.window_settings import MainWindowSettingsMixin
+from app.ui.windows.main_window_stock import MainWindowStockMixin
+from app.ui.windows.window_settings import MainWindowSettingsMixin
 
 # Backward-compatible helper names used by existing GUI tests and callers.
 RECENT_FILES_LIMIT = _RECENT_FILES_LIMIT
@@ -98,9 +98,9 @@ class MainWindow(
             self.ui.playbackToolBar,
         ):
             toolbar.setIconSize(TOOLBAR_ICON_SIZE)
-        self.ui.actionStock = QAction("Stock", self)
+        self.ui.actionStock = QAction(QCoreApplication.translate("MainWindow", "Stock"), self)
         self.ui.actionStock.setObjectName("actionStock")
-        self.ui.actionStock.setToolTip("Configure turning Stock Removal")
+        self.ui.actionStock.setToolTip(QCoreApplication.translate("MainWindow", "Configure turning Stock Removal"))
         self.ui.menuSettings.insertAction(self.ui.actionWCS, self.ui.actionStock)
 
         self.ui.actionGroupArcType = QActionGroup(self)
@@ -115,7 +115,7 @@ class MainWindow(
         self.ui.fileTypeCombo = QComboBox(self)
         self.ui.fileTypeCombo.setObjectName("fileTypeCombo")
         self.ui.fileTypeCombo.addItems(["Text File", "ISO G-Code"])
-        self.ui.fileTypeCombo.setToolTip("File Type")
+        self.ui.fileTypeCombo.setToolTip(QCoreApplication.translate("MainWindow", "File Type"))
         actions = self.ui.cncToolBar.actions()
         if actions:
             first_action = actions[0]
@@ -183,17 +183,25 @@ class MainWindow(
         self.ui.actionToolLibrary.triggered.connect(self.toolLibraryDlg.show)
         if self._tool_library_load_error:
             self.ui.actionToolLibrary.setEnabled(False)
-            self.ui.actionToolLibrary.setToolTip("Tool Library is unavailable because tools.db could not be read")
+            self.ui.actionToolLibrary.setToolTip(
+                QCoreApplication.translate(
+                    "MainWindow", "Tool Library is unavailable because tools.db could not be read"
+                )
+            )
             QTimer.singleShot(0, self._show_tool_library_load_error)
 
     def _show_tool_library_load_error(self):
-        QMessageBox.critical(self, "Tool Library", self._tool_library_load_error)
+        QMessageBox.critical(
+            self, QCoreApplication.translate("MainWindow", "Tool Library"), self._tool_library_load_error
+        )
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""
         if getattr(self, "_kernel_execution_active", False):
             self._kernel_cancel_requested = True
-            self.ui.statusbar.showMessage("Cancelling CNC execution; close again when it has stopped.")
+            self.ui.statusbar.showMessage(
+                QCoreApplication.translate("MainWindow", "Cancelling CNC execution; close again when it has stopped.")
+            )
             event.ignore()
             return
         if self.maybeSave():

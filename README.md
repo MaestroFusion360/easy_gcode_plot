@@ -35,6 +35,8 @@ The application parses and executes source once through a shared CNC kernel. Ren
 - Milling canned cycles, helical arcs and cutter-radius compensation.
 - ASCII/binary STL reference overlay with solid and feature-edge modes.
 - Tokens diagnostics, toolpath statistics and millimetre/inch display.
+- English and Russian user interface; the language is selected in `Settings → Options → General` and applied after restarting the application.
+- Light and Dark themes; the dark theme adapts the window chrome, the editor, the plot canvas and the toolpath colors.
 - Full-program, Expanded Execution, Plot Data and DXF exports.
 - SQLite-backed turning and milling tool libraries with live geometry preview and JSON/CSV tool export.
 - UTF-8 and Windows-1251 document support.
@@ -72,6 +74,13 @@ uv run --no-dev python main.py
 7. Export the required program or trajectory representation.
 
 The application reports unsupported or ambiguous controller behavior explicitly instead of guessing geometry.
+
+## Appearance and language
+
+`Settings → Options → General` provides two application-level preferences:
+
+- **Language** — switch between **English** and **Russian**. The change is applied after restarting the application; kernel diagnostics, log messages and G-code comments intentionally stay in English.
+- **Theme** — switch between the native **Light** look and a **Dark** theme that also adapts the editor, the plot canvas and the standard toolpath colors. Plot colors customized on the **Colors** tab are preserved when the theme changes.
 
 ## Tool Library
 

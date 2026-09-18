@@ -48,11 +48,15 @@ function Convert-GeneratedUiCode([string]$Content) {
 }
 
 New-Item -ItemType Directory -Path $outputDirPath -Force | Out-Null
-$uiFiles = @(Get-ChildItem -LiteralPath $generatedDir -Filter '*.ui' -File | Sort-Object Name)
+$generatedDirPath = (Resolve-Path -LiteralPath $generatedDir).Path
+$uiFiles = @(Get-ChildItem -LiteralPath $generatedDirPath -Filter '*.ui' -File -Recurse | Sort-Object FullName)
 if ($uiFiles.Count -eq 0) { throw "No Qt Designer .ui files found in $generatedDir" }
 foreach ($uiFile in $uiFiles) {
-    $target = Join-Path $outputDirPath (Get-GeneratedFileName $uiFile)
-    $tempFile = Join-Path $outputDirPath ('.uic-' + [guid]::NewGuid().ToString('N') + '.tmp')
+    $relativeDir = $uiFile.DirectoryName.Substring($generatedDirPath.Length).TrimStart('\')
+    $targetDir = if ($relativeDir) { Join-Path $outputDirPath $relativeDir } else { $outputDirPath }
+    New-Item -ItemType Directory -Path $targetDir -Force | Out-Null
+    $target = Join-Path $targetDir (Get-GeneratedFileName $uiFile)
+    $tempFile = Join-Path $targetDir ('.uic-' + [guid]::NewGuid().ToString('N') + '.tmp')
     try {
         & uv run --directory $toolProjectRootPath --locked --group dev pyside6-uic $uiFile.FullName -o $tempFile
         if ($LASTEXITCODE -ne 0) { throw "pyside6-uic failed for $($uiFile.FullName) (exit $LASTEXITCODE)" }

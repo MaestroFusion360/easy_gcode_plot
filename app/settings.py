@@ -96,6 +96,16 @@ def get_settings() -> QSettings:
     return QSettings(config_path(), QSettings.Format.IniFormat)
 
 
+def ui_language() -> str:
+    """Return the persisted UI language code (readable before the main window exists)."""
+    return str(get_settings().value("GENERAL/LANGUAGE", "en"))
+
+
+def ui_theme() -> str:
+    """Return the persisted UI theme name (readable before the main window exists)."""
+    return str(get_settings().value("GENERAL/THEME", "light"))
+
+
 RECENT_FILES_LIMIT = 5
 ARC_TOLERANCE_MIN = 1e-6
 ARC_TOLERANCE_MAX = 10.0

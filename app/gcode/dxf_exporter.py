@@ -19,6 +19,11 @@ CUT_LAYER = "TOOLPATH_CUT"
 _EPSILON = 1e-8
 
 
+def _check_cancelled(cancelled) -> None:
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Export cancelled")
+
+
 def _is_turning(result: ExecutionResult, turning: bool | None) -> bool:
     if turning is not None:
         return turning
@@ -138,8 +143,10 @@ def build_dxf_document(
     *,
     turning: bool | None = None,
     render_points: Iterable[RenderPoint] | None = None,
+    cancelled=None,
 ):
     """Build a DXF document from one completed kernel execution result."""
+    _check_cancelled(cancelled)
     if result is None or not result.ok or not result.complete:
         raise ValueError("No valid complete CNC execution result is available for DXF export")
 
@@ -147,6 +154,7 @@ def build_dxf_document(
     points_by_motion: dict[int, list[RenderPoint]] = defaultdict(list)
     if render_points is not None:
         for point in render_points:
+            _check_cancelled(cancelled)
             points_by_motion[point.motion_index].append(point)
 
     document = ezdxf.new("R2010")
@@ -156,6 +164,7 @@ def build_dxf_document(
     modelspace = document.modelspace()
 
     for motion_index, motion in enumerate(result.motions):
+        _check_cancelled(cancelled)
         layer = RAPID_LAYER if motion.move == 0 else CUT_LAYER
         if motion.move in (2, 3) and motion.arc is not None:
             if _add_arc_or_circle(modelspace, motion, layer, turning=turning):
@@ -183,7 +192,14 @@ def export_dxf(
     *,
     turning: bool | None = None,
     render_points: Iterable[RenderPoint] | None = None,
+    cancelled=None,
 ) -> None:
     """Write the resolved toolpath to *path* as a millimetre DXF file."""
-    document = build_dxf_document(result, turning=turning, render_points=render_points)
+    document = build_dxf_document(
+        result,
+        turning=turning,
+        render_points=render_points,
+        cancelled=cancelled,
+    )
+    _check_cancelled(cancelled)
     document.saveas(path)

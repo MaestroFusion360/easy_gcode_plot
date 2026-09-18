@@ -376,11 +376,11 @@ Use `--encoding cp1251` for Windows-1251 input. Export modes include `program` a
 
 - `app/gcode/kernel/` owns CNC parsing, execution, cycles and analytical geometry.
 - `app/gcode/trace_tools.py` owns render sampling and statistics derived from the resolved trace.
-- `app/ui/` owns PyQt GUI behavior; `tool_dialogs.py` contains the turning/milling library editors while `dialogs.py` contains general dialogs.
+- `app/ui/` owns PyQt GUI behavior, grouped into `dialogs/` (dialogs and tool editors), `plot/` (OpenGL items, STL, overlays and playback), `windows/` (main-window mixins and the execution worker) and `support/` (editor lexer, units, numeric input and shared widgets).
 - `app/tools/` owns tool definitions, SQLite persistence and validation/normalization.
-- `app/ui/generated/` contains Qt Designer sources and generated PyQt-compatible modules.
+- `app/ui/generated/` contains Qt Designer sources and generated PyQt-compatible modules, grouped into `main/` (main window), `dialogs/` and `editors/`.
 - `app/resources/files_res.qrc` is the resource manifest.
-- `tests/` contains kernel, GUI, CLI, export, Stock and code-generation regressions.
+- `tests/` mirrors the domains under `core/`, `dialects/`, `stock/`, `tooling/`, `export/`, `gui/`, `render/` and `meta/`, with shared fixtures in `conftest.py` and compact program samples in `gcode_samples.py`.
 
 CNC semantics belong in the kernel. GUI rendering, statistics and export consume `ExecutionResult` and must not independently reinterpret source commands.
 
@@ -403,7 +403,7 @@ Edit canonical `.ui` and `.qrc` sources, then regenerate once:
 .\scripts\ps1\generate-qt.ps1
 ```
 
-Generated Python modules must not be edited manually. PySide6 supplies maintained code-generation tools in the development dependency group; the application runtime remains PyQt6.
+Generated Python modules must not be edited manually. PySide6 supplies maintained code-generation tools in the development dependency group; the application runtime remains PyQt6. The generation scripts recurse through `app/ui/generated/` and mirror its category subdirectories.
 
 ### How do I build or release?
 

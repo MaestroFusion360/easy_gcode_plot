@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.5.4"
+version = "1.5.6"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,6 +25,9 @@ namespaces = false
 
 [tool.setuptools.package-data]
 "app.ui.generated" = ["*.ui"]
+"app.ui.generated.main" = ["*.ui"]
+"app.ui.generated.dialogs" = ["*.ui"]
+"app.ui.generated.editors" = ["*.ui"]
 "app.resources" = ["*.qrc", "icons/*"]
 
 [dependency-groups]

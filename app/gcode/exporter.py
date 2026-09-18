@@ -23,6 +23,23 @@ from .kernel.events import (
 from .trace_tools import arc_geometry, sample_motion
 
 
+def _check_cancelled(cancelled) -> None:
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Export cancelled")
+
+
+def _require_complete_export(result: ExecutionResult, message: str, cancelled) -> None:
+    _check_cancelled(cancelled)
+    if not result.ok or not result.complete:
+        raise ValueError(message)
+
+
+def _cancellable(items, cancelled):
+    for item in items:
+        _check_cancelled(cancelled)
+        yield item
+
+
 @dataclass(frozen=True)
 class ExportOptions:
     # 0: relative IJK, 1: absolute IJK, 2: R arcs, 3: linearized arcs,
@@ -94,7 +111,7 @@ def _center_words(m: TraceMotion, options: ExportOptions) -> list[str]:
         else:
             absolute = (("I", center[0]), ("J", center[1]))
             relative = (("I", center[0] - m.start_x), ("J", center[1] - m.start_y))
-        values = absolute if options.arc_mode == 1 else relative
+        values = absolute if options.arc_mode == 1 and not options.incremental else relative
         return [word for letter, value in values if (word := _word(letter, value))]
 
     if options.arc_mode == 1:
@@ -194,7 +211,7 @@ def _number_lines(lines: list[str], options: ExportOptions) -> list[str]:
         return lines
     out: list[str] = []
     seq = options.sequence_start
-    spacer = " " if options.sequence_spacing else ""
+    spacer = " " if options.sequence_spacing or options.delimiter else ""
     for line in lines:
         if not line or line == "%" or line.startswith("(") or line.lstrip().upper().startswith("O"):
             out.append(line)
@@ -388,7 +405,8 @@ def _append_expanded_motion(
         append_line(motion_line(motion, options, override_move=override_move))
 
 
-def export_result(result: ExecutionResult, options: ExportOptions | None = None) -> str:
+def export_result(result: ExecutionResult, options: ExportOptions | None = None, *, cancelled=None) -> str:
+    _check_cancelled(cancelled)
     _require_valid_trace_export(result)
     options = options or ExportOptions()
     lines: list[str] = []
@@ -411,6 +429,7 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None)
         call_counts: dict[str, int] = {}
         active_calls: dict[int, tuple[str, int]] = {}
         for step, _block, motions in _execution_slices(result):
+            _check_cancelled(cancelled)
             for event in step.events:
                 if event.kind not in {PROGRAM_START, PROGRAM_END}:
                     _append_expanded_event(lines, event, options, call_counts, active_calls)
@@ -422,6 +441,7 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None)
             }
             threading_code = next((code for code in (32, 33) if code in step_gcodes), None)
             for motion in motions:
+                _check_cancelled(cancelled)
                 if not replaces_motions:
                     _append_expanded_motion(
                         lines,
@@ -434,6 +454,7 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None)
                 motion_index += 1
     else:
         for motion_index, motion in enumerate(result.motions):
+            _check_cancelled(cancelled)
             _append_expanded_motion(lines, motion, options, motion_index, turning=turning)
 
     if options.include_execution_events:
@@ -670,7 +691,7 @@ def _turn_motion_line(motion: TraceMotion, options: ExportOptions) -> str:
 def _number_full_program_lines(lines: list[str], options: ExportOptions) -> list[str]:
     numbered: list[str] = []
     sequence = options.sequence_start
-    spacer = " " if options.sequence_spacing else ""
+    spacer = " " if options.sequence_spacing or options.delimiter else ""
     for line in lines:
         stripped = line.strip()
         structural = not stripped or stripped == "%" or stripped.startswith("O") or stripped.startswith("(")
@@ -749,6 +770,8 @@ def export_full_program(
     result: ExecutionResult,
     source_lines: list[str],
     options: ExportOptions | None = None,
+    *,
+    cancelled=None,
 ) -> str:
     """Export one flattened FANUC turning program in actual execution order.
 
@@ -757,8 +780,11 @@ def export_full_program(
     separate from the block that invoked a cycle and also flatten M98/M99 calls
     without reconstructing source order from ``TraceMotion.source_block``.
     """
-    if not result.ok or not result.complete:
-        raise ValueError("Expanded turn program export requires a valid and complete turning execution result")
+    _require_complete_export(
+        result,
+        "Expanded turn program export requires a valid and complete turning execution result",
+        cancelled,
+    )
 
     del source_lines
     options = _turn_program_options(options)
@@ -782,7 +808,7 @@ def export_full_program(
         if event.kind == SUBPROGRAM_START and event.target_block is not None
     }
 
-    for step, block, motions in steps:
+    for step, block, motions in _cancellable(steps, cancelled):
         raw = block.raw
         clean = _without_sequence_number(_normalize_words_line(raw))
         clean = _strip_flow_event_words(clean, step)
@@ -901,6 +927,8 @@ def export_full_mill_program(
     result: ExecutionResult,
     source_lines: list[str],
     options: ExportOptions | None = None,
+    *,
+    cancelled=None,
 ) -> str:
     """Export one flattened FANUC milling program in actual execution order.
 
@@ -909,8 +937,11 @@ def export_full_mill_program(
     order expands canned cycles and repeated M98/M99 subprogram calls without
     using ``TraceMotion.source_block`` as a runtime sequence.
     """
-    if not result.ok or not result.complete:
-        raise ValueError("Expanded mill program export requires a valid and complete milling execution result")
+    _require_complete_export(
+        result,
+        "Expanded mill program export requires a valid and complete milling execution result",
+        cancelled,
+    )
 
     del source_lines
     options = _mill_program_options(options)
@@ -931,7 +962,7 @@ def export_full_mill_program(
         if event.kind == SUBPROGRAM_START and event.target_block is not None
     }
 
-    for step, block, motions in steps:
+    for step, block, motions in _cancellable(steps, cancelled):
         raw = block.raw
         comments = _extract_comments(raw)
         clean = _without_sequence_number(_normalize_words_line(raw))
@@ -1050,45 +1081,59 @@ def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
     )
 
 
-def export_pgm(window) -> str:
-    """Compatibility entry point for the existing MainWindow export action."""
-    result = getattr(window, "execution_result", None)
+def export_program(
+    result: ExecutionResult,
+    source: str,
+    *,
+    mode: int,
+    lathe_mode: bool,
+    options: ExportOptions,
+    export_arc_mode: int = 0,
+    cancelled=None,
+) -> str:
+    """Export from an immutable GUI snapshot without touching Qt objects."""
+    _check_cancelled(cancelled)
     if result is None or not result.ok or not result.complete:
         raise ValueError("No valid CNC execution result is available for export")
 
-    mode = int(window.exportMode)
     if mode == TURN_FULL_PROGRAM_MODE:
-        if not bool(window.latheMode):
+        if not lathe_mode:
             raise ValueError("Turn Full Program export requires Lathe Mode")
-        return export_full_program(
-            result,
-            str(window.ui.editor.text()).splitlines(),
-            _window_export_options(window, arc_mode=2),
-        )
+        return export_full_program(result, source.splitlines(), replace(options, arc_mode=2), cancelled=cancelled)
 
     if mode == MILL_FULL_PROGRAM_MODE:
-        if bool(window.latheMode):
+        if lathe_mode:
             raise ValueError("Mill Full Program export requires Milling Mode")
-        return export_full_mill_program(
-            result,
-            str(window.ui.editor.text()).splitlines(),
-            _window_export_options(window, arc_mode=0),
-        )
+        return export_full_mill_program(result, source.splitlines(), replace(options, arc_mode=0), cancelled=cancelled)
 
     if mode == EXPANDED_EXECUTION_MODE:
-        return export_result(result, _window_export_options(window, arc_mode=int(window.exportArcMode)))
+        return export_result(result, replace(options, arc_mode=int(export_arc_mode)), cancelled=cancelled)
 
     if mode == PLOT_DATA_MODE:
         return export_result(
             result,
             replace(
-                _window_export_options(window, arc_mode=4),
+                options,
+                arc_mode=4,
                 incremental=False,
                 include_execution_events=False,
             ),
+            cancelled=cancelled,
         )
 
     if mode == DXF_MODE:
         raise ValueError("DXF export requires a file target")
 
     raise ValueError(f"Unknown export mode: {mode}")
+
+
+def export_pgm(window) -> str:
+    """Compatibility entry point for the existing MainWindow export action."""
+    return export_program(
+        getattr(window, "execution_result", None),
+        str(window.ui.editor.text()),
+        mode=int(window.exportMode),
+        lathe_mode=bool(window.latheMode),
+        options=_window_export_options(window, arc_mode=0),
+        export_arc_mode=int(window.exportArcMode),
+    )

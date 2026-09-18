@@ -14,6 +14,7 @@ TESTS = Path(__file__).resolve().parent
 FIXTURES = TESTS / "fixtures"
 
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(TESTS))
 
 from app import settings as app_settings  # noqa: E402  # pylint: disable=wrong-import-position
 

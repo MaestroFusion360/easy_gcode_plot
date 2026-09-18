@@ -1,0 +1,183 @@
+from __future__ import annotations
+
+import os
+import shutil
+import subprocess
+import sys
+import tomllib
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[2]
+POWERSHELL_SCRIPTS_DIR = Path("scripts/ps1")
+UI_DIR = Path("app/ui/generated")
+RESOURCE_DIR = Path("app/resources")
+
+
+def _ui_mapping(root: Path) -> dict[Path, Path]:
+    return {
+        path: path.with_name("main_ui.py" if path.stem == "main_window" else f"{path.stem}.py")
+        for path in sorted((root / UI_DIR).rglob("*.ui"))
+    }
+
+
+def _create_codegen_fixture(tmp_path: Path) -> Path:
+    target = tmp_path / "project with spaces"
+    ui_dir = target / UI_DIR
+    icons_dir = target / RESOURCE_DIR / "icons"
+    ui_dir.mkdir(parents=True)
+    icons_dir.mkdir(parents=True)
+    shutil.copy2(ROOT / RESOURCE_DIR / "icons/open.png", icons_dir / "open.png")
+    (target / RESOURCE_DIR / "files_res.qrc").write_text(
+        '<RCC><qresource prefix="resource"><file>icons/open.png</file></qresource></RCC>', encoding="utf-8"
+    )
+    (ui_dir / "main_window.ui").write_text(
+        """<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0"><class>MainWindow</class><widget class="QMainWindow" name="MainWindow">
+<property name="windowTitle"><string>Fixture Title</string></property>
+<widget class="QWidget" name="centralwidget"><property name="windowIcon">
+<iconset resource="../../resources/files_res.qrc">
+<normaloff>:/resource/icons/open.png</normaloff></iconset></property></widget>
+</widget><resources><include location="../../resources/files_res.qrc"/></resources><connections/></ui>
+""",
+        encoding="utf-8",
+    )
+    return target
+
+
+def _generate(root: Path, *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    command = [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(ROOT / POWERSHELL_SCRIPTS_DIR / "generate-qt.ps1"),
+        "-ProjectRoot",
+        str(root),
+        "-ToolProjectRoot",
+        str(ROOT),
+    ]
+    return subprocess.run(command, cwd=root.parent, check=check, capture_output=True, text=True, timeout=180)
+
+
+def test_qt_source_generated_mapping_and_resource_manifest_are_complete():
+    mapping = _ui_mapping(ROOT)
+    assert mapping
+    assert ROOT / UI_DIR / "main" / "main_window.ui" in mapping
+    assert mapping[ROOT / UI_DIR / "main" / "main_window.ui"] == ROOT / UI_DIR / "main" / "main_ui.py"
+    assert all(target.is_file() for target in mapping.values())
+
+    generated = {path for path in (ROOT / UI_DIR).rglob("*.py") if path.name != "__init__.py"}
+    assert generated == set(mapping.values()), "orphan or missing generated UI module"
+
+    manifest_path = ROOT / RESOURCE_DIR / "files_res.qrc"
+    manifest = ET.parse(manifest_path).getroot()
+    entries = [node.text for node in manifest.findall(".//file")]
+    assert len(entries) == len(set(entries)), "duplicate qrc entries"
+    assert all((manifest_path.parent / entry).is_file() for entry in entries)
+
+    aliases = {
+        f":/{resource.attrib.get('prefix', '').strip('/')}/{node.attrib.get('alias', node.text)}"
+        for resource in manifest.findall("qresource")
+        for node in resource.findall("file")
+    }
+    for ui in mapping:
+        ui_root = ET.parse(ui).getroot()
+        includes = {node.attrib["location"] for node in ui_root.findall("./resources/include")}
+        used = {node.text for node in ui_root.iter() if node.text and node.text.startswith(":/")}
+        if used:
+            assert any(location.endswith("resources/files_res.qrc") for location in includes)
+            assert used <= aliases
+
+
+def test_ui_sources_use_qt6_scoped_enum_names():
+    forbidden = (
+        "QDialogButtonBox::Close",
+        "QDialogButtonBox::Cancel",
+        "QDialogButtonBox::Ok",
+        "QPlainTextEdit::NoWrap",
+        "QAbstractItemView::SelectRows",
+        "QAbstractItemView::SingleSelection",
+        "QAbstractItemView::NoEditTriggers",
+        "QFrame::NoFrame",
+        "QSlider::TicksBelow",
+        "Qt::AlignCenter",
+        "Qt::CustomContextMenu",
+        "<enum>Qt::Horizontal</enum>",
+        "<enum>Qt::Vertical</enum>",
+    )
+    offenders = {}
+    for path in sorted((ROOT / UI_DIR).rglob("*.ui")):
+        text = path.read_text(encoding="utf-8")
+        matches = [token for token in forbidden if token in text]
+        if matches:
+            offenders[path.name] = matches
+    assert not offenders, f"Qt5-style enum aliases in Designer sources: {offenders}"
+
+
+def test_qt_generation_uses_pyside_only_as_dev_toolchain():
+    with (ROOT / "pyproject.toml").open("rb") as stream:
+        project = tomllib.load(stream)
+    assert any(dep.startswith("pyside6>=6.11,<7") for dep in project["dependency-groups"]["dev"])
+    assert not any("pyside" in dep.lower() for dep in project["project"]["dependencies"])
+    assert "--no-dev" in (ROOT / POWERSHELL_SCRIPTS_DIR / "build.ps1").read_text(encoding="utf-8")
+    for generated in [*_ui_mapping(ROOT).values(), ROOT / RESOURCE_DIR / "files_res.py"]:
+        content = generated.read_text(encoding="utf-8")
+        assert "from PySide6" not in content
+        assert "import PySide6" not in content
+        assert "PyQt6" in content
+        assert not content.startswith("\ufeff")
+
+
+@pytest.mark.skipif(sys.platform != "win32" or shutil.which("powershell") is None, reason="PowerShell workflow")
+def test_batch_generation_tracks_changed_ui_and_resource(tmp_path):
+    project = _create_codegen_fixture(tmp_path)
+    main_ui = project / UI_DIR / "main_window.ui"
+    main_ui.write_text(
+        main_ui.read_text(encoding="utf-8").replace("Fixture Title", "Changed Test Title", 1), encoding="utf-8"
+    )
+    icon = project / RESOURCE_DIR / "icons/open.png"
+    icon.write_bytes(icon.read_bytes() + b"qt-codegen-test")
+    _generate(project)
+    generated_ui = (project / UI_DIR / "main_ui.py").read_text(encoding="utf-8")
+    assert "Changed Test Title" in generated_ui
+    assert "from PyQt6" in generated_ui
+    assert "import app.resources.files_res" in generated_ui
+
+    env = os.environ.copy()
+    env.setdefault("QT_QPA_PLATFORM", "offscreen")
+    code = (
+        "from PyQt6.QtCore import QFile, QIODevice; "
+        "import app.resources.files_res; "
+        "resource = QFile(':/resource/icons/open.png'); "
+        "assert resource.open(QIODevice.OpenModeFlag.ReadOnly); "
+        "assert bytes(resource.readAll()).endswith(b'qt-codegen-test')"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=project, env=env, check=True, timeout=30)
+
+
+def test_generation_stages_all_outputs_before_replacing_generated_targets():
+    script = (ROOT / POWERSHELL_SCRIPTS_DIR / "generate-qt.ps1").read_text(encoding="utf-8")
+    resource_generation = script.index("generate-resources.ps1")
+    ui_generation = script.index("generate-ui.ps1")
+    first_replacement = script.index("Copy-Item")
+
+    assert resource_generation < first_replacement
+    assert ui_generation < first_replacement
+    assert "finally" in script[first_replacement:]
+    assert "Remove-Item -LiteralPath $stagingRoot -Recurse -Force" in script
+
+
+def test_generated_modules_import_and_qt_resource_is_registered():
+    env = os.environ.copy()
+    env.setdefault("QT_QPA_PLATFORM", "offscreen")
+    code = (
+        "from PyQt6.QtCore import QFile; "
+        "import app.resources.files_res; "
+        "import app.ui.generated.main.main_ui; "
+        "assert QFile(':/resource/icons/open.png').exists()"
+    )
+    subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, check=True, timeout=30)

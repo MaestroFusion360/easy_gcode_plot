@@ -1,6 +1,7 @@
 <RCC>
   <qresource prefix="resource">
     <file alias="FAQ.md">../../FAQ.md</file>
+    <file>translations/app_ru.qm</file>
     <file>icons/removeEmptyLines.png</file>
     <file>icons/removeSpaces.png</file>
     <file>icons/number.png</file>
