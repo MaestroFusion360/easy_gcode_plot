@@ -13,12 +13,13 @@ from app.gcode.turning_tool_geometry import (
     positive_float,
     turning_tool_polygon,
 )
-from app.gcode.turning_tool_geometry import TURNING_INSERT_TYPES as _TURNING_INSERT_TYPES
-from app.gcode.turning_tool_geometry import TURNING_TOOL_LABELS as _TURNING_TOOL_LABELS
+from app.tools.definitions import (
+    DEFAULT_TURNING_TOOL,
+    tool_application,
+    tool_applications,
+)
 
 _EPS = EPS
-TURNING_INSERT_TYPES = _TURNING_INSERT_TYPES
-TURNING_TOOL_LABELS = _TURNING_TOOL_LABELS
 MAX_TURN_PROFILE_POINTS = 20_000
 MAX_MOTION_SAMPLES = 20_000
 
@@ -97,29 +98,33 @@ def _horizontal_span(
     return min(intersections), max(intersections)
 
 
-def _radial_groove_breaks(
+def _radial_sweep_breaks(
     motion: TraceMotion,
     footprint: tuple[tuple[float, float], ...] | None,
-    tool_type: str,
 ) -> tuple[float, ...]:
-    """Return exact Z walls for a radial OD/ID groove plunge.
+    """Return exact Z walls created by a constant-Z radial cutter sweep.
 
     The sampled stock profile is continuous between Z nodes.  A rectangular
-    groove cutter, however, creates true discontinuities at both cutting-edge
-    corners.  Keep those exact Z locations so the renderer can draw vertical
-    walls instead of interpolating a false bevel across one profile cell.
+    groove plunge and a facing pass both create true axial discontinuities.
+    Keep the extrema of the swept insert so the renderer does not interpolate
+    either wall into a false bevel across one profile cell.
     """
-    if tool_type not in {"od_groove", "id_groove"} or not footprint:
+    if not footprint:
         return ()
     if abs(float(motion.end_z) - float(motion.start_z)) > _EPS:
         return ()
+    offset = float(motion.end_z)
+    z_values = [offset + float(point[1]) for point in footprint]
+    return tuple(sorted({min(z_values), max(z_values)}))
 
-    breaks: set[float] = set()
-    for index, first in enumerate(footprint):
-        second = footprint[(index + 1) % len(footprint)]
-        if abs(first[1] - second[1]) <= _EPS < abs(first[0] - second[0]):
-            breaks.add(float(motion.end_z) + float(first[1]))
-    return tuple(sorted(breaks))
+
+def _radialized_span(minimum_x: float, maximum_x: float) -> tuple[float, float]:
+    """Map a signed cutter intersection onto axisymmetric stock radii."""
+    if minimum_x <= 0.0 <= maximum_x:
+        return 0.0, max(abs(minimum_x), abs(maximum_x))
+    first = abs(minimum_x)
+    second = abs(maximum_x)
+    return min(first, second), max(first, second)
 
 
 def profile_interval_mesh_spans(
@@ -247,14 +252,21 @@ class TurningStockTimeline:
         self._active_break_counts: dict[float, int] = {}
         self._profile_breaks_cache: tuple[float, ...] = ()
         self._profile_breaks_dirty = False
+        self._thread_phase_z: dict[tuple[str, float], float] = {}
+        for motion in self.motions:
+            pitch = abs(float(motion.feed or 0.0))
+            if motion.threading and pitch > _EPS:
+                self._thread_phase_z.setdefault((motion.tool or "", round(pitch, 9)), float(motion.start_z))
 
     def _profile_index(self, z_value: float) -> int:
         return max(0, min(len(self.z) - 1, int(round((z_value - self.z[0]) / self.step))))
 
-    def _motion_side(self, motion: TraceMotion, tool_type: str) -> str:
-        if tool_type in {"drill", "id_80", "id_35", "id_groove"}:
+    def _motion_side(self, motion: TraceMotion, spec: dict[str, object]) -> str:
+        tool_type = canonical_turning_tool_type(spec.get("type"))
+        applications = tool_applications(spec)
+        if tool_type == "drill" or applications == ("id",):
             return "id"
-        if tool_type in {"face_groove", "od_80", "od_35", "od_groove"}:
+        if applications == ("od",) or applications == ("face",):
             return "od"
         index = self._profile_index(motion.start_z)
         start_radius = abs(motion.start_x * 0.5)
@@ -331,8 +343,8 @@ class TurningStockTimeline:
         end_x, end_z = end
         swept = _convex_hull(
             [
-                *((abs(float(start_x)) + x_value, float(start_z) + z_value) for x_value, z_value in footprint),
-                *((abs(float(end_x)) + x_value, float(end_z) + z_value) for x_value, z_value in footprint),
+                *((float(start_x) + x_value, float(start_z) + z_value) for x_value, z_value in footprint),
+                *((float(end_x) + x_value, float(end_z) + z_value) for x_value, z_value in footprint),
             ]
         )
         if len(swept) < 3:
@@ -345,7 +357,7 @@ class TurningStockTimeline:
             span = _horizontal_span(swept, self.z[index])
             if span is None:
                 continue
-            minimum_x, maximum_x = span
+            minimum_x, maximum_x = _radialized_span(*span)
             if side == "id":
                 candidate = maximum_x
                 if candidate <= self.inner[index] + _EPS:
@@ -369,8 +381,8 @@ class TurningStockTimeline:
         end_x, end_z = end
         swept = _convex_hull(
             [
-                *((abs(float(start_x)) + x, float(start_z) + z) for x, z in footprint),
-                *((abs(float(end_x)) + x, float(end_z) + z) for x, z in footprint),
+                *((float(start_x) + x, float(start_z) + z) for x, z in footprint),
+                *((float(end_x) + x, float(end_z) + z) for x, z in footprint),
             ]
         )
         if len(swept) < 3:
@@ -382,7 +394,52 @@ class TurningStockTimeline:
         for index in range(first, last + 1):
             span = _horizontal_span(swept, self.z[index])
             if span is not None:
-                self._subtract_local_interval(changes, index, *span)
+                self._subtract_local_interval(changes, index, *_radialized_span(*span))
+
+    def _apply_thread_profile(self, changes, motion: TraceMotion, side: str, spec: dict[str, object]) -> None:
+        """Cut a deterministic longitudinal thread section from pitch and insert geometry."""
+        start_z = float(motion.start_z)
+        end_z = float(motion.end_z)
+        axial_delta = end_z - start_z
+        if abs(axial_delta) <= _EPS:
+            return
+        pitch = abs(float(motion.feed or 0.0))
+        if pitch <= _EPS:
+            return
+        angle = min(179.0, max(1.0, positive_float(spec, "threadAngle", 60.0)))
+        half_angle = math.radians(angle * 0.5)
+        flank_slope = 1.0 / max(math.tan(half_angle), _EPS)
+        corner_radius = min(positive_float(spec, "threadCornerRadius"), pitch * 0.49)
+        transition_x = corner_radius * math.cos(half_angle)
+        transition_y = corner_radius * (1.0 - math.sin(half_angle))
+        phase_z = self._thread_phase_z.get((motion.tool or "", round(pitch, 9)), start_z)
+        minimum_z = min(start_z, end_z)
+        maximum_z = max(start_z, end_z)
+        first = max(0, int(math.ceil((minimum_z - self.z[0]) / self.step - _EPS)))
+        last = min(len(self.z) - 1, int(math.floor((maximum_z - self.z[0]) / self.step + _EPS)))
+        start_radius = abs(float(motion.start_x) * 0.5)
+        end_radius = abs(float(motion.end_x) * 0.5)
+        for index in range(first, last + 1):
+            z_value = self.z[index]
+            progress = (z_value - start_z) / axial_delta
+            progress = min(1.0, max(0.0, progress))
+            tip_radius = start_radius + (end_radius - start_radius) * progress
+            phase_offset = (z_value - phase_z + pitch * 0.5) % pitch - pitch * 0.5
+            distance = abs(phase_offset)
+            if corner_radius > _EPS and distance < transition_x:
+                profile_height = corner_radius - math.sqrt(max(0.0, corner_radius**2 - distance**2))
+            else:
+                profile_height = transition_y + (distance - transition_x) * flank_slope
+            if side == "id":
+                candidate = max(0.0, tip_radius - profile_height)
+                if candidate <= self.inner[index] + _EPS:
+                    continue
+                self._remember(changes, index, min(candidate, self.outer[index]), self.outer[index])
+            else:
+                candidate = tip_radius + profile_height
+                if candidate >= self.outer[index] - _EPS:
+                    continue
+                self._remember(changes, index, self.inner[index], max(candidate, self.inner[index]))
 
     def _apply_drill_sample(self, changes, tip_z: float, spec) -> None:
         diameter = _positive_float(spec, "diameter")
@@ -407,24 +464,44 @@ class TurningStockTimeline:
         changes: dict[int, tuple[float, float, float, float]] = {}
         if motion.move not in (1, 2, 3):
             return TurningDelta(())
-        spec = self.tools.get(motion.tool or "")
+        spec = self.tools.get(motion.tool, DEFAULT_TURNING_TOOL)
         if not isinstance(spec, dict):
             return TurningDelta(())
         tool_type = canonical_turning_tool_type(spec.get("type"))
-        side = self._motion_side(motion, tool_type)
-        footprint = turning_tool_polygon(spec, self.spec.outer_diameter, stock_scope=True)
-        breaks = _radial_groove_breaks(motion, footprint, tool_type)
+        side = self._motion_side(motion, spec)
+        if tool_type == "thread":
+            if not motion.threading:
+                return TurningDelta(())
+            self._apply_thread_profile(changes, motion, side, spec)
+            breaks = tuple(sorted({float(motion.start_z), float(motion.end_z)}))
+            return TurningDelta(
+                tuple(
+                    (index, old_inner, new_inner, old_outer, new_outer, old_intervals, new_intervals)
+                    for index, (old_inner, new_inner, old_outer, new_outer, old_intervals, new_intervals) in sorted(
+                        changes.items()
+                    )
+                ),
+                breaks,
+            )
+        application = tool_application(spec, side)
+        footprint = turning_tool_polygon(
+            spec,
+            self.spec.outer_diameter,
+            stock_scope=True,
+            application=application,
+        )
+        breaks = _radial_sweep_breaks(motion, footprint)
         if motion.move in (2, 3) and motion.arc is not None:
             chord_error = min(0.05, max(0.005, self.step * 0.25))
             positions = _arc_sample_positions(motion, chord_error)
         else:
             positions = [(motion.start_x * 0.5, motion.start_z), (motion.end_x * 0.5, motion.end_z)]
 
-        if tool_type == "drill":
+        if tool_type in {"drill", "tap"}:
             self._apply_drill_sample(changes, min(position[1] for position in positions), spec)
         elif footprint is not None:
             for start, end in zip(positions, positions[1:], strict=False):
-                if tool_type == "face_groove":
+                if tool_type == "groove" and application == "face":
                     self._apply_local_swept_footprint(changes, start, end, footprint)
                 else:
                     self._apply_swept_footprint(changes, start, end, footprint, side)

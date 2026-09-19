@@ -20,22 +20,28 @@ generated_dir="$project_root/app/ui/generated"
 output_directory=${output_directory:-$generated_dir}
 mkdir -p "$output_directory"
 output_directory=$(CDPATH= cd -- "$output_directory" && pwd)
-shopt -s nullglob
-ui_files=("$generated_dir"/*.ui)
+mapfile -d '' ui_files < <(find "$generated_dir" -type f -name '*.ui' -print0 | LC_ALL=C sort -z)
 if (( ${#ui_files[@]} == 0 )); then
     printf 'No Qt Designer .ui files found in %s\n' "$generated_dir" >&2
     exit 1
 fi
 
 for ui_file in "${ui_files[@]}"; do
+    relative_path=${ui_file#"$generated_dir"/}
+    relative_dir=$(dirname -- "$relative_path")
+    target_dir=$output_directory
+    if [[ $relative_dir != . ]]; then
+        target_dir="$output_directory/$relative_dir"
+    fi
+    mkdir -p "$target_dir"
     base_name=$(basename -- "$ui_file" .ui)
     target_name=$base_name.py
     if [[ $base_name == main_window ]]; then
         target_name=main_ui.py
     fi
-    temporary=$(mktemp "$output_directory/.uic-XXXXXX.tmp")
+    temporary=$(mktemp "$target_dir/.uic-XXXXXX.tmp")
     uv run --directory "$tool_project_root" --locked --group dev pyside6-uic "$ui_file" -o "$temporary"
-    uv run --directory "$tool_project_root" --locked --group dev python - "$temporary" "$output_directory/$target_name" <<'PY'
+    uv run --directory "$tool_project_root" --locked --group dev python - "$temporary" "$target_dir/$target_name" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -64,5 +70,5 @@ if re.search(r"(?m)^\s*(?:from|import)\s+PySide6", content):
 target.write_text(content.rstrip("\r\n") + "\n", encoding="utf-8")
 PY
     rm -f -- "$temporary"
-    printf 'Generated %s\n' "$output_directory/$target_name"
+    printf 'Generated %s\n' "$target_dir/$target_name"
 done

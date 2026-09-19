@@ -1,6 +1,7 @@
 <RCC>
   <qresource prefix="resource">
     <file alias="FAQ.md">../../FAQ.md</file>
+    <file>translations/app_ru.qm</file>
     <file>icons/removeEmptyLines.png</file>
     <file>icons/removeSpaces.png</file>
     <file>icons/number.png</file>
@@ -37,6 +38,9 @@
     <file>icons/select-all.png</file>
     <file>icons/stop.png</file>
     <file>icons/undo.png</file>
+    <file>icons/thread.png</file>
+    <file>icons/prev_tool.png</file>
+    <file>icons/next_tool.png</file>
     <file>icons/orientation_box/P1.png</file>
     <file>icons/orientation_box/P2.png</file>
     <file>icons/orientation_box/P3.png</file>

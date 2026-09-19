@@ -1,5 +1,88 @@
 # Changelog
 
+## 1.5.7 - 2026-09-18
+
+- Refactored the CNC core without changing existing execution semantics: the former flat `app/gcode/kernel/` modules are now grouped into `api/`, `frontend/`, `geometry/`, `lathe_cycles/`, `compensation/`, `runtime/` and `milling/` packages.
+- Split the largest kernel modules into focused files for cycle expansion, interpreter dispatch/execution, profile geometry, milling state/motion/drilling and compensation geometry.
+- Split G-code/DXF export into the `app/gcode/export/` package while keeping export behavior based on the authoritative `ExecutionResult`/resolved trace.
+- Added milling `G73` high-speed peck drilling with short intermediate retracts while preserving existing `G83` full-retract behavior.
+- Added a reusable milling coordinate-transform layer and FANUC-style `G52` local coordinate-system shifts. `G52` changes transform state without moving the tool.
+- Added milling `G68`/`G69` coordinate rotation around a programmed center. The control blocks do not create motion, and the active rotation is applied to subsequent endpoints and I/J/K arc vectors.
+- Added milling `G51`/`G50` coordinate scaling. `G51` supports a uniform `P` factor or per-axis `I/J/K` factors around the programmed center, while `G50` cancels scaling; neither control block creates a motion segment.
+- Fixed milling `M98`/`M99` execution so a subprogram inherits the caller's current position and complete modal/coordinate-transform state, returns to the caller without synthetic connector motion, and resumes execution with the resulting state.
+- Fixed main-program completion when subprogram definitions follow `M30`, allowing the authoritative execution result to remain valid and complete for UI and DXF export.
+- Fixed milling `G41`/`G42` contour construction across line/arc junctions, corners and `G40` exit so compensated primitives remain continuously joined without artificial diagonals between source and compensated geometry.
+- Added an end-to-end `flange_plate_benchmark.nc` integration test covering subprogram execution, compensated-contour continuity and non-empty DXF generation through the production execution path.
+- Fixed lathe Auto Stock so the calculated Z bounds come from the actual toolpath instead of incorrectly exposing the default `2 mm` Z allowance for programs located entirely in positive Z.
+- Renamed the turning-only cycle implementation package to `lathe_cycles/`, updated its consumers, and added regression checks for the canonical package layout and representative turning/milling execution paths.
+- Remapped the complexity baseline to the new module paths without relaxing the recorded complexity thresholds.
+
+## 1.5.6 - 2026-09-17
+
+- Added a Russian user interface. The language is selected in `Settings -> Options -> General` and applied after restarting the application; English technical logging, kernel diagnostics and G-code comments are intentionally unchanged.
+- Added a `Light`/`Dark` theme selector next to the language option. The application uses Qt's native color-scheme support with a palette fallback, plus editor and plot colors; standard plot colors follow the active theme while user-customized plot colors are preserved.
+- Light and Dark use the native platform `QStyle` where it supports the requested scheme. Windows 11 keeps Qt's native Windows 11 style; Windows 10 falls back from the legacy `windowsvista` style to the palette-aware `windows` style in Dark mode because the native Vista theme engine can otherwise leave menus, toolbars and input controls light. QScintilla and plot colors remain theme-aware, and switching between Text and ISO G-code still reapplies the editor chrome.
+- Added Qt translation generation (`pyside6-lupdate`/`pyside6-lrelease`) to the Qt codegen pipeline: `translations/app_ru.ts` is the tracked source and the compiled `app_ru.qm` is embedded in the Qt resources as a generated artifact.
+- Recolored the `Fit to View` toolbar icon so it stays visible on the dark theme.
+- Restored fast NC file opening by removing the 1.5.4 forced synchronous Auto Update from `Open`; the previous plot is cleared immediately, normal Auto Update settings are respected, and long calculations use delayed execution feedback while short calculations avoid a modal flash.
+- Moved tool discovery plus trace sampling into the worker path so slow calculations are covered by the delayed cancellable execution dialog without reintroducing a status-bar progress bar.
+- Added an `inches` display switch to Stock and WCS and to both Turning and Milling Tool Library add/edit forms; stored geometry and WCS values remain millimetres.
+- Avoided unnecessary re-execution before Export when the current trace is already valid, moved export generation/writing through the delayed cancellable execution dialog, and kept total export timing in the status bar.
+- Fixed Expanded Execution formatting so Delimiter always inserts a space after sequence numbers, and fixed G91 export so I/J/K are emitted incrementally even when Absolute IJK is selected.
+- Reorganized the `tests/` tree into domain subpackages (`core`, `dialects`, `stock`, `tooling`, `export`, `gui`, `render`, `meta`) and split the oversized stock-removal and CLI/exporter suites into focused modules; shared fixtures and helper imports now resolve from the `tests` root.
+- Grouped the Qt Designer sources and their generated modules under `app/ui/generated/main`, `app/ui/generated/dialogs` and `app/ui/generated/editors`, and updated the Windows and shell generation scripts to recurse and mirror the category directories.
+- Updated locked dependencies: numpy 2.5.3, fonttools 4.65.0, platformdirs 4.11.9, pyinstaller 6.22.3 and ruff 0.16.8.
+- Split `app/ui/` into `dialogs/`, `plot/`, `windows/` and `support/` packages, rewrote all application and test imports plus the Designer custom-widget headers, and remapped the complexity baseline to the new module paths.
+- Made the Tokens window a standard resizable window with minimize and maximize controls and removed its in-content Close button.
+- Fixed the FAQ table of contents in the Help window by resolving `#section` links to the matching document headings.
+
+## 1.5.4 - 2026-09-16
+
+- Unified turning and milling tool management under one `Tool Library` window with separate Milling/Turning tabs and explicit `Current Program` versus persistent `Saved Library` areas.
+- Kept discovered T selections temporary per open program; inferred geometry from inline, named-tool and nearby operation comments, preserved descriptions, and used standard geometry when no type was recognized. New/Open resets temporary program assignments without modifying `tools.db`.
+- Added explicit assignment/copy operations between Current Program and Saved Library while preserving the NC program's T number.
+- Changed Tool Library export to write the complete Saved Library of the active machine kind as JSON or CSV instead of exporting only the selected tool.
+- Moved code-built dialogs and tool editors to Qt Designer `.ui` sources and removed the obsolete separate turning/milling tool forms and collection classes. Generated Python UI/resource modules remain build artifacts produced by the existing generation scripts.
+- Normalized Designer sources to Qt 6 scoped enum names and hardened UI generation against PySide6-to-PyQt6 enum alias mismatches.
+- Used standard tool geometry for unknown selections in Stock Removal and playback instead of silently leaving stock unchanged or hiding the tool.
+- Staged Saved Library Add/Edit/Duplicate/Remove operations in the Tool Library window; OK commits the final state to `tools.db`, while Cancel discards the staged changes and Current Program remains temporary.
+- Improved Tool Library layout and preview behavior with compact resizable defaults, borderless sections, larger table space and viewport-aware automatic Fit for selected Current Program and Saved Library tools.
+- Inferred temporary Current Program fallback geometry from the active tool's operation: D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92, while retaining D10 Flat Mill and Diamond 80 OD as the general defaults and preserving explicit comment hints.
+- Made Tool Library OK commit Milling and Turning changes in a single SQLite transaction, eliminating partial cross-tab saves and compensating rollback.
+- Reported tool-library read failures explicitly at startup and disabled Tool Library editing instead of presenting an unreadable `tools.db` as an empty library.
+- Made Linux and Windows CI regenerate Qt sources and fail on any modified or untracked generated output before tests or packaging.
+- Removed the redundant status-bar progress indicator; long CNC execution now uses only the cancellable execution dialog.
+- Restarted ordinary playback from the beginning when Play is pressed at the completed end of a trajectory.
+- Refreshed the plot immediately when opening a new NC program, regardless of the Auto Update setting, so geometry from the previously opened file is never left on screen.
+- Made Playback controls authoritative over editor-line synchronization: Play, Step Forward, Step Backward and manual trackbar movement now advance correctly through expanded Macro B execution even when multiple execution steps originate from the same source line.
+- Fixed lathe Auto Stock for programs located in positive Z coordinates and separated absolute stock front position from front allowance, so opening or confirming the Stock dialog no longer shifts automatically detected stock back into negative Z.
+- Fixed G70 finishing so the cycle first approaches the profile start from the actual G70 call position instead of beginning the finish contour with a discontinuous jump.
+- Renamed the automatic refresh threshold to `Auto update max points`, removed the hidden point ceiling from manual Update, and reused an already computed kernel result when an oversized automatic render is completed manually.
+- Delayed the cancellable execution dialog until a calculation has run for two seconds, while keeping execution immediate; fast runs no longer flash a modal window, and the worker shutdown path no longer relies on a nested `QDialog.exec()` lifecycle that could crash Qt on Windows.
+- Split the oversized GUI and dialog regression suites into focused test modules covering actions, execution, files, plotting, settings, views, export, options and turning-tool editing.
+
+## 1.5.3 - 2026-09-14
+
+- Replaced direction-bearing turning type identifiers with nine canonical geometry types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap.
+- Persisted OD, ID and Face as independent `applications` flags and routed preview, orientation, compensation and Stock Removal through canonical geometry plus application context.
+- Added idempotent `tools.db` migration on load; historical records retain application meaning and geometry fields and are immediately rewritten using canonical types without duplication.
+- Added a Qt-free SQLite tool library in `tools.db` as the authoritative store for turning and milling tool definitions.
+- Initialized new SQLite libraries directly with the current tool schema; no intermediate legacy tool import is used.
+- Added a generator for the complete auto-mode turning catalogue and made turning and milling tool-set replacement atomic.
+- Added regression coverage for deterministic catalogue generation, deletion persistence, duplicate-key protection and the settings bridge.
+- Added live previews, first-free-number duplication and JSON/CSV export to both tool-library dialogs.
+- Added Face Mill, Slot Mill, Chamfer Mill and Tap cutters plus square, round and triangular turning inserts.
+- Added a directional threading tool with Length/Diameter, E, EX and RC geometry for preview and trace playback.
+- Added Diamond 80 with OD applicability and D10 Flat Mill fallback geometry when a program does not select a configured tool.
+- Added Prev/Next Toolchange navigation and exposed the Edit and CNC Functions actions in the editor context menu.
+- Corrected the application-specific auto tracing-point catalogue, including P1/P2/P6/P7 for Diamond 35 ID and P3/P4/P7/P8 for Diamond 35 OD.
+- Corrected turning-tool geometry consistency: Triangle Insert now uses a real three-sided footprint, Round Insert uses its physical insert radius for trace-point placement, and Drill/Tap library preview reuses the shared cutter geometry used by playback and Stock Removal.
+- Added pitch- and insert-driven Stock Removal profiles for synchronized G32/G33, modal G92 and G76 cutting moves; repeated OD/ID passes deepen one phase-aligned profile, radial infeed/retract moves do not create false angled faces, and G94 remains a facing cycle.
+- Changed Stock sizing to preserve user-entered manual dimensions across Refresh and turning-tool edits; Reset to Auto, New and Open return Stock to program-derived automatic sizing.
+- Added startup Fit to View for persisted Lathe Mode after the main window is shown, so the automatic stock outline is visible immediately.
+- Consolidated tool validation under `app/tools/validation.py`, split turning/milling library dialogs out of the generic dialog module, and kept compatibility re-exports for existing callers/tests.
+- Kept `tools.db` as the single authoritative turning/milling library; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported or written.
+
 ## 1.5.2 - 2026-09-12
 
 - Fixed Linux shell workflow orchestration so nested `.sh` scripts are invoked through `bash` and do not depend on executable file mode in CI.
@@ -8,12 +91,12 @@
 
 ## 1.5.1 - 2026-09-12
 
-- Fixed Face Groove Stock Removal so axial feed moves subtract only the swept insert footprint and preserve material on both radial sides; rapid moves remain non-cutting and the generalized interval profile stays reversible during playback.
-- Added P2/P3 Face Groove orientations and used the same orientation-aware cutter polygon for the tool preview, 3D playback and Stock Removal.
-- Added configurable corner radius for OD Groove, ID Groove and Face Groove tools, with `R0` compatibility for legacy settings and real rounded cutter footprints for preview and material removal.
+- Fixed Groove + Face Stock Removal so axial feed moves subtract only the swept cutter footprint and preserve material on both radial sides; rapid moves remain non-cutting and the generalized interval profile stays reversible during playback.
+- Added P2/P3 Groove + Face orientations and used the same orientation-aware cutter polygon for the tool preview, 3D playback and Stock Removal.
+- Added configurable corner radius for Groove tools in OD, ID and Face applications, with `R0` compatibility and real rounded cutter footprints for preview and material removal.
 - Restored a clearly visible yellow/gold turning insert material without changing global scene lighting or the rendering of stock, STL, grid and toolpaths.
 - Added groove regressions covering the supplied G74 face-grooving cycle, local material removal, rapid/feed behavior, multiple X passes, P2/P3, rounded OD/ID/Face footprints and reversible stock playback.
-- Fixed disconnected stock-ring meshing so topology changes do not create overlapping faces and exact OD/ID groove profile breaks remain effective alongside Face Groove cuts.
+- Fixed disconnected stock-ring meshing so topology changes do not create overlapping faces and exact radial Groove profile breaks remain effective alongside Groove + Face cuts.
 - Kept long kernel executions responsive to Qt events and made Stop, repeated Refresh and window close request cooperative cancellation.
 - Removed machine-specific window geometry from the bundled legacy configuration, constrained runtime dependency ranges and added Linux CI coverage for the shell workflow.
 
@@ -34,10 +117,10 @@
 - Fixed Stock outline settings and automatically inferred bounds being refreshed after program changes and Refresh, instead of updating only after accepting the Stock dialog.
 - Fixed Lathe Play to build Stock Removal from the same current effective bounds as the visible outline, and changed Stop after Stock playback to restore the fully visible trajectory with the slider at 100%.
 - Expanded application diagnostics for option changes, machine/view/playback transitions, execution and plot timing, and sampled Stock Removal performance; slow Stock frames report timeline/mesh timing, profile and mesh sizes without logging every frame.
-- Added a shared Qt-free X/Z turning-tool geometry layer so the turning-tool preview and Stock Removal use the same cutter silhouette for OD80/ID80, OD35/ID35 and OD/ID groove tools.
-- Changed OD80/OD35 P3 and ID80/ID35 P2 Stock Removal from the previous nose/width approximation to sampled polygon-footprint removal along the resolved `TraceMotion`, so insert angle, main-edge angle and nose radius affect the machined profile.
-- Added OD Groove P3/P4 and ID Groove P1/P2 edge-reference selection, with legacy groove definitions defaulting to OD P3 and ID P2, and restricted the turning-tool editor to the valid orientation choices for each groove type.
-- Changed unknown or unconfigured turning tools to leave stock unchanged instead of falling back to an implicit OD80 cutter; Stock Removal remains a geometric simulation and does not require spindle-running state.
+- Added a shared Qt-free X/Z turning-tool geometry layer so preview and Stock Removal use the same Diamond 80, Diamond 35 and Groove silhouettes across OD/ID applications.
+- Changed Diamond 80/Diamond 35 Stock Removal for OD P3 and ID P2 from the previous nose/width approximation to sampled polygon-footprint removal along the resolved `TraceMotion`, so plate angle, main-edge angle and nose radius affect the machined profile.
+- Added Groove edge-reference selection for OD P3/P4 and ID P1/P2, with application-aware defaults and valid orientation choices.
+- Changed unknown or unconfigured turning tools to leave stock unchanged instead of falling back to an implicit Diamond 80 cutter; Stock Removal remains a geometric simulation and does not require spindle-running state.
 - Added automatic turning-stock sizing from resolved G1/G2/G3 cutting motions, including cycle-generated motions and exact G18 arc extrema, while ignoring G0 positioning; the suggested bore remains zero by default.
 - Added a lightweight stock outline to the normal Lathe Plot, included configured stock in Fit View bounds, hid the outline in milling and isolated Stock Removal playback, and restored it when returning to the normal lathe plot.
 - Added Stock-dialog prefill from the current automatic stock suggestion without mutating persisted settings until OK is pressed, and refresh the suggestion after program or mode recalculation so stale dimensions are not reused.
@@ -48,7 +131,7 @@
 
 ## 1.4.2 - 2026-09-10
 
-- Added turning Stock Removal playback driven by the resolved execution trace, with reversible OD/ID profiles, drilling, grooving, persistent stock dimensions and geometry-specific 3D tools for Face Groove, OD Groove, ID Groove, Drill, OD80/ID80 (5-degree edge) and OD35/ID35 (3-degree edge).
+- Added turning Stock Removal playback driven by the resolved execution trace, with reversible OD/ID profiles, drilling, grooving, persistent stock dimensions and geometry-specific 3D tools for Groove, Drill, Diamond 80 (5-degree edge) and Diamond 35 (3-degree edge) across application contexts.
 - Reset playback to the complete recalculated trajectory after source, mode or semantic setting changes so stale slider positions cannot hide updated geometry.
 - Changed turning and milling execution to preserve trustworthy partial traces and continue after recoverable G-code, Macro B and unsupported position-changing blocks once absolute coordinates re-establish the affected axes.
 - Changed invalid arc handling to skip only the unresolved motion while retaining later resolved motions.

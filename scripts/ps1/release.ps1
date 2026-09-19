@@ -2,7 +2,6 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$Version,
 
-    [Parameter(Mandatory = $true)]
     [string]$Message,
 
     [switch]$Push
@@ -45,6 +44,7 @@ function Run-Lint {
     if ($LintExitCode -ne 0) {
         throw "Lint failed (exit code $LintExitCode). Release aborted."
     }
+
     Write-Host "Lint completed successfully." -ForegroundColor Green
 
     $global:LASTEXITCODE = 0
@@ -61,16 +61,15 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
     throw "Version must not be empty."
 }
 
-if ([string]::IsNullOrWhiteSpace($Message)) {
-    throw "Commit message must not be empty."
-}
-
 Write-Host ""
 Write-Host "==> Verify project version" -ForegroundColor Cyan
+
 $ProjectVersion = (& uv version --short | Out-String).Trim()
+
 if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($ProjectVersion)) {
     throw "Unable to read the project version with 'uv version --short'."
 }
+
 if ($ProjectVersion -ne $Version) {
     throw "Requested release $Version does not match pyproject version $ProjectVersion."
 }
@@ -82,15 +81,11 @@ Run-Step "Tests" {
 }
 
 Run-Step "git diff --check" {
-    # Release scripts are non-interactive. CRLF conversion notices can flood
-    # the terminal and make Git open its pager, leaving the release apparently
-    # frozen at a ':' prompt. Keep real diff errors on stdout, but suppress the
-    # conversion notices written to stderr.
     $PreviousErrorActionPreference = $ErrorActionPreference
+
     try {
-        # Windows PowerShell 5.1 promotes native stderr to NativeCommandError
-        # when ErrorActionPreference is Stop, even when stderr is redirected.
         $ErrorActionPreference = "Continue"
+
         git --no-pager diff --check 2>$null
         $GitDiffExitCode = $LASTEXITCODE
     }
@@ -130,22 +125,45 @@ if ($LocalTag -eq $Tag) {
 }
 
 Run-Step "Stage changes" {
-    git add .
+    git add -A
 }
 
 git diff --cached --quiet
+$CachedDiffExitCode = $LASTEXITCODE
 
-if ($LASTEXITCODE -eq 0) {
-    throw "There are no staged changes to commit."
+if ($CachedDiffExitCode -eq 0) {
+    Write-Host ""
+    Write-Host "==> No new changes to commit" -ForegroundColor Yellow
+    Write-Host "Using current HEAD as the release commit." -ForegroundColor Yellow
+
+    $ReleaseCommit = (git rev-parse --short HEAD | Out-String).Trim()
+    $ReleaseMessage = (git log -1 --pretty=%s | Out-String).Trim()
+
+    Write-Host ""
+    Write-Host "Version: $Version" -ForegroundColor Cyan
+    Write-Host "Commit:  $ReleaseCommit" -ForegroundColor Cyan
+    Write-Host "Message: $ReleaseMessage" -ForegroundColor Cyan
+    Write-Host "Tag:     $Tag" -ForegroundColor Cyan
 }
+elseif ($CachedDiffExitCode -eq 1) {
+    if ([string]::IsNullOrWhiteSpace($Message)) {
+        throw "There are changes to commit, but no commit message was specified."
+    }
 
-Write-Host ""
-Write-Host "Version:        $Version" -ForegroundColor Cyan
-Write-Host "Commit message: $Message" -ForegroundColor Cyan
-Write-Host "Tag:            $Tag" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "Version:        $Version" -ForegroundColor Cyan
+    Write-Host "Commit message: $Message" -ForegroundColor Cyan
+    Write-Host "Tag:            $Tag" -ForegroundColor Cyan
 
-Run-Step "Create release commit" {
-    git commit -m $Message
+    Run-Step "Create release commit" {
+        git commit -m $Message
+    }
+
+    $ReleaseCommit = (git rev-parse --short HEAD | Out-String).Trim()
+    $ReleaseMessage = $Message
+}
+else {
+    throw "Unable to determine staged changes (git diff exit code $CachedDiffExitCode)."
 }
 
 Run-Step "Create annotated tag $Tag" {
@@ -170,4 +188,4 @@ else {
 }
 
 Write-Host ""
-Write-Host "Done: $Message ($Tag)" -ForegroundColor Green
+Write-Host "Done: $ReleaseMessage ($Tag)" -ForegroundColor Green

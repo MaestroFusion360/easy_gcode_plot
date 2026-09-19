@@ -7,6 +7,7 @@ This document is the detailed user and developer reference for Easy G-Code Plot.
 - [Getting started](#getting-started)
 - [Interface and playback](#interface-and-playback)
 - [Lathe mode](#lathe-mode)
+- [Tool libraries](#tool-libraries)
 - [Turning Stock Removal](#turning-stock-removal)
 - [Mill mode](#mill-mode)
 - [Units and arc programming](#units-and-arc-programming)
@@ -114,13 +115,41 @@ The second G71 block uses signed X allowance U and axial allowance W. For outsid
 
 Type I roughing ends with one full pass along the roughing profile that already includes U/W allowance. It does not reuse the nominal finishing contour, so the roughing pass does not overlap the later finish-tool path.
 
+## Tool libraries
+
+### Where are tools stored?
+
+Turning and milling tool definitions are stored in the per-user SQLite database:
+
+```text
+%LOCALAPPDATA%\easy-gcode-plot\tools.db
+```
+
+`tools.db` is authoritative. `config.ini` stores UI, editor, plot, WCS, Stock and other application preferences; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported into a current database and are not used as a fallback write target.
+
+### What can Tool Library do?
+
+`Settings → Tool Library` is one resizable window with Milling and Turning tabs. Each tab shows **Current Program** and **Saved Library** side by side with a viewport-fitted live preview. Current Program supports editing geometry, assigning geometry from a saved tool and staging a program tool for the library. Saved Library supports staged Add/Edit/Remove, first-free-number Duplicate and complete-library JSON/CSV export for the active tab. **OK** commits the final working copy to `tools.db`; **Cancel** discards all Saved Library changes made since the window opened. Export never includes temporary Current Program assignments. Turning tools use category-oriented editing and persist canonical geometry types independently from the OD, ID and Face application checkboxes.
+
+### How are tools from the current program added?
+
+Before execution and when Tool Library is opened, Update/Auto Update discover literal T selections into the temporary Current Program setup. They do **not** write discovered tools into `tools.db`. Turning keys retain the packed tool/offset number (`T0909`); milling keys use the tool number (`T03` becomes `T3`). New/Open starts a fresh temporary setup while Saved Library remains unchanged.
+
+Inline tool comments, named headers such as `(T3 D=6. CR=0. - FLAT END MILL)`, and nearby preceding operation comments supply descriptions and recognized geometry. Examples include `OD ROUGH R0.8`, `ID ROUGH R0.8`, `GROOVE H4`, `DRILL`, `TAP`, `THREAD`, `BALL`, `FACE MILL`, and `CHAMFER`. Recognized dimensions follow the units active at the T selection. When no explicit type hint is present, operation context selects D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92; other selections use Diamond 80 OD or D10 Flat Mill. Explicit comment hints take priority, and retained Current Program geometry can be edited or staged for Saved Library.
+
+Comment-only T references do not create tools. Macro expressions such as `T#1` are not evaluated by discovery. Current Program changes remain temporary. Persistent Saved Library changes happen only when Tool Library is accepted with **OK**.
+
+### Which turning tool geometries are available?
+
+The library supports exactly nine canonical types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face are application flags rather than tool types. Triangle uses a true three-sided footprint; Round uses `Length/Diameter` as its physical diameter.
+
 ## Turning Stock Removal
 
 ### How are initial Stock dimensions selected?
 
 The resolved G1/G2/G3 cutting trace supplies an automatic minimum outside diameter and length. Rapid G0 outliers are ignored, cycle-generated cutting motions are included, and G18 arc extrema are evaluated analytically. The suggested inside diameter is zero.
 
-The normal Lathe plot displays this stock as a lightweight outline when `Show Stock` is enabled. **Settings → Stock** is prefilled from the current suggestion, but persistent settings change only after pressing OK.
+The normal Lathe plot displays this stock as a lightweight outline when `Show Stock` is enabled. **Settings → Stock** is prefilled from the current suggestion, but persistent settings change only after pressing OK. If Lathe Mode is already active when the application starts, Fit to View is scheduled after the window is shown so the inferred stock is visible immediately.
 
 ### What can I configure in Settings → Stock?
 
@@ -133,13 +162,15 @@ The normal Lathe plot displays this stock as a lightweight outline when `Show St
 
 ### Does Play use the same bounds as the visible outline?
 
-Yes. Refresh and program changes update the automatic suggestion, and both the outline and Stock Timeline use the same effective stock specification. Starting Play no longer falls back to stale saved dimensions.
+Yes. In Auto mode, Refresh and program changes update the suggestion, and both the outline and Stock Timeline use the same effective stock specification. After the user accepts explicit Stock dimensions, those values become a manual override and survive Refresh and tool-library edits. **Reset to Auto**, **New** and opening another program return Stock to program-derived sizing.
 
 ### Which turning tools remove material?
 
-Supported tool geometries include Face Groove, OD Groove, ID Groove, Drill, OD80, ID80, OD35 and ID35. The Stock simulation and turning-tool preview share one cutter silhouette implementation.
+Supported geometry includes Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face applicability selects the machining context. Preview and Stock Removal share the turning cutter geometry where the operation is footprint-based.
 
-OD80/OD35 P3, ID80/ID35 P2, OD Groove P3/P4 and ID Groove P1/P2 use their configured insert or groove footprint. Unknown or unconfigured tools leave the stock unchanged instead of using an assumed cutter.
+Threading is a deliberate Stock Removal exception: synchronized G32/G33, modal G92 and G76 cutting moves generate a deterministic longitudinal thread section. Programmed X sets the root depth, F sets the pitch, and the configured thread angle and RC shape the flanks and rounded root. Repeated passes deepen the same phase-aligned profile, while radial infeed/retract moves do not sweep the full insert body into false angled end faces. The axisymmetric stock model renders this section rather than a 3D helix. G94 remains a facing cycle.
+
+Missing tool selections use the standard Diamond 80 OD geometry for Stock Removal and its preview. Literal T selections are normally added to the temporary Current Program setup before execution, so their recognized or edited geometry is already available for playback without writing to Saved Library.
 
 ### Is Stock Removal a machine simulation?
 
@@ -153,12 +184,11 @@ The normal 3D view uses perspective projection. Top, Front and Left are true ort
 
 ### Which milling tools can be previewed?
 
-- Flat end mill.
-- Bull-nose mill.
-- Ball end mill.
-- Drill with a 120-degree point.
+- Flat, bull-nose and ball end mills.
+- Face, slot and chamfer mills.
+- Drill and tap.
 
-The translucent preview follows the active motion endpoint and uses the tool configured in **Settings → Milling Tools**.
+The translucent preview follows the active motion endpoint and uses the tool configured in **Settings → Tool Library → Milling**.
 
 ### How does milling cutter compensation work?
 
@@ -167,6 +197,15 @@ G40/G41/G42 uses the configured tool diameter for supported G17 line, arc and co
 ### Is G43 tool-length geometry applied?
 
 G43/G49 and H values are tracked for execution/export context, but H-offset geometry is not currently applied to the trace.
+
+### How do milling coordinate transforms work?
+
+- `G52 X/Y/Z` sets a local coordinate-system shift for subsequent motion. The block itself does not move the tool.
+- `G68 X/Y R` enables coordinate rotation around the programmed center in the active plane. `G69` cancels it. The rotation applies to subsequent endpoints and I/J/K arc vectors; neither control block creates a motion segment.
+- `G51 X/Y/Z P` enables uniform scaling around the programmed center, with `P1000` equal to a factor of `1.0`. `G51 X/Y/Z I/J/K` selects per-axis factors. Center coordinates are interpreted as absolute coordinates even in `G91`; omitted center axes use the current position.
+- `G50` cancels `G51` scaling without moving the tool. Enabling or cancelling a transform preserves the current physical tool position.
+
+Axis-specific scaling of a circular arc would require non-circular/spiral interpolation and is currently reported as unsupported instead of being approximated. A `G51` block without `P` or `I/J/K` also produces a diagnostic because no controller parameter supplies a default factor.
 
 ## Units and arc programming
 
@@ -209,6 +248,7 @@ Yes. When exporting an R-format full circle, Expanded Execution emits two exact 
 - G98/G99 canned-cycle return modes.
 - G94/G95 feed modes.
 - Configured milling tools and cutter-radius compensation.
+- G52 local coordinate shifts, G68/G69 coordinate rotation and G51/G50 coordinate scaling.
 
 ### FANUC turning
 
@@ -276,9 +316,10 @@ On Windows:
 
 ```text
 %LOCALAPPDATA%\easy-gcode-plot\config.ini
+%LOCALAPPDATA%\easy-gcode-plot\tools.db
 ```
 
-A legacy `config.ini` beside the launcher may be migrated on first run.
+`config.ini` contains application preferences; `tools.db` contains the authoritative turning/milling tool library. A legacy `config.ini` beside the launcher may be migrated on first run.
 
 ### What is available in Settings → Options?
 
@@ -343,14 +384,28 @@ Use `--encoding cp1251` for Windows-1251 input. Export modes include `program` a
 
 ### How is the project organized?
 
-- `app/gcode/kernel/` owns CNC parsing, execution, cycles and analytical geometry.
+- `app/gcode/kernel/` owns deterministic CNC parsing and execution. Its implementation is split into `api/` (public execution facade and result types), `frontend/` (lexing, parsing, AST/model and NC input), `geometry/` (analytical/profile geometry and coordinate systems), `lathe_cycles/` (turning-cycle motion builders), `compensation/` (turning and milling compensation), `runtime/` (control flow, cycle expansion, interpreter, events/signals and trace construction) and `milling/` (milling state, motion and canned-cycle execution).
+- `app/gcode/export/` owns Full Program, Expanded Execution, Plot Data and DXF serialization. Exporters consume the authoritative kernel result/resolved trace and do not implement a second G-code interpreter.
 - `app/gcode/trace_tools.py` owns render sampling and statistics derived from the resolved trace.
-- `app/ui/` owns PyQt GUI behavior.
-- `app/ui/generated/` contains Qt Designer sources and generated PyQt-compatible modules.
+- `app/ui/` owns PyQt GUI behavior, grouped into `dialogs/` (dialogs and tool editors), `plot/` (OpenGL items, STL, overlays and playback), `windows/` (main-window mixins and the execution worker) and `support/` (editor lexer, units, numeric input and shared widgets).
+- `app/tools/` owns tool definitions, SQLite persistence and validation/normalization.
+- `app/ui/generated/` contains Qt Designer sources and generated PyQt-compatible modules, grouped into `main/` (main window), `dialogs/` and `editors/`.
 - `app/resources/files_res.qrc` is the resource manifest.
-- `tests/` contains kernel, GUI, CLI, export, Stock and code-generation regressions.
+- `tests/` mirrors the domains under `core/`, `dialects/`, `stock/`, `tooling/`, `export/`, `gui/`, `render/` and `meta/`, with shared fixtures in `conftest.py` and compact program samples in `gcode_samples.py`.
 
-CNC semantics belong in the kernel. GUI rendering, statistics and export consume `ExecutionResult` and must not independently reinterpret source commands.
+The primary data flow is:
+
+```text
+source NC
+  -> frontend parser / AST
+  -> runtime + cycle/compensation/geometry logic
+  -> ExecutionResult / resolved logical trace
+  -> CLI, export, statistics, rendering and playback
+```
+
+CNC semantics belong in the kernel. GUI rendering, statistics and export must not independently reinterpret source commands. During the current core-hardening phase, new execution/analysis capabilities should be implemented and regression-tested in the core/CLI first; UI changes should remain bug fixes until the core contract is stable.
+
+Historical module-level imports that existed before the package split are intentionally re-exported/aliased where required so the structural refactor does not change the public Python surface. New code should import from the canonical subject packages.
 
 ### How do I run checks?
 
@@ -371,13 +426,14 @@ Edit canonical `.ui` and `.qrc` sources, then regenerate once:
 .\scripts\ps1\generate-qt.ps1
 ```
 
-Generated Python modules must not be edited manually. PySide6 supplies maintained code-generation tools in the development dependency group; the application runtime remains PyQt6.
+Generated Python modules must not be edited manually. PySide6 supplies maintained code-generation tools in the development dependency group; the application runtime remains PyQt6. The generation scripts recurse through `app/ui/generated/` and mirror its category subdirectories.
 
 ### How do I build or release?
 
 ```powershell
 .\scripts\ps1\build.ps1
-.\scripts\ps1\release.ps1 -Version 1.5.0 -Message "Release 1.5.0"
+$version = "X.Y.Z"
+.\scripts\ps1\release.ps1 -Version $version -Message "Release $version"
 ```
 
 ## License

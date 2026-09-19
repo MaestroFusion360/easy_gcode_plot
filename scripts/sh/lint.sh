@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-targets=(main.py app tests)
+targets=(main.py app tests scripts/check_complexity.py)
 uv_run=(uv run)
 if [[ -n ${VIRTUAL_ENV:-} ]]; then
     uv_run+=(--active)
@@ -20,4 +20,5 @@ else
     "${uv_run[@]}" ruff format --check "${targets[@]}"
     "${uv_run[@]}" ruff check "${targets[@]}"
 fi
+"${uv_run[@]}" python scripts/check_complexity.py
 exec "${uv_run[@]}" pylint "${targets[@]}"

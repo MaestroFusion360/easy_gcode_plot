@@ -1,22 +1,28 @@
 """Per-user application settings stored outside the program directory."""
 
-import json
 import logging
 import math
 import os
 import shutil
 import sys
+import threading
 from pathlib import Path
 
 from PyQt6.QtCore import QSettings, QStandardPaths
 
-from app.gcode.turning_tool_geometry import normalize_groove_orientation
+from app.tools.definitions import DEFAULT_MILLING_TOOL, default_turning_library
+from app.tools.library import ToolLibrary
+from app.tools.validation import normalized_milling_tools, normalized_tools
 
 _APP_DIR = "easy-gcode-plot"
 _LOG_HANDLER_MARKER = "_easy_gcode_plot_handler"
 _LOG_PREVIOUS_LEVEL_MARKER = "_easy_gcode_plot_previous_level"
 _LOG_PREVIOUS_PROPAGATE_MARKER = "_easy_gcode_plot_previous_propagate"
 LOGGER = logging.getLogger(__name__)
+
+
+class ToolLibraryLoadError(RuntimeError):
+    """The persistent tool library could not be read safely."""
 
 
 def _config_dir() -> str:
@@ -90,6 +96,16 @@ def get_settings() -> QSettings:
     return QSettings(config_path(), QSettings.Format.IniFormat)
 
 
+def ui_language() -> str:
+    """Return the persisted UI language code (readable before the main window exists)."""
+    return str(get_settings().value("GENERAL/LANGUAGE", "en"))
+
+
+def ui_theme() -> str:
+    """Return the persisted UI theme name (readable before the main window exists)."""
+    return str(get_settings().value("GENERAL/THEME", "light"))
+
+
 RECENT_FILES_LIMIT = 5
 ARC_TOLERANCE_MIN = 1e-6
 ARC_TOLERANCE_MAX = 10.0
@@ -97,7 +113,7 @@ ARC_TOLERANCE_DEFAULT = 0.001
 FONT_SIZE_MIN = 6
 FONT_SIZE_MAX = 48
 AUTO_UPDATE_SEGMENTS_MIN = 1000
-AUTO_UPDATE_SEGMENTS_MAX = 5_000_000
+AUTO_UPDATE_SEGMENTS_MAX = 2_147_483_647
 LINE_WIDTH_MIN = 0.25
 LINE_WIDTH_MAX = 6.0
 
@@ -118,149 +134,118 @@ def bounded_number(value, default, minimum, maximum, *, name="setting"):
     return bounded
 
 
-def normalized_tools(raw):
-    """Return validated turning tool definitions from a QSettings JSON value."""
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except (TypeError, ValueError):
-            return {}
-    if not isinstance(raw, dict):
+_TOOL_LIBRARY_CACHE = {"library": None, "path": None}
+_TOOL_LIBRARY_LOCK = threading.Lock()
+
+
+def tool_library_path() -> str:
+    """Return the SQLite tool-library path next to the per-user config file."""
+    return str(Path(config_path()).with_name("tools.db"))
+
+
+def _seed_tool_library(library) -> None:
+    """Initialize a new SQLite library directly with the current tool model."""
+    library.seed_defaults_once(default_turning_library(), {"T1": DEFAULT_MILLING_TOOL})
+
+
+def get_tool_library():
+    """Return the process-wide SQLite tool library for the current config path."""
+    path = tool_library_path()
+    if _TOOL_LIBRARY_CACHE["library"] is None or _TOOL_LIBRARY_CACHE["path"] != path:
+        with _TOOL_LIBRARY_LOCK:
+            if _TOOL_LIBRARY_CACHE["library"] is None or _TOOL_LIBRARY_CACHE["path"] != path:
+                if _TOOL_LIBRARY_CACHE["library"] is not None:
+                    _TOOL_LIBRARY_CACHE["library"].close()
+                library = ToolLibrary(path)
+                _seed_tool_library(library)
+                _TOOL_LIBRARY_CACHE["library"] = library
+                _TOOL_LIBRARY_CACHE["path"] = path
+    return _TOOL_LIBRARY_CACHE["library"]
+
+
+def load_turning_tools() -> dict[str, dict]:
+    """Load a normalized view without modifying stored or unknown records."""
+    try:
+        library = get_tool_library()
+        stored = library.tools_by_kind("turning")
+        return normalized_tools(stored)
+    except Exception:
+        LOGGER.warning("tool_library_load_failed kind=turning", exc_info=True)
         return {}
 
-    tools = {}
-    for raw_key, raw_spec in raw.items():
-        if not isinstance(raw_spec, dict):
-            continue
-        key = str(raw_key).strip().upper()
-        digits = key[1:] if key.startswith("T") else key
-        if not digits.isdigit() or not 1 <= len(digits) <= 4:
-            continue
-        key = f"T{int(digits):04d}"
 
-        tool_type = str(raw_spec.get("type", "turning")).strip().lower()
-        tool_type = {"od_cutting": "od_80", "id_cutting": "id_80"}.get(tool_type, tool_type)
-        valid_types = {
-            "turning",
-            "face_groove",
-            "od_groove",
-            "id_groove",
-            "drill",
-            "od_80",
-            "id_80",
-            "od_35",
-            "id_35",
-        }
-        if tool_type not in valid_types:
-            continue
-        spec = {"type": tool_type}
-
-        description = raw_spec.get("description")
-        if isinstance(description, str) and description.strip():
-            spec["description"] = " ".join(description.split())
-
-        if tool_type in {"turning", "od_80", "id_80", "od_35", "id_35"}:
-            try:
-                radius = float(raw_spec.get("noseRadius", 0.0))
-                orientation = int(raw_spec.get("tipOrientation", 0))
-            except (TypeError, ValueError):
-                continue
-            if not math.isfinite(radius) or radius <= 0.0 or orientation not in range(1, 10):
-                continue
-            spec["noseRadius"] = radius
-            spec["tipOrientation"] = orientation
-
-        if tool_type in {"face_groove", "od_groove", "id_groove"}:
-            try:
-                width = float(raw_spec.get("width", 0.0))
-            except (TypeError, ValueError):
-                continue
-            if not math.isfinite(width) or width <= 0.0:
-                continue
-            spec["width"] = width
-            try:
-                groove_radius = float(raw_spec.get("noseRadius", 0.0))
-            except (TypeError, ValueError):
-                groove_radius = 0.0
-            spec["noseRadius"] = groove_radius if math.isfinite(groove_radius) and groove_radius > 0.0 else 0.0
-            spec["tipOrientation"] = normalize_groove_orientation(raw_spec, tool_type)
-
-        if tool_type == "drill" and any(key in raw_spec for key in ("diameter", "length", "tipAngle")):
-            try:
-                diameter = float(raw_spec.get("diameter", 0.0))
-                length = float(raw_spec.get("length", 0.0))
-                tip_angle = float(raw_spec.get("tipAngle", 118.0))
-            except (TypeError, ValueError):
-                continue
-            if (
-                not all(math.isfinite(value) for value in (diameter, length, tip_angle))
-                or diameter <= 0.0
-                or length <= 0.0
-                or not 1.0 <= tip_angle < 180.0
-            ):
-                continue
-            spec.update(diameter=diameter, length=length, tipAngle=tip_angle)
-
-        tools[key] = spec
-    return tools
-
-
-def normalized_milling_tools(raw):
-    """Return validated milling tool geometry from a QSettings JSON value."""
-    if isinstance(raw, str):
-        try:
-            raw = json.loads(raw)
-        except (TypeError, ValueError):
-            return {}
-    if not isinstance(raw, dict):
+def load_milling_tools() -> dict[str, dict]:
+    """Load normalized milling tools from the SQLite library."""
+    try:
+        return normalized_milling_tools(get_tool_library().tools_by_kind("milling"))
+    except Exception:
+        LOGGER.warning("tool_library_load_failed kind=milling", exc_info=True)
         return {}
 
-    tools = {}
-    valid_types = {"mill_flat", "mill_bull", "mill_ball", "drill"}
-    for raw_key, raw_spec in raw.items():
-        if not isinstance(raw_spec, dict):
-            continue
-        key = str(raw_key).strip().upper()
-        digits = key[1:] if key.startswith("T") else key
-        if not digits.isdigit():
-            continue
-        tool_number = int(digits)
-        if not 1 <= tool_number <= 99:
-            continue
-        key = f"T{tool_number}"
 
-        tool_type = str(raw_spec.get("type", "mill_flat")).strip().lower()
-        if tool_type not in valid_types:
-            continue
-        try:
-            diameter = float(raw_spec.get("diameter", 0.0))
-            length = float(raw_spec.get("length", 0.0))
-            radius = max(0.0, float(raw_spec.get("cornerRadius", 0.0)))
-        except (TypeError, ValueError):
-            continue
+def load_tool_libraries() -> tuple[dict[str, dict], dict[str, dict]]:
+    """Load both tool kinds or fail without presenting partial data as empty."""
+    path = "tools.db"
+    try:
+        path = tool_library_path()
+        library = get_tool_library()
+        turning = normalized_tools(library.tools_by_kind("turning"))
+        milling = normalized_milling_tools(library.tools_by_kind("milling"))
+        return turning, milling
+    except Exception as exc:
+        LOGGER.warning("tool_library_load_failed path=%s", path, exc_info=True)
+        raise ToolLibraryLoadError(
+            f"Could not read the tool library:\n{path}\n\n"
+            "Tool Library has been disabled to protect the existing database."
+        ) from exc
 
-        if not all(math.isfinite(value) for value in (diameter, length, radius)):
-            continue
-        if diameter <= 0.0 or length <= 0.0:
-            continue
-        if tool_type == "mill_ball":
-            radius = diameter / 2.0
-        elif tool_type == "mill_bull" and radius > diameter / 2.0:
-            continue
-        elif tool_type != "mill_bull":
-            radius = 0.0
 
-        spec = {
-            "type": tool_type,
-            "diameter": diameter,
-            "cornerRadius": radius,
-            "length": length,
-        }
-        description = raw_spec.get("description")
-        if isinstance(description, str) and description.strip():
-            spec["description"] = " ".join(description.split())
-        tools[key] = spec
-    return tools
+def save_turning_tools(tools: dict[str, dict]) -> bool:
+    """Persist the complete normalized turning-tool set atomically."""
+    try:
+        get_tool_library().sync_kind("turning", normalized_tools(tools))
+        return True
+    except Exception:
+        LOGGER.warning("tool_library_save_failed kind=turning", exc_info=True)
+        return False
+
+
+def save_library_edits(kind, original, edited):
+    """Persist only explicit library edits; automatic setup never calls this."""
+    normalize = normalized_tools if kind == "turning" else normalized_milling_tools
+    try:
+        get_tool_library().apply_edits(kind, original, normalize(edited))
+        return True
+    except Exception:
+        LOGGER.warning("tool_library_edit_failed kind=%s", kind, exc_info=True)
+        return False
+
+
+def save_library_changes(originals, edited):
+    """Persist all changed tool kinds in one SQLite transaction."""
+    changes = {}
+    for kind in ("milling", "turning"):
+        normalize = normalized_tools if kind == "turning" else normalized_milling_tools
+        if edited[kind] != originals[kind]:
+            changes[kind] = (originals[kind], normalize(edited[kind]))
+    if not changes:
+        return True
+    try:
+        get_tool_library().apply_edits_by_kind(changes)
+        return True
+    except Exception:
+        LOGGER.warning("tool_library_transaction_failed", exc_info=True)
+        return False
+
+
+def save_milling_tools(tools: dict[str, dict]) -> bool:
+    """Persist the complete normalized milling-tool set atomically."""
+    try:
+        get_tool_library().sync_kind("milling", normalized_milling_tools(tools))
+        return True
+    except Exception:
+        LOGGER.warning("tool_library_save_failed kind=milling", exc_info=True)
+        return False
 
 
 def normalized_recent_files(paths, limit=RECENT_FILES_LIMIT):

@@ -17,6 +17,16 @@ class RenderLimitExceeded(ValueError):
     """Raised when trace sampling would exceed an explicit point budget."""
 
 
+def _check_cancelled(cancelled) -> None:
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Trace rendering cancelled")
+
+
+def _check_cancelled_periodically(cancelled, index: int) -> None:
+    if index == 1 or index % 256 == 0:
+        _check_cancelled(cancelled)
+
+
 @dataclass(frozen=True)
 class RenderPoint:
     x: float
@@ -87,7 +97,9 @@ def sample_motion(
     chord_error: float | None = None,
     lathe_radius_view: bool = False,
     max_points: int | None = None,
+    cancelled=None,
 ) -> list[RenderPoint]:
+    _check_cancelled(cancelled)
     scale_x = 0.5 if lathe_radius_view else 1.0
     if m.move not in (2, 3):
         if max_points is not None and max_points < 1:
@@ -119,6 +131,7 @@ def sample_motion(
     plot_move = _plot_move_for_plane(m.move, m.plane)
     out: list[RenderPoint] = []
     for n in range(1, count + 1):
+        _check_cancelled_periodically(cancelled, n)
         t = n / count
         angle = a0 + (-sweep if plot_move == 2 else sweep) * t
         a = center[0] + radius * math.cos(angle)
@@ -139,11 +152,14 @@ def render_trace(
     arc_points_per_circle: int = 314,
     chord_error: float | None = None,
     max_points: int | None = None,
+    cancelled=None,
 ) -> list[RenderPoint]:
+    _check_cancelled(cancelled)
     if max_points is not None and (not isinstance(max_points, int) or max_points <= 0):
         raise ValueError("max_points must be a positive integer")
     out: list[RenderPoint] = []
     for idx, m in enumerate(result.motions):
+        _check_cancelled(cancelled)
         if not out:
             if max_points is not None and len(out) >= max_points:
                 raise RenderLimitExceeded("Trace render point limit exceeded")
@@ -169,6 +185,7 @@ def render_trace(
                 chord_error=chord_error,
                 lathe_radius_view=lathe_radius_view,
                 max_points=remaining,
+                cancelled=cancelled,
             )
         )
     return out

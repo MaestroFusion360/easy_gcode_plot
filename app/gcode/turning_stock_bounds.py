@@ -20,6 +20,7 @@ class TurningStockSuggestion:
     outer_diameter: float
     inner_diameter: float
     length: float
+    front_z: float = 0.0
 
 
 def _normalize_positive(angle: float) -> float:
@@ -49,7 +50,7 @@ def _cutting_points(motion: TraceMotion) -> tuple[tuple[float, float], ...]:
     _start, _end, _orth0, _orth1, center, start_angle, sweep, radius = geometry
     plot_move = _plot_move_for_plane(motion.move, motion.plane)
     direction = -1.0 if plot_move == 2 else 1.0
-    for angle in (0.0, math.pi, math.pi * 1.5):
+    for angle in (0.0, math.pi * 0.5, math.pi, math.pi * 1.5):
         if _angle_on_sweep(start_angle, angle, sweep, direction):
             points.append((center[0] + radius * math.cos(angle), center[1] + radius * math.sin(angle)))
     return tuple(points)
@@ -59,6 +60,7 @@ def auto_turning_stock_suggestion(motions: Iterable[TraceMotion] | None) -> Turn
     """Infer minimal OD and length from resolved G1/G2/G3 cutting motions only."""
     maximum_radius = 0.0
     minimum_z: float | None = None
+    maximum_z: float | None = None
     saw_cutting_motion = False
     for motion in motions or ():
         if motion.move not in (1, 2, 3):
@@ -66,13 +68,16 @@ def auto_turning_stock_suggestion(motions: Iterable[TraceMotion] | None) -> Turn
         saw_cutting_motion = True
         for radius_value, z_value in _cutting_points(motion):
             maximum_radius = max(maximum_radius, abs(float(radius_value)))
-            minimum_z = float(z_value) if minimum_z is None else min(minimum_z, float(z_value))
-    if not saw_cutting_motion or minimum_z is None:
+            z_value = float(z_value)
+            minimum_z = z_value if minimum_z is None else min(minimum_z, z_value)
+            maximum_z = z_value if maximum_z is None else max(maximum_z, z_value)
+    if not saw_cutting_motion or minimum_z is None or maximum_z is None:
         return None
     return TurningStockSuggestion(
         outer_diameter=maximum_radius * 2.0,
         inner_diameter=0.0,
-        length=max(0.0, -minimum_z),
+        length=max(0.0, maximum_z - minimum_z),
+        front_z=maximum_z,
     )
 
 
