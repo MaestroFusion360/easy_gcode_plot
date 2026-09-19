@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
 from PyQt6.QtCore import QEventLoop, QTimer
+from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from app import main_window
@@ -63,6 +64,57 @@ def test_fast_execution_worker_finishes_without_opening_modal_dialog(qt_app):
         owner.close()
 
 
+def test_execution_dialog_stays_visible_through_gui_completion(qt_app):
+    owner = QWidget()
+    worker_released = Event()
+    cancelled = Event()
+    observations = []
+
+    def work(source, **_options):
+        assert worker_released.wait(2)
+        return source
+
+    def complete(result):
+        dialog = qt_app.activeModalWidget()
+        observations.append(dialog is not None and dialog.isVisible())
+        observations.append(dialog is not None and dialog.ui.statusLabel.isVisible())
+        observations.append(dialog is not None and dialog.ui.cancelButton.isVisible())
+        observations.append(dialog is not None and dialog.ui.cancelButton.isEnabled())
+        dialog.ui.cancelButton.click()
+        observations.append(cancelled.is_set())
+        return result
+
+    QTimer.singleShot(20, worker_released.set)
+    try:
+        assert run_execution(owner, work, "snapshot", {}, cancelled.set, completion=complete) == "snapshot"
+    finally:
+        owner.close()
+
+    assert observations == [True, True, True, True, True]
+    assert qt_app.activeModalWidget() is None
+
+
+def test_execution_dialog_uses_complete_dark_palette(qt_app, monkeypatch):
+    monkeypatch.setattr(execution_worker.theme, "current_theme", lambda: "dark")
+    owner = QWidget()
+    dialog = execution_worker._ExecutionDialog(
+        owner,
+        lambda: None,
+        title="Execution",
+        status_text="Working",
+        cancelling_text="Cancelling",
+    )
+    try:
+        assert dialog.autoFillBackground()
+        assert "background-color: #1f1f1f" in dialog.styleSheet()
+        assert dialog.palette().color(QPalette.ColorRole.Window).name() == "#1f1f1f"
+        assert dialog.ui.statusLabel.palette().color(QPalette.ColorRole.WindowText).name() == "#e6e6e6"
+        assert dialog.ui.cancelButton.palette().color(QPalette.ColorRole.Button).name() == "#333337"
+    finally:
+        dialog.close()
+        owner.close()
+
+
 def test_execution_worker_architecture_does_not_create_nested_event_loop(qt_app, monkeypatch):
     class NestedEventLoopForbidden:
         ProcessEventsFlag = QEventLoop.ProcessEventsFlag
@@ -94,6 +146,35 @@ def test_execution_worker_propagates_errors_and_clears_active_flag(monkeypatch):
     with pytest.raises(ValueError, match="worker failed"):
         MainWindowExecutionMixin._calculate_editor_source(window)
     assert window._kernel_execution_active is False
+
+
+def test_window_calculation_can_cancel_during_tool_discovery():
+    checks = 0
+
+    def cancelled():
+        nonlocal checks
+        checks += 1
+        return checks >= 3
+
+    with pytest.raises(InterruptedError, match="Tool discovery cancelled"):
+        main_window_execution._calculate_source(
+            "G1 X1 Y1 F100\n" * 10_000,
+            current_tools={},
+            previous_inference={},
+            turning=False,
+            setup_unit_scale=1.0,
+            turning_tools={},
+            milling_tools={},
+            correction_enabled=True,
+            render=True,
+            arc_tolerance=0.001,
+            max_points=None,
+            is_cancelled=cancelled,
+            language="fanuc_mill",
+            cancelled=cancelled,
+        )
+
+    assert checks == 3
 
 
 class _Editor:

@@ -1,7 +1,15 @@
 # Changelog
 
-## 1.5.8 - 2026-09-19
+## 1.5.8 - 2026-09-20
 
+- Added persistent **Autodetect Arc Type** under `Settings -> Options -> CNC / Execution` for milling. Execution inspects the already parsed unresolved motion stream, skips R-only arcs while detecting, compares relative-IJK and absolute-center radius consistency against the configured arc tolerance, fixes one effective IJK mode for the whole run and falls back to the manually selected Arc Type when the program remains ambiguous. Turning and Arc Output export semantics are unchanged.
+- Added persistent **Ignore Block Skip** under `Settings -> Options -> CNC / Execution`. When enabled, leading `/` blocks are excluded consistently from turning and milling execution, Macro B side effects and Expanded Execution export without modifying the source file; the existing execute-by-default behavior remains the default.
+- Fixed the cancellable CNC execution dialog so it remains visible through actual plot publication instead of closing when only the worker portion finishes. Cancel now uses the same cooperative token during tool discovery, streaming source parsing, AST/index construction, kernel execution, trace sampling and GUI geometry publication.
+- Removed whole-file `splitlines()` copies from kernel parsing and tool discovery, added bounded cancellation checkpoints to the previously non-cancellable passes and verified responsive cancellation with a 77 MB / 2.57 million-line milling program.
+- Fixed the execution dialog's dark-theme client area and first-frame painting so Windows no longer exposes a blank white interior before the dialog contents are rendered.
+- Improved the execution status bar with spacing between fields, explicit `Errors`/`Warnings` labels, diagnostic detail tooltips and compact second-based timing for long executions.
+- Made the built-in FAQ a normal resizable/maximizable window, added document-aware heading/paragraph spacing without modifying `FAQ.md`, preserved anchor navigation and made the packaged `LICENSE.md` link open correctly.
+- Reduced avoidable Turning Stock Removal overlay work and removed noisy slow-frame warnings when no actionable slowdown is present.
 - Refactored `app/gcode/kernel` without adding new G-code functionality or intentionally changing CNC execution semantics; the change consolidates common mechanics left from the historically separate turning and milling implementations.
 - Added shared machine/runtime state primitives for unit mode, active WCS/tool, feed mode/feed and spindle state, and removed the duplicate turning cycle-state synchronization path.
 - Consolidated common program execution plumbing for Macro B evaluation/control flow, block evaluation/classification, execution guard/program counter, subprogram call stack and M98/M99/M2/M30 flow events.

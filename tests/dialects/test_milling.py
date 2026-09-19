@@ -13,6 +13,7 @@ from gcode_samples import (
 )
 
 from app.gcode.kernel import execute
+from app.gcode.kernel.api import engine as kernel_engine
 from app.gcode.trace_tools import render_trace, trace_statistics
 
 
@@ -86,6 +87,101 @@ M30
     arc = next(motion for motion in result.motions if motion.move in (2, 3))
     assert arc.arc is not None
     assert arc.arc.radius == pytest.approx(50.0)
+
+
+def _autodetected_arcs(source, *, fallback=1):
+    result = execute(
+        source,
+        language="fanuc_mill",
+        source_arc_type=fallback,
+        autodetect_arc_type=True,
+        arc_tolerance=0.001,
+    )
+    assert result.ok, result.diagnostics
+    return [motion for motion in result.motions if motion.arc is not None]
+
+
+def test_milling_autodetects_relative_ijk_instead_of_manual_fallback():
+    arcs = _autodetected_arcs("G17 G90\nG0 X10 Y0\nG2 X20 Y10 I0 J10\nM30", fallback=2)
+
+    assert arcs[0].arc.center == pytest.approx((10.0, 10.0, 0.0))
+
+
+def test_milling_autodetects_absolute_ijk_instead_of_manual_fallback():
+    arcs = _autodetected_arcs("G17 G90\nG0 X10 Y0\nG2 X20 Y10 I10 J10\nM30", fallback=1)
+
+    assert arcs[0].arc.center == pytest.approx((10.0, 10.0, 0.0))
+
+
+def test_milling_autodetect_skips_leading_r_arc_and_preserves_mixed_arc_program():
+    arcs = _autodetected_arcs(
+        "G17 G90\nG0 X0 Y0\nG2 X10 Y0 R5\nG0 X10 Y0\nG2 X20 Y10 I10 J10\nM30",
+        fallback=1,
+    )
+
+    assert len(arcs) == 2
+    assert arcs[0].radius == pytest.approx(5.0)
+    assert arcs[0].arc.radius == pytest.approx(5.0)
+    assert arcs[1].arc.center == pytest.approx((10.0, 10.0, 0.0))
+
+
+def test_milling_autodetected_ijk_mode_stays_fixed_across_r_arc():
+    arcs = _autodetected_arcs(
+        "G17 G90\nG0 X10 Y0\nG2 X20 Y10 I0 J10\nG2 X30 Y10 R5\nG0 X10 Y0\nG2 X20 Y10 I0 J10\nM30",
+        fallback=2,
+    )
+
+    assert arcs[0].arc.center == pytest.approx((10.0, 10.0, 0.0))
+    assert arcs[1].arc.radius == pytest.approx(5.0)
+    assert arcs[2].arc.center == pytest.approx((10.0, 10.0, 0.0))
+
+
+def test_milling_autodetect_skips_ambiguous_full_circle_and_uses_next_ijk_arc():
+    arcs = _autodetected_arcs(
+        "G17 G90\nG0 X10 Y0\nG2 X10 Y0 I-10 J0\nG2 X20 Y10 I0 J10\nM30",
+        fallback=2,
+    )
+
+    assert arcs[0].arc.center == pytest.approx((0.0, 0.0, 0.0))
+    assert arcs[1].arc.center == pytest.approx((10.0, 10.0, 0.0))
+
+
+def test_milling_autodetect_uses_manual_fallback_when_every_ijk_arc_is_ambiguous():
+    arcs = _autodetected_arcs("G17 G90\nG0 X10 Y0\nG2 X10 Y0 I-10 J0\nM30", fallback=2)
+
+    assert arcs[0].arc.center == pytest.approx((-10.0, 0.0, 0.0))
+
+
+def test_milling_disabled_autodetect_preserves_manual_arc_type():
+    result = execute(
+        "G17 G90\nG0 X10 Y0\nG2 X20 Y10 I10 J10\nM30",
+        language="fanuc_mill",
+        source_arc_type=1,
+        autodetect_arc_type=False,
+    )
+
+    arc = next(motion for motion in result.motions if motion.arc is not None)
+    assert arc.arc.center == pytest.approx((20.0, 10.0, 0.0))
+
+
+def test_milling_arc_autodetect_does_not_execute_program_twice(monkeypatch):
+    calls = 0
+    original = getattr(kernel_engine, "_execute_impl")
+
+    def counted_execute(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(kernel_engine, "_execute_impl", counted_execute)
+    result = kernel_engine.execute(
+        "G17 G90\nG0 X10 Y0\nG2 X20 Y10 I0 J10\nM30",
+        language="fanuc_mill",
+        autodetect_arc_type=True,
+    )
+
+    assert result.ok
+    assert calls == 1
 
 
 def test_milling_canned_cycles_execute_exact_source_blocks_and_depths():

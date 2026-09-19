@@ -73,7 +73,7 @@ class MainWindowEditorMixin:
         self.traceStatusLabel = QLabel("Steps: 0 | Motions: 0")
         self.diagnosticsStatusLabel = QLabel("\u2713")
         self.timeStatusLabel = QLabel("Exec: --")
-        for widget in (
+        status_widgets = (
             self.executionStatusLabel,
             self.modeStatusLabel,
             self.unitsStatusLabel,
@@ -81,8 +81,13 @@ class MainWindowEditorMixin:
             self.traceStatusLabel,
             self.diagnosticsStatusLabel,
             self.timeStatusLabel,
-        ):
+        )
+        for widget in status_widgets:
+            widget.setContentsMargins(7, 0, 7, 0)
             self.ui.statusbar.addPermanentWidget(widget)
+        self.traceStatusLabel.setToolTip("Executed steps and generated motions")
+        self.diagnosticsStatusLabel.setToolTip("No execution diagnostics")
+        self.timeStatusLabel.setToolTip("CNC kernel execution time")
         self.updateStatusBar()
 
     def updateExecutionStatus(self, state=None, result=None, elapsed_ms=None):
@@ -112,14 +117,21 @@ class MainWindowEditorMixin:
         warnings = sum(
             getattr(d, "severity", "error").lower() == "warning" for d in (() if result is None else result.diagnostics)
         )
-        parts = ([f"E: {errors}"] if errors else []) + ([f"W: {warnings}"] if warnings else [])
+        parts = ([f"Errors: {errors}"] if errors else []) + ([f"Warnings: {warnings}"] if warnings else [])
         self.diagnosticsStatusLabel.setText(" / ".join(parts) or "\u2713")
+        diagnostics = () if result is None else result.diagnostics
+        self.diagnosticsStatusLabel.setToolTip(
+            "\n".join(f"{item.code}: {item.message}" for item in diagnostics) or "No execution diagnostics"
+        )
         if result is not None and steps:
             self.unitsStatusLabel.setText("inch" if float(steps[-1].unit_scale) == 25.4 else "mm")
         else:
             self.unitsStatusLabel.setText(getattr(self, "defaultUnits", "mm"))
         if elapsed_ms is not None:
-            self.timeStatusLabel.setText(f"Exec: {elapsed_ms:.1f} ms")
+            elapsed_ms = float(elapsed_ms)
+            self.timeStatusLabel.setText(
+                f"Exec: {elapsed_ms / 1000.0:.2f} s" if elapsed_ms >= 1000.0 else f"Exec: {elapsed_ms:.1f} ms"
+            )
 
     def updatePlaybackStatus(self, value):
         """Expose the already-available playback motion position."""

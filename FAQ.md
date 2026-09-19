@@ -70,6 +70,14 @@ Use Shift+Click near the trajectory. The application selects the owning source b
 
 Auto Update has a configurable sampled-segment limit. Large programs are left unchanged until an explicit Refresh so that typing remains responsive. Manual refresh displays staged progress for a large trace.
 
+### What does Cancel stop during Refresh?
+
+The execution dialog covers tool discovery, source parsing, CNC execution, trace sampling and final plot publication. **Cancel** remains active until the complete operation ends and cooperatively stops whichever stage is running. Very large sources are read incrementally so cancellation does not wait for a complete `splitlines()` copy or a full parser pass.
+
+### Can the built-in FAQ be resized?
+
+Yes. **Help → FAQ** opens a normal resizable window with Minimize, Maximize and Close controls. Contents links navigate within the document; the License link opens the packaged `LICENSE.md` document.
+
 ## Lathe mode
 
 ### Where are the Lathe controls?
@@ -221,6 +229,12 @@ The default millimetre/inch option initializes execution only until the program 
 
 Analytical arc center, radius, sweep, plane and direction are resolved once by the kernel. Rendering only samples the resulting geometry.
 
+When **Autodetect Arc Type** is enabled under **Settings → Options → CNC / Execution**, the milling executor examines IJK arcs in occurrence order before geometry resolution. R-only arcs are ignored for detection. Relative and absolute-center interpretations are compared using Arc tolerance; the first unambiguous IJK arc fixes the mode for the whole execution. If all candidate arcs are ambiguous, the manually selected Arc Type is used as the fallback. Mixed R and IJK programs remain valid because each R block is still resolved from R. Turning is unaffected and always uses relative I/K.
+
+### How do leading slash blocks work?
+
+A source block beginning with `/` is an optional Block Skip block. With **Ignore Block Skip** enabled under **Settings → Options → CNC / Execution**, the complete block is excluded, including motion, Macro B assignments, signals and subprogram calls. With the option disabled, it executes normally. The setting applies to turning and milling, persists between launches and is also reflected in Expanded Execution export without rewriting the source file.
+
 ### Are full circles supported?
 
 Yes. When exporting an R-format full circle, Expanded Execution emits two exact R semicircles because one R block cannot uniquely represent a full circle.
@@ -304,6 +318,8 @@ One or more motions lack a trustworthy physical feed rate. A common cause is fee
 
 Expanded Execution follows actual occurrence order, including subprogram calls and generated cycle motions. It preserves relevant WCS, home returns, threading, dwell, spindle and coolant events.
 
+When **Ignore Block Skip** is enabled, Expanded Execution consumes the already filtered execution result, so skipped `/` blocks are not emitted and the source is not executed a second time for export.
+
 In Lathe mode, generated arcs use relative I/K and incremental coordinates use U/W. In Mill mode, coordinate and arc output representations are configurable.
 
 DXF uses separate rapid and cutting layers. Turning uses plot-aligned Z/X entities; milling exports 3D line/arc/circle geometry where representable.
@@ -326,7 +342,8 @@ On Windows:
 - UTF-8 or Windows-1251 document encoding.
 - Default Text/ISO editor mode and default units.
 - Application logging.
-- G41/G42 correction and arc tolerance.
+- G41/G42 correction, arc tolerance and milling Arc Type autodetection.
+- Persistent optional-block control through `Ignore Block Skip`.
 - Editor font and visual settings.
 - Plot colors, line thickness, axes and grid.
 - `Show Stock` immediately after `Show canvas grid`.

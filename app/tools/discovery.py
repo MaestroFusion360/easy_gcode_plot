@@ -7,6 +7,7 @@ execute expressions. Dimensions follow the units active at the T word.
 import math
 import re
 from copy import deepcopy
+from io import StringIO
 
 from app.gcode.kernel.lang import lex_words, strip_comments
 from app.tools.definitions import (
@@ -105,9 +106,15 @@ def _milling_spec(description, scale, operation_kind=None):
     return spec
 
 
-def _header_comments(lines, turning):
+def _cancel_checkpoint(index, cancelled):
+    if index % 256 == 0 and cancelled is not None and cancelled():
+        raise InterruptedError("Tool discovery cancelled")
+
+
+def _header_comments(lines, turning, cancelled=None):
     headers = {}
-    for line in lines:
+    for index, line in enumerate(lines):
+        _cancel_checkpoint(index, cancelled)
         for comment in _comments(line):
             for match in _COMMENT_TOOL.finditer(comment):
                 key = _tool_key(match[1], turning)
@@ -116,13 +123,14 @@ def _header_comments(lines, turning):
     return headers
 
 
-def _tool_occurrences(lines, turning, default_unit_scale):
+def _tool_occurrences(source, turning, default_unit_scale, cancelled=None):
     """Pair literal selections with nearby comments without leaking between operations."""
-    headers = _header_comments(lines, turning)
+    headers = _header_comments(StringIO(source), turning, cancelled)
     previous = ""
     previous_line = -100
     scale = default_unit_scale
-    for index, line in enumerate(lines):
+    for index, line in enumerate(StringIO(source)):
+        _cancel_checkpoint(index, cancelled)
         comments = _comments(line)
         words = lex_words(strip_comments(line).upper())
         scale = _block_scale(words, scale)
@@ -164,11 +172,12 @@ def _operation_kind(words, turning):
     return None
 
 
-def _tool_operations(lines, turning):
+def _tool_operations(lines, turning, cancelled=None):
     """Infer geometry from the first typed cycle executed by each active tool."""
     active_tool = None
     operations = {}
-    for line in lines:
+    for index, line in enumerate(lines):
+        _cancel_checkpoint(index, cancelled)
         words = lex_words(strip_comments(line).upper())
         selected = tuple(_literal_tools(words, turning))
         if selected:
@@ -179,12 +188,11 @@ def _tool_operations(lines, turning):
     return operations
 
 
-def discover_tools(source, *, turning, default_unit_scale=1.0):
+def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None):
     """Return inferred definitions; callers must insert only absent library keys."""
-    lines = source.splitlines()
-    operations = _tool_operations(lines, turning)
+    operations = _tool_operations(StringIO(source), turning, cancelled)
     descriptions = {}
-    for key, description, scale in _tool_occurrences(lines, turning, default_unit_scale):
+    for key, description, scale in _tool_occurrences(source, turning, default_unit_scale, cancelled):
         if key not in descriptions or (not descriptions[key][0] and description):
             descriptions[key] = description, scale
     tools = {}

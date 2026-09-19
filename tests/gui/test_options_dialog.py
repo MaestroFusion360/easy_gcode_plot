@@ -7,6 +7,7 @@ from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from app.main_window import MainWindow
+from app.settings import get_settings
 from app.ui.dialogs.options import OptionsDialog
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
@@ -54,6 +55,8 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     dialog.restore_defaults()
     assert dialog.ui.autoUpdateCheck.isChecked()
     assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 20000
+    assert dialog.ui.autodetectArcTypeCheck.isChecked()
+    assert not dialog.ui.ignoreBlockSkipCheck.isChecked()
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
     assert dialog.ui.toolColorEdit.text() == "#4d99ff"
     assert dialog.ui.stlColorEdit.text() == "#b0b0b0"
@@ -66,6 +69,46 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     dialog.ui.arcColorButton.click()
     assert dialog.ui.arcColorEdit.text() == "#abcdef"
     window.deleteLater()
+
+
+def test_autodetect_arc_type_defaults_on_and_persists(qt_app):
+    settings = get_settings()
+    settings.remove("CNC/AUTODETECT_ARC_TYPE")
+    settings.sync()
+
+    window = MainWindow()
+    assert window.autodetectArcType is True
+    assert window.optionsDlg.ui.autodetectArcTypeCheck.isChecked()
+    window.autodetectArcType = False
+    window.saveSettings()
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.autodetectArcType is False
+    restored.optionsDlg.load_values()
+    assert not restored.optionsDlg.ui.autodetectArcTypeCheck.isChecked()
+    restored.deleteLater()
+
+
+def test_ignore_block_skip_defaults_off_and_persists(qt_app):
+    settings = get_settings()
+    settings.remove("CNC/IGNORE_BLOCK_SKIP")
+    settings.sync()
+
+    window = MainWindow()
+    assert window.ignoreBlockSkip is False
+    assert not window.optionsDlg.ui.ignoreBlockSkipCheck.isChecked()
+    window.ignoreBlockSkip = True
+    window.saveSettings()
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.ignoreBlockSkip is True
+    restored.optionsDlg.load_values()
+    assert restored.optionsDlg.ui.ignoreBlockSkipCheck.isChecked()
+    restored.deleteLater()
 
 
 def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
@@ -93,6 +136,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.gridCheck.setChecked(True)
     dialog.ui.arcToleranceSpin.setValue(0.02)
     dialog.ui.correctionCheck.setChecked(False)
+    dialog.ui.ignoreBlockSkipCheck.setChecked(True)
     dialog.ui.autoUpdateCheck.setChecked(False)
     dialog.ui.autoUpdateMaxSegmentsSpin.setValue(7500)
     dialog.ui.playbackSpeedSlider.setValue(5)
@@ -114,6 +158,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.plotGrid is True and window.ui.actionGrid.isChecked()
     assert window.arcTolerance == 0.02
     assert window.correctionEnabled is False
+    assert window.ignoreBlockSkip is True
     assert window.autoUpdateEnabled is False
     assert window.autoUpdateMaxSegments == 7500
     assert window.playbackSpeed == 5
@@ -155,7 +200,7 @@ def test_legacy_grid_color_is_migrated_for_gradient_contrast(qt_app):
     restored.deleteLater()
 
 
-@pytest.mark.parametrize("changed_option", ["units", "correction", "tolerance"])
+@pytest.mark.parametrize("changed_option", ["units", "correction", "tolerance", "block_skip"])
 def test_options_runtime_semantic_changes_reexecute_current_document(qt_app, monkeypatch, changed_option):
     window = MainWindow()
     dialog = window.optionsDlg
@@ -171,6 +216,8 @@ def test_options_runtime_semantic_changes_reexecute_current_document(qt_app, mon
         dialog.ui.unitsCombo.setCurrentIndex(1 if window.defaultUnits == "mm" else 0)
     elif changed_option == "correction":
         dialog.ui.correctionCheck.setChecked(not window.correctionEnabled)
+    elif changed_option == "block_skip":
+        dialog.ui.ignoreBlockSkipCheck.setChecked(not window.ignoreBlockSkip)
     else:
         dialog.ui.arcToleranceSpin.setValue(window.arcTolerance * 2.0)
     dialog.accept()

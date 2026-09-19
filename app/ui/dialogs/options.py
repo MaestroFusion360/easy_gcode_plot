@@ -25,6 +25,8 @@ def _option_snapshot(window):
         "auto_update": getattr(window, "autoUpdateEnabled", True),
         "auto_update_limit": getattr(window, "autoUpdateMaxSegments", 20000),
         "correction": getattr(window, "correctionEnabled", True),
+        "autodetect_arc_type": getattr(window, "autodetectArcType", True),
+        "ignore_block_skip": getattr(window, "ignoreBlockSkip", False),
         "arc_tolerance": getattr(window, "arcTolerance", 0.001),
         "font_family": getattr(window, "fontFamily", "Courier New"),
         "font_size": getattr(window, "sizeTxt", 12),
@@ -48,6 +50,33 @@ def _option_snapshot(window):
         "stl_wireframe": getattr(window, "stlWireframe", False),
         "playback_speed": getattr(window, "playbackSpeed", 3),
     }
+
+
+def _execution_semantics_changed(
+    window,
+    *,
+    previous_units,
+    correction_needs_update,
+    previous_tolerance,
+    previous_autodetect_arc_type,
+    previous_ignore_block_skip,
+):
+    return any(
+        (
+            previous_units != window.defaultUnits,
+            correction_needs_update,
+            previous_tolerance != window.arcTolerance,
+            previous_autodetect_arc_type != window.autodetectArcType,
+            previous_ignore_block_skip != window.ignoreBlockSkip,
+        )
+    )
+
+
+def _apply_cnc_options(window, ui):
+    window.correctionEnabled = ui.correctionCheck.isChecked()
+    window.arcTolerance = ui.arcToleranceSpin.value()
+    window.autodetectArcType = ui.autodetectArcTypeCheck.isChecked()
+    window.ignoreBlockSkip = ui.ignoreBlockSkipCheck.isChecked()
 
 
 class OptionsDialog(QDialog):
@@ -110,6 +139,8 @@ class OptionsDialog(QDialog):
         finally:
             self._loading_values = False
         self.ui.arcToleranceSpin.setValue(getattr(window, "arcTolerance", 0.001))
+        self.ui.autodetectArcTypeCheck.setChecked(getattr(window, "autodetectArcType", True))
+        self.ui.ignoreBlockSkipCheck.setChecked(getattr(window, "ignoreBlockSkip", False))
         self.ui.fontCombo.setCurrentFont(QFont(window.fontFamily))
         self.ui.fontSizeSpin.setValue(window.sizeTxt)
         self.ui.caretLineCheck.setChecked(window.caretLine)
@@ -175,6 +206,8 @@ class OptionsDialog(QDialog):
             else self._correction_before_show
         )
         previous_tolerance = getattr(window, "arcTolerance", 0.001)
+        previous_autodetect_arc_type = getattr(window, "autodetectArcType", True)
+        previous_ignore_block_skip = getattr(window, "ignoreBlockSkip", False)
         previous_show_stock = (
             getattr(window, "showStock", True) if self._show_stock_before_show is None else self._show_stock_before_show
         )
@@ -207,8 +240,7 @@ class OptionsDialog(QDialog):
         window.loggingEnabled = self.ui.loggingCheck.isChecked()
         window.autoUpdateEnabled = self.ui.autoUpdateCheck.isChecked()
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
-        window.correctionEnabled = self.ui.correctionCheck.isChecked()
-        window.arcTolerance = self.ui.arcToleranceSpin.value()
+        _apply_cnc_options(window, self.ui)
         window.fontFamily = self.ui.fontCombo.currentFont().family()
         window.sizeTxt = self.ui.fontSizeSpin.value()
         window.caretLine = self.ui.caretLineCheck.isChecked()
@@ -269,10 +301,16 @@ class OptionsDialog(QDialog):
             previous_correction != window.correctionEnabled and not self._correction_preview_applied
         )
         if (
-            previous_units != window.defaultUnits
-            or correction_needs_update
-            or previous_tolerance != window.arcTolerance
-        ) and getattr(window, "execution_result", None) is not None:
+            _execution_semantics_changed(
+                window,
+                previous_units=previous_units,
+                correction_needs_update=correction_needs_update,
+                previous_tolerance=previous_tolerance,
+                previous_autodetect_arc_type=previous_autodetect_arc_type,
+                previous_ignore_block_skip=previous_ignore_block_skip,
+            )
+            and getattr(window, "execution_result", None) is not None
+        ):
             window.updateData()
         elif not self._correction_preview_applied:
             window.refreshPlotView()
@@ -338,6 +376,8 @@ class OptionsDialog(QDialog):
         self.ui.autoUpdateCheck.setChecked(True)
         self.ui.autoUpdateMaxSegmentsSpin.setValue(20000)
         self.ui.correctionCheck.setChecked(True)
+        self.ui.autodetectArcTypeCheck.setChecked(True)
+        self.ui.ignoreBlockSkipCheck.setChecked(False)
         self.ui.arcToleranceSpin.setValue(0.001)
         self.ui.fontCombo.setCurrentFont(QFont("Courier New"))
         self.ui.fontSizeSpin.setValue(12)

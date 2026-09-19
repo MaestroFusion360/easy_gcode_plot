@@ -14,8 +14,15 @@ from app.gcode.exporter import (
 from app.gcode.kernel import execute
 
 
-def _window_export_harness(source: str, *, language: str, export_mode: int, arc_mode: int = 0):
-    result = execute(source, language=language)
+def _window_export_harness(
+    source: str,
+    *,
+    language: str,
+    export_mode: int,
+    arc_mode: int = 0,
+    skip_optional_blocks: bool = False,
+):
+    result = execute(source, language=language, skip_optional_blocks=skip_optional_blocks)
     assert result.ok, result.diagnostics
     return SimpleNamespace(
         execution_result=result,
@@ -69,3 +76,19 @@ def test_gui_export_dispatch_keeps_text_modes_and_arc_options():
     )
     mill_full = export_pgm(mill)
     assert "EXPANDED MILL PROGRAM" in mill_full
+
+
+def test_expanded_execution_exports_the_trace_after_block_skip():
+    source = "/G1 X10 F100\nG1 X20 F100\nM30"
+
+    for language in ("fanuc_turn", "fanuc_mill"):
+        window = _window_export_harness(
+            source,
+            language=language,
+            export_mode=EXPANDED_EXECUTION_MODE,
+            skip_optional_blocks=True,
+        )
+        exported = export_pgm(window)
+
+        assert "X10" not in exported
+        assert "X20" in exported

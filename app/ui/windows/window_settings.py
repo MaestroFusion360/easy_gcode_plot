@@ -127,6 +127,8 @@ class MainWindowSettingsMixin:
         self.defaultFileType = self.settings.value("EDITOR/DEFAULT_FILE_TYPE", 0, type=int)
         self.defaultUnits = self.settings.value("CNC/DEFAULT_UNITS", "mm")
         self.correctionEnabled = self.settings.value("CNC/CORRECTION_ENABLED", True, type=bool)
+        self.autodetectArcType = self.settings.value("CNC/AUTODETECT_ARC_TYPE", True, type=bool)
+        self.ignoreBlockSkip = self.settings.value("CNC/IGNORE_BLOCK_SKIP", False, type=bool)
         self.arcTolerance = bounded_number(
             self.settings.value("CNC/ARC_TOLERANCE", ARC_TOLERANCE_DEFAULT),
             ARC_TOLERANCE_DEFAULT,
@@ -360,8 +362,13 @@ class MainWindowSettingsMixin:
         self.settings.beginGroup("CNC")
         self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
         self.settings.setValue("DEFAULT_UNITS", self.defaultUnits)
-        self.settings.setValue("CORRECTION_ENABLED", self.correctionEnabled)
-        self.settings.setValue("ARC_TOLERANCE", self.arcTolerance)
+        for key, value in (
+            ("CORRECTION_ENABLED", self.correctionEnabled),
+            ("AUTODETECT_ARC_TYPE", self.autodetectArcType),
+            ("IGNORE_BLOCK_SKIP", self.ignoreBlockSkip),
+            ("ARC_TOLERANCE", self.arcTolerance),
+        ):
+            self.settings.setValue(key, value)
         for code in range(54, 60):
             x_offset, y_offset, z_offset = self.wcsOffsets.get(code, (0.0, 0.0, 0.0))
             self.settings.setValue(f"G{code}_X", x_offset)

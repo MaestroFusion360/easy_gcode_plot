@@ -47,6 +47,37 @@ def test_optional_cycle_does_not_hide_unexecuted_contour():
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_optional_blocks_are_controlled_without_changing_source(language):
+    source = "/#1=10\n/G1 X#1 F100\nG1 X20 F100\nM30"
+
+    executed = execute(source, language, skip_optional_blocks=False)
+    ignored = execute(source, language, skip_optional_blocks=True)
+
+    assert executed.ok, executed.diagnostics
+    assert [motion.end_x for motion in executed.motions] == [10, 20]
+    assert ignored.ok, ignored.diagnostics
+    assert [motion.end_x for motion in ignored.motions] == [20]
+    assert "1" not in dict(ignored.execution_steps[-1].variables)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_cancellation_interrupts_source_parsing(language):
+    checks = 0
+
+    def cancelled():
+        nonlocal checks
+        checks += 1
+        return checks >= 3
+
+    result = execute("G1 X1 F100\n" * 10_000, language, cancelled=cancelled)
+
+    assert not result.ok
+    assert not result.complete
+    assert any(diagnostic.code == "EXECUTION_CANCELLED" for diagnostic in result.diagnostics)
+    assert checks == 3
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
 def test_signals_follow_executed_occurrences(language):
     result = execute("M98 P100 L2\nM30\nO100\nM8\nG1 U1 X1 F100\nM9\nM99\nM3", language)
     assert result.ok, result.diagnostics

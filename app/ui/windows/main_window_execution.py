@@ -7,7 +7,7 @@ from math import asin, ceil, floor, pi, sqrt
 from threading import Event
 from time import perf_counter
 
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
@@ -20,6 +20,35 @@ AUTO_REFRESH_MAX_POINTS = 20000
 AUTO_REFRESH_DELAY_MS = 500
 LOGGER = logging.getLogger(__name__)
 PLAYBACK_INTERVALS_MS = (1000, 250, 100, 40, 10)
+
+
+class _PlotUpdateCancelledError(Exception):
+    """Stop an in-progress GUI publication at a cooperative checkpoint."""
+
+
+class _PlotCompletion:
+    """Publish worker output while retaining completion/cancellation state."""
+
+    def __init__(self, owner, deferred_result=None):
+        self.owner = owner
+        self.deferred_result = deferred_result
+        self.finished = False
+        self.cancelled = False
+
+    def _finish(self, result, points, cancelled):
+        if result is not None and result.motions and points is not None:
+            self.finished = bool(self.owner.finishDataUpdate(result, points, cancelled=cancelled))
+            self.cancelled = not self.finished and cancelled()
+
+    def calculation(self, payload, cancelled):
+        result, points, _updated_tools, _inferred, _execution_ms, render_limited = payload
+        if not render_limited:
+            self._finish(result, points, cancelled)
+        return payload
+
+    def rendered_points(self, points, cancelled):
+        self._finish(self.deferred_result, points, cancelled)
+        return points
 
 
 def _arc_points_per_circle(result, tolerance_value: float) -> int:
@@ -55,6 +84,7 @@ def _calculate_source(
         previous_inference,
         turning=turning,
         default_unit_scale=setup_unit_scale,
+        cancelled=is_cancelled,
     )
     # Keep kernel inputs detached from the setup installed back on the window.
     snapshot_options["tools"] = deepcopy(turning_tools) if correction_enabled else {}
@@ -90,6 +120,11 @@ def playback_speed_level(interval_ms: int) -> int:
     """Map a legacy timer interval to its nearest speed level."""
     interval = max(1, int(interval_ms))
     return min(range(1, 6), key=lambda level: abs(playback_interval_ms(level) - interval))
+
+
+def _cancellation_requested(cancelled) -> bool:
+    QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 5)
+    return bool(cancelled is not None and cancelled())
 
 
 class MainWindowExecutionMixin:
@@ -215,7 +250,7 @@ class MainWindowExecutionMixin:
         if getattr(self, "autoUpdateEnabled", True):
             self.autoUpdateTimer.start()
 
-    def _calculate_editor_source(self, *, show_errors=True, render=False, max_points=None):
+    def _calculate_editor_source(self, *, show_errors=True, render=False, max_points=None, completion=None):
         if getattr(self, "_kernel_execution_active", False):
             self._kernel_cancel_requested = True
             return None, None, False
@@ -249,6 +284,9 @@ class MainWindowExecutionMixin:
             {
                 "language": language,
                 "source_arc_type": 1 if turning else getattr(self, "arc_type", 1),
+                "autodetect_arc_type": False if turning else getattr(self, "autodetectArcType", True),
+                "skip_optional_blocks": getattr(self, "ignoreBlockSkip", False),
+                "arc_tolerance": arc_tolerance,
                 "default_unit_scale": default_unit_scale,
                 "home_x": home_x,
                 "home_y": self.yPosMach,
@@ -281,10 +319,14 @@ class MainWindowExecutionMixin:
                 source,
                 options,
                 cancellation.set,
+                completion=(lambda payload: completion(payload, cancelled)) if completion is not None else None,
                 title=QCoreApplication.translate("MainWindow", "CNC execution"),
+                finalizing_text=QCoreApplication.translate("MainWindow", "Updating plot…"),
                 status_text=QCoreApplication.translate("MainWindow", "Executing CNC program…"),
                 cancelling_text=QCoreApplication.translate("MainWindow", "Cancelling CNC execution…"),
             )
+        except InterruptedError:
+            return None, None, False
         finally:
             self._kernel_execution_active = False
 
@@ -355,11 +397,19 @@ class MainWindowExecutionMixin:
         if getattr(self, "_stock_animation_active", False):
             self._clear_stock_animation()
         auto_limit = max(1, int(getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)))
+        completion = _PlotCompletion(self)
+
         result, points, render_limited = self._calculate_editor_source(
             show_errors=False,
             render=True,
             max_points=auto_limit,
+            completion=completion.calculation,
         )
+        if completion.finished:
+            self._auto_update_deferred = False
+            return True
+        if completion.cancelled:
+            return False
         if result is None or not result.motions:
             if hasattr(self, "updateExecutionStatus"):
                 self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
@@ -377,7 +427,7 @@ class MainWindowExecutionMixin:
         self._auto_update_deferred = False
         self._finishDataUpdate(result, points)
 
-    def _render_existing_result(self, result):
+    def _render_existing_result(self, result, *, completion=None):
         cancellation = Event()
         self._kernel_execution_active = True
         self._kernel_cancel_requested = False
@@ -394,7 +444,11 @@ class MainWindowExecutionMixin:
                     "",
                     {},
                     cancellation.set,
+                    completion=(lambda points: completion(points, cancellation.is_set))
+                    if completion is not None
+                    else None,
                     title=QCoreApplication.translate("MainWindow", "CNC execution"),
+                    finalizing_text=QCoreApplication.translate("MainWindow", "Updating plot…"),
                     status_text=QCoreApplication.translate("MainWindow", "Building toolpath…"),
                     cancelling_text=QCoreApplication.translate("MainWindow", "Cancelling toolpath calculation…"),
                 )
@@ -417,16 +471,24 @@ class MainWindowExecutionMixin:
             self.autoUpdateTimer.stop()
         source = self.ui.editor.text()
         deferred_result = getattr(self, "_deferred_execution_result", None)
+        completion = _PlotCompletion(self, deferred_result)
+
         if deferred_result is not None and getattr(self, "_deferred_execution_source", None) == source:
             result = deferred_result
-            points = self._render_existing_result(result)
+            points = self._render_existing_result(result, completion=completion.rendered_points)
         else:
             self._deferred_execution_result = None
             self._deferred_execution_source = None
             result, points, _render_limited = self._calculate_editor_source(
                 show_errors=show_errors,
                 render=True,
+                completion=completion.calculation,
             )
+        if completion.finished:
+            self._auto_update_deferred = False
+            return True
+        if completion.cancelled:
+            return False
         if result is None or not result.motions:
             self.clearPlot()
             if hasattr(self, "updateExecutionStatus"):
@@ -438,28 +500,10 @@ class MainWindowExecutionMixin:
         self._auto_update_deferred = False
         return True
 
-    def _finishDataUpdate(self, result=None, points=None, playback_value=None):
-        """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
-        started = perf_counter()
-        result = result if result is not None else self.execution_result
-        if result is None:
-            return False
-        render_started = perf_counter()
-        if points is None:
-            points = render_trace(
-                result,
-                lathe_radius_view=self.latheMode,
-                arc_points_per_circle=self.arcPointsPerCircle(result),
-            )
-        self._deferred_execution_result = None
-        self._deferred_execution_source = None
-        self.execution_result = result
-        self.render_points = points
-        self._plot_source_stale = False
-        if hasattr(self, "updateExecutionStatus"):
-            self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
-        render_ms = (perf_counter() - render_started) * 1000.0
+    def _prepare_playback_metadata(self, result, cancelled):
         self._playback_movements, self._motion_to_playback = build_playback_movements(result.motions)
+        if _cancellation_requested(cancelled):
+            return False
         self._source_motion_index = {}
         self._motion_unit_scales = []
         for step in result.execution_steps:
@@ -469,14 +513,20 @@ class MainWindowExecutionMixin:
         else:
             del self._motion_unit_scales[len(result.motions) :]
         for idx, motion in enumerate(result.motions):
+            if idx % 4096 == 0 and _cancellation_requested(cancelled):
+                return False
             if motion.source_block is not None:
                 # A canned-cycle source block can expand to many motions.  An
                 # editor click should select the first generated motion, while
                 # playback still walks all generated motions normally.
                 self._source_motion_index.setdefault(motion.source_block, self._motion_to_playback[idx])
+        return True
 
+    def _prepare_render_index(self, result, cancelled):
         self._motion_render_end = [0] * len(result.motions)
         for point_index, point in enumerate(self.render_points, start=1):
+            if point_index % 4096 == 0 and _cancellation_requested(cancelled):
+                return False
             if 0 <= point.motion_index < len(self._motion_render_end):
                 self._motion_render_end[point.motion_index] = point_index
         last = 0
@@ -484,12 +534,9 @@ class MainWindowExecutionMixin:
             if end:
                 last = end
             self._motion_render_end[idx] = last
-        pack_started = perf_counter()
-        self._set_trace_geometry()
-        pack_ms = (perf_counter() - pack_started) * 1000.0
-        statistics_started = perf_counter()
-        self.calcDist()
-        statistics_ms = (perf_counter() - statistics_started) * 1000.0
+        return True
+
+    def _configure_playback_controls(self, result, playback_value):
         enabled = bool(result.motions)
         self.ui.actionStep_Backward.setEnabled(enabled)
         self.ui.actionStep_Forward.setEnabled(enabled)
@@ -505,11 +552,19 @@ class MainWindowExecutionMixin:
         playback_value = max(0, min(int(playback_value), playback_count))
         self.ui.horizontalSlider.setValue(playback_value)
         self.ui.horizontalSlider.blockSignals(False)
+        return playback_value
+
+    def _publish_plot_scene(self, result, playback_value, cancelled):
         if hasattr(self, "_refresh_auto_stock_suggestion"):
             self._refresh_auto_stock_suggestion()
-        scene_started = perf_counter()
+        if _cancellation_requested(cancelled):
+            return False
         self.loadPlot()
+        if _cancellation_requested(cancelled):
+            return False
         self._create_trace_items()
+        if _cancellation_requested(cancelled):
+            return False
         if hasattr(self, "_update_stock_outline"):
             self._update_stock_outline()
         if result.motions:
@@ -517,6 +572,49 @@ class MainWindowExecutionMixin:
         if getattr(self, "_fit_view_after_program_load", False):
             self._fit_view_after_program_load = False
             self.fitToView()
+        return True
+
+    def _finish_data_update_impl(self, result=None, points=None, playback_value=None, cancelled=None):
+        """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
+        started = perf_counter()
+        if _cancellation_requested(cancelled):
+            raise _PlotUpdateCancelledError
+        result = result if result is not None else self.execution_result
+        if result is None:
+            raise _PlotUpdateCancelledError
+        render_started = perf_counter()
+        if points is None:
+            points = render_trace(
+                result,
+                lathe_radius_view=self.latheMode,
+                arc_points_per_circle=self.arcPointsPerCircle(result),
+            )
+        self._deferred_execution_result = None
+        self._deferred_execution_source = None
+        self.execution_result = result
+        self.render_points = points
+        self._plot_source_stale = False
+        if hasattr(self, "updateExecutionStatus"):
+            self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
+        render_ms = (perf_counter() - render_started) * 1000.0
+        if not self._prepare_playback_metadata(result, cancelled):
+            raise _PlotUpdateCancelledError
+        if not self._prepare_render_index(result, cancelled):
+            raise _PlotUpdateCancelledError
+        pack_started = perf_counter()
+        self._set_trace_geometry()
+        if _cancellation_requested(cancelled):
+            raise _PlotUpdateCancelledError
+        pack_ms = (perf_counter() - pack_started) * 1000.0
+        statistics_started = perf_counter()
+        self.calcDist()
+        if _cancellation_requested(cancelled):
+            raise _PlotUpdateCancelledError
+        statistics_ms = (perf_counter() - statistics_started) * 1000.0
+        playback_value = self._configure_playback_controls(result, playback_value)
+        scene_started = perf_counter()
+        if not self._publish_plot_scene(result, playback_value, cancelled):
+            raise _PlotUpdateCancelledError
         LOGGER.info(
             "plot_updated total_ms=%.3f render_ms=%.3f pack_ms=%.3f statistics_ms=%.3f scene_ms=%.3f "
             "motions=%d render_points=%d lathe=%s playback=%d",
@@ -530,6 +628,18 @@ class MainWindowExecutionMixin:
             self.latheMode,
             playback_value,
         )
+        return True
+
+    def finishDataUpdate(self, result=None, points=None, playback_value=None, cancelled=None):
+        """Publish a result and convert cooperative cancellation to a false result."""
+        try:
+            return self._finish_data_update_impl(result, points, playback_value, cancelled)
+        except _PlotUpdateCancelledError:
+            return False
+
+    def _finishDataUpdate(self, result=None, points=None, playback_value=None, cancelled=None):
+        """Compatibility wrapper for existing main-window consumers."""
+        return self.finishDataUpdate(result, points, playback_value, cancelled)
 
     def lstExport(self):
         """Compatibility hook: export data now comes directly from ExecutionResult."""

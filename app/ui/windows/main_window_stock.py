@@ -17,9 +17,20 @@ from app.ui.plot.stock_overlay import TurningStockOverlayItem
 
 STOCK_OUTLINE_COLOR = "#4fa7a0"
 LOGGER = logging.getLogger(__name__)
-_SLOW_STOCK_FRAME_MS = 100.0
+_SLOW_STOCK_TIMELINE_MS = 100.0
+_STALLED_STOCK_FRAME_MS = 500.0
 _SLOW_LOG_INTERVAL_SECONDS = 1.0
-STOCK_RENDER_INTERVAL_SECONDS = 1.0 / 30.0
+_MIN_STOCK_RENDER_INTERVAL_SECONDS = 1.0 / 30.0
+_MAX_STOCK_RENDER_INTERVAL_SECONDS = 0.25
+_STOCK_RENDER_COST_MULTIPLIER = 2.0
+
+
+def stock_render_interval_seconds(last_mesh_seconds: float) -> float:
+    """Keep mesh rebuilding from monopolizing the UI while retaining live playback."""
+    return min(
+        _MAX_STOCK_RENDER_INTERVAL_SECONDS,
+        max(_MIN_STOCK_RENDER_INTERVAL_SECONDS, last_mesh_seconds * _STOCK_RENDER_COST_MULTIPLIER),
+    )
 
 
 class MainWindowStockMixin:
@@ -265,6 +276,8 @@ class MainWindowStockMixin:
         if not self._rebuild_stock_timeline():
             return False
         self._stock_animation_active = True
+        self._stock_last_render_at = 0.0
+        self._stock_last_mesh_seconds = 0.0
         self.ui.horizontalSlider.blockSignals(True)
         self.ui.horizontalSlider.setValue(0)
         self.ui.horizontalSlider.blockSignals(False)
@@ -332,15 +345,16 @@ class MainWindowStockMixin:
         mesh_started = perf_counter()
         render_now = perf_counter()
         last_render = getattr(self, "_stock_last_render_at", 0.0)
+        render_interval = stock_render_interval_seconds(getattr(self, "_stock_last_mesh_seconds", 0.0))
         playback_active = bool(self.ui.actionPlay.isChecked())
         update_stock = (
-            not playback_active
-            or count in (0, len(result.motions))
-            or render_now - last_render >= STOCK_RENDER_INTERVAL_SECONDS
+            not playback_active or count in (0, len(result.motions)) or render_now - last_render >= render_interval
         )
         self._stock_item.set_frame(timeline, position, tool_spec, update_stock=update_stock)
         if update_stock:
-            self._stock_last_render_at = render_now
+            render_finished = perf_counter()
+            self._stock_last_render_at = render_finished
+            self._stock_last_mesh_seconds = render_finished - mesh_started
         mesh_ms = (perf_counter() - mesh_started) * 1000.0
         if self._stock_item not in self.ui.graphicsView.items:
             self.ui.graphicsView.addItem(self._stock_item)
@@ -349,7 +363,8 @@ class MainWindowStockMixin:
         sampled = count in (0, len(result.motions)) or count % sample_interval == 0
         now = perf_counter()
         last_slow_log = getattr(self, "_stock_last_slow_log_at", 0.0)
-        slow_log_due = total_ms >= _SLOW_STOCK_FRAME_MS and now - last_slow_log >= _SLOW_LOG_INTERVAL_SECONDS
+        unexpectedly_slow = timeline_ms >= _SLOW_STOCK_TIMELINE_MS or total_ms >= _STALLED_STOCK_FRAME_MS
+        slow_log_due = unexpectedly_slow and now - last_slow_log >= _SLOW_LOG_INTERVAL_SECONDS
         if slow_log_due:
             self._stock_last_slow_log_at = now
         log = LOGGER.warning if slow_log_due else LOGGER.debug

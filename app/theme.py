@@ -276,6 +276,23 @@ def apply_editor_theme(editor, lexer, theme) -> None:
     editor.recolor()
 
 
+def apply_dialog_theme(dialog) -> None:
+    """Give transient dialogs a complete palette on native Windows dark mode."""
+    if current_theme() != "dark":
+        return
+    dialog.setPalette(_dark_palette())
+    dialog.setAutoFillBackground(True)
+    dialog.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+    dialog.setStyleSheet(
+        "QDialog#ExecutionDialog { background-color: #1f1f1f; color: #e6e6e6; }"
+        "QDialog#ExecutionDialog QLabel { color: #e6e6e6; }"
+        "QDialog#ExecutionDialog QPushButton {"
+        " background-color: #333337; color: #e6e6e6; border: 1px solid #4a4a4a;"
+        " border-radius: 3px; padding: 5px 14px; }"
+        "QDialog#ExecutionDialog QPushButton:disabled { color: #7a7a7a; }"
+    )
+
+
 def _dark_palette() -> QPalette:
     palette = QPalette()
     window = QColor("#1f1f1f")

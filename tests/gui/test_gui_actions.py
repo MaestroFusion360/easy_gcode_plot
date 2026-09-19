@@ -6,6 +6,7 @@ import pytest
 from PyQt6.QtCore import QPoint
 from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar
 
+from app.gcode.kernel import execute
 from app.main_window import MainWindow
 from app.ui.generated.main.main_ui import Ui_MainWindow
 
@@ -69,6 +70,29 @@ def test_status_bar_has_no_redundant_progress_indicator(qt_app):
 
     assert not hasattr(window, "progressBar")
     assert window.ui.statusbar.findChildren(QProgressBar) == []
+    window.deleteLater()
+
+
+def test_status_bar_execution_groups_are_spaced_and_diagnostics_are_explicit(qt_app):
+    window = MainWindow()
+    result = execute("G0 X20 Z0\nG2 X40 Z0 R1\nM30")
+    window.updateExecutionStatus(result=result, elapsed_ms=110457.158)
+
+    assert all(
+        label.contentsMargins().left() >= 7
+        for label in (
+            window.executionStatusLabel,
+            window.modeStatusLabel,
+            window.unitsStatusLabel,
+            window.sourceStatusLabel,
+            window.traceStatusLabel,
+            window.diagnosticsStatusLabel,
+            window.timeStatusLabel,
+        )
+    )
+    assert window.diagnosticsStatusLabel.text() == "Errors: 1"
+    assert "INVALID_GEOMETRY" in window.diagnosticsStatusLabel.toolTip()
+    assert window.timeStatusLabel.text() == "Exec: 110.46 s"
     window.deleteLater()
 
 

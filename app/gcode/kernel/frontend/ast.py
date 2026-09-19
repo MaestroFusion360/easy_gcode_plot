@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ..api.resources import checkpointed
+
 
 @dataclass(frozen=True)
 class AstWord:
@@ -95,7 +97,7 @@ def build_program_ast(blocks: tuple[object, ...]) -> ProgramAst:
     nodes: list[AstNode] = []
     nlabel_to_index: dict[int, int] = {}
     olabel_to_index: dict[int, int] = {}
-    for block in blocks:
+    for _position, block in checkpointed(blocks):
         idx = int(getattr(block, "index"))
         raw = str(getattr(block, "raw", ""))
         nlabel = getattr(block, "nlabel", None)

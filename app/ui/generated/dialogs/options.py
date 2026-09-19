@@ -176,10 +176,21 @@ class Ui_OptionsDlg(object):
 
         self.cncForm.setWidget(0, QFormLayout.ItemRole.SpanningRole, self.correctionCheck)
 
+        self.autodetectArcTypeCheck = QCheckBox(self.cncTab)
+        self.autodetectArcTypeCheck.setObjectName(u"autodetectArcTypeCheck")
+        self.autodetectArcTypeCheck.setChecked(True)
+
+        self.cncForm.setWidget(1, QFormLayout.ItemRole.SpanningRole, self.autodetectArcTypeCheck)
+
+        self.ignoreBlockSkipCheck = QCheckBox(self.cncTab)
+        self.ignoreBlockSkipCheck.setObjectName(u"ignoreBlockSkipCheck")
+
+        self.cncForm.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.ignoreBlockSkipCheck)
+
         self.arcToleranceLabel = QLabel(self.cncTab)
         self.arcToleranceLabel.setObjectName(u"arcToleranceLabel")
 
-        self.cncForm.setWidget(1, QFormLayout.ItemRole.LabelRole, self.arcToleranceLabel)
+        self.cncForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.arcToleranceLabel)
 
         self.arcToleranceSpin = QDoubleSpinBox(self.cncTab)
         self.arcToleranceSpin.setObjectName(u"arcToleranceSpin")
@@ -189,7 +200,7 @@ class Ui_OptionsDlg(object):
         self.arcToleranceSpin.setSingleStep(0.001000000000000)
         self.arcToleranceSpin.setValue(0.001000000000000)
 
-        self.cncForm.setWidget(1, QFormLayout.ItemRole.FieldRole, self.arcToleranceSpin)
+        self.cncForm.setWidget(3, QFormLayout.ItemRole.FieldRole, self.arcToleranceSpin)
 
         self.tabs.addTab(self.cncTab, "")
         self.plotTab = QWidget()
@@ -479,6 +490,8 @@ class Ui_OptionsDlg(object):
         self.whitespaceCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show whitespace", None))
         self.tabs.setTabText(self.tabs.indexOf(self.editorTab), QCoreApplication.translate("OptionsDlg", u"Editor", None))
         self.correctionCheck.setText(QCoreApplication.translate("OptionsDlg", u"Correction (G41/G42)", None))
+        self.autodetectArcTypeCheck.setText(QCoreApplication.translate("OptionsDlg", u"Autodetect Arc Type", None))
+        self.ignoreBlockSkipCheck.setText(QCoreApplication.translate("OptionsDlg", u"Ignore Block Skip", None))
         self.arcToleranceLabel.setText(QCoreApplication.translate("OptionsDlg", u"Arc tolerance", None))
         self.tabs.setTabText(self.tabs.indexOf(self.cncTab), QCoreApplication.translate("OptionsDlg", u"CNC / Execution", None))
         self.lineWidthLabel.setText(QCoreApplication.translate("OptionsDlg", u"Line width", None))

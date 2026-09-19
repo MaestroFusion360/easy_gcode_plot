@@ -36,6 +36,8 @@ The application parses and executes source once through a shared CNC kernel. Ren
 - Lathe Stock outline and cutter-aware Stock Removal playback, including pitch- and insert-driven thread profiles.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, cutter-radius compensation and G50/G51/G52/G68/G69 coordinate transforms.
+- Milling IJK arc-mode autodetection with manual Relative/Absolute fallback for ambiguous programs.
+- Persistent optional-block execution control for leading `/` blocks without editing the NC source.
 - ASCII/binary STL reference overlay with solid and feature-edge modes.
 - Tokens diagnostics, toolpath statistics and millimetre/inch display.
 - English and Russian user interface; the language is selected in `Settings → Options → General` and applied after restarting the application.
@@ -84,6 +86,16 @@ The application reports unsupported or ambiguous controller behavior explicitly 
 
 - **Language** — switch between **English** and **Russian**. The change is applied after restarting the application; kernel diagnostics, log messages and G-code comments intentionally stay in English.
 - **Theme** — switch between the native **Light** look and a **Dark** theme that also adapts the editor, the plot canvas and the standard toolpath colors. Plot colors customized on the **Colors** tab are preserved when the theme changes.
+
+## CNC execution options
+
+`Settings → Options → CNC / Execution` contains execution settings shared by Refresh, playback analysis and export:
+
+- **Autodetect Arc Type** applies to milling IJK arcs. It selects relative-to-start or absolute-center interpretation when only one satisfies Arc tolerance; ambiguous programs use the manually selected Arc Type. Turning keeps FANUC relative I/K semantics.
+- **Ignore Block Skip** excludes source blocks beginning with `/` from execution without changing the open file. Leave it disabled to execute those blocks normally. Expanded Execution uses the same resolved result and therefore excludes the same blocks.
+- **Correction (G41/G42)** and **Arc tolerance** retain their existing geometry behavior.
+
+Long Refresh operations use one cancellable execution dialog for tool discovery, parsing, execution, sampling and plot publication. Cancel cooperatively stops the active stage instead of waiting for the whole source to finish.
 
 ## Tool Library
 

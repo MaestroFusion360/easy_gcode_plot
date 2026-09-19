@@ -5,9 +5,14 @@ from copy import deepcopy
 from app.tools.discovery import discover_tools
 
 
-def refresh_setup(source, current, previous, *, turning, default_unit_scale=1.0):
+def refresh_setup(source, current, previous, *, turning, default_unit_scale=1.0, cancelled=None):
     """Refresh inferred geometry while retaining manual assignments in this document."""
-    inferred = discover_tools(source, turning=turning, default_unit_scale=default_unit_scale)
+    inferred = discover_tools(
+        source,
+        turning=turning,
+        default_unit_scale=default_unit_scale,
+        cancelled=cancelled,
+    )
     overrides = {key: deepcopy(spec) for key, spec in current.items() if key in inferred and spec != previous.get(key)}
     current.clear()
     current.update(deepcopy(inferred))

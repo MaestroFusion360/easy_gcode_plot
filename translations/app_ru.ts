@@ -296,6 +296,11 @@
         <source>Easy G-Code Plot — FAQ</source>
         <translation>Easy G-Code Plot — FAQ</translation>
     </message>
+    <message>
+        <location filename="../app/ui/dialogs/help.py" line="41"/>
+        <source>MIT License</source>
+        <translation>Лицензия MIT</translation>
+    </message>
 </context>
 <context>
     <name>MainWindow</name>
@@ -814,28 +819,33 @@
         <translation>Отмена выполнения ЧПУ...</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="284"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="397"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="286"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="399"/>
         <source>CNC execution</source>
         <translation>Выполнение ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="285"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="287"/>
         <source>Executing CNC program…</source>
         <translation>Выполнение программы ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="286"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="288"/>
         <source>Cancelling CNC execution…</source>
         <translation>Отмена выполнения ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="398"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="400"/>
         <source>Building toolpath…</source>
         <translation>Построение траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="399"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="289"/>
+        <source>Updating plot…</source>
+        <translation>Обновление графика…</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_execution.py" line="401"/>
         <source>Cancelling toolpath calculation…</source>
         <translation>Отмена расчёта траектории…</translation>
     </message>
@@ -908,32 +918,32 @@ Do you want to save your changes?</source>
         <translation>Импортирован STL: {0:,} треугольников</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="76"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="87"/>
         <source>Turning stock configured</source>
         <translation>Заготовка для точения настроена</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="89"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="100"/>
         <source>Turning stock set to Auto</source>
         <translation>Заготовка переключена в авторежим</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="215"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="226"/>
         <source>Configure turning stock in Settings &gt; Stock first.</source>
         <translation>Сначала настройте заготовку в Настройки &gt; Заготовка.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="221"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="232"/>
         <source>Stock Removal needs a calculated turning toolpath.</source>
         <translation>Для снятия заготовки нужна рассчитанная токарная траектория.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="227"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="238"/>
         <source>Stock Removal needs a complete turning program.</source>
         <translation>Для снятия заготовки нужна полная токарная программа.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="236"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="247"/>
         <source>Stock Removal is unavailable: {0}</source>
         <translation>Снятие заготовки недоступно: {0}</translation>
     </message>
@@ -1005,8 +1015,8 @@ Do you want to save your changes?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="2"/>
-        <location filename="../app/ui/dialogs/options.py" line="160"/>
-        <location filename="../app/ui/dialogs/options.py" line="197"/>
+        <location filename="../app/ui/dialogs/options.py" line="162"/>
+        <location filename="../app/ui/dialogs/options.py" line="200"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -1161,6 +1171,16 @@ Do you want to save your changes?</source>
         <translation>Допуск дуг</translation>
     </message>
     <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <source>Autodetect Arc Type</source>
+        <translation>Автоопределение типа дуги</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <source>Ignore Block Skip</source>
+        <translation>Игнорировать блоки с /</translation>
+    </message>
+    <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
         <source>Plot</source>
         <translation>График</translation>
@@ -1251,12 +1271,12 @@ Do you want to save your changes?</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="161"/>
+        <location filename="../app/ui/dialogs/options.py" line="163"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="198"/>
+        <location filename="../app/ui/dialogs/options.py" line="201"/>
         <source>Plot colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета графика должны быть корректными именами цветов Qt, например #008000.</translation>
     </message>

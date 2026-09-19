@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
+
+from ..api.resources import checkpointed
 from .ast import build_program_ast
 from .lang import (
     WordToken,
@@ -85,11 +88,11 @@ def literal_codes(tokens: tuple[WordToken, ...], letter: str) -> tuple[int, ...]
     return tuple(out)
 
 
-def parse_program(lines: list[str]) -> Program:
+def parse_program(lines: Iterable[str]) -> Program:
     blocks: list[Block] = []
     motion_codes = {0, 1, 2, 3, 32, 33}
     cycle_codes = {70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94}
-    for i, raw in enumerate(lines):
+    for i, raw in checkpointed(lines):
         clean = strip_comments(raw).upper()
         optional_skip = False
         clean_l = clean.lstrip()

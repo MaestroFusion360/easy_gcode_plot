@@ -69,6 +69,24 @@ def test_correction_toggle_controls_tools_passed_to_kernel(qt_app, monkeypatch):
     window.deleteLater()
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+def test_ignore_block_skip_is_passed_to_kernel(qt_app, monkeypatch, enabled):
+    window = MainWindow()
+    captured = []
+    expected = execute("")
+
+    def fake_execute(*args, **kwargs):
+        captured.append(kwargs)
+        return expected
+
+    monkeypatch.setattr("app.ui.windows.main_window_execution.execute", fake_execute)
+    window.ignoreBlockSkip = enabled
+    window.analyzeEditorSource()
+
+    assert captured[-1]["skip_optional_blocks"] is enabled
+    window.deleteLater()
+
+
 def test_loaded_program_fits_view_once_after_geometry_is_built(qt_app, tmp_path):
     window = MainWindow()
     window.autoUpdateEnabled = False

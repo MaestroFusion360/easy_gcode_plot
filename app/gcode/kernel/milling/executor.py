@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from io import StringIO
+
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
 from ..frontend.program import parse_program
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
@@ -20,7 +22,7 @@ def execute_milling(
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
 ):
 
-    program = parse_program(source.splitlines())
+    program = parse_program(StringIO(source))
     program_start_block, program_number = main_program_location(program)
     program_started = False
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)

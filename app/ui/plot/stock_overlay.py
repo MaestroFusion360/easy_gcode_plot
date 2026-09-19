@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from bisect import bisect_left, bisect_right
+
 import numpy as np
 from OpenGL import GL
 from PyQt6.QtGui import QColor
@@ -13,6 +15,7 @@ from app.gcode.turning_tool_geometry import display_tool_geometry
 
 STOCK_COLOR = "#4fa7a0"
 TOOL_COLOR = "#ffd23f"
+_BREAK_EPSILON = 1e-9
 STOCK_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: True,
     GL.GL_BLEND: True,
@@ -51,6 +54,13 @@ def _extruded_polygon(points, depth: float) -> MeshData:
 
 def _tool_geometry(spec: dict[str, object], stock_diameter: float):
     return display_tool_geometry(spec, stock_diameter)
+
+
+def _interval_breaks(breaks: tuple[float, ...], z0: float, z1: float) -> tuple[float, ...]:
+    """Select only breaks relevant to one ordered profile cell."""
+    start = bisect_left(breaks, z0 - _BREAK_EPSILON)
+    end = bisect_right(breaks, z1 + _BREAK_EPSILON)
+    return breaks[start:end]
 
 
 def material_interval_mesh_spans(first, second, *, start_break: bool = False, end_break: bool = False):
@@ -180,7 +190,8 @@ class TurningStockOverlayItem(GLGraphicsItem):
             z0, z1 = timeline.z[index], timeline.z[index + 1]
             i0, i1 = timeline.inner[index], timeline.inner[index + 1]
             o0, o1 = timeline.outer[index], timeline.outer[index + 1]
-            for za, zb, ia, oa, ib, ob in profile_interval_mesh_spans(z0, z1, i0, o0, i1, o1, breaks):
+            cell_breaks = _interval_breaks(breaks, z0, z1)
+            for za, zb, ia, oa, ib, ob in profile_interval_mesh_spans(z0, z1, i0, o0, i1, o1, cell_breaks):
                 if oa <= ia and ob <= ib:
                     continue
                 upper = len(vertices)
@@ -197,13 +208,14 @@ class TurningStockOverlayItem(GLGraphicsItem):
         """Render stock slices that may contain disconnected radial material."""
         vertices = []
         faces = []
+        breaks = timeline.profile_breaks
         for index in range(len(timeline.z) - 1):
             z0, z1 = timeline.z[index], timeline.z[index + 1]
             first = timeline.material_intervals[index]
             second = timeline.material_intervals[index + 1]
-            breaks = timeline.profile_breaks
-            start_break = any(abs(value - z0) <= 1e-9 for value in breaks)
-            end_break = any(abs(value - z1) <= 1e-9 for value in breaks)
+            cell_breaks = _interval_breaks(breaks, z0, z1)
+            start_break = any(abs(value - z0) <= _BREAK_EPSILON for value in cell_breaks)
+            end_break = any(abs(value - z1) <= _BREAK_EPSILON for value in cell_breaks)
             for inner0, outer0, inner1, outer1 in material_interval_mesh_spans(
                 first,
                 second,
@@ -211,7 +223,7 @@ class TurningStockOverlayItem(GLGraphicsItem):
                 end_break=end_break,
             ):
                 for za, zb, ia, oa, ib, ob in profile_interval_mesh_spans(
-                    z0, z1, inner0, outer0, inner1, outer1, breaks
+                    z0, z1, inner0, outer0, inner1, outer1, cell_breaks
                 ):
                     upper = len(vertices)
                     vertices.extend(((ia, 0.0, za), (oa, 0.0, za), (ob, 0.0, zb), (ib, 0.0, zb)))

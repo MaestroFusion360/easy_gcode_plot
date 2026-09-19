@@ -5,9 +5,10 @@ from time import monotonic
 from PyQt6.QtCore import QCoreApplication, QEventLoop, Qt, QThread
 from PyQt6.QtWidgets import QDialog, QWidget
 
+from app import theme
 from app.ui.generated.dialogs.execution_dialog import Ui_ExecutionDialog
 
-EXECUTION_DIALOG_DELAY_MS = 500
+EXECUTION_DIALOG_DELAY_MS = 0
 
 
 class _ExecutionThread(QThread):
@@ -31,6 +32,7 @@ class _ExecutionDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_ExecutionDialog()
         self.ui.setupUi(self)
+        theme.apply_dialog_theme(self)
         self.cancel = cancel
         self.cancelling_text = cancelling_text
         self.setWindowTitle(title)
@@ -57,14 +59,16 @@ def run_execution(
     title="CNC execution",
     status_text="Executing CNC program…",
     cancelling_text="Cancelling CNC execution…",
+    finalizing_text="Updating plot…",
     delay_ms=None,
+    completion=None,
 ):
-    """Return a worker result and reveal feedback only when the work is actually slow."""
+    """Run worker and GUI completion while keeping one truthful busy dialog visible."""
     worker = _ExecutionThread(function, source, options)
     worker.start()
+    dialog = None
 
     if isinstance(owner, QWidget):
-        dialog = None
         reveal_delay = EXECUTION_DIALOG_DELAY_MS if delay_ms is None else max(0, int(delay_ms))
         reveal_at = monotonic() + (reveal_delay / 1000.0)
 
@@ -83,17 +87,36 @@ def run_execution(
                 dialog.show()
                 dialog.raise_()
                 dialog.activateWindow()
+                # The next phase can immediately occupy the GUI thread.  Paint
+                # the complete dialog now so Windows never exposes its default
+                # white client surface while plot widgets are being populated.
+                if dialog.layout() is not None:
+                    dialog.layout().activate()
+                dialog.ensurePolished()
+                QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents)
+                dialog.repaint()
 
             worker.wait(10)
 
         worker.wait()
-        if dialog is not None:
-            dialog.accept()
-            dialog.deleteLater()
     else:
         # Non-widget consumers (including contract tests) need no event pumping.
         worker.wait()
 
     if worker.error is not None:
+        if dialog is not None:
+            dialog.accept()
+            dialog.deleteLater()
         raise worker.error
-    return worker.result
+    result = worker.result
+    try:
+        if completion is not None:
+            if dialog is not None:
+                dialog.label.setText(finalizing_text)
+                QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
+            result = completion(result)
+    finally:
+        if dialog is not None:
+            dialog.accept()
+            dialog.deleteLater()
+    return result

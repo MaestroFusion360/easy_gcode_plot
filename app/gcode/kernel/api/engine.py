@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
+from io import StringIO
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..frontend.model import Motion, Point2, Program
@@ -49,6 +51,49 @@ __all__ = (
 )
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
+
+
+def _ijk_radius_mismatch(motion: TraceMotion, source_arc_type: int) -> float | None:
+    axes = {17: (0, 1), 18: (0, 2), 19: (1, 2)}
+    plane_axes = axes.get(motion.plane)
+    if motion.move not in (2, 3) or plane_axes is None:
+        return None
+    start = (motion.start_x * motion.x_scale, motion.start_y, motion.start_z)
+    end = (motion.end_x * motion.x_scale, motion.end_y, motion.end_z)
+    offsets = (None if motion.i is None else motion.i * motion.x_scale, motion.j, motion.k)
+    first_axis, second_axis = plane_axes
+    if offsets[first_axis] is None and offsets[second_axis] is None:
+        return None
+    center_first = offsets[first_axis] or 0.0
+    center_second = offsets[second_axis] or 0.0
+    if source_arc_type == 1:
+        center_first += start[first_axis]
+        center_second += start[second_axis]
+    start_radius = math.hypot(start[first_axis] - center_first, start[second_axis] - center_second)
+    if start_radius <= 1e-10:
+        return None
+    end_radius = math.hypot(end[first_axis] - center_first, end[second_axis] - center_second)
+    return abs(start_radius - end_radius)
+
+
+def _autodetect_milling_arc_type(motions: tuple[TraceMotion, ...], *, tolerance: float, fallback: int) -> int:
+    tolerance = max(0.0, float(tolerance))
+    for motion in motions:
+        relative_error = _ijk_radius_mismatch(motion, 1)
+        absolute_error = _ijk_radius_mismatch(motion, 2)
+        if relative_error is None and absolute_error is None:
+            continue
+        relative_valid = relative_error is not None and relative_error <= tolerance
+        absolute_valid = absolute_error is not None and absolute_error <= tolerance
+        if relative_valid != absolute_valid:
+            return 1 if relative_valid else 2
+    return fallback
+
+
+def _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type):
+    if language != "fanuc_mill" or not autodetect_arc_type:
+        return source_arc_type
+    return _autodetect_milling_arc_type(result.motions, tolerance=arc_tolerance, fallback=source_arc_type)
 
 
 def _execute_impl(
@@ -105,7 +150,7 @@ def _execute_impl(
     unsupported: tuple[Diagnostic, ...] = ()
     turn_offsets = _turn_wcs_offsets(wcs_offsets)
     try:
-        program = parse_program(source.splitlines())
+        program = parse_program(StringIO(source))
         unsupported = _unsupported_g_diagnostics(program)
         rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(
@@ -159,17 +204,25 @@ def _execute_impl(
     )
 
 
-def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, source_arc_type=1, **options):
+def execute(
+    source,
+    language="fanuc_turn",
+    *,
+    limits=None,
+    cancelled=None,
+    source_arc_type=1,
+    autodetect_arc_type=False,
+    arc_tolerance=0.001,
+    **options,
+):
     """Execute once; resolve geometry and publish a self-contained immutable result."""
     budget = ExecutionBudget(limits or ExecutionLimits(), cancelled)
     token = active_budget.set(budget)
     milling_tools = options.pop("milling_tools", None)
     try:
         result = _execute_impl(source, language, **options)
-        motions = []
-        motion_step_owners: list[int] = []
-        geometry_diagnostics: list[Diagnostic] = []
-        cursor = 0
+        effective_arc_type = _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type)
+        motions, motion_step_owners, geometry_diagnostics, cursor = [], [], [], 0
         try:
             threading_steps = (
                 _threading_step_flags(result.execution_steps)
@@ -193,7 +246,7 @@ def execute(source, language="fanuc_turn", *, limits=None, cancelled=None, sourc
                         threading=threading_steps[step_index] and motion.move == 1,
                     )
                     try:
-                        resolved = resolve_arc(motion, source_arc_type=source_arc_type)
+                        resolved = resolve_arc(motion, source_arc_type=effective_arc_type)
                     except SemanticError as exc:
                         diagnostic = _diagnostic_from_exception(exc, result.program)
                         if diagnostic.line is None and motion.source_block is not None:

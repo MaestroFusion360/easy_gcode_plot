@@ -12,7 +12,7 @@ from __future__ import annotations
 # pylint: disable=too-many-return-statements
 from dataclasses import dataclass
 
-from ..api.resources import SemanticError, active_budget, checkpoint
+from ..api.resources import SemanticError, active_budget, checkpoint, checkpointed
 from ..api.types import ExecutionEvent, SemanticInstruction
 from ..frontend.lang import eval_condition, evaluate_expression
 from ..frontend.program import EvaluatedWords, eval_words
@@ -186,19 +186,21 @@ def semantic_instructions(program: object | None) -> tuple[SemanticInstruction, 
     ast = getattr(program, "ast", None)
     if ast is None:
         return ()
-    return tuple(
-        SemanticInstruction(
-            node.kind,
-            node.block_index,
-            node.raw,
-            tuple((word.letter, word.expr) for word in node.words),
-            tuple(code for word in node.words if word.letter == "G" and (code := word.int_code) is not None),
-            tuple(code for word in node.words if word.letter == "M" and (code := word.int_code) is not None),
-            node.nlabel,
-            node.olabel,
+    instructions: list[SemanticInstruction] = []
+    for _index, node in checkpointed(ast.nodes):
+        instructions.append(
+            SemanticInstruction(
+                node.kind,
+                node.block_index,
+                node.raw,
+                tuple((word.letter, word.expr) for word in node.words),
+                tuple(code for word in node.words if word.letter == "G" and (code := word.int_code) is not None),
+                tuple(code for word in node.words if word.letter == "M" and (code := word.int_code) is not None),
+                node.nlabel,
+                node.olabel,
+            )
         )
-        for node in ast.nodes
-    )
+    return tuple(instructions)
 
 
 def apply_unit_mode(state: object, gcodes: tuple[int | float, ...] | list[int | float]) -> None:
@@ -289,7 +291,7 @@ def build_program_execution_index(program: object) -> ProgramExecutionIndex:
     while_stack: dict[int, list[int]] = {}
     while_to_end: dict[int, int] = {}
     end_to_while: dict[int, int] = {}
-    for i, block in enumerate(blocks):
+    for i, block in checkpointed(blocks):
         flow = getattr(block, "flow_node", None)
         loop_id = getattr(flow, "loop_id", None) if flow is not None else None
         if loop_id is None:

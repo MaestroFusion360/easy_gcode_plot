@@ -1,8 +1,11 @@
 """Per-execution resource limits shared by flow and cycle expansion."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Iterable, Iterator
 from contextvars import ContextVar
 from dataclasses import dataclass, field
+from typing import TypeVar
+
+T = TypeVar("T")
 
 
 class SemanticError(ValueError):
@@ -49,6 +52,14 @@ def checkpoint(kind: str | None = None, amount: int = 1):
     budget = active_budget.get()
     if budget is not None:
         budget.check(kind, amount)
+
+
+def checkpointed(items: Iterable[T], interval: int = 256) -> Iterator[tuple[int, T]]:
+    """Enumerate work while checking cancellation at a bounded interval."""
+    for index, item in enumerate(items):
+        if index % interval == 0:
+            checkpoint()
+        yield index, item
 
 
 def require_progress(before: float, after: float):
