@@ -135,7 +135,6 @@ def _build_trace_execution_kwargs(
     home_z: float,
     wcs_offsets: dict[int, tuple[float, float]] | None,
     emulate_g28_home: bool,
-    eval_words_fn,
     try_wcs_from_gcode_fn,
     x_value_to_diameter_fn,
     x_delta_to_diameter_fn,
@@ -160,7 +159,7 @@ def _build_trace_execution_kwargs(
         ox, oz = wcs_off(state.active_wcs)
         return px + ox, pz + oz
 
-    ctx = build_trace_execution_context(program=program, initial_state=state, eval_words_fn=eval_words_fn)
+    ctx = build_trace_execution_context(program=program, initial_state=state)
     ctx.cycle_options = dict(pq_mm_for_g74758384=pq_mm_for_g74758384, supplementary_angles=supplementary_angles)
     return dict(
         program=program,
@@ -172,7 +171,6 @@ def _build_trace_execution_kwargs(
         x_is_diameter=x_is_diameter,
         home_x=home_x,
         home_z=home_z,
-        eval_words_fn=eval_words_fn,
         try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
         to_machine_fn=to_machine,
         wcs_off_fn=wcs_off,
@@ -197,7 +195,6 @@ def build_source_motion_trace_with_steps(
     home_z: float = 0.0,
     wcs_offsets: dict[int, tuple[float, float]] | None = None,
     emulate_g28_home: bool = False,
-    eval_words_fn,
     try_wcs_from_gcode_fn,
     x_value_to_diameter_fn,
     x_delta_to_diameter_fn,
@@ -218,7 +215,6 @@ def build_source_motion_trace_with_steps(
         home_z=home_z,
         wcs_offsets=wcs_offsets,
         emulate_g28_home=emulate_g28_home,
-        eval_words_fn=eval_words_fn,
         try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
         x_value_to_diameter_fn=x_value_to_diameter_fn,
         x_delta_to_diameter_fn=x_delta_to_diameter_fn,

@@ -9,7 +9,16 @@ from ...lathe_cycles import build_finish_contour, ensure_cycle_return
 
 
 def _expand_g70(
-    blocks, compensated_profile, finish_cycles, gcode, mark_compensated, pc, state, supplementary_angles, words
+    blocks,
+    compensated_profile,
+    finish_cycles,
+    gcode,
+    mark_compensated,
+    pc,
+    state,
+    supplementary_angles,
+    words,
+    variables,
 ):
     if gcode == 70 and "P" in words and "Q" in words:
         p = int(words["P"])
@@ -41,7 +50,7 @@ def _expand_g70(
                 q_index,
                 sx,
                 sz,
-                state.clone_vars(),
+                dict(variables or {}),
                 x_is_diameter=state.x_is_diameter,
                 unit_scale=state.unit_scale,
                 supplementary_angles=supplementary_angles,

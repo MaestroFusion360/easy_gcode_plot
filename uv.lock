@@ -47,7 +47,7 @@ wheels = [
 
 [[package]]
 name = "easy-gcode-plot"
-version = "1.5.7"
+version = "1.5.8"
 source = { editable = "." }
 dependencies = [
     { name = "ezdxf" },

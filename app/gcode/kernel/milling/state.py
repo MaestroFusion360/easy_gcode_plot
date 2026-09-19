@@ -5,28 +5,21 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..api.types import ExecutionStep
-from ..geometry.transform import CoordinateTransform
+from ..geometry.coordinates import rebase_work_position
+from ..geometry.transform import CoordinateTransform, TransformState
+from ..runtime.execution import apply_unit_mode
+from ..runtime.state import MachineRuntimeState
 
 
 @dataclass
-class MillState:
+class MillState(MachineRuntimeState):
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
-    feed: float = 0.0
-    unit_scale: float = 1.0
     absolute: bool = True
     plane: int = 17
     move: int = 0
-    active_wcs: int = 54
-    g52_shift: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    g68_active: bool = False
-    g68_center: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    g68_degrees: float = 0.0
-    g68_plane: int = 17
-    g51_active: bool = False
-    g51_center: tuple[float, float, float] = (0.0, 0.0, 0.0)
-    g51_factors: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    transform: TransformState = field(default_factory=TransformState)
     cycle: int = 80
     cycle_z: float | None = None
     cycle_r: float | None = None
@@ -39,9 +32,6 @@ class MillState:
     tool_length_h: int | None = None
     selected_tool: str | None = None
     selected_tool_block: int | None = None
-    active_tool: str | None = None
-    feed_mode: str = "per_minute"
-    spindle_rpm: float | None = None
     unknown_axes: set[str] = field(default_factory=set)
 
 
@@ -60,14 +50,7 @@ def _wcs_offset(wcs_offsets: dict[int, tuple[float, float, float]] | None, code:
 
 
 def _coordinate_transform(state: MillState) -> CoordinateTransform:
-    return CoordinateTransform(
-        translation=state.g52_shift,
-        rotation_center=state.g68_center,
-        rotation_degrees=state.g68_degrees if state.g68_active else 0.0,
-        rotation_plane=state.g68_plane,
-        scale_center=state.g51_center,
-        scale_factors=state.g51_factors if state.g51_active else (1.0, 1.0, 1.0),
-    )
+    return state.transform.build()
 
 
 def _machine(point: tuple[float, float, float], state: MillState, wcs_offsets) -> tuple[float, float, float]:
@@ -76,17 +59,20 @@ def _machine(point: tuple[float, float, float], state: MillState, wcs_offsets) -
     return work[0] + ox, work[1] + oy, work[2] + oz
 
 
+def _preserve_work_position(state: MillState, work_position: tuple[float, float, float]) -> None:
+    state.x, state.y, state.z = _coordinate_transform(state).inverse(work_position)
+
+
 def _set_g52_shift(state: MillState, words) -> None:
-    addressed_axes = tuple(axis for axis in ("X", "Y", "Z") if axis in words)
-    if not addressed_axes:
+    if not any(axis in words for axis in ("X", "Y", "Z")):
         return
     work_position = _coordinate_transform(state).apply((state.x, state.y, state.z))
-    shift = list(state.g52_shift)
+    shift = list(state.transform.translation)
     for index, axis in enumerate(("X", "Y", "Z")):
         if axis in words:
             shift[index] = words[axis] * state.unit_scale
-    state.g52_shift = (shift[0], shift[1], shift[2])
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work_position)
+    state.transform.translation = (shift[0], shift[1], shift[2])
+    _preserve_work_position(state, work_position)
 
 
 def _set_g68_rotation(state: MillState, words) -> None:
@@ -97,23 +83,21 @@ def _set_g68_rotation(state: MillState, words) -> None:
         if axis in words:
             value = words[axis] * state.unit_scale
             local_center[index] = value if state.absolute else local_center[index] + value
-    translated_center = CoordinateTransform(translation=state.g52_shift).apply(
-        (local_center[0], local_center[1], local_center[2])
-    )
-    state.g68_center = translated_center
-    state.g68_degrees = float(words.get("R", 0.0))
-    state.g68_plane = state.plane
-    state.g68_active = True
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work_position)
+    translated_center = CoordinateTransform(translation=state.transform.translation).apply(tuple(local_center))
+    state.transform.rotation_center = translated_center
+    state.transform.rotation_degrees = float(words.get("R", 0.0))
+    state.transform.rotation_plane = state.plane
+    state.transform.rotation_active = True
+    _preserve_work_position(state, work_position)
 
 
 def _cancel_g68_rotation(state: MillState) -> None:
-    if not state.g68_active:
+    if not state.transform.rotation_active:
         return
     work_position = _coordinate_transform(state).apply((state.x, state.y, state.z))
-    state.g68_active = False
-    state.g68_degrees = 0.0
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work_position)
+    state.transform.rotation_active = False
+    state.transform.rotation_degrees = 0.0
+    _preserve_work_position(state, work_position)
 
 
 def _set_g51_scaling(state: MillState, words) -> None:
@@ -132,29 +116,24 @@ def _set_g51_scaling(state: MillState, words) -> None:
             raise ValueError("G51 I/J/K scale factors must be non-zero")
     else:
         raise ValueError("G51 requires P or I/J/K because no controller default scaling parameter is configured")
+
     local_center = [state.x, state.y, state.z]
     for index, axis in enumerate(("X", "Y", "Z")):
         if axis in words:
             local_center[index] = words[axis] * state.unit_scale
-    base_transform = CoordinateTransform(
-        translation=state.g52_shift,
-        rotation_center=state.g68_center,
-        rotation_degrees=state.g68_degrees if state.g68_active else 0.0,
-        rotation_plane=state.g68_plane,
-    )
-    state.g51_center = base_transform.apply((local_center[0], local_center[1], local_center[2]))
-    state.g51_factors = factors
-    state.g51_active = True
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work_position)
+    state.transform.scale_center = state.transform.build_without_scaling().apply(tuple(local_center))
+    state.transform.scale_factors = factors
+    state.transform.scaling_active = True
+    _preserve_work_position(state, work_position)
 
 
 def _cancel_g51_scaling(state: MillState) -> None:
-    if not state.g51_active:
+    if not state.transform.scaling_active:
         return
     work_position = _coordinate_transform(state).apply((state.x, state.y, state.z))
-    state.g51_active = False
-    state.g51_factors = (1.0, 1.0, 1.0)
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work_position)
+    state.transform.scaling_active = False
+    state.transform.scale_factors = (1.0, 1.0, 1.0)
+    _preserve_work_position(state, work_position)
 
 
 def _execution_step(
@@ -199,11 +178,15 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) ->
     elif g == 69:
         _cancel_g68_rotation(state)
     elif isinstance(g, int) and 54 <= g <= 59:
-        machine = _machine((state.x, state.y, state.z), state, wcs_offsets)
-        new = _wcs_offset(wcs_offsets, g)
+        transform = _coordinate_transform(state)
+        work_position = transform.apply((state.x, state.y, state.z))
+        rebased = rebase_work_position(
+            work_position,
+            _wcs_offset(wcs_offsets, state.active_wcs),
+            _wcs_offset(wcs_offsets, g),
+        )
         state.active_wcs = g
-        work = (machine[0] - new[0], machine[1] - new[1], machine[2] - new[2])
-        state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
+        state.x, state.y, state.z = transform.inverse(rebased)
     else:
         return False
     return True
@@ -211,12 +194,11 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) ->
 
 def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets) -> None:
     """Apply state-only modal words before an M98/M99 control transfer."""
+    apply_unit_mode(state, gcodes)
     for g in gcodes:
-        if g == 20:
-            state.unit_scale = 25.4
-        elif g == 21:
-            state.unit_scale = 1.0
-        elif g in (17, 18, 19):
+        if g in (20, 21):
+            continue
+        if g in (17, 18, 19):
             state.plane = g
         elif g == 90:
             state.absolute = True

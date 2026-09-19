@@ -5,6 +5,7 @@ from __future__ import annotations
 from ..api.resources import SemanticError, checkpoint, require_progress
 from ..frontend.model import Motion, Point2, ProfileSegment
 from ..geometry import arc_center_from_r, try_compute_signed_arc_radius_from_center
+from ..runtime.drilling import axial_cycle_moves
 
 
 def add_motion(
@@ -95,6 +96,46 @@ def add_feed_orthogonal(motions: list[Motion], s: Point2, e: Point2, feed: float
     add_motion_with_meta(motions, 1, s, e, None, f)
 
 
+def append_turning_pecks(
+    motions: list[Motion],
+    start: Point2,
+    target: float,
+    step: float,
+    retract: float,
+    feed: float,
+    *,
+    axis: str,
+    tolerance: float = 1e-7,
+) -> Point2:
+    """Emit the shared scalar peck/retract path used by axial and radial turning cycles."""
+    if axis not in {"x", "z"}:
+        raise ValueError(f"Unsupported peck axis: {axis}")
+
+    coordinate = start.x if axis == "x" else start.z
+    current = start
+    for segment in axial_cycle_moves(
+        coordinate,
+        target,
+        step=max(abs(step), 1e-9),
+        retract_distance=retract,
+        full_retract=False,
+        retract_after_final=True,
+        tolerance=tolerance,
+    ):
+        if axis == "x":
+            begin = Point2(segment.start, current.z)
+            end = Point2(segment.end, current.z)
+        else:
+            begin = Point2(current.x, segment.start)
+            end = Point2(current.x, segment.end)
+        if segment.move == 0:
+            add_motion(motions, 0, begin, end)
+        else:
+            add_motion_with_meta(motions, 1, begin, end, None, feed if feed > 0 else None)
+        current = end
+    return current
+
+
 def ensure_cycle_return(motions: list[Motion], target: Point2, *, first_axis: str | None = None) -> None:
     """Return a completed cycle to its saved call position in an explicit axis order.
 
@@ -182,3 +223,34 @@ def _linspace_steps(start: float, end: float, step: float) -> list[float]:
     if abs(vals[-1] - end) > 1e-9:
         vals.append(end)
     return vals
+
+
+def add_rectangular_pass(
+    motions: list[Motion],
+    start: Point2,
+    target: Point2,
+    feed: float,
+    *,
+    feed_axis: str,
+    first_block_direct: bool = False,
+) -> None:
+    """Emit the common rectangular path used by G90/G92/G94 simple cycles."""
+    if feed_axis == "z":
+        entry = Point2(target.x, start.z)
+        retract = Point2(start.x, target.z)
+    elif feed_axis == "x":
+        entry = Point2(start.x, target.z)
+        retract = Point2(target.x, start.z)
+    else:
+        raise ValueError(f"Unsupported rectangular-pass feed axis: {feed_axis}")
+
+    if first_block_direct:
+        add_motion(motions, 0, start, target)
+        add_motion(motions, 0, target, retract)
+        add_motion(motions, 0, retract, start)
+        return
+
+    add_motion(motions, 0, start, entry)
+    add_motion_with_meta(motions, 1, entry, target, None, feed if feed > 0 else None)
+    add_motion(motions, 0, target, retract)
+    add_motion(motions, 0, retract, start)

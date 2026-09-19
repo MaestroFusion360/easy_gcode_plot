@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QTranslator
+from PyQt6.QtCore import QLibraryInfo, QTranslator
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers the :/resource/... paths.
 
@@ -10,6 +10,10 @@ LANGUAGES = ("en", "ru")
 LANGUAGE_LABELS = {"en": "English", "ru": "Russian"}
 DEFAULT_LANGUAGE = "en"
 TRANSLATION_RESOURCE = ":/resource/translations/app_{language}.qm"
+# Qt ships the standard widget strings (OK/Cancel/Close, QDialogButtonBox, ...)
+# in per-language catalogs.  Installing them keeps every dialog's standard
+# buttons localized without per-dialog setText() calls.
+QT_TRANSLATION_CATALOGS = ("qtbase",)
 
 _installed_translators: list[QTranslator] = []
 
@@ -25,6 +29,16 @@ def language_label(language: str) -> str:
     return LANGUAGE_LABELS[normalize_language(language)]
 
 
+def _install_qt_translations(app, language: str) -> None:
+    """Install Qt's own catalogs so standard dialog controls are localized too."""
+    translations_dir = QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)
+    for catalog in QT_TRANSLATION_CATALOGS:
+        translator = QTranslator(app)
+        if translator.load(f"{catalog}_{language}", translations_dir):
+            app.installTranslator(translator)
+            _installed_translators.append(translator)
+
+
 def install_translator(app, language) -> bool:
     """Install the compiled translation for *language*; True when one was loaded."""
     language = normalize_language(language)
@@ -33,6 +47,7 @@ def install_translator(app, language) -> bool:
     translator = QTranslator(app)
     if not translator.load(TRANSLATION_RESOURCE.format(language=language)):
         return False
+    _install_qt_translations(app, language)
     app.installTranslator(translator)
     _installed_translators.append(translator)
     return True

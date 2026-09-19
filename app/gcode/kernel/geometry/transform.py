@@ -78,3 +78,35 @@ class CoordinateTransform:
         """Return scale factors for the two axes of an interpolation plane."""
         first, second = {17: (0, 1), 18: (0, 2), 19: (1, 2)}.get(plane, (0, 1))
         return self.scale_factors[first], self.scale_factors[second]
+
+
+@dataclass
+class TransformState:
+    """Mutable modal G52/G68/G51 state with one authoritative transform builder."""
+
+    translation: Point3 = (0.0, 0.0, 0.0)
+    rotation_active: bool = False
+    rotation_center: Point3 = (0.0, 0.0, 0.0)
+    rotation_degrees: float = 0.0
+    rotation_plane: int = 17
+    scaling_active: bool = False
+    scale_center: Point3 = (0.0, 0.0, 0.0)
+    scale_factors: Point3 = (1.0, 1.0, 1.0)
+
+    def build(self) -> CoordinateTransform:
+        return CoordinateTransform(
+            translation=self.translation,
+            rotation_center=self.rotation_center,
+            rotation_degrees=self.rotation_degrees if self.rotation_active else 0.0,
+            rotation_plane=self.rotation_plane,
+            scale_center=self.scale_center,
+            scale_factors=self.scale_factors if self.scaling_active else (1.0, 1.0, 1.0),
+        )
+
+    def build_without_scaling(self) -> CoordinateTransform:
+        return CoordinateTransform(
+            translation=self.translation,
+            rotation_center=self.rotation_center,
+            rotation_degrees=self.rotation_degrees if self.rotation_active else 0.0,
+            rotation_plane=self.rotation_plane,
+        )

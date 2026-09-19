@@ -57,3 +57,7 @@ for ts_file in "${ts_files[@]}"; do
     uv run --directory "$tool_project_root" --locked --group dev pyside6-lrelease "$ts_file" -qm "$qm"
     printf 'Generated %s\n' "$qm"
 done
+
+# The compiled catalogs are embedded in the Qt resource module.  Refresh it so
+# the generated resource and the runtime translator never drift apart.
+bash "$script_dir/generate-resources.sh" --project-root "$project_root" --tool-project-root "$tool_project_root"

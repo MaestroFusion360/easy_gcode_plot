@@ -301,8 +301,8 @@
     <name>MainWindow</name>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="214"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="221"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="215"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="222"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="207"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="264"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="289"/>
@@ -796,13 +796,13 @@
         <translation>Отмена выполнения ЧПУ; закройте окно ещё раз после остановки.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="157"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="158"/>
         <source>No tool changes found</source>
         <translation>Смены инструмента не найдены</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="215"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="222"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="216"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="223"/>
         <source>Cannot find text:
 &apos;%s&apos;</source>
         <translation>Текст не найден:
@@ -1005,8 +1005,8 @@ Do you want to save your changes?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="2"/>
-        <location filename="../app/ui/dialogs/options.py" line="162"/>
-        <location filename="../app/ui/dialogs/options.py" line="199"/>
+        <location filename="../app/ui/dialogs/options.py" line="160"/>
+        <location filename="../app/ui/dialogs/options.py" line="197"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -1251,12 +1251,12 @@ Do you want to save your changes?</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="163"/>
+        <location filename="../app/ui/dialogs/options.py" line="161"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="200"/>
+        <location filename="../app/ui/dialogs/options.py" line="198"/>
         <source>Plot colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета графика должны быть корректными именами цветов Qt, например #008000.</translation>
     </message>
@@ -1302,7 +1302,7 @@ Do you want to save your changes?</source>
         <location filename="../app/ui/generated/dialogs/stock.ui" line="15"/>
         <location filename="../app/ui/generated/dialogs/stock.ui" line="17"/>
         <source> mm</source>
-        <translation>&quot; мм&quot;</translation>
+        <translation> мм</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/stock.ui" line="12"/>
@@ -1411,103 +1411,103 @@ Do you want to save your changes?</source>
         <translation>Библиотека инструментов</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="13"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="11"/>
         <source>Milling</source>
         <translation>Фрезерование</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="23"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="57"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="22"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="58"/>
         <source>Current Program</source>
         <translation>Текущая программа</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="59"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="24"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
         <source>T code</source>
         <translation>Номер T</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="24"/>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="34"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="59"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="68"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="70"/>
         <source>Type</source>
         <translation>Тип</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="24"/>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="34"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="59"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="68"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="70"/>
         <source>Geometry</source>
         <translation>Геометрия</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="24"/>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="34"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="59"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="68"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="70"/>
         <source>Description</source>
         <translation>Описание</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="26"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="61"/>
         <source>Edit Geometry...</source>
         <translation>Изменить геометрию…</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="26"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="61"/>
         <source>Assign from Library</source>
         <translation>Назначить из библиотеки</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="26"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="60"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="25"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="61"/>
         <source>Save to Library</source>
         <translation>Сохранить в библиотеку</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="32"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="66"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="68"/>
         <source>Saved Library</source>
         <translation>Сохранённая библиотека</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="34"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="68"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="70"/>
         <source>Library ID</source>
         <translation>ID в библиотеке</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="35"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="69"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="71"/>
         <source>Add...</source>
         <translation>Добавить…</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="35"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="69"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="71"/>
         <source>Edit...</source>
         <translation>Изменить…</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="35"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="69"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="71"/>
         <source>Duplicate</source>
         <translation>Дублировать</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="35"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="69"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="71"/>
         <source>Export...</source>
         <translation>Экспорт…</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="35"/>
-        <location filename="../app/ui/generated/editors/tool_library.ui" line="69"/>
+        <location filename="../app/ui/generated/editors/tool_library.ui" line="71"/>
         <source>Remove</source>
         <translation>Удалить</translation>
     </message>

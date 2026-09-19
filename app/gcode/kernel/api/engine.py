@@ -6,7 +6,7 @@ from dataclasses import replace
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..frontend.model import Motion, Point2, Program
-from ..frontend.program import eval_words, parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
+from ..frontend.program import parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
 from ..geometry import resolve_arc
 from ..geometry.coordinates import WcsOffset, WcsOffsets  # noqa: F401 - compatibility re-export
 from ..geometry.coordinates import milling_wcs_offsets as _mill_wcs_offsets
@@ -24,15 +24,14 @@ from ..runtime.diagnostics import (
     unsupported_turning_g_diagnostics as _unsupported_g_diagnostics,
 )
 from ..runtime.events import program_end_code
+from ..runtime.execution import semantic_instructions as _semantic_instructions
 from ..runtime.trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
 from ..runtime.trace_metadata import threading_step_flags as _threading_step_flags
-from .conversion import semantic_instructions as _semantic_instructions
 from .conversion import trace_motion as _trace_motion
 from .resources import ExecutionBudget, ExecutionLimits, SemanticError, active_budget
 from .types import (
     Diagnostic,
     ExecutionResult,
-    ExecutionStep,
     SemanticInstruction,  # noqa: F401 - compatibility re-export
     TraceMotion,  # noqa: F401 - compatibility re-export
 )
@@ -122,7 +121,6 @@ def _execute_impl(
             home_z=home_z,
             wcs_offsets=turn_offsets,
             emulate_g28_home=emulate_g28_home,
-            eval_words_fn=eval_words,
             try_wcs_from_gcode_fn=try_wcs_from_gcode,
             x_value_to_diameter_fn=x_value_to_diameter,
             x_delta_to_diameter_fn=x_delta_to_diameter,
@@ -155,29 +153,7 @@ def _execute_impl(
         ),
         signals=signals,
         program_end=program_end_code(events),
-        execution_steps=tuple(
-            ExecutionStep(
-                source_block=step.source_block,
-                emitted_count=step.emitted_count,
-                unit_scale=step.unit_scale,
-                x_is_diameter=step.x_is_diameter,
-                contour_definition=step.contour_definition,
-                stop=step.stop,
-                words=step.words,
-                signals=step.signals,
-                occurrence=occurrence,
-                events=step.events,
-                active_wcs=step.active_wcs,
-                position=(step.modal_x, 0.0, step.modal_z),
-                feed_mode=step.feed_mode,
-                spindle_rpm=step.spindle_rpm,
-                spindle_mode=step.spindle_mode,
-                surface_speed_m_min=step.surface_speed_m_min,
-                spindle_limit_rpm=step.spindle_limit_rpm,
-                spindle_running=step.spindle_running,
-            )
-            for occurrence, step in enumerate(trace_steps)
-        ),
+        execution_steps=tuple(trace_steps),
         events=events,
         wcs_offsets=_result_wcs_offsets(turn_offsets),
     )

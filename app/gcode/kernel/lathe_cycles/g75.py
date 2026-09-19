@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from ..api.resources import checkpoint
 from ..frontend.model import Motion, Point2
 from ..frontend.program import radius_to_diameter
-from .common import _linspace_steps, add_motion, add_motion_with_meta, ensure_cycle_return
+from .common import _linspace_steps, add_motion, append_turning_pecks, ensure_cycle_return
 
 
 def _append_peck_x_turning(
@@ -17,26 +16,15 @@ def _append_peck_x_turning(
     feed: float,
 ) -> Point2:
     """Turning-style X peck: feed in X, rapid out by R after every peck, no rapid-in back move."""
-    step_dia = max(radius_to_diameter(abs(step_x_radius)), 1e-9)
-    retract_dia = radius_to_diameter(max(abs(retract_r), 0.0))
-    direction = 1.0 if target_x > start.x else -1.0
-    curr = start
-    last_cut_x = start.x
-    while (target_x - last_cut_x) * direction > 1e-7:
-        checkpoint("cycle_iterations")
-        nx = last_cut_x + (direction * step_dia)
-        if (target_x - nx) * direction < 0.0:
-            nx = target_x
-        hit = Point2(nx, curr.z)
-        add_motion_with_meta(motions, 1, curr, hit, None, feed if feed > 0 else None)
-        last_cut_x = nx
-        reached_target = abs(hit.x - target_x) <= 1e-7
-        retreat = Point2(hit.x - (direction * retract_dia), hit.z)
-        add_motion(motions, 0, hit, retreat)
-        curr = retreat
-        if reached_target:
-            break
-    return curr
+    return append_turning_pecks(
+        motions,
+        start,
+        target_x,
+        radius_to_diameter(abs(step_x_radius)),
+        radius_to_diameter(retract_r),
+        feed,
+        axis="x",
+    )
 
 
 def build_g75_cycle(

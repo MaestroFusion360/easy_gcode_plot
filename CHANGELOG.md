@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.5.8 - 2026-09-19
+
+- Refactored `app/gcode/kernel` without adding new G-code functionality or intentionally changing CNC execution semantics; the change consolidates common mechanics left from the historically separate turning and milling implementations.
+- Added shared machine/runtime state primitives for unit mode, active WCS/tool, feed mode/feed and spindle state, and removed the duplicate turning cycle-state synchronization path.
+- Consolidated common program execution plumbing for Macro B evaluation/control flow, block evaluation/classification, execution guard/program counter, subprogram call stack and M98/M99/M2/M30 flow events.
+- Consolidated turning and milling reference-return path generation through a machine-neutral two-stage home-return helper.
+- Consolidated WCS rebasing helpers and grouped milling G52/G68/G69/G51/G50 modal transform state behind one `TransformState` while preserving the existing transform semantics.
+- Consolidated axial drilling/peck/retract/return mechanics in shared runtime helpers and reused them from milling drilling cycles and turning peck/tapping paths. Existing milling G73/G81-G86 geometry is preserved; this refactor does not add G87-G89 or new dwell/spindle cycle semantics.
+- Reduced duplicated turning-cycle expansion code across G71/G72/G73 profile preparation, G74/G75 pecking, G83/G84 drilling/tapping state handling and G90/G92/G94 rectangular-cycle mechanics.
+- Reduced duplicated geometry/profile clipping helpers and repeated milling execution-step/event bookkeeping.
+- Kept threading, drilling, turning and milling machine-specific semantics in their existing domains while moving only shared mechanics into common runtime helpers, preparing the kernel for later G65 and G66/G67 work.
+- Fixed milling G41/G42 compensation for planar full-circle G2/G3 motions so the compensated path remains active through the final circle until the following G40 exit; added a regression using `tests/fixtures/milling/macro_boss_milling.nc`.
+- Fixed the Russian Stock dialog unit suffix regression: the `" mm"` source now translates to `" мм"` (without quotes), and the compiled catalog is re-embedded into the Qt resource so the translation is actually applied at runtime.
+- `generate-translations.ps1`/`generate-translations.sh` now refresh the generated Qt resource (`files_res.py`) after compiling `.qm` files, so running only the translation step can no longer leave a stale embedded catalog.
+- Localized standard `QDialogButtonBox` controls (`OK`, `Cancel`, `Close`, ...) centrally by installing Qt's own `qtbase_<language>.qm` catalog alongside the application translator instead of adding per-dialog `setText()` calls.
+- Restored the `Inches` display switch in the Turning and Milling tool editors and added regression coverage that it only changes the displayed units while stored geometry stays metric.
+- Fixed dark-theme spin-box controls: the legacy Windows dark fallback now applies a shared `QAbstractSpinBox` stylesheet so the frame and up/down arrows stay readable instead of rendering black on the dark background.
+
 ## 1.5.7 - 2026-09-18
 
 - Refactored the CNC core without changing existing execution semantics: the former flat `app/gcode/kernel/` modules are now grouped into `api/`, `frontend/`, `geometry/`, `lathe_cycles/`, `compensation/`, `runtime/` and `milling/` packages.

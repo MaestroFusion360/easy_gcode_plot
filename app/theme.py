@@ -87,7 +87,44 @@ _STATE = {
     "applied": None,
     "palette_fallback": False,
     "style_fallback": False,
+    "input_stylesheet": False,
 }
+
+# The legacy ``windows`` style draws spin-box controls with a black frame and
+# black arrows even when it is given a dark QPalette.  A small, input-only
+# stylesheet makes every QAbstractSpinBox (Stock, WCS, Options, tool editors,
+# ...) readable in dark mode without replacing the platform style.
+_DARK_INPUT_STYLESHEET = """
+QAbstractSpinBox {
+    border: 1px solid #4a4a4a;
+    border-radius: 3px;
+    background: #252526;
+    color: #e6e6e6;
+    padding-right: 18px;
+}
+QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
+    subcontrol-origin: border;
+    width: 16px;
+    background: #333337;
+    border: 1px solid #4a4a4a;
+}
+QAbstractSpinBox::up-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-bottom: 5px solid #e6e6e6;
+}
+QAbstractSpinBox::down-arrow {
+    image: none;
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid #e6e6e6;
+}
+"""
 
 
 def reset_theme_state() -> None:
@@ -137,6 +174,9 @@ def apply_application_theme(app, theme) -> None:
         # application palette, so the startup palette is restored last.
         _restore_platform_style(app)
         _set_color_scheme(app, target)
+        if _STATE["input_stylesheet"]:
+            app.setStyleSheet("")
+            _STATE["input_stylesheet"] = False
         if _STATE["palette_fallback"]:
             app.setPalette(QPalette(_STATE["palette"]))
             _STATE["palette_fallback"] = False
@@ -180,13 +220,18 @@ def _needs_windows_dark_compatibility(platform_name: str, style_name: str) -> bo
 
 def _enable_windows_dark_compatibility(app) -> None:
     """Replace Windows Vista style with palette-aware Windows style for dark UI."""
-    if _style_name(app) != "windowsvista":
-        return
-    fallback = QStyleFactory.create("windows")
-    if fallback is None:
-        return
-    app.setStyle(fallback)
-    _STATE["style_fallback"] = True
+    if _style_name(app) == "windowsvista":
+        fallback = QStyleFactory.create("windows")
+        if fallback is not None:
+            app.setStyle(fallback)
+            _STATE["style_fallback"] = True
+    _apply_dark_input_stylesheet(app)
+
+
+def _apply_dark_input_stylesheet(app) -> None:
+    """Make spin-box controls readable on the legacy dark fallback styles."""
+    app.setStyleSheet(_DARK_INPUT_STYLESHEET)
+    _STATE["input_stylesheet"] = True
 
 
 def _restore_platform_style(app) -> None:

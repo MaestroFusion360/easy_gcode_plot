@@ -124,6 +124,8 @@ class ExecutionStep:
     surface_speed_m_min: float | None = None
     spindle_limit_rpm: float | None = None
     spindle_running: bool = False
+    modal_move: int = 0
+    variables: tuple[tuple[str, float], ...] = ()
     events: tuple[ExecutionEvent, ...] = ()
 
 

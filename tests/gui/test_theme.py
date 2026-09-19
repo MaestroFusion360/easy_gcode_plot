@@ -144,6 +144,37 @@ def test_dark_theme_uses_palette_only_as_color_scheme_fallback(qt_app, monkeypat
     assert palettes[0].color(QPalette.ColorRole.Window).name() == "#1f1f1f"
 
 
+def test_dark_input_stylesheet_makes_spin_boxes_readable(qt_app):
+    theme.reset_theme_state()
+    theme._apply_dark_input_stylesheet(qt_app)
+
+    stylesheet = qt_app.styleSheet()
+    assert "QAbstractSpinBox" in stylesheet
+    assert "QAbstractSpinBox::up-arrow" in stylesheet
+    assert "QAbstractSpinBox::down-arrow" in stylesheet
+
+
+def test_light_theme_clears_the_dark_input_stylesheet(qt_app):
+    theme._apply_dark_input_stylesheet(qt_app)
+    theme.reset_theme_state()
+
+    theme.apply_application_theme(qt_app, "light")
+
+    assert qt_app.styleSheet() == ""
+
+
+def test_windows_dark_compatibility_applies_input_stylesheet(qt_app, monkeypatch):
+    monkeypatch.setattr(theme, "_set_color_scheme", lambda _app, _target: True)
+    monkeypatch.setattr(theme, "_needs_windows_dark_compatibility", lambda *_args: True)
+
+    theme.reset_theme_state()
+    theme.apply_application_theme(qt_app, "dark")
+
+    assert "QAbstractSpinBox::up-arrow" in qt_app.styleSheet()
+    theme.apply_application_theme(qt_app, "light")
+    assert qt_app.styleSheet() == ""
+
+
 def test_editor_theme_sets_lexer_background(qt_app):
     editor = QsciScintilla()
     lexer = GcodeLexer(editor)

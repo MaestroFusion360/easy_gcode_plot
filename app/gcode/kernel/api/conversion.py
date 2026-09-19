@@ -2,36 +2,8 @@
 
 from __future__ import annotations
 
-from ..frontend.lang import try_literal_int
-from ..frontend.model import Motion, Program
-from .types import SemanticInstruction, TraceMotion
-
-
-def semantic_instructions(program: Program | None) -> tuple[SemanticInstruction, ...]:
-    """Publish parsed AST nodes without exposing mutable interpreter state."""
-    if program is None or program.ast is None:
-        return ()
-    out: list[SemanticInstruction] = []
-    for node in program.ast.nodes:
-        g_codes = tuple(
-            code for word in node.words if word.letter == "G" and (code := try_literal_int(word.expr)) is not None
-        )
-        m_codes = tuple(
-            code for word in node.words if word.letter == "M" and (code := try_literal_int(word.expr)) is not None
-        )
-        out.append(
-            SemanticInstruction(
-                kind=node.kind,
-                block_index=node.block_index,
-                raw=node.raw,
-                words=tuple((word.letter, word.expr) for word in node.words),
-                g_codes=g_codes,
-                m_codes=m_codes,
-                nlabel=node.nlabel,
-                olabel=node.olabel,
-            )
-        )
-    return tuple(out)
+from ..frontend.model import Motion
+from .types import TraceMotion
 
 
 def trace_motion(motion: Motion) -> TraceMotion:

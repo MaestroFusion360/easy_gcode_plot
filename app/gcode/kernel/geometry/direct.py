@@ -98,6 +98,25 @@ def _clear_corner(seg: ProfileSegment) -> ProfileSegment:
     )
 
 
+def _append_outgoing_remainder(
+    replacement: list[ProfileSegment],
+    segment: ProfileSegment,
+    start: Point2,
+    remaining: float,
+) -> None:
+    if remaining <= 1e-6:
+        return
+    replacement.append(
+        _make_line_segment(
+            segment.block,
+            start,
+            segment.end,
+            corner_chamfer=segment.corner_chamfer,
+            corner_radius_cmd=segment.corner_radius_cmd,
+        )
+    )
+
+
 def apply_corner_direct_programming(
     profile: list[ProfileSegment],
 ) -> list[ProfileSegment]:
@@ -162,16 +181,7 @@ def apply_corner_direct_programming(
                 corner_radius_cmd=s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0,
             )
             replacement.append(chamfer_seg)
-            if remaining_out > 1e-6:
-                replacement.append(
-                    _make_line_segment(
-                        s2.block,
-                        p2,
-                        s2.end,
-                        corner_chamfer=s2.corner_chamfer,
-                        corner_radius_cmd=s2.corner_radius_cmd,
-                    )
-                )
+            _append_outgoing_remainder(replacement, s2, p2, remaining_out)
             segments[i : i + 2] = replacement
             i += len(replacement) - 1
             continue
@@ -209,16 +219,7 @@ def apply_corner_direct_programming(
             corner_radius_cmd=s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0,
         )
         replacement.append(fillet_seg)
-        if remaining_out > 1e-6:
-            replacement.append(
-                _make_line_segment(
-                    s2.block,
-                    p2,
-                    s2.end,
-                    corner_chamfer=s2.corner_chamfer,
-                    corner_radius_cmd=s2.corner_radius_cmd,
-                )
-            )
+        _append_outgoing_remainder(replacement, s2, p2, remaining_out)
         segments[i : i + 2] = replacement
         i += len(replacement) - 1
 

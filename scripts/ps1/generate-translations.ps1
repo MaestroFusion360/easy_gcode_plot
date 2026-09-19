@@ -49,3 +49,8 @@ foreach ($tsFile in $tsFiles) {
     if ($LASTEXITCODE -ne 0) { throw "pyside6-lrelease failed for $($tsFile.FullName) (exit $LASTEXITCODE)" }
     Write-Host "Generated $qm" -ForegroundColor Green
 }
+
+# The compiled catalogs are embedded in the Qt resource module.  Refresh it so
+# the generated resource and the runtime translator never drift apart.
+& (Join-Path $PSScriptRoot 'generate-resources.ps1') -ProjectRoot $projectRootPath -ToolProjectRoot $toolProjectRootPath
+if (-not $?) { throw 'Qt resource generation failed after translations' }

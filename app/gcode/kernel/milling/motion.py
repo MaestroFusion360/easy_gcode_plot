@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from ..api.resources import checkpoint
 from ..api.types import TraceMotion
+from ..runtime.home import reference_return
 from .drilling import _drill
 from .state import MillState, _coordinate_transform, _machine, _wcs_offset, _xyz
 
@@ -132,44 +133,25 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
             motions.append(m)
     elif 28 in gcodes:
         mid = _xyz(words, state)
-        sm = _machine((state.x, state.y, state.z), state, wcs_offsets)
-        mm = _machine(mid, state, wcs_offsets)
-        if sm != mm:
-            checkpoint("generated_motions")
-            motions.append(
-                TraceMotion(
-                    0,
-                    sm[0],
-                    sm[2],
-                    mm[0],
-                    mm[2],
-                    start_y=sm[1],
-                    end_y=mm[1],
-                    plane=state.plane,
-                    source_block=block.index,
-                    source_nlabel=block.nlabel,
-                    source_raw=block.raw,
-                    source_kind="g28",
-                    tool=state.active_tool,
-                )
-            )
-        axes = {k for k in ("X", "Y", "Z") if k in words}
-        target = (
-            home[0] if "X" in axes else mm[0],
-            home[1] if "Y" in axes else mm[1],
-            home[2] if "Z" in axes else mm[2],
+        start_machine = _machine((state.x, state.y, state.z), state, wcs_offsets)
+        intermediate_machine = _machine(mid, state, wcs_offsets)
+        path = reference_return(
+            start_machine,
+            intermediate_machine,
+            home,
+            tuple(axis in words for axis in ("X", "Y", "Z")),
         )
-        if mm != target:
+        for segment_start, segment_end in path.segments:
             checkpoint("generated_motions")
             motions.append(
                 TraceMotion(
                     0,
-                    mm[0],
-                    mm[2],
-                    target[0],
-                    target[2],
-                    start_y=mm[1],
-                    end_y=target[1],
+                    segment_start[0],
+                    segment_start[2],
+                    segment_end[0],
+                    segment_end[2],
+                    start_y=segment_start[1],
+                    end_y=segment_end[1],
                     plane=state.plane,
                     source_block=block.index,
                     source_nlabel=block.nlabel,
@@ -179,7 +161,7 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
                 )
             )
         ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
-        work = (target[0] - ox, target[1] - oy, target[2] - oz)
+        work = (path.target[0] - ox, path.target[1] - oy, path.target[2] - oz)
         state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
     elif state.cycle in (73, 81, 82, 83, 84, 85, 86) and any(k in words for k in ("X", "Y", "Z", "R")):
         motions.extend(_drill(block, state, words, wcs_offsets=wcs_offsets))

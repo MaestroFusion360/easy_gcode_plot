@@ -2,26 +2,11 @@
 
 from __future__ import annotations
 
-from ..api.resources import checkpoint
-from ..api.types import (
-    Diagnostic,
-    ExecutionEvent,
-    ExecutionResult,
-    ExecutionStep,
-    SemanticInstruction,
-    TraceMotion,
-)
-from ..frontend.program import eval_words, parse_program
-from ..runtime.events import HOME_RETURN, PROGRAM_START, main_program_location, program_end_code
-from ..runtime.execution import (
-    build_program_execution_index,
-    classify_block_codes,
-    dispatch_macro_flow,
-    dispatch_subprogram_flow,
-    flow_control_mcode,
-)
-from ..runtime.signals import signals_for_words
-from .diagnostics import _apply_milling_tool_change, _execution_diagnostic, _record_milling_flow_events
+from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
+from ..frontend.program import parse_program
+from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
+from ..runtime.execution import ProgramRuntime, semantic_instructions
+from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .motion import _emit_milling_motions, _g53_home_axes
 from .state import MillState, _apply_pre_flow_modal_state, _execution_step, _wcs_offset
 
@@ -51,8 +36,7 @@ def execute_milling(
     steps: list[ExecutionStep] = []
     signals = []
     events: list[ExecutionEvent] = []
-    variables: dict[str, float] = {}
-    call_stack: list[tuple[int, int, int]] = []
+    runtime = ProgramRuntime.create(program)
     recognized = {
         0,
         1,
@@ -98,77 +82,61 @@ def execute_milling(
         99,
     }
     recognized_m = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 98, 99}
-    index = build_program_execution_index(program)
+    instructions = semantic_instructions(program)
 
-    instructions = []
-    for node in program.ast.nodes if program.ast else ():
-        g_codes = tuple(code for w in node.words if w.letter == "G" and (code := w.int_code) is not None)
-        m_codes = tuple(code for w in node.words if w.letter == "M" and (code := w.int_code) is not None)
-        instructions.append(
-            SemanticInstruction(
-                node.kind,
-                node.block_index,
-                node.raw,
-                tuple((w.letter, w.expr) for w in node.words),
-                g_codes,
-                m_codes,
-                node.nlabel,
-                node.olabel,
+    def record_step(
+        block,
+        occurrence_events,
+        *,
+        emitted_count: int = 0,
+        words=(),
+        signals=(),
+        stop: bool = False,
+    ) -> None:
+        events.extend(occurrence_events)
+        steps.append(
+            _execution_step(
+                state,
+                block,
+                emitted_count,
+                len(steps),
+                words=words,
+                signals=signals,
+                events=occurrence_events,
+                stop=stop,
+                wcs_offsets=wcs_offsets,
             )
         )
 
-    pc = 0
-    guard = 0
     try:
-        while 0 <= pc < len(program.blocks):
-            checkpoint("executed_blocks")
-            guard += 1
-            if guard > 500_000:
-                raise RuntimeError("Program execution guard reached")
-            block = program.blocks[pc]
+        while 0 <= runtime.pc < len(program.blocks):
+            block = runtime.next_block(program.blocks)
             occurrence_events: list[ExecutionEvent] = []
             if not program_started and block.index == program_start_block:
-                occurrence_events.append(
-                    ExecutionEvent(
-                        PROGRAM_START,
-                        block.index,
-                        code=(f"O{program_number}" if program_number is not None else None),
-                        program_number=program_number,
-                    )
-                )
+                occurrence_events.append(program_start_event(block, program_number))
                 program_started = True
             if block.optional_skip and skip_optional_blocks:
-                pc += 1
+                runtime.advance()
                 continue
 
-            flow = dispatch_macro_flow(
-                block=block,
-                pc=pc,
-                blocks=program.blocks,
-                variables=variables,
-                label_to_index=index.label_to_index,
-                while_to_end=index.while_to_end,
-                end_to_while=index.end_to_while,
-            )
+            flow = runtime.dispatch_macro(block, runtime.pc, program.blocks)
             if flow.handled:
-                events.extend(occurrence_events)
-                steps.append(
-                    _execution_step(state, block, 0, len(steps), events=occurrence_events, wcs_offsets=wcs_offsets)
-                )
-                pc = flow.next_pc
+                record_step(block, occurrence_events)
+                runtime.jump(flow.next_pc)
                 continue
 
-            words = eval_words(block.parsed_words, variables)
+            evaluated_block = runtime.evaluate_block(block)
+            words = evaluated_block.words
             if words.errors:
                 token, error = words.errors[0]
                 raise ValueError(
                     f"{error} at line {block.index + 1}: {block.raw} ({token.letter}{token.expr})"
                 ) from error
-            codes = classify_block_codes(words)
+            codes = evaluated_block.codes
             gcodes = codes.all_g
-            occurrence_signals = signals_for_words(block.index, words)
+            occurrence_signals = evaluated_block.signals
             signals.extend(occurrence_signals)
-            evaluated = tuple((k, v) for k in words for v in words.all(k))
+            evaluated = evaluated_block.values
 
             unknown_g = tuple(g for g in gcodes if g not in recognized)
             position_words = any(letter in words for letter in ("X", "Y", "Z"))
@@ -202,23 +170,11 @@ def execute_milling(
             if unknown_g and position_words:
                 _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
                 state.unknown_axes.update(letter for letter in ("X", "Y", "Z") if letter in words)
-                events.extend(occurrence_events)
-                steps.append(
-                    _execution_step(
-                        state,
-                        block,
-                        0,
-                        len(steps),
-                        words=evaluated,
-                        signals=occurrence_signals,
-                        events=occurrence_events,
-                        wcs_offsets=wcs_offsets,
-                    )
-                )
-                pc += 1
+                record_step(block, occurrence_events, words=evaluated, signals=occurrence_signals)
+                runtime.advance()
                 continue
 
-            _apply_milling_tool_change(block, state, words, codes, diagnostics, occurrence_events, call_stack)
+            _apply_milling_tool_change(block, state, words, codes, diagnostics, occurrence_events, runtime.call_stack)
 
             _apply_pre_flow_modal_state(state, gcodes, codes.all_m, words, wcs_offsets=wcs_offsets)
             if state.unknown_axes:
@@ -227,89 +183,39 @@ def execute_milling(
                         if letter in words:
                             setattr(state, letter.lower(), words[letter] * state.unit_scale)
                             state.unknown_axes.remove(letter)
-                events.extend(occurrence_events)
-                steps.append(
-                    _execution_step(
-                        state,
-                        block,
-                        0,
-                        len(steps),
-                        words=evaluated,
-                        signals=occurrence_signals,
-                        events=occurrence_events,
-                        wcs_offsets=wcs_offsets,
-                    )
-                )
-                pc += 1
+                record_step(block, occurrence_events, words=evaluated, signals=occurrence_signals)
+                runtime.advance()
                 continue
             if 28 in gcodes:
                 occurrence_events.append(
-                    ExecutionEvent(
-                        HOME_RETURN,
-                        block.index,
-                        code="G28",
-                        axes=tuple(axis for axis in ("X", "Y", "Z") if axis in words),
-                        call_depth=len(call_stack),
+                    home_return_event(
+                        block,
+                        "G28",
+                        tuple(axis for axis in ("X", "Y", "Z") if axis in words),
+                        len(runtime.call_stack),
                     )
                 )
             if 53 in gcodes:
                 home_axes = _g53_home_axes(state, words, home, wcs_offsets=wcs_offsets)
                 if home_axes:
-                    occurrence_events.append(
-                        ExecutionEvent(
-                            HOME_RETURN,
-                            block.index,
-                            code="G53",
-                            axes=home_axes,
-                            call_depth=len(call_stack),
-                        )
-                    )
+                    occurrence_events.append(home_return_event(block, "G53", home_axes, len(runtime.call_stack)))
 
-            flow_mcode = flow_control_mcode(codes.all_m, codes.mcode)
-            call_stack_before = list(call_stack)
-            sub = dispatch_subprogram_flow(
-                mcode=flow_mcode,
+            program_flow = runtime.dispatch_program_flow(
+                codes=codes,
                 words=words,
-                pc=pc,
-                olabel_to_index=index.olabel_to_index,
-                call_stack=call_stack,
+                pc=runtime.pc,
+                program=program,
+                block=block,
+                program_number=program_number,
             )
-            call_stack = sub.call_stack
-            _record_milling_flow_events(
-                flow_mcode, sub, words, program, block, program_number, call_stack, call_stack_before, occurrence_events
-            )
+            occurrence_events.extend(program_flow.events)
 
-            if sub.handled:
-                if sub.stop:
-                    events.extend(occurrence_events)
-                    steps.append(
-                        _execution_step(
-                            state,
-                            block,
-                            0,
-                            len(steps),
-                            words=evaluated,
-                            signals=occurrence_signals,
-                            events=occurrence_events,
-                            stop=True,
-                            wcs_offsets=wcs_offsets,
-                        )
-                    )
+            if program_flow.dispatch.handled:
+                if program_flow.dispatch.stop:
+                    record_step(block, occurrence_events, words=evaluated, signals=occurrence_signals, stop=True)
                     break
-                events.extend(occurrence_events)
-                steps.append(
-                    _execution_step(
-                        state,
-                        block,
-                        0,
-                        len(steps),
-                        words=evaluated,
-                        signals=occurrence_signals,
-                        events=occurrence_events,
-                        wcs_offsets=wcs_offsets,
-                    )
-                )
-                pc = sub.next_pc
+                record_step(block, occurrence_events, words=evaluated, signals=occurrence_signals)
+                runtime.jump(program_flow.dispatch.next_pc)
                 continue
 
             motion_start = len(motions)
@@ -318,26 +224,20 @@ def execute_milling(
 
             if motions and (not executed or executed[-1] != block.index):
                 executed.append(block.index)
-            events.extend(occurrence_events)
-            steps.append(
-                _execution_step(
-                    state,
-                    block,
-                    len(motions) - motion_start,
-                    len(steps),
-                    words=evaluated,
-                    signals=occurrence_signals,
-                    events=occurrence_events,
-                    wcs_offsets=wcs_offsets,
-                )
+            record_step(
+                block,
+                occurrence_events,
+                emitted_count=len(motions) - motion_start,
+                words=evaluated,
+                signals=occurrence_signals,
             )
-            pc += 1
+            runtime.advance()
     except Exception as exc:
         diagnostics.append(_execution_diagnostic(exc, program))
         return ExecutionResult(
             False,
             program,
-            tuple(instructions),
+            instructions,
             tuple(motions),
             tuple(diagnostics),
             tuple(executed),
@@ -352,7 +252,7 @@ def execute_milling(
     return ExecutionResult(
         ok=not any(d.severity == "error" for d in diagnostics),
         program=program,
-        instructions=tuple(instructions),
+        instructions=instructions,
         motions=tuple(motions),
         diagnostics=tuple(diagnostics),
         executed_blocks=tuple(executed),

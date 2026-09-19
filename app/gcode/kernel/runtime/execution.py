@@ -13,7 +13,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..api.resources import SemanticError, active_budget, checkpoint
+from ..api.types import ExecutionEvent, SemanticInstruction
 from ..frontend.lang import eval_condition, evaluate_expression
+from ..frontend.program import EvaluatedWords, eval_words
+from .events import program_flow_events
+from .signals import signals_for_words
 
 MOTION_CODES = frozenset({0, 1, 2, 3, 32, 33})
 CYCLE_CODES = frozenset({70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94})
@@ -71,6 +75,138 @@ class SubprogramDispatch:
     next_pc: int
     stop: bool
     call_stack: list[tuple[int, int, int]]
+
+
+@dataclass(frozen=True)
+class EvaluatedBlock:
+    words: EvaluatedWords
+    codes: BlockCodes
+    values: tuple[tuple[str, float], ...]
+    signals: tuple[object, ...]
+
+
+@dataclass(frozen=True)
+class ProgramFlowDispatch:
+    dispatch: SubprogramDispatch
+    events: tuple[ExecutionEvent, ...]
+
+
+@dataclass
+class ProgramRuntime:
+    """Mutable control-flow data shared by every machine-mode executor."""
+
+    index: ProgramExecutionIndex
+    variables: dict[str, float]
+    call_stack: list[tuple[int, int, int]]
+    max_call_depth: int = 64
+    pc: int = 0
+    guard: int = 0
+
+    @classmethod
+    def create(cls, program: object, *, variables: dict[str, float] | None = None) -> ProgramRuntime:
+        return cls(build_program_execution_index(program), variables if variables is not None else {}, [])
+
+    def next_block(
+        self,
+        blocks: tuple[object, ...] | list[object],
+        *,
+        guard_limit: int = 500_000,
+        guard_message: str = "Program execution guard reached",
+    ) -> object:
+        """Return the current source block while applying the shared execution budget/guard."""
+        checkpoint("executed_blocks")
+        self.guard += 1
+        if self.guard > guard_limit:
+            raise RuntimeError(guard_message)
+        return blocks[self.pc]
+
+    def advance(self) -> None:
+        self.pc += 1
+
+    def jump(self, pc: int) -> None:
+        self.pc = pc
+
+    def dispatch_macro(self, block: object, pc: int, blocks: tuple[object, ...] | list[object]) -> FlowDispatch:
+        return dispatch_macro_flow(
+            block=block,
+            pc=pc,
+            blocks=blocks,
+            variables=self.variables,
+            label_to_index=self.index.label_to_index,
+            while_to_end=self.index.while_to_end,
+            end_to_while=self.index.end_to_while,
+        )
+
+    def evaluate(self, block: object) -> EvaluatedWords:
+        return eval_words(block.parsed_words, self.variables)
+
+    def evaluate_block(self, block: object) -> EvaluatedBlock:
+        words = self.evaluate(block)
+        return EvaluatedBlock(
+            words,
+            classify_block_codes(words),
+            tuple((key, value) for key in words for value in words.all(key)),
+            signals_for_words(block.index, words),
+        )
+
+    def dispatch_subprogram(self, mcode: int | float | None, words: dict[str, float], pc: int) -> SubprogramDispatch:
+        result = dispatch_subprogram_flow(
+            mcode=mcode,
+            words=words,
+            pc=pc,
+            olabel_to_index=self.index.olabel_to_index,
+            call_stack=self.call_stack,
+            max_call_depth=self.max_call_depth,
+        )
+        self.call_stack = result.call_stack
+        return result
+
+    def dispatch_program_flow(
+        self,
+        *,
+        codes: BlockCodes,
+        words: EvaluatedWords,
+        pc: int,
+        program: object,
+        block: object,
+        program_number: int | None,
+    ) -> ProgramFlowDispatch:
+        """Dispatch M98/M99/M2/M30 and build the corresponding shared events."""
+        flow_mcode = flow_control_mcode(codes.all_m, codes.mcode)
+        call_stack_before = list(self.call_stack)
+        dispatch = self.dispatch_subprogram(flow_mcode, words, pc)
+        return ProgramFlowDispatch(
+            dispatch,
+            program_flow_events(flow_mcode, dispatch, words, program, block, program_number, call_stack_before),
+        )
+
+
+def semantic_instructions(program: object | None) -> tuple[SemanticInstruction, ...]:
+    """Build the public, immutable instruction stream from the shared AST."""
+    ast = getattr(program, "ast", None)
+    if ast is None:
+        return ()
+    return tuple(
+        SemanticInstruction(
+            node.kind,
+            node.block_index,
+            node.raw,
+            tuple((word.letter, word.expr) for word in node.words),
+            tuple(code for word in node.words if word.letter == "G" and (code := word.int_code) is not None),
+            tuple(code for word in node.words if word.letter == "M" and (code := word.int_code) is not None),
+            node.nlabel,
+            node.olabel,
+        )
+        for node in ast.nodes
+    )
+
+
+def apply_unit_mode(state: object, gcodes: tuple[int | float, ...] | list[int | float]) -> None:
+    """Apply the shared G20/G21 unit modal state without machine-specific semantics."""
+    if 20 in gcodes:
+        state.unit_scale = 25.4
+    if 21 in gcodes:
+        state.unit_scale = 1.0
 
 
 def flow_control_mcode(all_m: tuple[int | float, ...], fallback: int | float | None = None) -> int | float | None:

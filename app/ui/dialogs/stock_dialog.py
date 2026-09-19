@@ -47,7 +47,7 @@ class StockDialog(QDialog):
         return _ACCURACY_RESOLUTIONS[self.accuracy.value()]
 
     def _set_units(self, inches: bool):
-        set_length_units(self._length_controls, bool(inches), suffix=True)
+        set_length_units(self._length_controls, bool(inches), suffix=True, context="StockDialog")
 
     def showEvent(self, event):
         self.enabled.setChecked(getattr(self.window, "stockEnabled", False))

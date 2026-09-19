@@ -7,6 +7,7 @@ from __future__ import annotations
 from ...frontend.ast import CycleAstNode, MotionAstNode
 from ...geometry import apply_a_programming
 from ..execution import retain_modal_turning_cycles
+from ..home import reference_return
 from .types import CycleDispatch, CycleEmissionDispatch, G28Dispatch, MotionDispatch
 
 _X_AXIS_WORDS = ("X", "U")
@@ -211,39 +212,31 @@ def dispatch_g28_home(
     elif "W" in words:
         iz = modal_z + (words["W"] * unit_scale)
 
-    emitted: list[object] = []
     smx, smz = to_machine_fn(modal_x, modal_z)
     imx, imz = to_machine_fn(ix, iz)
-    if abs(imx - smx) > 1e-9 or abs(imz - smz) > 1e-9:
-        emitted.append(
-            motion_ctor(
-                0,
-                point_ctor(smx, smz),
-                point_ctor(imx, imz),
-                source_block=source_block,
-                source_nlabel=source_nlabel,
-                source_raw=source_raw,
-                source_kind=("g30" if gcode == 30 else "g28"),
-            )
+    path = reference_return(
+        (smx, smz),
+        (imx, imz),
+        (home_x, home_z),
+        (has_x_axis, has_z_axis),
+        tolerance=1e-9,
+    )
+    emitted = [
+        motion_ctor(
+            0,
+            point_ctor(*segment_start),
+            point_ctor(*segment_end),
+            source_block=source_block,
+            source_nlabel=source_nlabel,
+            source_raw=source_raw,
+            source_kind=("g30" if gcode == 30 else "g28"),
         )
-    target_mx = home_x if has_x_axis else imx
-    target_mz = home_z if has_z_axis else imz
-    if abs(target_mx - imx) > 1e-9 or abs(target_mz - imz) > 1e-9:
-        emitted.append(
-            motion_ctor(
-                0,
-                point_ctor(imx, imz),
-                point_ctor(target_mx, target_mz),
-                source_block=source_block,
-                source_nlabel=source_nlabel,
-                source_raw=source_raw,
-                source_kind=("g30" if gcode == 30 else "g28"),
-            )
-        )
+        for segment_start, segment_end in path.segments
+    ]
 
     ox, oz = wcs_off_fn(active_wcs)
-    new_modal_x = target_mx - ox
-    new_modal_z = target_mz - oz
+    new_modal_x = path.target[0] - ox
+    new_modal_z = path.target[1] - oz
     return G28Dispatch(True, new_modal_x, new_modal_z, emitted)
 
 

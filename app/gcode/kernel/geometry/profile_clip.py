@@ -16,56 +16,39 @@ def intersect_at_x(a: Point2, b: Point2, x: float) -> Point2:
     return Point2(x, a.z + (b.z - a.z) * t)
 
 
-def clip_polyline_max_x(polyline: list[Point2], max_x: float) -> list[Point2]:
+def _clip_polyline_x(polyline: list[Point2], limit_x: float, *, keep_minimum: bool) -> list[Point2]:
     if not polyline:
         return []
+
+    def inside(point: Point2) -> bool:
+        return point.x >= limit_x - 1e-5 if keep_minimum else point.x <= limit_x + 1e-5
+
     out: list[Point2] = []
     prev = polyline[0]
-    prev_in = prev.x <= max_x + 1e-5
+    prev_in = inside(prev)
     if prev_in:
         out.append(prev)
     for curr in polyline[1:]:
-        curr_in = curr.x <= max_x + 1e-5
+        curr_in = inside(curr)
         if prev_in and curr_in:
             out.append(curr)
-        elif prev_in and not curr_in:
-            hit = intersect_at_x(prev, curr, max_x)
+        elif prev_in != curr_in:
+            hit = intersect_at_x(prev, curr, limit_x)
             if not out or abs(out[-1].x - hit.x) > 1e-5 or abs(out[-1].z - hit.z) > 1e-5:
                 out.append(hit)
-        elif not prev_in and curr_in:
-            hit = intersect_at_x(prev, curr, max_x)
-            if not out or abs(out[-1].x - hit.x) > 1e-5 or abs(out[-1].z - hit.z) > 1e-5:
-                out.append(hit)
-            out.append(curr)
+            if curr_in:
+                out.append(curr)
         prev = curr
         prev_in = curr_in
     return out
+
+
+def clip_polyline_max_x(polyline: list[Point2], max_x: float) -> list[Point2]:
+    return _clip_polyline_x(polyline, max_x, keep_minimum=False)
 
 
 def clip_polyline_min_x(polyline: list[Point2], min_x: float) -> list[Point2]:
-    if not polyline:
-        return []
-    out: list[Point2] = []
-    prev = polyline[0]
-    prev_in = prev.x >= min_x - 1e-5
-    if prev_in:
-        out.append(prev)
-    for curr in polyline[1:]:
-        curr_in = curr.x >= min_x - 1e-5
-        if prev_in and curr_in:
-            out.append(curr)
-        elif prev_in and not curr_in:
-            hit = intersect_at_x(prev, curr, min_x)
-            if not out or abs(out[-1].x - hit.x) > 1e-5 or abs(out[-1].z - hit.z) > 1e-5:
-                out.append(hit)
-        elif not prev_in and curr_in:
-            hit = intersect_at_x(prev, curr, min_x)
-            if not out or abs(out[-1].x - hit.x) > 1e-5 or abs(out[-1].z - hit.z) > 1e-5:
-                out.append(hit)
-            out.append(curr)
-        prev = curr
-        prev_in = curr_in
-    return out
+    return _clip_polyline_x(polyline, min_x, keep_minimum=True)
 
 
 def try_find_entry_on_profile(profile: list[ProfileSegment], pass_x: float) -> tuple[int, Point2] | None:

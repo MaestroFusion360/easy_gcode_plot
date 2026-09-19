@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from ..frontend.model import Motion, Point2
+from ..runtime.drilling import axial_cycle_moves
 from .common import add_motion, add_motion_with_meta
 
 
@@ -22,9 +23,10 @@ def build_g84_cycle(
     if abs(target_x - stock_x) > 1e-9:
         add_motion(motions, 0, tool, Point2(target_x, stock_z))
         tool = Point2(target_x, stock_z)
-    bottom = Point2(target_x, target_z)
-    add_motion_with_meta(motions, 1, tool, bottom, None, feed if feed > 0 else None)
-    add_motion_with_meta(motions, 1, bottom, Point2(target_x, stock_z), None, feed if feed > 0 else None)
+    for segment in axial_cycle_moves(stock_z, target_z, return_to=stock_z, return_feed=True):
+        begin = Point2(target_x, segment.start)
+        end = Point2(target_x, segment.end)
+        add_motion_with_meta(motions, segment.move, begin, end, None, feed if feed > 0 else None)
     if abs(target_x - stock_x) > 1e-9:
         add_motion(motions, 0, Point2(target_x, stock_z), Point2(stock_x, stock_z))
     return motions

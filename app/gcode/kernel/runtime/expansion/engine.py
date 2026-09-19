@@ -3,14 +3,14 @@ from __future__ import annotations
 from dataclasses import replace
 
 from ...compensation.turning import compensate_profile_segments
-from ...frontend.program import eval_words, scaled_word, x_delta_to_diameter, x_value_to_diameter
-from ..execution import classify_block_codes, retain_modal_turning_cycles
+from ...frontend.program import eval_words
+from ..execution import apply_unit_mode, classify_block_codes, retain_modal_turning_cycles
 from .drilling import _expand_g83, _expand_g84
 from .finishing import _expand_g70
 from .peck import _expand_g74, _expand_g75
 from .roughing import _expand_g71, _expand_g72, _expand_g73
-from .threading import _expand_g76
-from .turning import _expand_g90, _expand_g92, _expand_g94
+from .threading import _expand_g76, _expand_g92
+from .turning import _expand_g90, _expand_g94
 
 
 def expand_cycle_block(
@@ -22,6 +22,7 @@ def expand_cycle_block(
     supplementary_angles=False,
     pq_mm_for_g74758384=False,
     tools=None,
+    variables=None,
 ):
     """Expand one already evaluated occurrence; never execute Macro B or flow."""
 
@@ -65,7 +66,7 @@ def expand_cycle_block(
         mode = state.compensation_mode
         modes: dict[int, int] = {}
         for profile_index in range(p_index, q_index + 1):
-            profile_words = eval_words(blocks[profile_index].parsed_words, state.clone_vars())
+            profile_words = eval_words(blocks[profile_index].parsed_words, dict(variables or {}))
             profile_codes = classify_block_codes(profile_words)
             if 40 in profile_codes.all_g:
                 mode = 40
@@ -99,10 +100,7 @@ def expand_cycle_block(
 
     # Apply every modal G word in the block, not only the last one.
     # This is required for normal safety blocks such as G18G21G40G54G80G99.
-    if 20 in all_g:
-        state.unit_scale = 25.4
-    if 21 in all_g:
-        state.unit_scale = 1.0
+    apply_unit_mode(state, all_g)
     if 190 in all_g:
         state.x_is_diameter = True
     if 191 in all_g:
@@ -142,15 +140,42 @@ def expand_cycle_block(
     )
 
     _expand_g71(
-        blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+        blocks,
+        compensated_profile,
+        gcode,
+        mark_compensated,
+        pc,
+        rough_cycles,
+        state,
+        supplementary_angles,
+        words,
+        variables,
     )
 
     _expand_g72(
-        blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+        blocks,
+        compensated_profile,
+        gcode,
+        mark_compensated,
+        pc,
+        rough_cycles,
+        state,
+        supplementary_angles,
+        words,
+        variables,
     )
 
     _expand_g73(
-        blocks, compensated_profile, gcode, mark_compensated, pc, rough_cycles, state, supplementary_angles, words
+        blocks,
+        compensated_profile,
+        gcode,
+        mark_compensated,
+        pc,
+        rough_cycles,
+        state,
+        supplementary_angles,
+        words,
+        variables,
     )
 
     _expand_g74(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
@@ -160,32 +185,16 @@ def expand_cycle_block(
     _expand_g76(gcode, rough_cycles, state, words)
 
     _expand_g70(
-        blocks, compensated_profile, finish_cycles, gcode, mark_compensated, pc, state, supplementary_angles, words
+        blocks,
+        compensated_profile,
+        finish_cycles,
+        gcode,
+        mark_compensated,
+        pc,
+        state,
+        supplementary_angles,
+        words,
+        variables,
     )
-
-    cycle_pos_locked = cycle_line_consumed or gcode in (
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        83,
-        84,
-        90,
-        92,
-        94,
-    )
-    if "X" in words and not cycle_pos_locked:
-        state.modal_x = x_value_to_diameter(scaled_word(words, "X", state.unit_scale), state.x_is_diameter)
-    elif "U" in words and gcode not in (70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92):
-        state.modal_x += x_delta_to_diameter(scaled_word(words, "U", state.unit_scale), state.x_is_diameter)
-    if "Z" in words and not cycle_pos_locked:
-        state.modal_z = scaled_word(words, "Z", state.unit_scale)
-    elif "W" in words and gcode not in (70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92):
-        state.modal_z += scaled_word(words, "W", state.unit_scale)
-    if "F" in words:
-        state.modal_feed = scaled_word(words, "F", state.unit_scale)
 
     return rough_cycles, finish_cycles

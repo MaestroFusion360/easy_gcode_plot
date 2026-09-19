@@ -7,13 +7,7 @@ import re
 from ..api.resources import SemanticError
 from ..api.types import Diagnostic, ExecutionEvent
 from ..frontend.lang import UndefinedMacroVariableError
-from ..runtime.events import (
-    PROGRAM_END,
-    SUBPROGRAM_END,
-    SUBPROGRAM_START,
-    TOOL_CHANGE,
-    subprogram_number,
-)
+from ..runtime.events import TOOL_CHANGE
 
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
 
@@ -95,65 +89,5 @@ def _apply_milling_tool_change(block, state, words, codes, diagnostics, occurren
                 previous_tool=previous_tool,
                 call_depth=len(call_stack),
                 related_block=state.selected_tool_block,
-            )
-        )
-
-
-def _record_milling_flow_events(
-    flow_mcode, sub, words, program, block, program_number, call_stack, call_stack_before, occurrence_events
-):
-    if flow_mcode == 98 and sub.handled and not sub.stop:
-        target_block = sub.next_pc
-        occurrence_events.append(
-            ExecutionEvent(
-                SUBPROGRAM_START,
-                block.index,
-                code=(f"O{int(words['P'])}" if "P" in words else None),
-                program_number=subprogram_number(program, target_block),
-                call_depth=len(call_stack),
-                target_block=target_block,
-            )
-        )
-    elif flow_mcode == 99 and sub.handled:
-        if call_stack_before:
-            current_target = call_stack_before[-1][1]
-            current_program = subprogram_number(program, current_target)
-            occurrence_events.append(
-                ExecutionEvent(
-                    SUBPROGRAM_END,
-                    block.index,
-                    code="M99",
-                    program_number=current_program,
-                    call_depth=len(call_stack_before),
-                    target_block=current_target,
-                )
-            )
-            if sub.next_pc == current_target and len(call_stack) == len(call_stack_before):
-                occurrence_events.append(
-                    ExecutionEvent(
-                        SUBPROGRAM_START,
-                        block.index,
-                        code=(f"O{current_program}" if current_program is not None else None),
-                        program_number=current_program,
-                        call_depth=len(call_stack),
-                        target_block=current_target,
-                    )
-                )
-        else:
-            occurrence_events.append(
-                ExecutionEvent(
-                    PROGRAM_END,
-                    block.index,
-                    code="M99",
-                    program_number=program_number,
-                )
-            )
-    elif flow_mcode in (2, 30) and sub.handled:
-        occurrence_events.append(
-            ExecutionEvent(
-                PROGRAM_END,
-                block.index,
-                code=f"M{int(flow_mcode):02d}",
-                program_number=program_number,
             )
         )

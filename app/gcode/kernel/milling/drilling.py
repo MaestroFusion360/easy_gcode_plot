@@ -1,45 +1,37 @@
-"""Milling drilling-cycle (G81-G86) expansion."""
+"""Milling drilling-cycle expansion using shared axial-cycle mechanics."""
 
 from __future__ import annotations
 
-from ..api.resources import checkpoint, require_progress
+from dataclasses import dataclass
+
+from ..api.resources import checkpoint
 from ..api.types import TraceMotion
+from ..runtime.drilling import axial_cycle_moves
 from .state import MillState, _machine, _xyz
 
 
-def _peck_drill(state: MillState, x: float, y: float, r: float, add, *, high_speed: bool) -> None:
-    direction = 1.0 if state.cycle_z > r else -1.0
-    current = r
-    feed_start = r
-    retract_clearance = 1.0
-
-    while (state.cycle_z - current) * direction > 1e-9:
-        nxt = current + direction * state.cycle_q
-        if (state.cycle_z - nxt) * direction < 0:
-            nxt = state.cycle_z
-        require_progress(current, nxt)
-        checkpoint("cycle_iterations")
-        plunge_start = feed_start if high_speed else r
-        add(1, (x, y, plunge_start), (x, y, nxt), state.cycle_feed or state.feed)
-        if abs(nxt - state.cycle_z) > 1e-9:
-            retract = r
-            if high_speed:
-                # Real controls use a machine-parameter retract for G73. The
-                # kernel cannot know it, so approximate with a fixed 1 mm
-                # clearance in the kernel's internal metric coordinates.
-                retract = nxt - direction * retract_clearance
-                if (retract - r) * direction < 0.0:
-                    retract = r
-                feed_start = retract
-            add(0, (x, y, nxt), (x, y, retract))
-        current = nxt
+@dataclass(frozen=True)
+class _DrillBehavior:
+    peck: bool = False
+    high_speed_peck: bool = False
+    feed_return: bool = False
 
 
-def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
-    # Modal XY location + Z/R/Q parameters.  Logical cycle expansion is kept as
-    # a small set of machine motions; no render sampling occurs here.
-    out: list[TraceMotion] = []
-    x, y, _ = _xyz(words, state)
+# This table describes the geometry that the kernel already models. It does
+# not claim controller-side dwell/spindle semantics that are not represented
+# in the backplot yet.
+_DRILL_BEHAVIOR = {
+    73: _DrillBehavior(peck=True, high_speed_peck=True),
+    81: _DrillBehavior(),
+    82: _DrillBehavior(),
+    83: _DrillBehavior(peck=True),
+    84: _DrillBehavior(),
+    85: _DrillBehavior(feed_return=True),
+    86: _DrillBehavior(),
+}
+
+
+def _update_cycle_parameters(state: MillState, words) -> None:
     if "Z" in words:
         state.cycle_z = words["Z"] * state.unit_scale if state.absolute else state.z + words["Z"] * state.unit_scale
     if "R" in words:
@@ -48,12 +40,22 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
         state.cycle_q = abs(words["Q"] * state.unit_scale)
     if "F" in words:
         state.cycle_feed = words["F"] * state.unit_scale
+
+
+def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
+    """Expand the currently active milling drill cycle without changing its semantics."""
+    out: list[TraceMotion] = []
+    x, y, _ = _xyz(words, state)
+    _update_cycle_parameters(state, words)
     if state.cycle_z is None:
         return out
+
     r = state.cycle_r if state.cycle_r is not None else state.z
     start = (state.x, state.y, state.z)
+    feed = state.cycle_feed or state.feed
+    behavior = _DRILL_BEHAVIOR[state.cycle]
 
-    def add(kind: int, a, b, feed=None):
+    def add(kind: int, a, b, motion_feed=None):
         am = _machine(a, state, wcs_offsets)
         bm = _machine(b, state, wcs_offsets)
         if am == bm:
@@ -66,7 +68,7 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
                 am[2],
                 bm[0],
                 bm[2],
-                feed=feed,
+                feed=motion_feed,
                 start_y=am[1],
                 end_y=bm[1],
                 plane=state.plane,
@@ -83,12 +85,20 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
 
     add(0, start, (x, y, start[2]))
     add(0, (x, y, start[2]), (x, y, r))
-    if state.cycle in (73, 83) and state.cycle_q and state.cycle_q > 1e-12:
-        _peck_drill(state, x, y, r, add, high_speed=state.cycle == 73)
-    else:
-        add(1, (x, y, r), (x, y, state.cycle_z), state.cycle_feed or state.feed)
     return_z = start[2] if state.return_initial else r
-    return_move = 1 if state.cycle == 85 else 0
-    add(return_move, (x, y, state.cycle_z), (x, y, return_z), state.cycle_feed or state.feed)
+    step = state.cycle_q if behavior.peck and state.cycle_q and state.cycle_q > 1e-12 else None
+    for segment in axial_cycle_moves(
+        r,
+        state.cycle_z,
+        step=step,
+        retract_distance=1.0,
+        full_retract=not behavior.high_speed_peck,
+        retract_after_final=False,
+        return_to=return_z,
+        return_feed=behavior.feed_return,
+        tolerance=1e-9,
+    ):
+        add(segment.move, (x, y, segment.start), (x, y, segment.end), None if segment.move == 0 else feed)
+
     state.x, state.y, state.z = x, y, return_z
     return out

@@ -4,7 +4,20 @@ from __future__ import annotations
 
 from ...frontend.model import Point2
 from ...frontend.program import scaled_word, scaled_word_or, x_value_to_diameter
-from ...lathe_cycles import build_g76_threading, ensure_cycle_return
+from ...lathe_cycles import add_g92_thread_pass, build_g76_threading, ensure_cycle_return
+from .simple import expand_longitudinal_cycle
+
+
+def _expand_g92(gcode, rough_cycles, state, words):
+    return expand_longitudinal_cycle(
+        gcode,
+        rough_cycles,
+        state,
+        words,
+        code=92,
+        add_pass=add_g92_thread_pass,
+        first_block_direct=False,
+    )
 
 
 def _expand_g76(gcode, rough_cycles, state, words):
@@ -28,7 +41,7 @@ def _expand_g76(gcode, rough_cycles, state, words):
             thread_height = abs(words.get("P", 0.0)) * g76_inc_scale
             first_cut = abs(words.get("Q", 0.0)) * g76_inc_scale
             taper_r = words.get("R", 0.0) * state.unit_scale
-            lead = scaled_word_or(words, "F", state.modal_feed, state.unit_scale)
+            lead = scaled_word_or(words, "F", state.feed, state.unit_scale)
             cyc = build_g76_threading(
                 state.modal_x,
                 state.modal_z,

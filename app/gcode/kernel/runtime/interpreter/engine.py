@@ -4,29 +4,12 @@ from __future__ import annotations
 # pylint: disable=too-many-return-statements
 from dataclasses import replace
 
-from ...api.resources import checkpoint
-from ...api.types import ExecutionEvent
+from ...api.types import ExecutionEvent, ExecutionStep
 from ...frontend.program import resolve_cycle_profile_indices
-from ..events import (
-    HOME_RETURN,
-    PROGRAM_END,
-    PROGRAM_START,
-    SUBPROGRAM_END,
-    SUBPROGRAM_START,
-    TOOL_CHANGE,
-    main_program_location,
-    subprogram_number,
-)
-from ..execution import (
-    POSITION_NEUTRAL_GCODES,
-    build_program_execution_index,
-    classify_block_codes,
-    dispatch_macro_flow,
-    dispatch_subprogram_flow,
-    flow_control_mcode,
-)
+from ...geometry.coordinates import rebase_work_position
+from ..events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
+from ..execution import POSITION_NEUTRAL_GCODES, ProgramRuntime, apply_unit_mode, build_program_execution_index
 from ..expansion import expand_cycle_block
-from ..signals import signals_for_words
 from .dispatch import (
     _X_AXIS_WORDS,
     _Z_AXIS_WORDS,
@@ -37,38 +20,24 @@ from .dispatch import (
     has_position_words,
     resolve_modal_move,
 )
-from .types import TraceExecutionContext, TraceRuntimeState, TraceStepSnapshot
+from .types import TraceExecutionContext, TraceRuntimeState
 
 
 def build_trace_execution_context(
     *,
     program,
-    eval_words_fn,
     initial_state: TraceRuntimeState | None = None,
 ) -> TraceExecutionContext:
     state = initial_state or TraceRuntimeState()
     program_start_block, program_number = main_program_location(program)
 
     execution_index = build_program_execution_index(program)
-    label_to_index = execution_index.label_to_index
-    olabel_to_index = execution_index.olabel_to_index
-
     contour_block_indices: set[int] = set()
-
-    while_to_end = execution_index.while_to_end
-    end_to_while = execution_index.end_to_while
 
     return TraceExecutionContext(
         state=state,
-        pc=0,
-        guard=0,
-        call_stack=[],
-        max_call_depth=64,
-        label_to_index=label_to_index,
-        olabel_to_index=olabel_to_index,
+        runtime=ProgramRuntime(execution_index, {}, []),
         contour_block_indices=contour_block_indices,
-        while_to_end=while_to_end,
-        end_to_while=end_to_while,
         program_start_block=program_start_block,
         program_number=program_number,
     )
@@ -85,7 +54,6 @@ def execute_trace_context_with_steps(
     x_is_diameter: bool,
     home_x: float,
     home_z: float,
-    eval_words_fn,
     try_wcs_from_gcode_fn,
     to_machine_fn,
     wcs_off_fn,
@@ -93,9 +61,9 @@ def execute_trace_context_with_steps(
     x_delta_to_diameter_fn,
     motion_ctor,
     point_ctor,
-) -> tuple[list[object], list[TraceStepSnapshot]]:
+) -> tuple[list[object], list[ExecutionStep]]:
     motions: list[object] = []
-    steps: list[TraceStepSnapshot] = []
+    steps: list[ExecutionStep] = []
     while 0 <= ctx.pc < len(program.blocks):
         pc_before = ctx.pc
         if skip_optional_blocks and program.blocks[pc_before].optional_skip:
@@ -111,7 +79,6 @@ def execute_trace_context_with_steps(
             x_is_diameter=x_is_diameter,
             home_x=home_x,
             home_z=home_z,
-            eval_words_fn=eval_words_fn,
             try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
             to_machine_fn=to_machine_fn,
             wcs_off_fn=wcs_off_fn,
@@ -122,35 +89,30 @@ def execute_trace_context_with_steps(
         )
         motions.extend(step_motions)
         src_block = pc_before
-        src_nlabel = None
         if 0 <= pc_before < len(program.blocks):
             src_block = int(program.blocks[pc_before].index)
-            src_nlabel = program.blocks[pc_before].nlabel
         steps.append(
-            TraceStepSnapshot(
-                pc_before=pc_before,
-                pc_after=ctx.pc,
+            ExecutionStep(
                 source_block=src_block,
-                source_nlabel=src_nlabel,
-                stop=step_stop,
                 emitted_count=len(step_motions),
-                modal_x=ctx.state.modal_x,
-                modal_z=ctx.state.modal_z,
-                modal_move=ctx.state.modal_move,
                 unit_scale=ctx.state.unit_scale,
-                active_wcs=ctx.state.active_wcs,
                 x_is_diameter=ctx.state.x_is_diameter,
                 contour_definition=pc_before in (ctx.contour_block_indices or set()),
-                variables=tuple(sorted((ctx.state.vars_map or {}).items())),
+                stop=step_stop,
                 words=ctx.words,
                 signals=ctx.signals,
-                events=ctx.events,
+                occurrence=len(steps),
+                position=(ctx.state.modal_x, 0.0, ctx.state.modal_z),
+                active_wcs=ctx.state.active_wcs,
                 feed_mode=ctx.state.feed_mode,
                 spindle_rpm=ctx.state.spindle_rpm,
                 spindle_mode=ctx.state.spindle_mode,
                 surface_speed_m_min=ctx.state.surface_speed_m_min,
                 spindle_limit_rpm=ctx.state.spindle_limit_rpm,
                 spindle_running=ctx.state.spindle_running,
+                modal_move=ctx.state.modal_move,
+                variables=tuple(sorted(ctx.runtime.variables.items())),
+                events=ctx.events,
             )
         )
         if step_stop:
@@ -169,7 +131,6 @@ def execute_trace_step(
     x_is_diameter: bool,
     home_x: float,
     home_z: float,
-    eval_words_fn,
     try_wcs_from_gcode_fn,
     to_machine_fn,
     wcs_off_fn,
@@ -181,26 +142,15 @@ def execute_trace_step(
     motions: list[object] = []
     blocks = program.blocks
     state = ctx.state
+    runtime = ctx.runtime
 
-    checkpoint("executed_blocks")
     ctx.words = ()
     ctx.signals = ()
     ctx.events = ()
-    ctx.guard += 1
-    if ctx.guard > 500000:
-        raise RuntimeError("Source trace execution guard reached")
-
-    block = blocks[ctx.pc]
+    block = runtime.next_block(blocks, guard_message="Source trace execution guard reached")
     event_list: list[ExecutionEvent] = []
     if not ctx.program_started and block.index == ctx.program_start_block:
-        event_list.append(
-            ExecutionEvent(
-                PROGRAM_START,
-                block.index,
-                code=(f"O{ctx.program_number}" if ctx.program_number is not None else None),
-                program_number=ctx.program_number,
-            )
-        )
+        event_list.append(program_start_event(block, ctx.program_number))
         ctx.program_started = True
     ctx.events = tuple(event_list)
     ast_node = None
@@ -215,31 +165,22 @@ def execute_trace_step(
         ctx.pc += 1
         return False, motions
 
-    vars_map = state.vars_map if state.vars_map is not None else {}
-    flow_dispatch = dispatch_macro_flow(
-        block=block,
-        pc=ctx.pc,
-        blocks=blocks,
-        variables=vars_map,
-        label_to_index=ctx.label_to_index or {},
-        while_to_end=ctx.while_to_end or {},
-        end_to_while=ctx.end_to_while or {},
-    )
+    flow_dispatch = runtime.dispatch_macro(block, ctx.pc, blocks)
     if flow_dispatch.handled:
         ctx.pc = flow_dispatch.next_pc
         return False, motions
 
-    words = eval_words_fn(block.parsed_words, vars_map)
+    evaluated_block = runtime.evaluate_block(block)
+    words = evaluated_block.words
     if getattr(words, "errors", None):
         details = ", ".join(f"{tok.letter}{tok.expr}: {msg}" for tok, msg in words.errors)
         raise ValueError(f"Cannot evaluate CNC words at line {block.index + 1}: {block.raw}: {details}")
-    ctx.words = tuple((k, v) for k in words for v in words.all(k))
-    ctx.signals = signals_for_words(block.index, words)
-    codes = classify_block_codes(words)
+    ctx.words = evaluated_block.values
+    ctx.signals = evaluated_block.signals
+    codes = evaluated_block.codes
     all_g = codes.all_g
     all_m = codes.all_m
     gcode = codes.gcode
-    mcode = codes.mcode
 
     if 40 in all_g:
         state.compensation_mode = 40
@@ -258,7 +199,7 @@ def execute_trace_step(
                 code=state.active_tool,
                 tool=state.active_tool,
                 previous_tool=previous_tool,
-                call_depth=len(ctx.call_stack or ()),
+                call_depth=len(runtime.call_stack),
             )
         )
         ctx.events = tuple(event_list)
@@ -284,35 +225,24 @@ def execute_trace_step(
                 for axis, addresses in (("X", _X_AXIS_WORDS), ("Z", _Z_AXIS_WORDS))
                 if any(address in words for address in addresses)
             )
-            event_list.append(
-                ExecutionEvent(
-                    HOME_RETURN,
-                    block.index,
-                    code=f"G{reference_code}",
-                    axes=axes,
-                    call_depth=len(ctx.call_stack or ()),
-                )
-            )
+            event_list.append(home_return_event(block, f"G{reference_code}", axes, len(runtime.call_stack)))
     ctx.events = tuple(event_list)
 
-    flow_mcode = flow_control_mcode(all_m, mcode)
-    call_stack_before = list(ctx.call_stack or [])
-    sub_flow = dispatch_subprogram_flow(
-        mcode=flow_mcode,
+    program_flow = runtime.dispatch_program_flow(
+        codes=codes,
         words=words,
         pc=ctx.pc,
-        olabel_to_index=ctx.olabel_to_index or {},
-        call_stack=ctx.call_stack or [],
-        max_call_depth=ctx.max_call_depth,
+        program=program,
+        block=block,
+        program_number=ctx.program_number,
     )
-    ctx.call_stack = sub_flow.call_stack
-    _record_turning_flow_events(flow_mcode, sub_flow, words, program, block, ctx, call_stack_before, event_list)
+    event_list.extend(program_flow.events)
 
     ctx.events = tuple(event_list)
-    if sub_flow.handled:
-        if sub_flow.stop:
+    if program_flow.dispatch.handled:
+        if program_flow.dispatch.stop:
             return True, motions
-        ctx.pc = sub_flow.next_pc
+        ctx.pc = program_flow.dispatch.next_pc
         return False, motions
 
     # G4 is non-modal dwell: X is seconds and P is milliseconds, not motion.
@@ -326,13 +256,9 @@ def execute_trace_step(
         ctx.pc += 1
         return False, motions
 
-    cs = ctx.cycle_state
-    cs.modal_x, cs.modal_z = state.modal_x, state.modal_z
-    cs.modal_feed, cs.unit_scale = state.modal_feed, state.unit_scale
-    cs.x_is_diameter = state.x_is_diameter
-    cs.variables = state.vars_map
-    cs.compensation_mode, cs.active_tool = state.compensation_mode, state.active_tool
-    rough_cycles, finish_cycles = expand_cycle_block(program, ctx.pc, words, cs, **ctx.cycle_options)
+    rough_cycles, finish_cycles = expand_cycle_block(
+        program, ctx.pc, words, state, variables=runtime.variables, **ctx.cycle_options
+    )
     state.rough_idx = state.finish_idx = 0
     if any(g in (70, 71, 72, 73) for g in all_g) and "P" in words and "Q" in words:
         bounds = resolve_cycle_profile_indices(
@@ -347,18 +273,18 @@ def execute_trace_step(
         words,
         gcode,
         all_g=all_g,
-        active_g90=state.active_g90,
-        active_g92=state.active_g92,
-        active_g94=state.active_g94,
-        active_g83=state.active_g83,
-        active_g84=state.active_g84,
+        active_g90=state.active_g90_cycle,
+        active_g92=state.active_g92_cycle,
+        active_g94=state.active_g94_cycle,
+        active_g83=state.active_g83_cycle,
+        active_g84=state.active_g84_cycle,
         active_g80=state.active_g80,
     )
-    state.active_g90 = cyc.active_g90
-    state.active_g92 = cyc.active_g92
-    state.active_g94 = cyc.active_g94
-    state.active_g83 = cyc.active_g83
-    state.active_g84 = cyc.active_g84
+    state.active_g90_cycle = cyc.active_g90
+    state.active_g92_cycle = cyc.active_g92
+    state.active_g94_cycle = cyc.active_g94
+    state.active_g83_cycle = cyc.active_g83
+    state.active_g84_cycle = cyc.active_g84
     state.active_g80 = cyc.active_g80
 
     if cyc.is_cycle_exec:
@@ -410,19 +336,17 @@ def _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn
     for candidate in all_g:
         wcs_code = try_wcs_from_gcode_fn(candidate)
         if wcs_code is not None:
-            old_x, old_z = wcs_off_fn(state.active_wcs)
-            new_x, new_z = wcs_off_fn(wcs_code)
-            state.modal_x += old_x - new_x
-            state.modal_z += old_z - new_z
+            state.modal_x, state.modal_z = rebase_work_position(
+                (state.modal_x, state.modal_z),
+                wcs_off_fn(state.active_wcs),
+                wcs_off_fn(wcs_code),
+            )
             state.active_wcs = wcs_code
 
     # Modal words on an M98 block are active for the called subprogram.  Apply
     # state-only words before transferring control; the source block is not
     # revisited after M99 returns.
-    if 20 in all_g:
-        state.unit_scale = 25.4
-    if 21 in all_g:
-        state.unit_scale = 1.0
+    apply_unit_mode(state, all_g)
     if 190 in all_g:
         state.x_is_diameter = True
     if 191 in all_g:
@@ -452,65 +376,7 @@ def _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn
     if 5 in all_m:
         state.spindle_running = False
     if "F" in words:
-        state.modal_feed = words["F"] * state.unit_scale
-
-
-def _record_turning_flow_events(flow_mcode, sub_flow, words, program, block, ctx, call_stack_before, event_list):
-    if flow_mcode == 98 and sub_flow.handled and not sub_flow.stop:
-        target_block = sub_flow.next_pc
-        event_list.append(
-            ExecutionEvent(
-                SUBPROGRAM_START,
-                block.index,
-                code=(f"O{int(words['P'])}" if "P" in words else None),
-                program_number=subprogram_number(program, target_block),
-                call_depth=len(sub_flow.call_stack),
-                target_block=target_block,
-            )
-        )
-    elif flow_mcode == 99 and sub_flow.handled:
-        if call_stack_before:
-            current_target = call_stack_before[-1][1]
-            current_program = subprogram_number(program, current_target)
-            event_list.append(
-                ExecutionEvent(
-                    SUBPROGRAM_END,
-                    block.index,
-                    code="M99",
-                    program_number=current_program,
-                    call_depth=len(call_stack_before),
-                    target_block=current_target,
-                )
-            )
-            if sub_flow.next_pc == current_target and len(sub_flow.call_stack) == len(call_stack_before):
-                event_list.append(
-                    ExecutionEvent(
-                        SUBPROGRAM_START,
-                        block.index,
-                        code=(f"O{current_program}" if current_program is not None else None),
-                        program_number=current_program,
-                        call_depth=len(sub_flow.call_stack),
-                        target_block=current_target,
-                    )
-                )
-        else:
-            event_list.append(
-                ExecutionEvent(
-                    PROGRAM_END,
-                    block.index,
-                    code="M99",
-                    program_number=ctx.program_number,
-                )
-            )
-    elif flow_mcode in (2, 30) and sub_flow.handled:
-        event_list.append(
-            ExecutionEvent(
-                PROGRAM_END,
-                block.index,
-                code=f"M{int(flow_mcode):02d}",
-                program_number=ctx.program_number,
-            )
-        )
+        state.feed = words["F"] * state.unit_scale
 
 
 def _execute_turning_motion(
@@ -591,7 +457,7 @@ def _execute_turning_motion(
         words=words,
         modal_x=state.modal_x,
         modal_z=state.modal_z,
-        modal_feed=state.modal_feed,
+        modal_feed=state.feed,
         unit_scale=state.unit_scale,
         x_is_diameter=state.x_is_diameter,
         supplementary_angles=bool(ctx.cycle_options.get("supplementary_angles", False)),

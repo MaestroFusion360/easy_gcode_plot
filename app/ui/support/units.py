@@ -1,6 +1,13 @@
 """Small helpers for dialogs that display metric values in inches on demand."""
 
+from PyQt6.QtCore import QCoreApplication
+
 MM_PER_INCH = 25.4
+
+
+def _translated_suffix(inches: bool, context: str | None) -> str:
+    source = " in" if inches else " mm"
+    return QCoreApplication.translate(context, source) if context else source
 
 
 def register_length_spinboxes(spinboxes) -> None:
@@ -25,7 +32,7 @@ def set_metric_value(spin, value: float) -> None:
     spin.setValue(display_value)
 
 
-def set_length_units(spinboxes, inches: bool, *, suffix: bool = False) -> None:
+def set_length_units(spinboxes, inches: bool, *, suffix: bool = False, context: str | None = None) -> None:
     for spin in spinboxes:
         metric = metric_value(spin)
         minimum, maximum, step, decimals = getattr(spin, "_metric_display_spec")
@@ -37,7 +44,7 @@ def set_length_units(spinboxes, inches: bool, *, suffix: bool = False) -> None:
             spin.setSingleStep(step / MM_PER_INCH)
             setattr(spin, "_display_inches", True)
             if suffix:
-                spin.setSuffix(" in")
+                spin.setSuffix(_translated_suffix(True, context))
             spin.setValue(metric / MM_PER_INCH)
         else:
             spin.setDecimals(decimals)
@@ -46,6 +53,6 @@ def set_length_units(spinboxes, inches: bool, *, suffix: bool = False) -> None:
             spin.setSingleStep(step)
             setattr(spin, "_display_inches", False)
             if suffix:
-                spin.setSuffix(" mm")
+                spin.setSuffix(_translated_suffix(False, context))
             spin.setValue(metric)
         spin.blockSignals(blocked)

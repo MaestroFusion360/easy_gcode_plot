@@ -1,6 +1,7 @@
 """Independent semantic contracts for the stabilization pass."""
 
 import math
+from pathlib import Path
 
 import pytest
 
@@ -306,6 +307,43 @@ M30
     assert compensated[1].start_z == pytest.approx(0.0)
     assert compensated[1].end_z == pytest.approx(-1.0)
     assert compensated[2].end_z == pytest.approx(-2.0)
+
+
+def test_macro_boss_final_full_circle_keeps_g41_compensation_until_g40():
+    source = Path("tests/fixtures/milling/macro_boss_milling.nc").read_text(encoding="utf-8")
+    result = execute(
+        source,
+        "fanuc_mill",
+        milling_tools={
+            "T2": {
+                "type": "mill_flat",
+                "diameter": 50.0,
+                "cornerRadius": 0.0,
+                "length": 50.0,
+            }
+        },
+    )
+
+    assert result.ok, result.diagnostics
+    exit_index = next(
+        index for index, motion in enumerate(result.motions) if motion.source_kind == "cutter_compensation_exit"
+    )
+    exit_motion = result.motions[exit_index]
+    final_circle = next(
+        motion
+        for motion in reversed(result.motions[:exit_index])
+        if motion.arc is not None and motion.compensation_mode == 41 and abs(motion.start_z - motion.end_z) <= 1e-9
+    )
+
+    assert final_circle.compensation_mode == 41
+    assert final_circle.compensation_applied is True
+    assert final_circle.source_kind == "cutter_compensation"
+    assert final_circle.arc is not None
+    assert final_circle.arc.radius == pytest.approx(75.0)
+    assert (final_circle.start_x, final_circle.start_y) == pytest.approx((0.0, 75.0))
+    assert (final_circle.end_x, final_circle.end_y) == pytest.approx((0.0, 75.0))
+    assert (exit_motion.start_x, exit_motion.start_y) == pytest.approx((0.0, 75.0))
+    assert (exit_motion.end_x, exit_motion.end_y) == pytest.approx((0.0, 100.0))
 
 
 def test_milling_compensation_entry_arc_and_exit_match_cnckernelcli_state_machine():

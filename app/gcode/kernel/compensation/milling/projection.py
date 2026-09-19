@@ -96,12 +96,6 @@ def _project_motion(motion: TraceMotion) -> _ProjectedMotion | None:
     if radius <= EPS:
         return None
 
-    planar_closed = _dist2(start, end) <= 1e-18
-    if planar_closed and abs(end_w - start_w) <= EPS:
-        # Keep parity with CncKernelCli: a planar full circle has no unique
-        # entry/exit stitching point for the compensation state machine.
-        return None
-
     return _ProjectedMotion(motion, plane, start, end, start_w, end_w, center, radius)
 
 

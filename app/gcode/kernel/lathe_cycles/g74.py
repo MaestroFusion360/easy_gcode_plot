@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from ..api.resources import checkpoint
 from ..frontend.model import Motion, Point2
 from ..frontend.program import radius_to_diameter
-from .common import _linspace_steps, add_motion, add_motion_with_meta, ensure_cycle_return
+from .common import _linspace_steps, add_motion, append_turning_pecks, ensure_cycle_return
 
 
 def _append_peck_z_turning(
@@ -17,26 +16,7 @@ def _append_peck_z_turning(
     feed: float,
 ) -> Point2:
     """Turning-style Z peck: feed in Z, rapid out by R after every peck, no rapid-in back move."""
-    step = max(abs(step_z), 1e-9)
-    retract = max(abs(retract_r), 0.0)
-    direction = 1.0 if target_z > start.z else -1.0
-    curr = start
-    last_cut_z = start.z
-    while (target_z - last_cut_z) * direction > 1e-7:
-        checkpoint("cycle_iterations")
-        nz = last_cut_z + (direction * step)
-        if (target_z - nz) * direction < 0.0:
-            nz = target_z
-        hit = Point2(curr.x, nz)
-        add_motion_with_meta(motions, 1, curr, hit, None, feed if feed > 0 else None)
-        last_cut_z = nz
-        reached_target = abs(hit.z - target_z) <= 1e-7
-        retreat = Point2(hit.x, hit.z - (direction * retract))
-        add_motion(motions, 0, hit, retreat)
-        curr = retreat
-        if reached_target:
-            break
-    return curr
+    return append_turning_pecks(motions, start, target_z, step_z, retract_r, feed, axis="z")
 
 
 def build_g74_cycle(
