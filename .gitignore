@@ -20,6 +20,17 @@ pip-wheel-metadata/
 *.manifest
 *.spec
 
+# Cython generated artifacts (the .pyx sources are authoritative)
+app/gcode/kernel/frontend/_native_parser.c
+app/gcode/kernel/frontend/_native_parser*.pyd
+app/gcode/kernel/frontend/_native_parser*.so
+app/gcode/kernel/milling/_native_executor.c
+app/gcode/kernel/milling/_native_executor*.pyd
+app/gcode/kernel/milling/_native_executor*.so
+app/tools/_native_discovery.c
+app/tools/_native_discovery*.pyd
+app/tools/_native_discovery*.so
+
 # Logs / reports
 *.log
 coverage.*

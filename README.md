@@ -2,8 +2,6 @@
 
 [![Windows build](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/windows-release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/windows-release.yml)
 
-Download the current standalone Windows executable from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). The packaged application does not require a separate Python installation.
-
 <!-- markdownlint-disable MD033 -->
 
 <details>
@@ -22,37 +20,29 @@ Download the current standalone Windows executable from [GitHub Releases](https:
 
 ---
 
-Easy G-Code Plot is a desktop G-code viewer, editor, analyzer, simulator and trace exporter for FANUC-style turning and milling programs.
-
-The application parses and executes source once through a shared CNC kernel. Rendering, playback, Stock Removal, statistics, CLI analysis and export all consume the same resolved logical trace.
+Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for FANUC-style turning and milling programs. Rendering, playback, Stock Removal, statistics, CLI analysis and export consume one resolved trace produced by the shared CNC kernel.
 
 ## Highlights
 
-- FANUC turning and milling execution profiles.
-- Macro B expressions, conditions, loops and subprograms.
-- G-code editor with highlighting, line numbers, search/replace and cleanup tools.
-- Interactive OpenGL plot with perspective and orthographic views.
-- Logical-motion playback with source-line synchronization.
-- Lathe Stock outline and cutter-aware Stock Removal playback, including pitch- and insert-driven thread profiles.
+- FANUC turning and milling with Macro B expressions, conditions, loops and subprograms.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, cutter-radius compensation and G50/G51/G52/G68/G69 coordinate transforms.
-- Milling IJK arc-mode autodetection with manual Relative/Absolute fallback for ambiguous programs.
-- Persistent optional-block execution control for leading `/` blocks without editing the NC source.
-- ASCII/binary STL reference overlay with solid and feature-edge modes.
-- Tokens diagnostics, toolpath statistics and millimetre/inch display.
-- English and Russian user interface; the language is selected in `Settings → Options → General` and applied after restarting the application.
-- Light and Dark themes; the dark theme adapts the window chrome, the editor, the plot canvas and the toolpath colors.
-- Full-program, Expanded Execution, Plot Data and DXF exports.
-- SQLite-backed turning and milling tool libraries with live geometry preview and JSON/CSV tool export.
-- UTF-8 and Windows-1251 document support.
+- G-code editor with highlighting, line numbers, search, replace and cleanup tools.
+- Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.
+- Cutter-aware turning Stock Removal, including thread profiles.
+- ASCII and binary STL overlays with solid and feature-edge modes.
+- SQLite-backed turning and milling tool libraries.
+- Full Program, Expanded Execution, Plot Data and DXF exports.
+- English and Russian UI, Light and Dark themes, UTF-8 and Windows-1251 files.
+- Native Cython acceleration with a compatible Python fallback.
 
-Detailed behavior, supported commands, configuration, troubleshooting and development notes are in the [FAQ](FAQ.md). The same document is packaged with the application and opens from **Help → FAQ**.
+Detailed controller behavior, limitations, configuration and troubleshooting are documented in [FAQ.md](FAQ.md), also available through **Help → FAQ**.
 
 ## Quick start
 
 ### Windows executable
 
-Download and extract the latest archive from [Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases), then run the executable.
+Download the latest standalone archive from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases), extract it and run `easy_gcode_plot.exe`. Python and Visual Studio are not required for the packaged application.
 
 ### Run from source
 
@@ -60,6 +50,7 @@ Requirements:
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/)
+- A C compiler: Visual Studio Build Tools with **Desktop development with C++** on Windows, or the platform compiler and Python development headers on Linux/macOS.
 
 ```bash
 git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
@@ -67,6 +58,8 @@ cd easy_gcode_plot
 uv sync --no-dev
 uv run --no-dev python main.py
 ```
+
+`uv sync` compiles the tracked Cython `.pyx` sources. Generated `.c`, `.pyd` and `.so` files are not stored in Git. If native extensions cannot be loaded, the application remains functional through the slower Python fallback.
 
 ## Basic workflow
 
@@ -78,44 +71,39 @@ uv run --no-dev python main.py
 6. Optionally import an STL reference model.
 7. Export the required program or trajectory representation.
 
-The application reports unsupported or ambiguous controller behavior explicitly instead of guessing geometry.
+Unsupported or ambiguous controller behavior is reported explicitly instead of being converted into guessed geometry.
 
-## Appearance and language
+## Settings
 
-`Settings → Options → General` provides two application-level preferences:
+### General
 
-- **Language** — switch between **English** and **Russian**. The change is applied after restarting the application; kernel diagnostics, log messages and G-code comments intentionally stay in English.
-- **Theme** — switch between the native **Light** look and a **Dark** theme that also adapts the editor, the plot canvas and the standard toolpath colors. Plot colors customized on the **Colors** tab are preserved when the theme changes.
+`Settings → Options → General` contains:
 
-## CNC execution options
+- **Language** — English or Russian; applied after restart.
+- **Theme** — Light or Dark; custom colors from the **Colors** tab are preserved.
+- **Auto Update** and **Auto update max segments** — control non-modal plot refresh while editing. The segment limit applies only to automatic rendering.
+- **Maximum generated motions** — limits the total motions produced by one kernel execution and protects against runaway expansion.
 
-`Settings → Options → CNC / Execution` contains execution settings shared by Refresh, playback analysis and export:
+### CNC / Execution
 
-- **Autodetect Arc Type** applies to milling IJK arcs. It selects relative-to-start or absolute-center interpretation when only one satisfies Arc tolerance; ambiguous programs use the manually selected Arc Type. Turning keeps FANUC relative I/K semantics.
-- **Ignore Block Skip** excludes source blocks beginning with `/` from execution without changing the open file. Leave it disabled to execute those blocks normally. Expanded Execution uses the same resolved result and therefore excludes the same blocks.
-- **Correction (G41/G42)** and **Arc tolerance** retain their existing geometry behavior.
+`Settings → Options → CNC / Execution` contains:
 
-Long Refresh operations use one cancellable execution dialog for tool discovery, parsing, execution, sampling and plot publication. Cancel cooperatively stops the active stage instead of waiting for the whole source to finish.
+- **Autodetect Arc Type** — selects relative or absolute-center milling IJK interpretation when only one satisfies Arc tolerance.
+- **Ignore Block Skip** — excludes blocks beginning with `/` without modifying the source.
+- **Correction (G41/G42)** and **Arc tolerance** — control compensation and arc validation.
+
+Explicit Refresh operations use a cancellable dialog covering tool discovery, parsing, execution, sampling and plot publication.
 
 ## Tool Library
 
-`Settings → Tool Library` is the single tool-management window for both Milling and Turning. Each tab separates **Current Program** T-slot assignments from the persistent **Saved Library** and provides an automatically fitted preview of the selected tool. Current Program tools are temporary: literal T selections are discovered from the open NC program, comments are used to infer descriptions/type/dimensions when possible, and operation context selects D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92. Otherwise discovery uses D10 Flat Mill or Diamond 80 OD. New/Open resets these temporary assignments.
+`Settings → Tool Library` manages Milling and Turning tools:
 
-Saved Library tools are stored in the per-user SQLite database `tools.db`; `config.ini` stores application preferences and does not mirror tool definitions. Assigning a saved tool copies its geometry into the selected Current Program T slot without changing that program T number. Add/Edit/Duplicate/Remove and Save to Library change a working copy inside the dialog: **OK** commits its final state to `tools.db`, while **Cancel** discards it. Discovery and Current Program edits never write program tools automatically. Export writes the complete current working copy for the active machine kind as JSON or CSV, not only the selected row.
+- **Current Program** contains temporary T-slot assignments discovered or configured for the open program.
+- **Saved Library** contains persistent tools stored in the per-user `tools.db` database.
 
-The turning library uses nine geometry types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face are stored separately as application flags and drive preview, trace orientation and Stock Removal without changing the geometry type.
+Literal T selections, comments and operation context can infer tool descriptions and geometry. Assigning a saved tool copies its geometry without changing the program's T number. **OK** commits Saved Library changes; **Cancel** discards them. Program discovery never modifies the saved library automatically.
 
-## Supported areas
-
-| Area          | Main support                                                                                                           |
-| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
-| Common        | G00–G03, G17–G21, G28, G54–G59, G90/G91, Macro B, M98/M99                                                              |
-| Turning       | X/Z, U/W, I/K/R arcs, A/C/corner-R, G32/G33, G70–G76, G90/G92/G94 cycles, G96/G97, G98/G99                             |
-| Milling       | XYZ, IJK/R and helical arcs, G50/G51/G52/G68/G69, G53, G80–G86, G94/G95, G40/G41/G42                                   |
-| Visualization | 3D/orthographic plot, STL overlay, turning Stock outline/removal (including thread profiles), configured tool previews |
-| Export        | Turning/Milling Full Program, Expanded Execution, Plot Data and DXF                                                    |
-
-See [FAQ.md](FAQ.md) for limitations and exact semantics.
+The turning library supports Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap geometry. OD, ID and Face are separate application flags. JSON and CSV export writes the complete working library for the active machine type.
 
 ## CLI
 
@@ -128,11 +116,11 @@ uv run --no-dev python -m app analyze program.nc --lang fanuc_turn
 uv run --no-dev python -m app export program.nc --lang fanuc_turn -o expanded.nc
 ```
 
-Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 source files.
+Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input.
 
 ## Development
 
-Install development dependencies and run the checks:
+Install dependencies and run the checks:
 
 ```bash
 uv sync --group dev
@@ -141,17 +129,18 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-Windows PowerShell helpers are under `scripts/ps1/`; matching shell scripts are under `scripts/sh/`.
+Build helpers have matching PowerShell and shell variants:
 
-```powershell
-.\scripts\ps1\test.ps1
-.\scripts\ps1\lint.ps1
-.\scripts\ps1\build.ps1
-```
+| Task | Windows PowerShell | Linux/macOS shell |
+| --- | --- | --- |
+| Tests | `.\scripts\ps1\test.ps1` | `bash scripts/sh/test.sh` |
+| Lint | `.\scripts\ps1\lint.ps1` | `bash scripts/sh/lint.sh` |
+| Native extensions | `.\scripts\ps1\build-native.ps1` | `bash scripts/sh/build-native.sh` |
+| PyInstaller package | `.\scripts\ps1\build.ps1` | `bash scripts/sh/build.sh` |
 
-The CNC core is intentionally independent from the GUI. `app/gcode/kernel/` is organized by responsibility (`api`, `frontend`, `geometry`, `lathe_cycles`, `compensation`, `runtime`, `milling`), while `app/gcode/export/` consumes the resolved kernel result instead of reinterpreting source G-code. New CNC semantics belong in the core first and should be covered by deterministic regression tests before any UI integration.
+Native and release builds reuse the separate `.venv-build` environment and rebuild when tracked Cython sources change. Use `-Refresh`/`--refresh` for a forced native-environment refresh; the full-build equivalents are `-RefreshBuildEnvironment`/`--refresh-build-environment`. PyInstaller validates and packages the native parser, executor and tool-discovery extensions.
 
-The detailed package map, compatibility rules, Qt generation and release instructions are documented in the [FAQ development section](FAQ.md#development).
+The CNC kernel lives under `app/gcode/kernel/`; exporters consume its authoritative execution result instead of interpreting G-code again. New CNC semantics should be implemented in the kernel and covered by deterministic regression tests. See the [FAQ development section](FAQ.md#development) for package structure, Qt generation and release details.
 
 ## License
 

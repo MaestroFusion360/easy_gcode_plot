@@ -317,7 +317,7 @@ class MainWindowFileMixin:
         # above, then hand recalculation back to the normal Auto Update path so
         # the user's setting is respected instead of forcing a synchronous
         # trajectory build for every Open.
-        self.scheduleAutoUpdate()
+        self.scheduleAutoUpdate(show_dialog=True)
 
     def saveFile(self, fileName):
         """Write editor contents to disk."""

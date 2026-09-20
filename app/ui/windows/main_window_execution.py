@@ -11,6 +11,7 @@ from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
+from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
 from app.tools.setup import refresh_setup
 from app.ui.plot.playback import build_playback_movements
@@ -29,13 +30,17 @@ class _PlotUpdateCancelledError(Exception):
 class _PlotCompletion:
     """Publish worker output while retaining completion/cancellation state."""
 
-    def __init__(self, owner, deferred_result=None):
+    def __init__(self, owner, deferred_result=None, expected_source=None):
         self.owner = owner
         self.deferred_result = deferred_result
+        self.expected_source = expected_source
         self.finished = False
         self.cancelled = False
 
     def _finish(self, result, points, cancelled):
+        if self.expected_source is not None and self.owner.ui.editor.text() != self.expected_source:
+            self.cancelled = True
+            return
         if result is not None and result.motions and points is not None:
             self.finished = bool(self.owner.finishDataUpdate(result, points, cancelled=cancelled))
             self.cancelled = not self.finished and cancelled()
@@ -89,6 +94,7 @@ def _calculate_source(
     # Keep kernel inputs detached from the setup installed back on the window.
     snapshot_options["tools"] = deepcopy(turning_tools) if correction_enabled else {}
     snapshot_options["milling_tools"] = deepcopy(milling_tools) if correction_enabled else {}
+    snapshot_options["include_instructions"] = False
     execution_started = perf_counter()
     result = execute(snapshot_source, **snapshot_options)
     execution_ms = (perf_counter() - execution_started) * 1000.0
@@ -233,8 +239,8 @@ class MainWindowExecutionMixin:
         if value > 0:
             self._sync_editor_to_motion(self._playback_movements[value - 1].motion_end - 1)
 
-    def scheduleAutoUpdate(self):
-        """Mark the displayed trace stale and optionally debounce its refresh."""
+    def scheduleAutoUpdate(self, *, show_dialog=False):
+        """Mark the displayed trace stale and debounce a non-blocking editor refresh."""
         if getattr(self, "_loading_document", False):
             return
         self.autoUpdateTimer.stop()
@@ -245,12 +251,26 @@ class MainWindowExecutionMixin:
         self._plot_source_stale = True
         self._deferred_execution_result = None
         self._deferred_execution_source = None
+        self._auto_update_show_dialog = bool(show_dialog)
         if hasattr(self, "updateExecutionStatus"):
             self.updateExecutionStatus("STALE")
+        if getattr(self, "_auto_update_in_progress", False):
+            self._kernel_cancel_requested = True
+            self._auto_update_pending = True
+            return
         if getattr(self, "autoUpdateEnabled", True):
             self.autoUpdateTimer.start()
 
-    def _calculate_editor_source(self, *, show_errors=True, render=False, max_points=None, completion=None):
+    def _calculate_editor_source(
+        self,
+        *,
+        show_errors=True,
+        render=False,
+        max_points=None,
+        completion=None,
+        show_dialog=True,
+        require_current_source=False,
+    ):
         if getattr(self, "_kernel_execution_active", False):
             self._kernel_cancel_requested = True
             return None, None, False
@@ -294,6 +314,7 @@ class MainWindowExecutionMixin:
                 "wcs_offsets": wcs_offsets,
                 "emulate_g28_home": getattr(self, "homeConfigured", True),
                 "cancelled": cancelled,
+                "limits": ExecutionLimits(generated_motions=max(1, int(getattr(self, "maxGeneratedMotions", 200_000)))),
             }
         )
 
@@ -324,11 +345,15 @@ class MainWindowExecutionMixin:
                 finalizing_text=QCoreApplication.translate("MainWindow", "Updating plot…"),
                 status_text=QCoreApplication.translate("MainWindow", "Executing CNC program…"),
                 cancelling_text=QCoreApplication.translate("MainWindow", "Cancelling CNC execution…"),
+                show_dialog=show_dialog,
             )
         except InterruptedError:
             return None, None, False
         finally:
             self._kernel_execution_active = False
+
+        if require_current_source and self.ui.editor.text() != source:
+            return None, None, False
 
         setattr(self, attribute, updated_tools)
         inference[attribute] = inferred
@@ -390,42 +415,85 @@ class MainWindowExecutionMixin:
             )
         )
 
-    def autoUpdate(self):
-        """Debounced refresh for programs whose sampled render path is small."""
-        if getattr(self, "_kernel_execution_active", False):
-            return False
-        if getattr(self, "_stock_animation_active", False):
-            self._clear_stock_animation()
-        auto_limit = max(1, int(getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)))
-        completion = _PlotCompletion(self)
+    def _finish_auto_update_run(self, source_snapshot):
+        self._auto_update_in_progress = False
+        source_changed = self.ui.editor.text() != source_snapshot
+        pending = bool(getattr(self, "_auto_update_pending", False))
+        self._auto_update_pending = False
+        if (pending or source_changed) and getattr(self, "autoUpdateEnabled", True):
+            self.autoUpdateTimer.stop()
+            self.autoUpdateTimer.start()
+        return source_changed
 
-        result, points, render_limited = self._calculate_editor_source(
-            show_errors=False,
-            render=True,
-            max_points=auto_limit,
-            completion=completion.calculation,
-        )
-        if completion.finished:
+    def _publish_auto_update_result(
+        self,
+        result,
+        points,
+        render_limited,
+        *,
+        auto_limit,
+        source_snapshot,
+        completion,
+        source_changed,
+    ):
+        if completion is not None and completion.finished:
             self._auto_update_deferred = False
             return True
-        if completion.cancelled:
+        if (completion is not None and completion.cancelled) or source_changed:
             return False
         if result is None or not result.motions:
             if hasattr(self, "updateExecutionStatus"):
                 self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
-            return
+            return False
         if render_limited:
             self._auto_update_deferred = True
             self._deferred_execution_result = result
-            self._deferred_execution_source = self.ui.editor.text()
+            self._deferred_execution_source = source_snapshot
             self.ui.statusbar.showMessage(
                 f"Trajectory exceeds the Auto Update limit of {auto_limit:,} points; press Update.", 10000
             )
-            return
+            return False
         if points is None:
-            return
+            return False
         self._auto_update_deferred = False
-        self._finishDataUpdate(result, points)
+        return bool(self._finishDataUpdate(result, points))
+
+    def autoUpdate(self):
+        """Debounced refresh for programs whose sampled render path is small."""
+        if getattr(self, "_kernel_execution_active", False):
+            self._auto_update_pending = True
+            return False
+        if getattr(self, "_stock_animation_active", False):
+            self._clear_stock_animation()
+
+        auto_limit = max(1, int(getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)))
+        show_dialog = bool(getattr(self, "_auto_update_show_dialog", False))
+        self._auto_update_show_dialog = False
+        source_snapshot = self.ui.editor.text()
+        completion = _PlotCompletion(self, expected_source=source_snapshot) if show_dialog else None
+        self._auto_update_in_progress = True
+        self._auto_update_pending = False
+        try:
+            result, points, render_limited = self._calculate_editor_source(
+                show_errors=False,
+                render=True,
+                max_points=auto_limit,
+                completion=completion.calculation if completion is not None else None,
+                show_dialog=show_dialog,
+                require_current_source=True,
+            )
+        finally:
+            source_changed = self._finish_auto_update_run(source_snapshot)
+
+        return self._publish_auto_update_result(
+            result,
+            points,
+            render_limited,
+            auto_limit=auto_limit,
+            source_snapshot=source_snapshot,
+            completion=completion,
+            source_changed=source_changed,
+        )
 
     def _render_existing_result(self, result, *, completion=None):
         cancellation = Event()
@@ -719,7 +787,7 @@ class MainWindowExecutionMixin:
             stats = trace_statistics(self.execution_result, rapid_feed=self.rapidFeed)
             self.statisticsDlg.show_statistics(stats)
         else:
-            self.statisticsDlg.show_report("No Data Available")
+            self.statisticsDlg.show_report(QCoreApplication.translate("StatisticsReport", "No Data Available"))
 
     def list_rindex(self, li, x):
         """Return the last index of x in list li."""

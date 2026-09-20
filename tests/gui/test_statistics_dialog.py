@@ -4,6 +4,7 @@ import pytest
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication
 
+from app import i18n
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import trace_statistics
 from app.main_window import MainWindow
@@ -70,6 +71,34 @@ def test_statistics_inches_checkbox_converts_all_lengths_and_speeds(qt_app):
     assert "Assumed rapid speed: 2540.000 mm/min" in metric
     dialog.close()
     dialog.deleteLater()
+
+
+def test_statistics_report_is_localized_only_for_russian(qt_app):
+    result = execute("G21 G90\nG0 X10\nG1 X20 F100\nM30", language="fanuc_mill")
+    statistics = trace_statistics(result)
+
+    i18n.uninstall_translators(qt_app)
+    english = StatisticsDialog()
+    english.show_statistics(statistics)
+    english_report = english.reportText.toPlainText()
+    assert "Execution: complete" in english_report
+    assert "Rapid length:" in english_report
+    english.close()
+    english.deleteLater()
+
+    try:
+        assert i18n.install_translator(qt_app, "ru") is True
+        russian = StatisticsDialog()
+        russian.show_statistics(statistics)
+        russian_report = russian.reportText.toPlainText()
+        assert "Выполнение: завершено" in russian_report
+        assert "Длина быстрых перемещений:" in russian_report
+        assert "Execution:" not in russian_report
+        assert "Rapid length:" not in russian_report
+        russian.close()
+        russian.deleteLater()
+    finally:
+        i18n.uninstall_translators(qt_app)
 
 
 def test_statistics_context_menu_uses_application_copy_and_select_all_icons(qt_app):

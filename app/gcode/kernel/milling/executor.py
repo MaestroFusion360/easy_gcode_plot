@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from io import StringIO
-
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
 from ..frontend.program import parse_program
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
@@ -11,6 +9,11 @@ from ..runtime.execution import ProgramRuntime, semantic_instructions
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .motion import _emit_milling_motions, _g53_home_axes
 from .state import MillState, _apply_pre_flow_modal_state, _execution_step, _wcs_offset
+
+try:
+    from ._native_executor import execute_simple_blocks as _execute_simple_blocks
+except ImportError:
+    _execute_simple_blocks = None
 
 
 def execute_milling(
@@ -20,9 +23,10 @@ def execute_milling(
     default_unit_scale: float = 1.0,
     home: tuple[float, float, float] = (0.0, 0.0, 0.0),
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
+    include_instructions: bool = True,
 ):
 
-    program = parse_program(StringIO(source))
+    program = parse_program(source)
     program_start_block, program_number = main_program_location(program)
     program_started = False
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
@@ -84,7 +88,7 @@ def execute_milling(
         99,
     }
     recognized_m = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 98, 99}
-    instructions = semantic_instructions(program)
+    instructions = semantic_instructions(program) if include_instructions else ()
 
     def record_step(
         block,
@@ -112,6 +116,10 @@ def execute_milling(
 
     try:
         while 0 <= runtime.pc < len(program.blocks):
+            if _execute_simple_blocks is not None and _execute_simple_blocks(
+                program, runtime, state, motions, executed, steps, wcs_offsets
+            ):
+                continue
             block = runtime.next_block(program.blocks)
             occurrence_events: list[ExecutionEvent] = []
             if not program_started and block.index == program_start_block:

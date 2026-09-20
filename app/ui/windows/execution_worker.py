@@ -1,4 +1,4 @@
-"""Run CNC calculations off the GUI thread with delayed modal feedback."""
+"""Run CNC calculations off the GUI thread with optional modal feedback."""
 
 from time import monotonic
 
@@ -62,8 +62,9 @@ def run_execution(
     finalizing_text="Updating plot…",
     delay_ms=None,
     completion=None,
+    show_dialog=True,
 ):
-    """Run worker and GUI completion while keeping one truthful busy dialog visible."""
+    """Run worker and optional GUI completion, with modal feedback when requested."""
     worker = _ExecutionThread(function, source, options)
     worker.start()
     dialog = None
@@ -76,7 +77,7 @@ def run_execution(
             # Keep the GUI responsive without entering a nested QEventLoop.exec().
             QCoreApplication.processEvents(QEventLoop.ProcessEventsFlag.AllEvents, 20)
 
-            if dialog is None and monotonic() >= reveal_at:
+            if show_dialog and dialog is None and monotonic() >= reveal_at:
                 dialog = _ExecutionDialog(
                     owner,
                     cancel,

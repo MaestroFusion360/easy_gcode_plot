@@ -388,8 +388,41 @@ def trace_statistics(
     }
 
 
-def format_trace_statistics(stats: dict[str, object], *, inches: bool = False) -> str:
+def format_trace_statistics(
+    stats: dict[str, object],
+    *,
+    inches: bool = False,
+    labels: dict[str, str] | None = None,
+) -> str:
     """Format trace-only metrics in millimetres or inches."""
+
+    text = {
+        "heading": "Toolpath Statistics",
+        "execution": "Execution",
+        "complete": "complete",
+        "partial": "PARTIAL / INVALID",
+        "motions": "Motions",
+        "executed_steps": "executed steps",
+        "rapid_motions": "Rapid motions",
+        "arc_motions": "arc motions",
+        "cycle_motions": "cycle motions",
+        "estimated_time": "Estimated motion time",
+        "length": "Length",
+        "rapid_length": "Rapid length",
+        "feed_length": "Feed length",
+        "rapid_time": "Rapid time",
+        "feed_time": "Feed time",
+        "known_time": "Known motion time",
+        "average_feed": "Average feed",
+        "unknown": "UNKNOWN",
+        "unknown_time_motions": "Motions with unknown time",
+        "rapid_speed": "Assumed rapid speed",
+        "estimate_note": "Kinematic estimate only; excludes dwell, tool changes and acceleration.",
+        "bounds": "Bounds in programmed coordinates",
+        "tool": "Tool",
+    }
+    if labels:
+        text.update(labels)
 
     length_scale = 1.0 / 25.4 if inches else 1.0
     length_unit = "in" if inches else "mm"
@@ -399,7 +432,7 @@ def format_trace_statistics(stats: dict[str, object], *, inches: bool = False) -
 
     def duration(value):
         if value is None:
-            return "UNKNOWN"
+            return text["unknown"]
         seconds = round(value * 60)
         hours, seconds = divmod(seconds, 3600)
         minutes, seconds = divmod(seconds, 60)
@@ -408,31 +441,32 @@ def format_trace_statistics(stats: dict[str, object], *, inches: bool = False) -
     def section(values):
         average = values["average_feed_mm_min"]
         return [
-            f"Length: {length(values['total_length']):.3f} {length_unit}",
-            f"Rapid length: {length(values['rapid_length']):.3f} {length_unit}",
-            f"Feed length: {length(values['feed_length']):.3f} {length_unit}",
-            f"Rapid time: {duration(values['rapid_time_min'])}",
-            f"Feed time: {duration(values['feed_time_min'])}",
-            f"Known motion time: {duration(values['known_time_min'])}",
-            "Average feed: " + (f"{length(average):.3f} {length_unit}/min" if average is not None else "UNKNOWN"),
-            f"Motions with unknown time: {values['unknown_time_motion_count']}",
+            f"{text['length']}: {length(values['total_length']):.3f} {length_unit}",
+            f"{text['rapid_length']}: {length(values['rapid_length']):.3f} {length_unit}",
+            f"{text['feed_length']}: {length(values['feed_length']):.3f} {length_unit}",
+            f"{text['rapid_time']}: {duration(values['rapid_time_min'])}",
+            f"{text['feed_time']}: {duration(values['feed_time_min'])}",
+            f"{text['known_time']}: {duration(values['known_time_min'])}",
+            f"{text['average_feed']}: "
+            + (f"{length(average):.3f} {length_unit}/min" if average is not None else text["unknown"]),
+            f"{text['unknown_time_motions']}: {values['unknown_time_motion_count']}",
         ]
 
     lines = [
-        "Toolpath Statistics",
-        "Execution: " + ("complete" if stats["execution_complete"] else "PARTIAL / INVALID"),
-        f"Motions: {stats['motion_count']}; executed steps: {stats['executed_step_count']}",
-        f"Rapid motions: {stats['rapid_count']}; "
-        f"arc motions: {stats['arc_count']}; cycle motions: {stats['cycle_count']}",
-        f"Estimated motion time: {duration(stats['total_time_min'])}",
+        text["heading"],
+        f"{text['execution']}: " + (text["complete"] if stats["execution_complete"] else text["partial"]),
+        f"{text['motions']}: {stats['motion_count']}; {text['executed_steps']}: {stats['executed_step_count']}",
+        f"{text['rapid_motions']}: {stats['rapid_count']}; "
+        f"{text['arc_motions']}: {stats['arc_count']}; {text['cycle_motions']}: {stats['cycle_count']}",
+        f"{text['estimated_time']}: {duration(stats['total_time_min'])}",
         *section(stats),
-        f"Assumed rapid speed: {length(stats['rapid_feed_mm_min']):.3f} {length_unit}/min",
-        "Kinematic estimate only; excludes dwell, tool changes and acceleration.",
+        f"{text['rapid_speed']}: {length(stats['rapid_feed_mm_min']):.3f} {length_unit}/min",
+        text["estimate_note"],
     ]
     if stats["bounds"] is not None:
-        lines.append(f"Bounds in programmed coordinates ({length_unit}):")
+        lines.append(f"{text['bounds']} ({length_unit}):")
         for axis, (low, high) in zip("XYZ", stats["bounds"]):
             lines.append(f"{axis}: {length(low):.3f} / {length(high):.3f}")
     for tool, values in stats["per_tool"].items():
-        lines.extend(["", f"Tool {tool}", *section(values)])
+        lines.extend(["", f"{text['tool']} {tool}", *section(values)])
     return "\n".join(lines)

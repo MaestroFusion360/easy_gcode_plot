@@ -8,7 +8,7 @@ from PyQt6.QtGui import QColor, QFont, QRegularExpressionValidator
 from PyQt6.QtWidgets import QColorDialog, QDialog, QDialogButtonBox, QMessageBox
 
 from app import theme
-from app.settings import configure_logging
+from app.settings import GENERATED_MOTIONS_DEFAULT, configure_logging
 from app.ui.generated.dialogs.options import Ui_OptionsDlg
 from app.ui.windows.main_window_execution import playback_interval_ms
 
@@ -24,6 +24,7 @@ def _option_snapshot(window):
         "logging": getattr(window, "loggingEnabled", False),
         "auto_update": getattr(window, "autoUpdateEnabled", True),
         "auto_update_limit": getattr(window, "autoUpdateMaxSegments", 20000),
+        "generated_motions_limit": getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT),
         "correction": getattr(window, "correctionEnabled", True),
         "autodetect_arc_type": getattr(window, "autodetectArcType", True),
         "ignore_block_skip": getattr(window, "ignoreBlockSkip", False),
@@ -60,6 +61,7 @@ def _execution_semantics_changed(
     previous_tolerance,
     previous_autodetect_arc_type,
     previous_ignore_block_skip,
+    previous_generated_motions,
 ):
     return any(
         (
@@ -68,6 +70,7 @@ def _execution_semantics_changed(
             previous_tolerance != window.arcTolerance,
             previous_autodetect_arc_type != window.autodetectArcType,
             previous_ignore_block_skip != window.ignoreBlockSkip,
+            previous_generated_motions != window.maxGeneratedMotions,
         )
     )
 
@@ -77,6 +80,18 @@ def _apply_cnc_options(window, ui):
     window.arcTolerance = ui.arcToleranceSpin.value()
     window.autodetectArcType = ui.autodetectArcTypeCheck.isChecked()
     window.ignoreBlockSkip = ui.ignoreBlockSkipCheck.isChecked()
+
+
+def _apply_editor_display_options(window):
+    window.ui.editor.setCaretLineVisible(window.caretLine)
+    window.ui.editor.setEolVisibility(window.eolVisible)
+    whitespace = (
+        QsciScintilla.WhitespaceVisibility.WsVisible
+        if window.spaceVisible
+        else QsciScintilla.WhitespaceVisibility.WsInvisible
+    )
+    window.ui.editor.setWhitespaceVisibility(whitespace)
+    window.ui.editor.setMarginLineNumbers(1, window.marginArea)
 
 
 class OptionsDialog(QDialog):
@@ -132,6 +147,7 @@ class OptionsDialog(QDialog):
         self.ui.loggingCheck.setChecked(getattr(window, "loggingEnabled", False))
         self.ui.autoUpdateCheck.setChecked(getattr(window, "autoUpdateEnabled", True))
         self.ui.autoUpdateMaxSegmentsSpin.setValue(getattr(window, "autoUpdateMaxSegments", 20000))
+        self.ui.maxGeneratedMotionsSpin.setValue(getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT))
         self._loading_values = True
         try:
             self.ui.correctionCheck.setChecked(getattr(window, "correctionEnabled", True))
@@ -208,6 +224,7 @@ class OptionsDialog(QDialog):
         previous_tolerance = getattr(window, "arcTolerance", 0.001)
         previous_autodetect_arc_type = getattr(window, "autodetectArcType", True)
         previous_ignore_block_skip = getattr(window, "ignoreBlockSkip", False)
+        previous_generated_motions = getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)
         previous_show_stock = (
             getattr(window, "showStock", True) if self._show_stock_before_show is None else self._show_stock_before_show
         )
@@ -240,6 +257,7 @@ class OptionsDialog(QDialog):
         window.loggingEnabled = self.ui.loggingCheck.isChecked()
         window.autoUpdateEnabled = self.ui.autoUpdateCheck.isChecked()
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
+        window.maxGeneratedMotions = self.ui.maxGeneratedMotionsSpin.value()
         _apply_cnc_options(window, self.ui)
         window.fontFamily = self.ui.fontCombo.currentFont().family()
         window.sizeTxt = self.ui.fontSizeSpin.value()
@@ -277,15 +295,7 @@ class OptionsDialog(QDialog):
         window.ui.actionGrid.setChecked(window.plotGrid)
         if previous_show_stock != window.showStock:
             window.showStockChecked(window.showStock)
-        window.ui.editor.setCaretLineVisible(window.caretLine)
-        window.ui.editor.setEolVisibility(window.eolVisible)
-        whitespace = (
-            QsciScintilla.WhitespaceVisibility.WsVisible
-            if window.spaceVisible
-            else QsciScintilla.WhitespaceVisibility.WsInvisible
-        )
-        window.ui.editor.setWhitespaceVisibility(whitespace)
-        window.ui.editor.setMarginLineNumbers(1, window.marginArea)
+        _apply_editor_display_options(window)
         window.changeFileType(target_file_type)
         self._log_option_changes(window, previous_options)
         if not window.autoUpdateEnabled:
@@ -308,6 +318,7 @@ class OptionsDialog(QDialog):
                 previous_tolerance=previous_tolerance,
                 previous_autodetect_arc_type=previous_autodetect_arc_type,
                 previous_ignore_block_skip=previous_ignore_block_skip,
+                previous_generated_motions=previous_generated_motions,
             )
             and getattr(window, "execution_result", None) is not None
         ):
@@ -375,6 +386,7 @@ class OptionsDialog(QDialog):
         self.ui.loggingCheck.setChecked(False)
         self.ui.autoUpdateCheck.setChecked(True)
         self.ui.autoUpdateMaxSegmentsSpin.setValue(20000)
+        self.ui.maxGeneratedMotionsSpin.setValue(GENERATED_MOTIONS_DEFAULT)
         self.ui.correctionCheck.setChecked(True)
         self.ui.autodetectArcTypeCheck.setChecked(True)
         self.ui.ignoreBlockSkipCheck.setChecked(False)

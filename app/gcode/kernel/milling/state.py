@@ -54,6 +54,14 @@ def _coordinate_transform(state: MillState) -> CoordinateTransform:
 
 
 def _machine(point: tuple[float, float, float], state: MillState, wcs_offsets) -> tuple[float, float, float]:
+    transform_state = state.transform
+    if (
+        transform_state.translation == (0.0, 0.0, 0.0)
+        and not transform_state.rotation_active
+        and not transform_state.scaling_active
+    ):
+        ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
+        return point[0] + ox, point[1] + oy, point[2] + oz
     work = _coordinate_transform(state).apply(point)
     ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
     return work[0] + ox, work[1] + oy, work[2] + oz

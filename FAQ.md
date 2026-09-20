@@ -68,7 +68,7 @@ Use Shift+Click near the trajectory. The application selects the owning source b
 
 ### Why does Auto Update sometimes ask me to press Refresh?
 
-Auto Update has a configurable sampled-segment limit. Large programs are left unchanged until an explicit Refresh so that typing remains responsive. Manual refresh displays staged progress for a large trace.
+Auto Update has a configurable sampled-segment limit. Normal edit-triggered Auto Update is non-modal. If the source changes while a refresh is running, the stale run is cancelled, another refresh is queued and the stale result is not published. Large programs are left unchanged until an explicit Refresh so that typing remains responsive. Manual refresh displays staged progress for a large trace.
 
 ### What does Cancel stop during Refresh?
 
@@ -342,6 +342,7 @@ On Windows:
 - UTF-8 or Windows-1251 document encoding.
 - Default Text/ISO editor mode and default units.
 - Application logging.
+- Auto Update, its sampled-segment limit and the kernel-wide Maximum generated motions limit.
 - G41/G42 correction, arc tolerance and milling Arc Type autodetection.
 - Persistent optional-block control through `Ignore Block Skip`.
 - Editor font and visual settings.
@@ -452,6 +453,16 @@ Generated Python modules must not be edited manually. PySide6 supplies maintaine
 $version = "X.Y.Z"
 .\scripts\ps1\release.ps1 -Version $version -Message "Release $version"
 ```
+
+Native/release tooling uses a separate persistent `.venv-build`; it does not
+replace or prune the developer `.venv`. `build-native.ps1`/`build-native.sh`
+synchronize locked build dependencies when `pyproject.toml` or `uv.lock`
+changes, rebuild the project when the tracked `.pyx` sources change, verify both
+native extension imports and otherwise reuse the existing build environment.
+Use `-Refresh`/`--refresh` for an explicit native-build refresh, or
+`-RefreshBuildEnvironment`/`--refresh-build-environment` with the full build.
+PyInstaller is invoked from that build environment rather than through the
+developer environment.
 
 ## License
 

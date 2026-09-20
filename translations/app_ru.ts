@@ -306,8 +306,8 @@
     <name>MainWindow</name>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="215"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="222"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="227"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="234"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="207"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="264"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="289"/>
@@ -801,51 +801,52 @@
         <translation>Отмена выполнения ЧПУ; закройте окно ещё раз после остановки.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="158"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="170"/>
         <source>No tool changes found</source>
         <translation>Смены инструмента не найдены</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="216"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="223"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="228"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="235"/>
         <source>Cannot find text:
 &apos;%s&apos;</source>
         <translation>Текст не найден:
 &apos;%s&apos;</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="164"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="205"/>
         <source>Cancelling CNC execution...</source>
         <translation>Отмена выполнения ЧПУ...</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="286"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="399"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="344"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="518"/>
         <source>CNC execution</source>
         <translation>Выполнение ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="287"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="346"/>
         <source>Executing CNC program…</source>
         <translation>Выполнение программы ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="288"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="347"/>
         <source>Cancelling CNC execution…</source>
         <translation>Отмена выполнения ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="400"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="520"/>
         <source>Building toolpath…</source>
         <translation>Построение траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="289"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="345"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="519"/>
         <source>Updating plot…</source>
         <translation>Обновление графика…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="401"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="521"/>
         <source>Cancelling toolpath calculation…</source>
         <translation>Отмена расчёта траектории…</translation>
     </message>
@@ -1015,8 +1016,8 @@ Do you want to save your changes?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="2"/>
-        <location filename="../app/ui/dialogs/options.py" line="162"/>
-        <location filename="../app/ui/dialogs/options.py" line="200"/>
+        <location filename="../app/ui/dialogs/options.py" line="207"/>
+        <location filename="../app/ui/dialogs/options.py" line="247"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -1122,161 +1123,171 @@ Do you want to save your changes?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="11"/>
+        <source>Maximum generated motions</source>
+        <translation>Максимум создаваемых движений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="11"/>
+        <source>Maximum total number of motions generated by one CNC execution.</source>
+        <translation>Максимальное общее количество движений, создаваемых за одно выполнение программы ЧПУ.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="12"/>
         <source>Editor</source>
         <translation>Редактор</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="12"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="13"/>
         <source>Font family</source>
         <translation>Шрифт</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="12"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="13"/>
         <source>Font size</source>
         <translation>Размер шрифта</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="13"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
         <source>Highlight current line</source>
         <translation>Подсвечивать текущую строку</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="13"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
         <source>Show line numbers</source>
         <translation>Показывать номера строк</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="13"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
         <source>Show EOL</source>
         <translation>Показывать EOL</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="13"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
         <source>Show whitespace</source>
         <translation>Показывать пробелы</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
         <source>CNC / Execution</source>
         <translation>ЧПУ / Выполнение</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
         <source>Correction (G41/G42)</source>
         <translation>Коррекция (G41/G42)</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
         <source>Arc tolerance</source>
         <translation>Допуск дуг</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
         <source>Autodetect Arc Type</source>
         <translation>Автоопределение типа дуги</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
         <source>Ignore Block Skip</source>
         <translation>Игнорировать блоки с /</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="15"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="16"/>
         <source>Plot</source>
         <translation>График</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="16"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
         <source>Line width</source>
         <translation>Толщина линии</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="16"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
         <source>Grid step (0 = adaptive)</source>
         <translation>Шаг сетки (0 = адаптивный)</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
         <source>Show axes</source>
         <translation>Показывать оси</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
         <source>Show grid</source>
         <translation>Показывать сетку</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
         <source>Gradient background</source>
         <translation>Градиентный фон</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
         <source>Show Stock</source>
         <translation>Показывать заготовку</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="17"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
         <source>STL edges only</source>
         <translation>Только рёбра STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="19"/>
         <source>Playback speed</source>
         <translation>Скорость воспроизведения</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="18"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="19"/>
         <source>3 — 100 ms/step</source>
         <translation>3 — 100 мс/шаг</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="19"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="20"/>
         <source>Colors</source>
         <translation>Цвета</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="20"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="21"/>
         <source>Rapid</source>
         <translation>Ускоренный ход</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="21"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="22"/>
         <source>Linear</source>
         <translation>Линейный</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="22"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="23"/>
         <source>Arc</source>
         <translation>Дуга</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="23"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="24"/>
         <source>Current segment</source>
         <translation>Текущий сегмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="24"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="25"/>
         <source>Milling tool</source>
         <translation>Фреза</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="25"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="26"/>
         <source>Background</source>
         <translation>Фон</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="26"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="27"/>
         <source>STL</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="163"/>
+        <location filename="../app/ui/dialogs/options.py" line="208"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="201"/>
+        <location filename="../app/ui/dialogs/options.py" line="248"/>
         <source>Plot colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета графика должны быть корректными именами цветов Qt, например #008000.</translation>
     </message>
@@ -1297,6 +1308,129 @@ Do you want to save your changes?</source>
         <location filename="../app/ui/generated/dialogs/statistics.ui" line="11"/>
         <source>Inches</source>
         <translation>Дюймы</translation>
+    </message>
+</context>
+<context>
+    <name>StatisticsReport</name>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="23"/>
+        <source>Toolpath Statistics</source>
+        <translation>Статистика траектории</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="24"/>
+        <source>Execution</source>
+        <translation>Выполнение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="25"/>
+        <source>complete</source>
+        <translation>завершено</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="26"/>
+        <source>PARTIAL / INVALID</source>
+        <translation>ЧАСТИЧНО / НЕКОРРЕКТНО</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="27"/>
+        <source>Motions</source>
+        <translation>Перемещения</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="28"/>
+        <source>executed steps</source>
+        <translation>выполнено шагов</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="29"/>
+        <source>Rapid motions</source>
+        <translation>Быстрые перемещения</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="30"/>
+        <source>arc motions</source>
+        <translation>дуговые перемещения</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="31"/>
+        <source>cycle motions</source>
+        <translation>перемещения циклов</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="32"/>
+        <source>Estimated motion time</source>
+        <translation>Расчётное время перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="33"/>
+        <source>Length</source>
+        <translation>Длина</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="34"/>
+        <source>Rapid length</source>
+        <translation>Длина быстрых перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="35"/>
+        <source>Feed length</source>
+        <translation>Длина рабочих перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="36"/>
+        <source>Rapid time</source>
+        <translation>Время быстрых перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="37"/>
+        <source>Feed time</source>
+        <translation>Время рабочих перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="38"/>
+        <source>Known motion time</source>
+        <translation>Учтённое время перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="39"/>
+        <source>Average feed</source>
+        <translation>Средняя подача</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="40"/>
+        <source>UNKNOWN</source>
+        <translation>НЕИЗВЕСТНО</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="41"/>
+        <source>Motions with unknown time</source>
+        <translation>Перемещения с неизвестным временем</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="42"/>
+        <source>Assumed rapid speed</source>
+        <translation>Принятая скорость быстрых перемещений</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="43"/>
+        <source>Kinematic estimate only; excludes dwell, tool changes and acceleration.</source>
+        <translation>Только кинематическая оценка; выдержки, смена инструмента и ускорение не учитываются.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="46"/>
+        <source>Bounds in programmed coordinates</source>
+        <translation>Границы в программных координатах</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/statistics.py" line="47"/>
+        <source>Tool</source>
+        <translation>Инструмент</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_execution.py" line="790"/>
+        <source>No Data Available</source>
+        <translation>Нет данных</translation>
     </message>
 </context>
 <context>

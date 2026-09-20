@@ -55,6 +55,7 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     dialog.restore_defaults()
     assert dialog.ui.autoUpdateCheck.isChecked()
     assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 20000
+    assert dialog.ui.maxGeneratedMotionsSpin.value() == 200000
     assert dialog.ui.autodetectArcTypeCheck.isChecked()
     assert not dialog.ui.ignoreBlockSkipCheck.isChecked()
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
@@ -111,6 +112,25 @@ def test_ignore_block_skip_defaults_off_and_persists(qt_app):
     restored.deleteLater()
 
 
+def test_generated_motion_limit_defaults_and_persists(qt_app):
+    settings = get_settings()
+    settings.remove("GENERAL/MAX_GENERATED_MOTIONS")
+    settings.sync()
+
+    window = MainWindow()
+    assert window.maxGeneratedMotions == 200000
+    window.maxGeneratedMotions = 345678
+    window.saveSettings()
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.maxGeneratedMotions == 345678
+    restored.optionsDlg.load_values()
+    assert restored.optionsDlg.ui.maxGeneratedMotionsSpin.value() == 345678
+    restored.deleteLater()
+
+
 def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     window = MainWindow()
     dialog = window.optionsDlg
@@ -139,6 +159,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.ignoreBlockSkipCheck.setChecked(True)
     dialog.ui.autoUpdateCheck.setChecked(False)
     dialog.ui.autoUpdateMaxSegmentsSpin.setValue(7500)
+    dialog.ui.maxGeneratedMotionsSpin.setValue(350000)
     dialog.ui.playbackSpeedSlider.setValue(5)
     dialog.accept()
     assert (window.plotRapidColor, window.plotLineColor, window.plotArcColor, window.plotCurrentColor) == (
@@ -161,6 +182,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.ignoreBlockSkip is True
     assert window.autoUpdateEnabled is False
     assert window.autoUpdateMaxSegments == 7500
+    assert window.maxGeneratedMotions == 350000
     assert window.playbackSpeed == 5
     assert window.speedTimer == 10
     assert saved == [True] and stl_refreshed == [True] and refreshed == [True]

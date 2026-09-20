@@ -134,6 +134,19 @@ def test_remove_spaces_preserves_multiple_parenthesized_comments():
     assert window.transformed == ["G1X1(first comment)Y2(second comment)F100\n"]
 
 
+def test_file_open_requests_execution_dialog_for_initial_refresh(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "program.nc"
+    path.write_text("G0 X0\nM30\n", encoding="utf-8")
+    window = main_window.MainWindow()
+    scheduled = []
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **kwargs: scheduled.append(kwargs))
+
+    window.loadFile(str(path))
+
+    assert scheduled == [{"show_dialog": True}]
+    window.deleteLater()
+
+
 def test_file_save_detects_external_modification(qt_app, tmp_path, monkeypatch):
     path = tmp_path / "program.nc"
     path.write_text("G0 X0\n", encoding="utf-8")

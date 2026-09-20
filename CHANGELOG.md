@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.5.9 - 2026-09-20
+
+- Localized every user-visible Toolpath Statistics report label for the Russian UI while preserving the existing English report text, values, units and statistics calculations.
+- Fixed PyInstaller packages failing at startup with `ModuleNotFoundError: app.gcode.export` by explicitly collecting the canonical exporter package referenced through the legacy lazy module aliases.
+- Added a persistent **Maximum generated motions** setting to `Options -> General`; it controls the kernel-wide generated-motion resource limit for both turning and milling executions and defaults to 200,000.
+- Added a separate Cython tool-discovery scanner that performs line/comment scanning, literal T recognition, G20/G21 unit tracking and operation inference in one native pass while preserving the existing Python `refresh_setup()` orchestration and scanner fallback.
+- Made debounced editor Auto Update non-modal so typing remains usable during recalculation; edits made during an active refresh cancel the stale run, queue another refresh and prevent stale results from replacing the current plot.
+- Added a Cython native parser that accepts the complete G-code source in one call, scans lines, comments, words, numeric values, labels and flow constructs in compiled code, and produces the existing `Program`, `Block`, token and AST object model without changing CNC semantics.
+- Added a Cython native milling executor for contiguous ordinary literal/modal blocks, eliminating per-line Python/native transitions while retaining the existing Python interpreter for Macro B, cycles, transforms and other complex behavior.
+- Kept authoritative Python fallbacks for unsupported or complex input and for source environments where native extensions have not been built; cancellation checkpoints remain active in both execution paths.
+- Fused ordinary parsing and AST construction, added faster literal-word evaluation and reduced repeated scans and temporary allocations during program indexing and tool discovery.
+- Reduced interpreter and post-processing overhead by avoiding unchanged dataclass replacements, empty signal/flow allocations and unnecessary coordinate-transform work, and by rebuilding emitted-motion counts only when they change.
+- Added scoped cyclic-GC deferral around construction and execution of the large, predominantly acyclic CNC object graph, restoring the caller's previous GC state on every exit path.
+- Added slotted high-volume frontend and execution dataclasses to reduce allocation size and attribute-access overhead without changing equality, immutability or public result types.
+- Changed the GUI execution path to omit the optional full instruction list when it is not consumed, while preserving instructions for API and CLI callers that request them.
+- Consolidated tool discovery so source parsing results are reused instead of performing redundant full-file passes.
+- Improved the 77 MB / 2,577,485-line FANUC milling reference workload from approximately 110.7 seconds to 25.3 seconds at the 200,000-motion limit (about 4.37x overall on the reference machine).
+- Verified native/Python parity across every block and AST node in the reference file, label indexes and complete limited execution results, including motions, steps, diagnostics, events, signals and final state.
+- Added native-acceleration regression tests comparing the compiled parser and milling loop with their Python fallbacks; unbuilt source checkouts skip only the native-specific tests.
+- Added Cython to the PEP 517 build requirements and configured setuptools to compile `_native_parser.pyx` and `_native_executor.pyx` into platform-specific `.pyd`/`.so` modules.
+- Kept generated Cython `.c`, `.pyd` and `.so` artifacts out of version control; clean wheel builds start from the tracked `.pyx` sources and include both compiled extensions.
+- Added matching `build-native.ps1` and `build-native.sh` helpers that maintain a persistent `.venv-build`, rebuild native extensions when build inputs change, support an explicit refresh and verify both extension imports.
+- Made the PowerShell and shell PyInstaller workflows reuse the isolated `.venv-build`, validate native acceleration before packaging and skip dependency synchronization when the locked build inputs are unchanged.
+- Documented compiler prerequisites, native build verification, source-tree startup and the behavior of prebuilt Windows releases.
+
 ## 1.5.8 - 2026-09-20
 
 - Added persistent **Autodetect Arc Type** under `Settings -> Options -> CNC / Execution` for milling. Execution inspects the already parsed unresolved motion stream, skips R-only arcs while detecting, compares relative-IJK and absolute-center radius consistency against the configured arc tolerance, fixes one effective IJK mode for the whole run and falls back to the manually selected Arc Type when the program remains ambiguous. Turning and Arc Output export semantics are unchanged.

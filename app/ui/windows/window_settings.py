@@ -21,6 +21,9 @@ from app.settings import (
     AUTO_UPDATE_SEGMENTS_MIN,
     FONT_SIZE_MAX,
     FONT_SIZE_MIN,
+    GENERATED_MOTIONS_DEFAULT,
+    GENERATED_MOTIONS_MAX,
+    GENERATED_MOTIONS_MIN,
     LINE_WIDTH_MAX,
     LINE_WIDTH_MIN,
     ToolLibraryLoadError,
@@ -146,6 +149,15 @@ class MainWindowSettingsMixin:
                 AUTO_UPDATE_SEGMENTS_MIN,
                 AUTO_UPDATE_SEGMENTS_MAX,
                 name="GENERAL/AUTO_UPDATE_MAX_SEGMENTS",
+            )
+        )
+        self.maxGeneratedMotions = int(
+            bounded_number(
+                self.settings.value("GENERAL/MAX_GENERATED_MOTIONS", GENERATED_MOTIONS_DEFAULT),
+                GENERATED_MOTIONS_DEFAULT,
+                GENERATED_MOTIONS_MIN,
+                GENERATED_MOTIONS_MAX,
+                name="GENERAL/MAX_GENERATED_MOTIONS",
             )
         )
         configure_logging(self.loggingEnabled)
@@ -395,6 +407,7 @@ class MainWindowSettingsMixin:
         self.settings.beginGroup("GENERAL")
         self.settings.setValue("AUTO_UPDATE", self.autoUpdateEnabled)
         self.settings.setValue("AUTO_UPDATE_MAX_SEGMENTS", self.autoUpdateMaxSegments)
+        self.settings.setValue("MAX_GENERATED_MOTIONS", self.maxGeneratedMotions)
         self.settings.remove("AUTO_UPDATE_MAX_LINES")
         self.settings.endGroup()
         self.settings.beginGroup("EXPORT_OPT")

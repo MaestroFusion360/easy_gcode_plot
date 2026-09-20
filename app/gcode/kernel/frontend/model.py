@@ -8,13 +8,13 @@ from .ast import ProgramAst
 from .lang import FlowNode, WordToken
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Point2:
     x: float
     z: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Motion:
     move: int
     start: Point2
@@ -33,13 +33,13 @@ class Motion:
     playback_group: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ArcGeom:
     center: Point2
     x_scale: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ProfileSegment:
     block: int
     move: int
@@ -54,7 +54,7 @@ class ProfileSegment:
     playback_group: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class PendingAngleSegment:
     block: int
     start: Point2
@@ -63,7 +63,7 @@ class PendingAngleSegment:
     corner_radius_cmd: float
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ModalSnapshot:
     g_expr: str | None
     x_expr: str | None
@@ -73,7 +73,7 @@ class ModalSnapshot:
     f_expr: str | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MotionNode:
     g_expr: str | None
     x_expr: str | None
@@ -88,13 +88,13 @@ class MotionNode:
     c_expr: str | None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CycleNode:
     cycle: str
     params: tuple[WordToken, ...]
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Block:
     index: int
     raw: str
@@ -108,7 +108,7 @@ class Block:
     optional_skip: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Program:
     blocks: tuple[Block, ...]
     ast: ProgramAst | None = None

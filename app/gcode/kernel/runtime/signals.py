@@ -7,6 +7,8 @@ from ..api.types import MachineSignal
 
 def signals_for_words(block_index, words):
     """Signals from evaluated words of this occurrence, never from source order."""
+    if "M" not in words and "G" not in words:
+        return ()
     kinds = {
         0: "stop",
         1: "optional_stop",

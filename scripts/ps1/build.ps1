@@ -1,13 +1,17 @@
 [CmdletBinding()]
 param(
     [switch]$Console,
-    [switch]$SkipTests
+    [switch]$SkipTests,
+    [switch]$RefreshBuildEnvironment
 )
 
 $ErrorActionPreference = 'Stop'
+
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $entryPoint = Join-Path $projectRoot 'main.py'
 $separator = [System.IO.Path]::PathSeparator
+$buildEnvironment = Join-Path $projectRoot '.venv-build'
+$python = Join-Path $buildEnvironment 'Scripts\python.exe'
 
 Push-Location $projectRoot
 try {
@@ -16,8 +20,24 @@ try {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 
+    & (Join-Path $PSScriptRoot 'build-native.ps1') `
+        -BuildEnvironment $buildEnvironment `
+        -Refresh:$RefreshBuildEnvironment
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    if (-not (Test-Path $python)) {
+        throw "Build Python is missing: $python"
+    }
+
+    # Do not depend on a pyinstaller.exe launcher. The locked build environment
+    # only needs the PyInstaller module to be installed.
+    & $python -c 'import PyInstaller' *> $null
+    if ($LASTEXITCODE -ne 0) {
+        throw "PyInstaller module is missing from build environment: $buildEnvironment"
+    }
+
     $arguments = @(
-        'run', '--isolated', '--locked', '--no-dev', '--group', 'build', 'pyinstaller',
+        '-m', 'PyInstaller',
         '--noconfirm',
         '--clean',
         '--onefile',
@@ -26,12 +46,14 @@ try {
         '--specpath', (Join-Path $projectRoot 'build\pyinstaller'),
         '--workpath', (Join-Path $projectRoot 'build\pyinstaller\work'),
         '--distpath', (Join-Path $projectRoot 'dist'),
+        '--collect-submodules', 'app.gcode.export',
         '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}."
     )
+
     $arguments += if ($Console) { '--console' } else { '--windowed' }
     $arguments += $entryPoint
 
-    & uv @arguments
+    & $python @arguments
     exit $LASTEXITCODE
 }
 finally {

@@ -13,11 +13,14 @@ def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion"
     end = _xyz(words, state)
     start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
     end_m = _machine(end, state, wcs_offsets)
-    transform = _coordinate_transform(state)
-    arc_vector = transform.apply_vector(tuple(words.get(axis, 0.0) * state.unit_scale for axis in ("I", "J", "K")))
-    plane_scales = transform.plane_scale_factors(state.plane)
-    if state.move in (2, 3) and abs(plane_scales[0] - plane_scales[1]) > 1e-12:
-        raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
+    arc_vector = (0.0, 0.0, 0.0)
+    plane_scales = (1.0, 1.0)
+    if state.move in (2, 3):
+        transform = _coordinate_transform(state)
+        arc_vector = transform.apply_vector(tuple(words.get(axis, 0.0) * state.unit_scale for axis in ("I", "J", "K")))
+        plane_scales = transform.plane_scale_factors(state.plane)
+        if abs(plane_scales[0] - plane_scales[1]) > 1e-12:
+            raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
     state.x, state.y, state.z = end
     has_arc_definition = state.move in (2, 3) and any(key in words for key in ("I", "J", "K", "R"))
     if start_m == end_m and not has_arc_definition:
@@ -44,6 +47,9 @@ def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion"
         compensation_mode=state.cutter_comp,
         compensation_applied=False,
         tool=state.active_tool,
+        feed_mode=state.feed_mode,
+        spindle_rpm=state.spindle_rpm,
+        compensation_status="UNVERIFIED" if state.cutter_comp in (41, 42) else "NOT_APPLIED",
     )
 
 
@@ -106,7 +112,21 @@ def _g53_home_axes(
     return tuple(axes)
 
 
+def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets):
+    if not gcodes and state.cycle == 80:
+        if "X" in words or "Y" in words or "Z" in words:
+            m = _motion(block, state, words, wcs_offsets=wcs_offsets)
+            if m:
+                checkpoint("generated_motions")
+                motions.append(m)
+        return True
+    return False
+
+
 def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets):
+    if _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets):
+        return
+
     action_g = None
     for g in gcodes:
         if g in (0, 1, 2, 3, 28, 53, 73, 80, 81, 82, 83, 84, 85, 86):

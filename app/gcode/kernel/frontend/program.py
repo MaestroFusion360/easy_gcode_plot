@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import gc
+import math
 from collections.abc import Iterable
 
-from ..api.resources import checkpointed
+from ..api.resources import checkpoint, checkpointed
 from .ast import build_program_ast
 from .lang import (
     WordToken,
@@ -88,11 +90,11 @@ def literal_codes(tokens: tuple[WordToken, ...], letter: str) -> tuple[int, ...]
     return tuple(out)
 
 
-def parse_program(lines: Iterable[str]) -> Program:
-    blocks: list[Block] = []
+def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
     motion_codes = {0, 1, 2, 3, 32, 33}
     cycle_codes = {70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94}
-    for i, raw in checkpointed(lines):
+    for offset, raw in checkpointed(lines):
+        i = start_index + offset
         clean = strip_comments(raw).upper()
         optional_skip = False
         clean_l = clean.lstrip()
@@ -150,34 +152,73 @@ def parse_program(lines: Iterable[str]) -> Program:
             None,
         )
 
-        blocks.append(
-            Block(
-                index=i,
-                raw=raw.rstrip("\n"),
-                parsed_words=words,
-                modal_snapshot=modal,
-                motion_node=motion_node,
-                cycle_node=cycle_node,
-                flow_node=flow,
-                nlabel=nlabel,
-                olabel=olabel,
-                optional_skip=optional_skip,
-            )
+        yield Block(
+            index=i,
+            raw=raw.rstrip("\n"),
+            parsed_words=words,
+            modal_snapshot=modal,
+            motion_node=motion_node,
+            cycle_node=cycle_node,
+            flow_node=flow,
+            nlabel=nlabel,
+            olabel=olabel,
+            optional_skip=optional_skip,
         )
 
-    block_tuple = tuple(blocks)
-    return Program(blocks=block_tuple, ast=build_program_ast(block_tuple))
+
+def _parse_fallback_block(index: int, raw: str) -> Block:
+    return next(_parse_blocks((raw,), start_index=index))
+
+
+def _parse_program_python(lines: Iterable[str]) -> Program:
+    blocks: list[Block] = []
+
+    def collect_blocks():
+        for block in _parse_blocks(lines):
+            blocks.append(block)
+            yield block
+
+    # Build the existing AST while parsing instead of walking every Block again.
+    ast = build_program_ast(collect_blocks())
+    return Program(blocks=tuple(blocks), ast=ast)
+
+
+def parse_program(lines: Iterable[str] | str) -> Program:
+    """Build the public Program graph, using one compiled call for string sources."""
+    if isinstance(lines, str):
+        try:
+            from ._native_parser import parse_source  # pylint: disable=import-outside-toplevel
+        except ImportError:
+            return _parse_program_python(lines.splitlines(keepends=True))
+        # The parser creates a large acyclic immutable graph.  Deferring cyclic
+        # collections avoids repeatedly scanning millions of live objects.
+        gc_was_enabled = gc.isenabled()
+        if gc_was_enabled:
+            gc.disable()
+        try:
+            return parse_source(lines, _parse_fallback_block, checkpoint)
+        finally:
+            if gc_was_enabled:
+                gc.enable()
+    return _parse_program_python(lines)
 
 
 def eval_words(tokens: tuple[WordToken, ...], variables: dict[str, float]) -> EvaluatedWords:
     out = EvaluatedWords()
     for token in tokens:
         try:
-            value = evaluate_expression(token.expr, variables)
-        except Exception as exc:
-            out.errors.append((token, exc))
-            continue
-        out.add(token, value)
+            value = float(token.expr)
+            if not math.isfinite(value):
+                value = evaluate_expression(token.expr, variables)
+        except Exception:
+            try:
+                value = evaluate_expression(token.expr, variables)
+            except Exception as expression_exc:
+                out.errors.append((token, expression_exc))
+                continue
+        letter = token.letter
+        out._all.setdefault(letter, []).append(value)  # pylint: disable=protected-access
+        out[letter] = value
     return out
 
 

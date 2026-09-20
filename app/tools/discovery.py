@@ -17,6 +17,11 @@ from app.tools.definitions import (
 )
 from app.tools.validation import normalized_milling_tools, normalized_tools
 
+try:
+    from app.tools._native_discovery import scan_source as _native_scan_source
+except ImportError:  # Source checkouts remain usable before native extensions are built.
+    _native_scan_source = None
+
 _COMMENTS = re.compile(r"\(([^()]*)\)|;([^\r\n]*)")
 _COMMENT_TOOL = re.compile(r"\bT\s*(\d+)\b", re.IGNORECASE)
 _NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
@@ -111,39 +116,62 @@ def _cancel_checkpoint(index, cancelled):
         raise InterruptedError("Tool discovery cancelled")
 
 
-def _header_comments(lines, turning, cancelled=None):
+def _remember_tool_headers(headers, comments, turning):
+    for comment in comments:
+        for match in _COMMENT_TOOL.finditer(comment):
+            key = _tool_key(match[1], turning)
+            if key is not None:
+                headers.setdefault(key, comment)
+
+
+def _next_nearby_comment(previous, previous_line, index, words, comments, inline):
+    if any(word.letter == "T" for word in words):
+        return "", previous_line
+    if comments and not _COMMENT_TOOL.search(inline) and (not words or _is_tool_comment(inline)):
+        return inline, index
+    if any(word.letter in {"X", "Y", "Z"} for word in words):
+        return "", previous_line
+    return previous, previous_line
+
+
+def _scan_source_python(source, turning, default_unit_scale, cancelled=None):
+    """Collect tool headers, selections, and operation hints in one source pass."""
     headers = {}
-    for index, line in enumerate(lines):
-        _cancel_checkpoint(index, cancelled)
-        for comment in _comments(line):
-            for match in _COMMENT_TOOL.finditer(comment):
-                key = _tool_key(match[1], turning)
-                if key is not None:
-                    headers.setdefault(key, comment)
-    return headers
-
-
-def _tool_occurrences(source, turning, default_unit_scale, cancelled=None):
-    """Pair literal selections with nearby comments without leaking between operations."""
-    headers = _header_comments(StringIO(source), turning, cancelled)
+    occurrences = []
+    operations = {}
+    active_tool = None
     previous = ""
     previous_line = -100
     scale = default_unit_scale
     for index, line in enumerate(StringIO(source)):
         _cancel_checkpoint(index, cancelled)
         comments = _comments(line)
+        _remember_tool_headers(headers, comments, turning)
+
         words = lex_words(strip_comments(line).upper())
         scale = _block_scale(words, scale)
+        selected = tuple(_literal_tools(words, turning))
+        if selected:
+            active_tool = selected[-1]
+
+        kind = _operation_kind(words, turning)
+        if active_tool is not None and kind is not None:
+            operations.setdefault(active_tool, kind)
+
         inline = " ".join(comments)
         nearby = previous if index - previous_line <= 8 else ""
-        for key in _literal_tools(words, turning):
-            yield key, inline or headers.get(key, "") or nearby, scale
-        if any(word.letter == "T" for word in words):
-            previous = ""
-        elif comments and not _COMMENT_TOOL.search(inline) and (not words or _is_tool_comment(inline)):
-            previous, previous_line = inline, index
-        elif any(word.letter in {"X", "Y", "Z"} for word in words):
-            previous = ""
+        for key in selected:
+            occurrences.append((key, inline, nearby, scale))
+
+        previous, previous_line = _next_nearby_comment(previous, previous_line, index, words, comments, inline)
+
+    return headers, occurrences, operations
+
+
+def _scan_source(source, turning, default_unit_scale, cancelled=None):
+    if _native_scan_source is not None:
+        return _native_scan_source(source, turning, default_unit_scale, cancelled)
+    return _scan_source_python(source, turning, default_unit_scale, cancelled)
 
 
 def _block_scale(words, scale):
@@ -172,27 +200,12 @@ def _operation_kind(words, turning):
     return None
 
 
-def _tool_operations(lines, turning, cancelled=None):
-    """Infer geometry from the first typed cycle executed by each active tool."""
-    active_tool = None
-    operations = {}
-    for index, line in enumerate(lines):
-        _cancel_checkpoint(index, cancelled)
-        words = lex_words(strip_comments(line).upper())
-        selected = tuple(_literal_tools(words, turning))
-        if selected:
-            active_tool = selected[-1]
-        kind = _operation_kind(words, turning)
-        if active_tool is not None and kind is not None:
-            operations.setdefault(active_tool, kind)
-    return operations
-
-
 def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None):
     """Return inferred definitions; callers must insert only absent library keys."""
-    operations = _tool_operations(StringIO(source), turning, cancelled)
+    headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled)
     descriptions = {}
-    for key, description, scale in _tool_occurrences(source, turning, default_unit_scale, cancelled):
+    for key, inline, nearby, scale in occurrences:
+        description = inline or headers.get(key, "") or nearby
         if key not in descriptions or (not descriptions[key][0] and description):
             descriptions[key] = description, scale
     tools = {}

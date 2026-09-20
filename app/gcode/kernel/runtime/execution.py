@@ -91,6 +91,11 @@ class ProgramFlowDispatch:
     events: tuple[ExecutionEvent, ...]
 
 
+_NO_FLOW = FlowDispatch(False, -1)
+_NO_CODES = BlockCodes((), (), None, None)
+_NO_PROGRAM_FLOW = ProgramFlowDispatch(SubprogramDispatch(False, -1, False, []), ())
+
+
 @dataclass
 class ProgramRuntime:
     """Mutable control-flow data shared by every machine-mode executor."""
@@ -127,6 +132,8 @@ class ProgramRuntime:
         self.pc = pc
 
     def dispatch_macro(self, block: object, pc: int, blocks: tuple[object, ...] | list[object]) -> FlowDispatch:
+        if getattr(block, "flow_node", None) is None:
+            return _NO_FLOW
         return dispatch_macro_flow(
             block=block,
             pc=pc,
@@ -145,7 +152,8 @@ class ProgramRuntime:
         return EvaluatedBlock(
             words,
             classify_block_codes(words),
-            tuple((key, value) for key in words for value in words.all(key)),
+            # pylint: disable-next=protected-access
+            tuple((key, value) for key, values in words._all.items() for value in values),
             signals_for_words(block.index, words),
         )
 
@@ -173,6 +181,8 @@ class ProgramRuntime:
     ) -> ProgramFlowDispatch:
         """Dispatch M98/M99/M2/M30 and build the corresponding shared events."""
         flow_mcode = flow_control_mcode(codes.all_m, codes.mcode)
+        if flow_mcode not in (98, 99, 30, 2):
+            return _NO_PROGRAM_FLOW
         call_stack_before = list(self.call_stack)
         dispatch = self.dispatch_subprogram(flow_mcode, words, pc)
         return ProgramFlowDispatch(
@@ -221,6 +231,9 @@ def flow_control_mcode(all_m: tuple[int | float, ...], fallback: int | float | N
 
 def classify_block_codes(words: object) -> BlockCodes:
     """Return all evaluated G/M codes plus the effective execution G/M code."""
+
+    if isinstance(words, dict) and "G" not in words and "M" not in words:
+        return _NO_CODES
 
     def code_value(value: float) -> int | float:
         numeric = float(value)

@@ -5,14 +5,14 @@ from dataclasses import dataclass
 from ..api.resources import checkpointed
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AstWord:
     letter: str
     expr: str
     int_code: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class AstNode:
     kind: str
     block_index: int
@@ -22,7 +22,7 @@ class AstNode:
     words: tuple[AstWord, ...] = ()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MotionAstNode(AstNode):
     g_code: int | None = None
     x_expr: str | None = None
@@ -37,13 +37,13 @@ class MotionAstNode(AstNode):
     c_expr: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class CycleAstNode(AstNode):
     cycle: str = ""
     params: tuple[object, ...] = ()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FlowAstNode(AstNode):
     flow_kind: str = ""
     condition: str | None = None
@@ -53,19 +53,19 @@ class FlowAstNode(AstNode):
     value_expr: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ControlAstNode(AstNode):
     g_codes: tuple[int, ...] = ()
     m_codes: tuple[int, ...] = ()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MetaAstNode(AstNode):
     # Non-motion/cycle/flow codes (for example N/O/T/S and other words).
     letters: tuple[str, ...] = ()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ProgramAst:
     nodes: tuple[AstNode, ...]
     nlabel_to_index: dict[int, int]
@@ -93,134 +93,121 @@ def _build_ast_words(parsed_words: tuple[object, ...]) -> tuple[AstWord, ...]:
     return tuple(out)
 
 
+def build_ast_node(block: object) -> AstNode:
+    """Build the public AST node for one parsed block."""
+    idx = int(getattr(block, "index"))
+    raw = str(getattr(block, "raw", ""))
+    nlabel = getattr(block, "nlabel", None)
+    olabel = getattr(block, "olabel", None)
+    flow = getattr(block, "flow_node", None)
+    cycle = getattr(block, "cycle_node", None)
+    motion = getattr(block, "motion_node", None)
+    words = tuple(getattr(block, "parsed_words", ()))
+    ast_words = _build_ast_words(words)
+
+    if flow is not None:
+        return FlowAstNode(
+            kind="flow",
+            block_index=idx,
+            raw=raw,
+            nlabel=nlabel,
+            olabel=olabel,
+            words=ast_words,
+            flow_kind=str(getattr(flow, "kind", "")),
+            condition=getattr(flow, "condition", None),
+            target_label=getattr(flow, "target_label", None),
+            loop_id=getattr(flow, "loop_id", None),
+            var_key=getattr(flow, "var_key", None),
+            value_expr=getattr(flow, "value_expr", None),
+        )
+
+    if cycle is not None:
+        return CycleAstNode(
+            kind="cycle",
+            block_index=idx,
+            raw=raw,
+            nlabel=nlabel,
+            olabel=olabel,
+            words=ast_words,
+            cycle=str(getattr(cycle, "cycle", "")),
+            params=ast_words,
+        )
+
+    if motion is not None:
+        return MotionAstNode(
+            kind="motion",
+            block_index=idx,
+            raw=raw,
+            nlabel=nlabel,
+            olabel=olabel,
+            words=ast_words,
+            g_code=_int_code(getattr(motion, "g_expr", None)),
+            x_expr=getattr(motion, "x_expr", None),
+            z_expr=getattr(motion, "z_expr", None),
+            u_expr=getattr(motion, "u_expr", None),
+            w_expr=getattr(motion, "w_expr", None),
+            i_expr=getattr(motion, "i_expr", None),
+            k_expr=getattr(motion, "k_expr", None),
+            r_expr=getattr(motion, "r_expr", None),
+            f_expr=getattr(motion, "f_expr", None),
+            a_expr=getattr(motion, "a_expr", None),
+            c_expr=getattr(motion, "c_expr", None),
+        )
+
+    g_codes: list[int] = []
+    m_codes: list[int] = []
+    for word in words:
+        letter = str(getattr(word, "letter", ""))
+        code = _int_code(getattr(word, "expr", None))
+        if code is None:
+            continue
+        if letter == "G":
+            g_codes.append(code)
+        elif letter == "M":
+            m_codes.append(code)
+    if g_codes or m_codes:
+        return ControlAstNode(
+            kind="control",
+            block_index=idx,
+            raw=raw,
+            nlabel=nlabel,
+            olabel=olabel,
+            words=ast_words,
+            g_codes=tuple(g_codes),
+            m_codes=tuple(m_codes),
+        )
+
+    if ast_words:
+        return MetaAstNode(
+            kind="meta",
+            block_index=idx,
+            raw=raw,
+            nlabel=nlabel,
+            olabel=olabel,
+            words=ast_words,
+            letters=tuple(word.letter for word in ast_words),
+        )
+    return AstNode(
+        kind="empty",
+        block_index=idx,
+        raw=raw,
+        nlabel=nlabel,
+        olabel=olabel,
+        words=(),
+    )
+
+
 def build_program_ast(blocks: tuple[object, ...]) -> ProgramAst:
     nodes: list[AstNode] = []
     nlabel_to_index: dict[int, int] = {}
     olabel_to_index: dict[int, int] = {}
     for _position, block in checkpointed(blocks):
-        idx = int(getattr(block, "index"))
-        raw = str(getattr(block, "raw", ""))
-        nlabel = getattr(block, "nlabel", None)
-        olabel = getattr(block, "olabel", None)
-        flow = getattr(block, "flow_node", None)
-        cycle = getattr(block, "cycle_node", None)
-        motion = getattr(block, "motion_node", None)
-        words = tuple(getattr(block, "parsed_words", ()))
-        ast_words = _build_ast_words(words)
-
-        if isinstance(nlabel, int) and nlabel not in nlabel_to_index:
-            nlabel_to_index[nlabel] = idx
-        if isinstance(olabel, int) and olabel not in olabel_to_index:
-            olabel_to_index[olabel] = idx
-
-        if flow is not None:
-            nodes.append(
-                FlowAstNode(
-                    kind="flow",
-                    block_index=idx,
-                    raw=raw,
-                    nlabel=nlabel,
-                    olabel=olabel,
-                    words=ast_words,
-                    flow_kind=str(getattr(flow, "kind", "")),
-                    condition=getattr(flow, "condition", None),
-                    target_label=getattr(flow, "target_label", None),
-                    loop_id=getattr(flow, "loop_id", None),
-                    var_key=getattr(flow, "var_key", None),
-                    value_expr=getattr(flow, "value_expr", None),
-                )
-            )
-            continue
-
-        if cycle is not None:
-            nodes.append(
-                CycleAstNode(
-                    kind="cycle",
-                    block_index=idx,
-                    raw=raw,
-                    nlabel=nlabel,
-                    olabel=olabel,
-                    words=ast_words,
-                    cycle=str(getattr(cycle, "cycle", "")),
-                    params=ast_words,
-                )
-            )
-            continue
-
-        if motion is not None:
-            nodes.append(
-                MotionAstNode(
-                    kind="motion",
-                    block_index=idx,
-                    raw=raw,
-                    nlabel=nlabel,
-                    olabel=olabel,
-                    words=ast_words,
-                    g_code=_int_code(getattr(motion, "g_expr", None)),
-                    x_expr=getattr(motion, "x_expr", None),
-                    z_expr=getattr(motion, "z_expr", None),
-                    u_expr=getattr(motion, "u_expr", None),
-                    w_expr=getattr(motion, "w_expr", None),
-                    i_expr=getattr(motion, "i_expr", None),
-                    k_expr=getattr(motion, "k_expr", None),
-                    r_expr=getattr(motion, "r_expr", None),
-                    f_expr=getattr(motion, "f_expr", None),
-                    a_expr=getattr(motion, "a_expr", None),
-                    c_expr=getattr(motion, "c_expr", None),
-                )
-            )
-            continue
-
-        g_codes: list[int] = []
-        m_codes: list[int] = []
-        for w in words:
-            letter = str(getattr(w, "letter", ""))
-            expr = getattr(w, "expr", None)
-            code = _int_code(expr)
-            if code is None:
-                continue
-            if letter == "G":
-                g_codes.append(code)
-            elif letter == "M":
-                m_codes.append(code)
-        if g_codes or m_codes:
-            nodes.append(
-                ControlAstNode(
-                    kind="control",
-                    block_index=idx,
-                    raw=raw,
-                    nlabel=nlabel,
-                    olabel=olabel,
-                    words=ast_words,
-                    g_codes=tuple(g_codes),
-                    m_codes=tuple(m_codes),
-                )
-            )
-            continue
-
-        if ast_words:
-            nodes.append(
-                MetaAstNode(
-                    kind="meta",
-                    block_index=idx,
-                    raw=raw,
-                    nlabel=nlabel,
-                    olabel=olabel,
-                    words=ast_words,
-                    letters=tuple(w.letter for w in ast_words),
-                )
-            )
-        else:
-            nodes.append(
-                AstNode(
-                    kind="empty",
-                    block_index=idx,
-                    raw=raw,
-                    nlabel=nlabel,
-                    olabel=olabel,
-                    words=(),
-                )
-            )
+        node = build_ast_node(block)
+        nodes.append(node)
+        if isinstance(node.nlabel, int) and node.nlabel not in nlabel_to_index:
+            nlabel_to_index[node.nlabel] = node.block_index
+        if isinstance(node.olabel, int) and node.olabel not in olabel_to_index:
+            olabel_to_index[node.olabel] = node.block_index
 
     return ProgramAst(
         nodes=tuple(nodes),

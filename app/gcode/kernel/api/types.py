@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from ..frontend.model import Program
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class Diagnostic:
     code: str
     message: str
@@ -17,7 +17,7 @@ class Diagnostic:
     raw: str | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class SemanticInstruction:
     kind: str
     block_index: int
@@ -29,7 +29,7 @@ class SemanticInstruction:
     olabel: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class TraceMotion:
     # First six fields preserve the v1.1 positional constructor contract.
     move: int
@@ -66,7 +66,7 @@ class TraceMotion:
     playback_group: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ArcGeometry:
     """Resolved circle in physical millimetres; sweep is positive radians."""
 
@@ -78,7 +78,7 @@ class ArcGeometry:
     full_circle: bool
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class MachineSignal:
     kind: str
     block_index: int
@@ -86,7 +86,7 @@ class MachineSignal:
     value: float | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ExecutionEvent:
     """One deterministic structural fact observed during actual execution."""
 
@@ -102,7 +102,7 @@ class ExecutionEvent:
     related_block: int | None = None
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ExecutionStep:
     """One source block execution and the number of trace motions it emitted."""
 
@@ -129,7 +129,7 @@ class ExecutionStep:
     events: tuple[ExecutionEvent, ...] = ()
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ExecutionResult:
     ok: bool
     program: Program | None

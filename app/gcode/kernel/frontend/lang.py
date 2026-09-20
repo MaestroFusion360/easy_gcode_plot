@@ -22,13 +22,13 @@ class UndefinedMacroVariableError(ValueError):
     """Raised when a Macro B variable reference has no runtime value."""
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class WordToken:
     letter: str
     expr: str
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class FlowNode:
     kind: str
     condition: str | None = None

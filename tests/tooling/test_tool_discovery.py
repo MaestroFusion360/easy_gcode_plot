@@ -11,11 +11,34 @@ from app import settings
 from app.gcode.kernel import execute
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
-from app.tools.discovery import discover_tools
+from app.tools.discovery import _scan_source_python, discover_tools
 from app.tools.library import ToolLibrary
 from app.tools.setup import refresh_setup
 from app.ui.windows import main_window_execution
 from app.ui.windows.main_window_execution import MainWindowExecutionMixin
+
+
+@pytest.mark.parametrize(
+    ("turning", "source"),
+    [
+        (
+            False,
+            "(T3 D=6 FLAT END MILL)\nG20\nT03 M6\nG81 X0\n; сверло TOOL\nT7 (DRILL D=.25)\nG21\nT9\nG84 Z-5\n",
+        ),
+        (
+            True,
+            "(T0101 OD R0.4)\nG21 T0101\nG32 X20 Z-10\nT0202\nG83 Z-20\n(T0303 ID THREAD)\nT0303\nG76 X15 Z-30\n",
+        ),
+        (
+            False,
+            "(nearby BALL END MILL D8)\n\nT1 M6\nT#2\nT[2+3]\nX1 (comment after coordinate)\n(T2 SLOT MILL)\nT2\n",
+        ),
+        (False, "G21\nG1 X1 Y2\n; файл без инструментов\nM30\n"),
+    ],
+)
+def test_native_discovery_scan_matches_python(turning, source):
+    native = pytest.importorskip("app.tools._native_discovery")
+    assert native.scan_source(source, turning, 1.0) == _scan_source_python(source, turning, 1.0)
 
 
 def test_turning_comment_geometry():

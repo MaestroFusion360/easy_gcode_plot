@@ -123,7 +123,13 @@ def test_qt_generation_uses_pyside_only_as_dev_toolchain():
         project = tomllib.load(stream)
     assert any(dep.startswith("pyside6>=6.11,<7") for dep in project["dependency-groups"]["dev"])
     assert not any("pyside" in dep.lower() for dep in project["project"]["dependencies"])
-    assert "--no-dev" in (ROOT / POWERSHELL_SCRIPTS_DIR / "build.ps1").read_text(encoding="utf-8")
+    build_script = (ROOT / POWERSHELL_SCRIPTS_DIR / "build.ps1").read_text(encoding="utf-8")
+    shell_build_script = (ROOT / "scripts/sh/build.sh").read_text(encoding="utf-8")
+    native_build_script = (ROOT / POWERSHELL_SCRIPTS_DIR / "build-native.ps1").read_text(encoding="utf-8")
+    assert "build-native.ps1" in build_script
+    assert "--collect-submodules', 'app.gcode.export'" in build_script
+    assert "--collect-submodules app.gcode.export" in shell_build_script
+    assert "--no-dev" in native_build_script
     for generated in [*_ui_mapping(ROOT).values(), ROOT / RESOURCE_DIR / "files_res.py"]:
         content = generated.read_text(encoding="utf-8")
         assert "from PySide6" not in content

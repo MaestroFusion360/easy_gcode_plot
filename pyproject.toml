@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.5.8"
+version = "1.5.9"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -16,8 +16,20 @@ dependencies = [
 ]
 
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=77", "cython>=3.0,<4"]
 build-backend = "setuptools.build_meta"
+
+[[tool.setuptools.ext-modules]]
+name = "app.gcode.kernel.frontend._native_parser"
+sources = ["app/gcode/kernel/frontend/_native_parser.pyx"]
+
+[[tool.setuptools.ext-modules]]
+name = "app.gcode.kernel.milling._native_executor"
+sources = ["app/gcode/kernel/milling/_native_executor.pyx"]
+
+[[tool.setuptools.ext-modules]]
+name = "app.tools._native_discovery"
+sources = ["app/tools/_native_discovery.pyx"]
 
 [tool.setuptools.packages.find]
 include = ["app", "app.*"]

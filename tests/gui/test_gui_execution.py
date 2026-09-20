@@ -64,6 +64,38 @@ def test_fast_execution_worker_finishes_without_opening_modal_dialog(qt_app):
         owner.close()
 
 
+def test_execution_worker_can_run_without_modal_feedback_while_processing_gui_events(qt_app):
+    owner = QWidget()
+    released = Event()
+    observations = []
+
+    def work(source, **_options):
+        assert released.wait(2), "GUI events were not pumped while non-modal execution was running"
+        return source
+
+    def release_worker():
+        observations.append(qt_app.activeModalWidget() is None)
+        released.set()
+
+    QTimer.singleShot(20, release_worker)
+    try:
+        assert (
+            run_execution(
+                owner,
+                work,
+                "snapshot",
+                {},
+                lambda: None,
+                show_dialog=False,
+            )
+            == "snapshot"
+        )
+    finally:
+        owner.close()
+
+    assert observations == [True]
+
+
 def test_execution_dialog_stays_visible_through_gui_completion(qt_app):
     owner = QWidget()
     worker_released = Event()
@@ -246,6 +278,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
         defaultUnits="inch",
         wcsOffsets=offsets,
         tools=tools,
+        maxGeneratedMotions=345678,
     )
 
     result, _points, _render_limited = main_window.MainWindow._calculate_editor_source(window, show_errors=False)
@@ -259,6 +292,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     assert captured["home_y"] == 200.0
     assert captured["home_z"] == 50.0
     assert captured["emulate_g28_home"] is False
+    assert captured["limits"].generated_motions == 345678
     assert callable(captured["cancelled"])
 
 
@@ -382,6 +416,50 @@ def test_disabled_auto_update_marks_trace_stale_without_starting_timer():
 
     assert calls == ["stop"]
     assert window._plot_source_stale is True
+
+
+def test_edit_during_auto_update_cancels_current_execution_and_queues_refresh():
+    calls = []
+
+    class Timer:
+        def stop(self):
+            calls.append("stop")
+
+        def start(self):
+            calls.append("start")
+
+    window = SimpleNamespace(
+        autoUpdateTimer=Timer(),
+        autoUpdateEnabled=True,
+        _auto_update_in_progress=True,
+        _kernel_execution_active=True,
+    )
+
+    MainWindowExecutionMixin.scheduleAutoUpdate(window)
+
+    assert calls == ["stop"]
+    assert window._kernel_cancel_requested is True
+    assert window._auto_update_pending is True
+    assert window._auto_update_show_dialog is False
+
+
+def test_auto_update_requests_non_modal_execution(qt_app):
+    window = main_window.MainWindow()
+    captured = []
+    result = SimpleNamespace(motions=())
+
+    def calculate(**kwargs):
+        captured.append(kwargs)
+        return result, None, False
+
+    window._calculate_editor_source = calculate
+    window.updateExecutionStatus = lambda *args, **kwargs: None
+    window.autoUpdate()
+
+    assert captured
+    assert captured[-1]["show_dialog"] is False
+    assert captured[-1]["require_current_source"] is True
+    window.deleteLater()
 
 
 def test_machine_mode_switch_reexecutes_silently(qt_app):

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import gc
 import math
 from dataclasses import replace
-from io import StringIO
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..frontend.model import Motion, Point2, Program
@@ -96,6 +96,70 @@ def _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, so
     return _autodetect_milling_arc_type(result.motions, tolerance=arc_tolerance, fallback=source_arc_type)
 
 
+def _motion_with_step_metadata(motion, step, language, threading):
+    x_scale = 0.5 if language == "fanuc_turn" else 1.0
+    compensation_status = (
+        "APPLIED"
+        if motion.compensation_applied
+        else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED")
+    )
+    current_metadata = (
+        motion.x_scale,
+        motion.feed_mode,
+        motion.spindle_rpm,
+        motion.spindle_mode,
+        motion.surface_speed_m_min,
+        motion.spindle_limit_rpm,
+        motion.spindle_running,
+        motion.compensation_status,
+        motion.threading,
+    )
+    expected_metadata = (
+        x_scale,
+        step.feed_mode,
+        step.spindle_rpm,
+        step.spindle_mode,
+        step.surface_speed_m_min,
+        step.spindle_limit_rpm,
+        step.spindle_running,
+        compensation_status,
+        threading,
+    )
+    if current_metadata == expected_metadata:
+        return motion
+    return replace(
+        motion,
+        x_scale=x_scale,
+        feed_mode=step.feed_mode,
+        spindle_rpm=step.spindle_rpm,
+        spindle_mode=step.spindle_mode,
+        surface_speed_m_min=step.surface_speed_m_min,
+        spindle_limit_rpm=step.spindle_limit_rpm,
+        spindle_running=step.spindle_running,
+        compensation_status=compensation_status,
+        threading=threading,
+    )
+
+
+def _defer_gc() -> bool:
+    was_enabled = gc.isenabled()
+    if was_enabled:
+        gc.disable()
+    return was_enabled
+
+
+def _restore_gc(was_enabled: bool) -> None:
+    if was_enabled:
+        gc.enable()
+
+
+def _steps_with_emitted_counts(steps, emitted_counts):
+    return tuple(
+        step if step.emitted_count == emitted_counts[index] else replace(step, emitted_count=emitted_counts[index])
+        for index, step in enumerate(steps)
+    )
+
+
 def _execute_impl(
     source: str,
     language: str = "fanuc_turn",
@@ -111,6 +175,7 @@ def _execute_impl(
     home_z: float = 0.0,
     wcs_offsets: WcsOffsets | None = None,
     emulate_g28_home: bool = False,
+    include_instructions: bool = True,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
@@ -142,6 +207,7 @@ def _execute_impl(
                 default_unit_scale=default_unit_scale,
                 home=(home_x, home_y, home_z),
                 wcs_offsets=mill_offsets,
+                include_instructions=include_instructions,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
         )
@@ -150,7 +216,7 @@ def _execute_impl(
     unsupported: tuple[Diagnostic, ...] = ()
     turn_offsets = _turn_wcs_offsets(wcs_offsets)
     try:
-        program = parse_program(StringIO(source))
+        program = parse_program(source)
         unsupported = _unsupported_g_diagnostics(program)
         rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(
@@ -178,7 +244,7 @@ def _execute_impl(
         return ExecutionResult(
             ok=False,
             program=program,
-            instructions=_semantic_instructions(program),
+            instructions=_semantic_instructions(program) if include_instructions else (),
             motions=(),
             diagnostics=unsupported + (_diagnostic_from_exception(exc, program),),
             executed_blocks=(),
@@ -190,7 +256,7 @@ def _execute_impl(
     return ExecutionResult(
         ok=not any(item.severity == "error" for item in unsupported),
         program=program,
-        instructions=_semantic_instructions(program),
+        instructions=_semantic_instructions(program) if include_instructions else (),
         motions=tuple(_trace_motion(motion) for motion in native_motions),
         diagnostics=unsupported,
         executed_blocks=tuple(
@@ -216,9 +282,9 @@ def execute(
     **options,
 ):
     """Execute once; resolve geometry and publish a self-contained immutable result."""
-    budget = ExecutionBudget(limits or ExecutionLimits(), cancelled)
-    token = active_budget.set(budget)
+    token = active_budget.set(ExecutionBudget(limits or ExecutionLimits(), cancelled))
     milling_tools = options.pop("milling_tools", None)
+    gc_was_enabled = _defer_gc()
     try:
         result = _execute_impl(source, language, **options)
         effective_arc_type = _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type)
@@ -231,20 +297,8 @@ def execute(
             )
             for step_index, step in enumerate(result.execution_steps):
                 for motion in result.motions[cursor : cursor + step.emitted_count]:
-                    motion = replace(
-                        motion,
-                        x_scale=0.5 if language == "fanuc_turn" else 1.0,
-                        feed_mode=step.feed_mode,
-                        spindle_rpm=step.spindle_rpm,
-                        spindle_mode=step.spindle_mode,
-                        surface_speed_m_min=step.surface_speed_m_min,
-                        spindle_limit_rpm=step.spindle_limit_rpm,
-                        spindle_running=step.spindle_running,
-                        compensation_status="APPLIED"
-                        if motion.compensation_applied
-                        else ("UNVERIFIED" if motion.compensation_mode in (41, 42) else "NOT_APPLIED"),
-                        threading=threading_steps[step_index] and motion.move == 1,
-                    )
+                    threading = threading_steps[step_index] and motion.move == 1
+                    motion = _motion_with_step_metadata(motion, step, language, threading)
                     try:
                         resolved = resolve_arc(motion, source_arc_type=effective_arc_type)
                     except SemanticError as exc:
@@ -300,10 +354,7 @@ def execute(
                 emitted_counts[owner] += 1
             result = replace(
                 result,
-                execution_steps=tuple(
-                    replace(step, emitted_count=emitted_counts[index])
-                    for index, step in enumerate(result.execution_steps)
-                ),
+                execution_steps=_steps_with_emitted_counts(result.execution_steps, emitted_counts),
             )
         diagnostics = result.diagnostics + tuple(geometry_diagnostics)
         if language == "fanuc_mill":
@@ -317,10 +368,7 @@ def execute(
                 emitted_counts[owner] += 1
             result = replace(
                 result,
-                execution_steps=tuple(
-                    replace(step, emitted_count=emitted_counts[index])
-                    for index, step in enumerate(result.execution_steps)
-                ),
+                execution_steps=_steps_with_emitted_counts(result.execution_steps, emitted_counts),
             )
             if any(m.compensation_mode in (41, 42) and not m.compensation_applied for m in motions):
                 diagnostics = diagnostics + (
@@ -346,3 +394,4 @@ def execute(
         return ExecutionResult(False, None, (), (), (diagnostic,), (), complete=False, language=language)
     finally:
         active_budget.reset(token)
+        _restore_gc(gc_was_enabled)
