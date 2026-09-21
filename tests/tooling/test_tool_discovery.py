@@ -34,11 +34,22 @@ from app.ui.windows.main_window_execution import MainWindowExecutionMixin
             "(nearby BALL END MILL D8)\n\nT1 M6\nT#2\nT[2+3]\nX1 (comment after coordinate)\n(T2 SLOT MILL)\nT2\n",
         ),
         (False, "G21\nG1 X1 Y2\n; файл без инструментов\nM30\n"),
+        (False, "G21\nG65 P9000 T7 X10. Y20. Z-5. F100. M8\nT3 M6\n"),
     ],
 )
 def test_native_discovery_scan_matches_python(turning, source):
     native = pytest.importorskip("app.tools._native_discovery")
     assert native.scan_source(source, turning, 1.0) == _scan_source_python(source, turning, 1.0)
+
+
+def test_g65_arguments_are_not_discovered_as_machine_tools_or_operations():
+    tools = discover_tools(
+        "G21\nG65 P9000 T7 X10. Y20. Z-5. F100. M8\nT3 M6 (DRILL D6)\nG81 Z-10\n",
+        turning=False,
+    )
+
+    assert set(tools) == {"T3"}
+    assert tools["T3"]["type"] == "drill"
 
 
 def test_turning_comment_geometry():

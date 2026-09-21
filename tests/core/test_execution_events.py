@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.gcode.exporter import ExportOptions, export_full_program, export_result
+import pytest
+
+from app.gcode.exporter import ExportOptions, export_full_mill_program, export_full_program, export_result
 from app.gcode.kernel import execute
 from app.gcode.kernel.events import (
     HOME_RETURN,
@@ -254,3 +256,38 @@ M30
     assert "G55" in lines
     assert lines.count("G53 G0 Z0") == 1
     assert "M9 M5" in lines
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_g65_expanded_exports_inline_macro_without_emitting_call_arguments_as_machine_controls(language):
+    source = """\
+O1000
+G65 P2000 A10. M8 T7 X20. F500.
+M30
+O2000
+G1 X#1 F100
+M99
+"""
+    result = execute(source, language=language)
+    assert result.ok, result.diagnostics
+
+    full_exporter = export_full_program if language == "fanuc_turn" else export_full_mill_program
+    full = full_exporter(
+        result,
+        source.splitlines(),
+        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+    )
+    expanded = export_result(result, ExportOptions(delimiter=True, analysis_banner=False))
+
+    for text in (full, expanded):
+        assert "G65" not in text
+        assert "M98" not in text
+        assert "M99" not in text
+        assert "M8" not in text
+        assert "T7" not in text
+        assert "X10" in text
+        assert "F100" in text
+
+    starts = [event for event in result.events if event.kind == SUBPROGRAM_START]
+    assert starts[0].code == "G65"
+    assert starts[0].program_number == 2000

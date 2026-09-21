@@ -14,6 +14,8 @@ from app.gcode.exporter import (
     TURN_FULL_PROGRAM_MODE,
 )
 from app.settings import (
+    ARC_SAMPLING_PRESET_DEFAULT,
+    ARC_SAMPLING_PRESETS,
     ARC_TOLERANCE_DEFAULT,
     ARC_TOLERANCE_MAX,
     ARC_TOLERANCE_MIN,
@@ -26,6 +28,15 @@ from app.settings import (
     GENERATED_MOTIONS_MIN,
     LINE_WIDTH_MAX,
     LINE_WIDTH_MIN,
+    MAXIMUM_CIRCULAR_RADIUS_DEFAULT,
+    MAXIMUM_CIRCULAR_RADIUS_MAX,
+    MAXIMUM_CIRCULAR_RADIUS_MIN,
+    MINIMUM_CHORD_LENGTH_DEFAULT,
+    MINIMUM_CHORD_LENGTH_MAX,
+    MINIMUM_CHORD_LENGTH_MIN,
+    MINIMUM_CIRCULAR_RADIUS_DEFAULT,
+    MINIMUM_CIRCULAR_RADIUS_MAX,
+    MINIMUM_CIRCULAR_RADIUS_MIN,
     ToolLibraryLoadError,
     bounded_number,
     configure_logging,
@@ -139,6 +150,7 @@ class MainWindowSettingsMixin:
             ARC_TOLERANCE_MAX,
             name="CNC/ARC_TOLERANCE",
         )
+        self._load_arc_sampling_settings()
         self.uiLanguage = self.settings.value("GENERAL/LANGUAGE", "en")
         self.loggingEnabled = self.settings.value("GENERAL/LOGGING", False, type=bool)
         self.autoUpdateEnabled = self.settings.value("GENERAL/AUTO_UPDATE", True, type=bool)
@@ -270,6 +282,34 @@ class MainWindowSettingsMixin:
         self.resize(widthApp, heightApp)
         self.move(x, y)
 
+    def _load_arc_sampling_settings(self):
+        preset_ids = {preset[0] for preset in ARC_SAMPLING_PRESETS}
+        self.arcSamplingPreset = str(self.settings.value("CNC/ARC_SAMPLING_PRESET", ARC_SAMPLING_PRESET_DEFAULT))
+        if self.arcSamplingPreset not in preset_ids:
+            self.arcSamplingPreset = ARC_SAMPLING_PRESET_DEFAULT
+        self.maximumCircularRadius = bounded_number(
+            self.settings.value("CNC/MAXIMUM_CIRCULAR_RADIUS", MAXIMUM_CIRCULAR_RADIUS_DEFAULT),
+            MAXIMUM_CIRCULAR_RADIUS_DEFAULT,
+            MAXIMUM_CIRCULAR_RADIUS_MIN,
+            MAXIMUM_CIRCULAR_RADIUS_MAX,
+            name="CNC/MAXIMUM_CIRCULAR_RADIUS",
+        )
+        self.minimumCircularRadius = bounded_number(
+            self.settings.value("CNC/MINIMUM_CIRCULAR_RADIUS", MINIMUM_CIRCULAR_RADIUS_DEFAULT),
+            MINIMUM_CIRCULAR_RADIUS_DEFAULT,
+            MINIMUM_CIRCULAR_RADIUS_MIN,
+            MINIMUM_CIRCULAR_RADIUS_MAX,
+            name="CNC/MINIMUM_CIRCULAR_RADIUS",
+        )
+        self.minimumChordLength = bounded_number(
+            self.settings.value("CNC/MINIMUM_CHORD_LENGTH", MINIMUM_CHORD_LENGTH_DEFAULT),
+            MINIMUM_CHORD_LENGTH_DEFAULT,
+            MINIMUM_CHORD_LENGTH_MIN,
+            MINIMUM_CHORD_LENGTH_MAX,
+            name="CNC/MINIMUM_CHORD_LENGTH",
+        )
+        self.minimumCircularRadius = min(self.minimumCircularRadius, self.maximumCircularRadius)
+
     def restoreToolbarState(self):
         """Restore the last movable-toolbar arrangement when available."""
         state = self.settings.value("GEOMETRY/TOOLBAR_STATE")
@@ -379,6 +419,10 @@ class MainWindowSettingsMixin:
             ("AUTODETECT_ARC_TYPE", self.autodetectArcType),
             ("IGNORE_BLOCK_SKIP", self.ignoreBlockSkip),
             ("ARC_TOLERANCE", self.arcTolerance),
+            ("ARC_SAMPLING_PRESET", self.arcSamplingPreset),
+            ("MAXIMUM_CIRCULAR_RADIUS", self.maximumCircularRadius),
+            ("MINIMUM_CIRCULAR_RADIUS", self.minimumCircularRadius),
+            ("MINIMUM_CHORD_LENGTH", self.minimumChordLength),
         ):
             self.settings.setValue(key, value)
         for code in range(54, 60):

@@ -16,6 +16,24 @@ except ImportError:
     _execute_simple_blocks = None
 
 
+def _report_unknown_g_codes(diagnostics, unknown_g, position_words, block) -> None:
+    for g in unknown_g:
+        diagnostics.append(
+            Diagnostic(
+                "UNSUPPORTED_G_CODE",
+                (
+                    f"G{g} is not modeled for fanuc_mill; execution stops before this position block"
+                    if position_words
+                    else f"G{g} is not modeled for fanuc_mill; ignored for trace execution"
+                ),
+                "error" if position_words else "warning",
+                "unsupported" if position_words else "unverified",
+                block.index + 1,
+                block.raw,
+            )
+        )
+
+
 def execute_milling(
     source: str,
     *,
@@ -70,6 +88,7 @@ def execute_milling(
         57,
         58,
         59,
+        65,
         68,
         69,
         73,
@@ -144,27 +163,27 @@ def execute_milling(
                 ) from error
             codes = evaluated_block.codes
             gcodes = codes.all_g
+            evaluated = evaluated_block.values
+
+            g65_flow = runtime.dispatch_g65(
+                block=block,
+                words=words,
+                codes=codes,
+                pc=runtime.pc,
+                program=program,
+            )
+            if g65_flow.dispatch.handled:
+                occurrence_events.extend(g65_flow.events)
+                record_step(block, occurrence_events, words=evaluated)
+                runtime.jump(g65_flow.dispatch.next_pc)
+                continue
+
             occurrence_signals = evaluated_block.signals
             signals.extend(occurrence_signals)
-            evaluated = evaluated_block.values
 
             unknown_g = tuple(g for g in gcodes if g not in recognized)
             position_words = any(letter in words for letter in ("X", "Y", "Z"))
-            for g in unknown_g:
-                diagnostics.append(
-                    Diagnostic(
-                        "UNSUPPORTED_G_CODE",
-                        (
-                            f"G{g} is not modeled for fanuc_mill; execution stops before this position block"
-                            if position_words
-                            else f"G{g} is not modeled for fanuc_mill; ignored for trace execution"
-                        ),
-                        "error" if position_words else "warning",
-                        "unsupported" if position_words else "unverified",
-                        block.index + 1,
-                        block.raw,
-                    )
-                )
+            _report_unknown_g_codes(diagnostics, unknown_g, position_words, block)
             for m in codes.all_m:
                 if 0 <= m <= 199 and m not in recognized_m:
                     diagnostics.append(

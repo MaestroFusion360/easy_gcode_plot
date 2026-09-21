@@ -8,7 +8,16 @@ from PyQt6.QtGui import QColor, QFont, QRegularExpressionValidator
 from PyQt6.QtWidgets import QColorDialog, QDialog, QDialogButtonBox, QMessageBox
 
 from app import theme
-from app.settings import GENERATED_MOTIONS_DEFAULT, configure_logging
+from app.settings import (
+    ARC_SAMPLING_PRESET_DEFAULT,
+    ARC_SAMPLING_PRESETS,
+    ARC_TOLERANCE_DEFAULT,
+    GENERATED_MOTIONS_DEFAULT,
+    MAXIMUM_CIRCULAR_RADIUS_DEFAULT,
+    MINIMUM_CHORD_LENGTH_DEFAULT,
+    MINIMUM_CIRCULAR_RADIUS_DEFAULT,
+    configure_logging,
+)
 from app.ui.generated.dialogs.options import Ui_OptionsDlg
 from app.ui.windows.main_window_execution import playback_interval_ms
 
@@ -28,7 +37,11 @@ def _option_snapshot(window):
         "correction": getattr(window, "correctionEnabled", True),
         "autodetect_arc_type": getattr(window, "autodetectArcType", True),
         "ignore_block_skip": getattr(window, "ignoreBlockSkip", False),
-        "arc_tolerance": getattr(window, "arcTolerance", 0.001),
+        "arc_sampling_preset": getattr(window, "arcSamplingPreset", ARC_SAMPLING_PRESET_DEFAULT),
+        "arc_tolerance": getattr(window, "arcTolerance", ARC_TOLERANCE_DEFAULT),
+        "maximum_circular_radius": getattr(window, "maximumCircularRadius", MAXIMUM_CIRCULAR_RADIUS_DEFAULT),
+        "minimum_circular_radius": getattr(window, "minimumCircularRadius", MINIMUM_CIRCULAR_RADIUS_DEFAULT),
+        "minimum_chord_length": getattr(window, "minimumChordLength", MINIMUM_CHORD_LENGTH_DEFAULT),
         "font_family": getattr(window, "fontFamily", "Courier New"),
         "font_size": getattr(window, "sizeTxt", 12),
         "caret_line": getattr(window, "caretLine", True),
@@ -78,6 +91,10 @@ def _execution_semantics_changed(
 def _apply_cnc_options(window, ui):
     window.correctionEnabled = ui.correctionCheck.isChecked()
     window.arcTolerance = ui.arcToleranceSpin.value()
+    window.arcSamplingPreset = ARC_SAMPLING_PRESETS[ui.arcSamplingPresetCombo.currentIndex()][0]
+    window.maximumCircularRadius = ui.maximumCircularRadiusSpin.value()
+    window.minimumCircularRadius = min(ui.minimumCircularRadiusSpin.value(), window.maximumCircularRadius)
+    window.minimumChordLength = ui.minimumChordLengthSpin.value()
     window.autodetectArcType = ui.autodetectArcTypeCheck.isChecked()
     window.ignoreBlockSkip = ui.ignoreBlockSkipCheck.isChecked()
 
@@ -92,6 +109,23 @@ def _apply_editor_display_options(window):
     )
     window.ui.editor.setWhitespaceVisibility(whitespace)
     window.ui.editor.setMarginLineNumbers(1, window.marginArea)
+
+
+def _arc_sampling_snapshot(window):
+    return (
+        getattr(window, "maximumCircularRadius", MAXIMUM_CIRCULAR_RADIUS_DEFAULT),
+        getattr(window, "minimumCircularRadius", MINIMUM_CIRCULAR_RADIUS_DEFAULT),
+        getattr(window, "minimumChordLength", MINIMUM_CHORD_LENGTH_DEFAULT),
+    )
+
+
+def _refresh_after_option_changes(window, *, execution_changed, sampling_changed, correction_preview_applied):
+    if execution_changed and getattr(window, "execution_result", None) is not None:
+        window.updateData()
+    elif sampling_changed and getattr(window, "execution_result", None) is not None:
+        window.rerenderCurrentResult()
+    elif not correction_preview_applied:
+        window.refreshPlotView()
 
 
 class OptionsDialog(QDialog):
@@ -115,6 +149,7 @@ class OptionsDialog(QDialog):
             edit.textChanged.connect(lambda _text, target=edit, swatch=button: self._update_swatch(swatch, target))
         self.ui.buttonBox.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
         self.ui.playbackSpeedSlider.valueChanged.connect(self._update_playback_speed_label)
+        self.ui.arcSamplingPresetCombo.currentIndexChanged.connect(self._apply_arc_sampling_preset)
         self.ui.correctionCheck.toggled.connect(self._preview_correction)
         self.ui.showStockCheck.toggled.connect(self._preview_show_stock)
         self._loading_values = False
@@ -154,7 +189,7 @@ class OptionsDialog(QDialog):
             self.ui.showStockCheck.setChecked(getattr(window, "showStock", True))
         finally:
             self._loading_values = False
-        self.ui.arcToleranceSpin.setValue(getattr(window, "arcTolerance", 0.001))
+        self._load_arc_sampling_values(window)
         self.ui.autodetectArcTypeCheck.setChecked(getattr(window, "autodetectArcType", True))
         self.ui.ignoreBlockSkipCheck.setChecked(getattr(window, "ignoreBlockSkip", False))
         self.ui.fontCombo.setCurrentFont(QFont(window.fontFamily))
@@ -180,6 +215,28 @@ class OptionsDialog(QDialog):
         self._update_playback_speed_label(self.ui.playbackSpeedSlider.value())
         for button, edit in self._color_controls:
             self._update_swatch(button, edit)
+
+    def _load_arc_sampling_values(self, window):
+        preset_ids = [preset[0] for preset in ARC_SAMPLING_PRESETS]
+        preset_id = getattr(window, "arcSamplingPreset", ARC_SAMPLING_PRESET_DEFAULT)
+        self._loading_values = True
+        try:
+            index = (
+                preset_ids.index(preset_id)
+                if preset_id in preset_ids
+                else preset_ids.index(ARC_SAMPLING_PRESET_DEFAULT)
+            )
+            self.ui.arcSamplingPresetCombo.setCurrentIndex(index)
+        finally:
+            self._loading_values = False
+        self.ui.arcToleranceSpin.setValue(getattr(window, "arcTolerance", ARC_TOLERANCE_DEFAULT))
+        self.ui.maximumCircularRadiusSpin.setValue(
+            getattr(window, "maximumCircularRadius", MAXIMUM_CIRCULAR_RADIUS_DEFAULT)
+        )
+        self.ui.minimumCircularRadiusSpin.setValue(
+            getattr(window, "minimumCircularRadius", MINIMUM_CIRCULAR_RADIUS_DEFAULT)
+        )
+        self.ui.minimumChordLengthSpin.setValue(getattr(window, "minimumChordLength", MINIMUM_CHORD_LENGTH_DEFAULT))
 
     def _log_option_changes(self, window, previous_options):
         """Apply logging configuration and log the changed option values."""
@@ -221,7 +278,8 @@ class OptionsDialog(QDialog):
             if self._correction_before_show is None
             else self._correction_before_show
         )
-        previous_tolerance = getattr(window, "arcTolerance", 0.001)
+        previous_tolerance = getattr(window, "arcTolerance", ARC_TOLERANCE_DEFAULT)
+        previous_sampling = _arc_sampling_snapshot(window)
         previous_autodetect_arc_type = getattr(window, "autodetectArcType", True)
         previous_ignore_block_skip = getattr(window, "ignoreBlockSkip", False)
         previous_generated_motions = getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)
@@ -310,21 +368,21 @@ class OptionsDialog(QDialog):
         correction_needs_update = (
             previous_correction != window.correctionEnabled and not self._correction_preview_applied
         )
-        if (
-            _execution_semantics_changed(
-                window,
-                previous_units=previous_units,
-                correction_needs_update=correction_needs_update,
-                previous_tolerance=previous_tolerance,
-                previous_autodetect_arc_type=previous_autodetect_arc_type,
-                previous_ignore_block_skip=previous_ignore_block_skip,
-                previous_generated_motions=previous_generated_motions,
-            )
-            and getattr(window, "execution_result", None) is not None
-        ):
-            window.updateData()
-        elif not self._correction_preview_applied:
-            window.refreshPlotView()
+        execution_changed = _execution_semantics_changed(
+            window,
+            previous_units=previous_units,
+            correction_needs_update=correction_needs_update,
+            previous_tolerance=previous_tolerance,
+            previous_autodetect_arc_type=previous_autodetect_arc_type,
+            previous_ignore_block_skip=previous_ignore_block_skip,
+            previous_generated_motions=previous_generated_motions,
+        )
+        _refresh_after_option_changes(
+            window,
+            execution_changed=execution_changed,
+            sampling_changed=previous_sampling != _arc_sampling_snapshot(window),
+            correction_preview_applied=self._correction_preview_applied,
+        )
         self._correction_before_show = None
         self._correction_preview_applied = False
         self._show_stock_before_show = None
@@ -390,7 +448,8 @@ class OptionsDialog(QDialog):
         self.ui.correctionCheck.setChecked(True)
         self.ui.autodetectArcTypeCheck.setChecked(True)
         self.ui.ignoreBlockSkipCheck.setChecked(False)
-        self.ui.arcToleranceSpin.setValue(0.001)
+        self.ui.arcSamplingPresetCombo.setCurrentIndex(1)
+        self._set_arc_sampling_values(ARC_SAMPLING_PRESETS[1])
         self.ui.fontCombo.setCurrentFont(QFont("Courier New"))
         self.ui.fontSizeSpin.setValue(12)
         self.ui.caretLineCheck.setChecked(True)
@@ -415,6 +474,18 @@ class OptionsDialog(QDialog):
         self.ui.axesCheck.setChecked(True)
         self.ui.gridCheck.setChecked(False)
         self.ui.playbackSpeedSlider.setValue(3)
+
+    def _set_arc_sampling_values(self, preset):
+        _preset_id, tolerance, maximum_radius, minimum_radius, minimum_chord = preset
+        self.ui.arcToleranceSpin.setValue(tolerance)
+        self.ui.maximumCircularRadiusSpin.setValue(maximum_radius)
+        self.ui.minimumCircularRadiusSpin.setValue(minimum_radius)
+        self.ui.minimumChordLengthSpin.setValue(minimum_chord)
+
+    def _apply_arc_sampling_preset(self, index):
+        if self._loading_values or not 0 <= index < len(ARC_SAMPLING_PRESETS):
+            return
+        self._set_arc_sampling_values(ARC_SAMPLING_PRESETS[index])
 
     def _update_playback_speed_label(self, value):
         interval = playback_interval_ms(value)

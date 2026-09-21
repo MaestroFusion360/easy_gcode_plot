@@ -66,10 +66,47 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     assert dialog.ui.axesCheck.isChecked()
     assert dialog.ui.gridStepSpin.value() == 0
     assert dialog.ui.playbackSpeedSlider.value() == 3
+    assert dialog.ui.arcSamplingPresetCombo.currentText() == "Normal"
+    assert dialog.ui.arcToleranceSpin.value() == pytest.approx(0.002)
+    assert dialog.ui.maximumCircularRadiusSpin.value() == pytest.approx(1000.0)
+    assert dialog.ui.minimumCircularRadiusSpin.value() == pytest.approx(0.01)
+    assert dialog.ui.minimumChordLengthSpin.value() == pytest.approx(0.25)
     monkeypatch.setattr("app.ui.dialogs.options.QColorDialog.getColor", lambda *args: QColor("#abcdef"))
     dialog.ui.arcColorButton.click()
     assert dialog.ui.arcColorEdit.text() == "#abcdef"
     window.deleteLater()
+
+
+def test_arc_sampling_preset_populates_all_limits(qt_app):
+    window = MainWindow()
+    dialog = window.optionsDlg
+    dialog.ui.arcSamplingPresetCombo.setCurrentIndex(3)
+
+    assert dialog.ui.arcToleranceSpin.value() == pytest.approx(0.05)
+    assert dialog.ui.maximumCircularRadiusSpin.value() == pytest.approx(250.0)
+    assert dialog.ui.minimumCircularRadiusSpin.value() == pytest.approx(0.1)
+    assert dialog.ui.minimumChordLengthSpin.value() == pytest.approx(2.5)
+    window.deleteLater()
+
+
+def test_arc_sampling_settings_persist_in_config(qt_app):
+    window = MainWindow()
+    window.arcSamplingPreset = "large"
+    window.arcTolerance = 0.01
+    window.maximumCircularRadius = 500.0
+    window.minimumCircularRadius = 0.05
+    window.minimumChordLength = 1.0
+    window.saveSettings()
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.arcSamplingPreset == "large"
+    assert restored.arcTolerance == pytest.approx(0.01)
+    assert restored.maximumCircularRadius == pytest.approx(500.0)
+    assert restored.minimumCircularRadius == pytest.approx(0.05)
+    assert restored.minimumChordLength == pytest.approx(1.0)
+    restored.deleteLater()
 
 
 def test_autodetect_arc_type_defaults_on_and_persists(qt_app):
@@ -246,6 +283,25 @@ def test_options_runtime_semantic_changes_reexecute_current_document(qt_app, mon
 
     assert updated == [True]
     assert refreshed == []
+    window.deleteLater()
+
+
+def test_arc_sampling_only_change_rerenders_without_reexecution(qt_app, monkeypatch):
+    window = MainWindow()
+    dialog = window.optionsDlg
+    dialog.load_values()
+    window.execution_result = object()
+    updated = []
+    rerendered = []
+    monkeypatch.setattr(window, "updateData", lambda: updated.append(True) or True)
+    monkeypatch.setattr(window, "rerenderCurrentResult", lambda: rerendered.append(True) or True)
+    monkeypatch.setattr(window, "saveSettings", lambda: None)
+
+    dialog.ui.maximumCircularRadiusSpin.setValue(window.maximumCircularRadius + 1.0)
+    dialog.accept()
+
+    assert updated == []
+    assert rerendered == [True]
     window.deleteLater()
 
 

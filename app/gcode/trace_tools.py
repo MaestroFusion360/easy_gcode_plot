@@ -89,12 +89,56 @@ def _xyz_from_plane(plane: int, a: float, b: float, orth: float):
     return a, b, orth
 
 
+def _validate_arc_sampling_limits(maximum_radius, minimum_radius, minimum_chord):
+    for name, value, allow_zero in (
+        ("maximum_circular_radius", maximum_radius, False),
+        ("minimum_circular_radius", minimum_radius, True),
+        ("minimum_chord_length", minimum_chord, True),
+    ):
+        if value is not None and (not math.isfinite(value) or value < 0 or (not allow_zero and value == 0)):
+            requirement = "non-negative" if allow_zero else "positive"
+            raise ValueError(f"{name} must be a {requirement} finite value")
+
+
+def _arc_sample_count(
+    *,
+    radius,
+    sweep,
+    full_circle,
+    arc_points_per_circle,
+    chord_error,
+    maximum_circular_radius,
+    minimum_circular_radius,
+    minimum_chord_length,
+):
+    _validate_arc_sampling_limits(maximum_circular_radius, minimum_circular_radius, minimum_chord_length)
+    if minimum_circular_radius is not None and radius < minimum_circular_radius:
+        count = 1
+    elif chord_error is None:
+        count = max(1, int(round(arc_points_per_circle * sweep / (2.0 * math.pi))))
+    elif not math.isfinite(chord_error) or chord_error <= 0:
+        raise ValueError("chord_error must be a positive finite value")
+    elif radius <= 0 or sweep <= 0:
+        count = 1
+    else:
+        sampling_radius = min(radius, maximum_circular_radius) if maximum_circular_radius is not None else radius
+        effective_error = min(chord_error, sampling_radius * 2.0)
+        segment_angle = 4.0 * math.asin(math.sqrt(effective_error / (2.0 * sampling_radius)))
+        count = 1 if segment_angle <= 0 else int(math.ceil(sweep / segment_angle))
+        if minimum_chord_length:
+            count = min(count, max(1, int(math.floor(radius * sweep / minimum_chord_length))))
+    return max(4, count) if full_circle else count
+
+
 def sample_motion(
     m: TraceMotion,
     motion_index: int,
     *,
     arc_points_per_circle: int = 314,
     chord_error: float | None = None,
+    maximum_circular_radius: float | None = None,
+    minimum_circular_radius: float | None = None,
+    minimum_chord_length: float | None = None,
     lathe_radius_view: bool = False,
     max_points: int | None = None,
     cancelled=None,
@@ -113,19 +157,16 @@ def sample_motion(
         return [RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)]
 
     _, _, orth0, orth1, center, a0, sweep, radius = geom
-    if chord_error is None:
-        count = max(1, int(round(arc_points_per_circle * sweep / (2.0 * math.pi))))
-    else:
-        if not math.isfinite(chord_error) or chord_error <= 0:
-            raise ValueError("chord_error must be a positive finite value")
-        if radius <= 0 or sweep <= 0:
-            count = 1
-        else:
-            effective_error = min(chord_error, radius * 2.0)
-            segment_angle = 4.0 * math.asin(math.sqrt(effective_error / (2.0 * radius)))
-            count = 1 if segment_angle <= 0 else int(math.ceil(sweep / segment_angle))
-            if m.arc is not None and m.arc.full_circle:
-                count = max(4, count)
+    count = _arc_sample_count(
+        radius=radius,
+        sweep=sweep,
+        full_circle=m.arc is not None and m.arc.full_circle,
+        arc_points_per_circle=arc_points_per_circle,
+        chord_error=chord_error,
+        maximum_circular_radius=maximum_circular_radius,
+        minimum_circular_radius=minimum_circular_radius,
+        minimum_chord_length=minimum_chord_length,
+    )
     if max_points is not None and count > max_points:
         raise RenderLimitExceeded("Trace render point limit exceeded")
     plot_move = _plot_move_for_plane(m.move, m.plane)
@@ -151,6 +192,9 @@ def render_trace(
     lathe_radius_view: bool = False,
     arc_points_per_circle: int = 314,
     chord_error: float | None = None,
+    maximum_circular_radius: float | None = None,
+    minimum_circular_radius: float | None = None,
+    minimum_chord_length: float | None = None,
     max_points: int | None = None,
     cancelled=None,
 ) -> list[RenderPoint]:
@@ -183,6 +227,9 @@ def render_trace(
                 idx,
                 arc_points_per_circle=arc_points_per_circle,
                 chord_error=chord_error,
+                maximum_circular_radius=maximum_circular_radius,
+                minimum_circular_radius=minimum_circular_radius,
+                minimum_chord_length=minimum_chord_length,
                 lathe_radius_view=lathe_radius_view,
                 max_points=remaining,
                 cancelled=cancelled,

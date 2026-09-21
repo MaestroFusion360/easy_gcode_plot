@@ -263,6 +263,9 @@ def _remove_m_code(line: str, code: str | None) -> str:
 
 
 def _strip_flow_event_words(line: str, step) -> str:
+    if any(event.kind == SUBPROGRAM_START and event.code == "G65" for event in step.events):
+        return ""
+
     out = line
     for event in step.events:
         if event.kind == PROGRAM_END:

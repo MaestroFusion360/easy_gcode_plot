@@ -8,6 +8,7 @@ from ..api.resources import SemanticError
 from ..api.types import Diagnostic
 from ..frontend.lang import UndefinedMacroVariableError
 from ..frontend.model import Program
+from .events import SUBPROGRAM_START
 
 SUPPORTED_TURNING_G_CODES = frozenset(
     {
@@ -33,6 +34,7 @@ SUPPORTED_TURNING_G_CODES = frozenset(
         57,
         58,
         59,
+        65,
         70,
         71,
         72,
@@ -59,10 +61,36 @@ SUPPORTED_TURNING_G_CODES = frozenset(
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
 
 
+def _is_literal_g65_block(block) -> bool:
+    for word in block.parsed_words:
+        if word.letter != "G":
+            continue
+        try:
+            if float(word.expr) == 65.0:
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _runtime_error_code(message: str, undefined_macro: bool) -> str:
+    if undefined_macro or "undefined macro variable" in message:
+        return "UNDEFINED_MACRO"
+    rules = (
+        (("missing goto target", "missing if/goto target"), "FLOW_TARGET_MISSING"),
+        (("m98 targets missing", "g65 targets missing"), "SUBPROGRAM_MISSING"),
+        (("call depth exceeds", "macro nesting exceeds"), "CALL_DEPTH_EXCEEDED"),
+        (("m98",), "SUBPROGRAM_ERROR"),
+        (("g65",), "MACRO_CALL_ERROR"),
+        (("guard reached",), "EXECUTION_GUARD"),
+        (("g83/g84 cycle remains active",), "UNCLOSED_CYCLE"),
+    )
+    return next((code for fragments, code in rules if any(item in message for item in fragments)), "EXECUTION_ERROR")
+
+
 def diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagnostic:
     """Translate an internal exception chain into a source-aware diagnostic."""
     message = str(exc)
-    code = "EXECUTION_ERROR"
     lowered = message.lower()
     current: BaseException | None = exc
     seen: set[int] = set()
@@ -73,20 +101,7 @@ def diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagno
             undefined_macro = True
             break
         current = current.__cause__ or current.__context__
-    if undefined_macro or "undefined macro variable" in lowered:
-        code = "UNDEFINED_MACRO"
-    elif "missing goto target" in lowered or "missing if/goto target" in lowered:
-        code = "FLOW_TARGET_MISSING"
-    elif "m98 targets missing" in lowered:
-        code = "SUBPROGRAM_MISSING"
-    elif "call depth exceeds" in lowered:
-        code = "CALL_DEPTH_EXCEEDED"
-    elif "m98" in lowered:
-        code = "SUBPROGRAM_ERROR"
-    elif "guard reached" in lowered:
-        code = "EXECUTION_GUARD"
-    elif "g83/g84 cycle remains active" in lowered:
-        code = "UNCLOSED_CYCLE"
+    code = _runtime_error_code(lowered, undefined_macro)
 
     line = None
     match = _LINE_RE.search(message)
@@ -108,7 +123,7 @@ def unsupported_turning_g_diagnostics(program: Program) -> tuple[Diagnostic, ...
     """Report source words outside the modeled two-axis turning contract."""
     diagnostics: list[Diagnostic] = []
     for block in program.blocks:
-        if any(word.letter == "Y" for word in block.parsed_words):
+        if not _is_literal_g65_block(block) and any(word.letter == "Y" for word in block.parsed_words):
             diagnostics.append(
                 Diagnostic(
                     code="UNSUPPORTED_AXIS",
@@ -153,6 +168,8 @@ def fractional_code_diagnostics(program: Program, steps) -> tuple[Diagnostic, ..
         if block_index is None or not 0 <= block_index < len(program.blocks):
             continue
         block = program.blocks[block_index]
+        if any(event.kind == SUBPROGRAM_START and event.code == "G65" for event in step.events):
+            continue
         affects_geometry = any(item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words)
         for letter, raw_value in step.words:
             if letter not in {"G", "M"}:

@@ -10,13 +10,13 @@ from __future__ import annotations
 
 # Interpreter dispatch exits early for each explicit CNC control-flow opcode.
 # pylint: disable=too-many-return-statements
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..api.resources import SemanticError, active_budget, checkpoint, checkpointed
 from ..api.types import ExecutionEvent, SemanticInstruction
 from ..frontend.lang import eval_condition, evaluate_expression
 from ..frontend.program import EvaluatedWords, eval_words
-from .events import program_flow_events
+from .events import g65_call_event, program_flow_events
 from .signals import signals_for_words
 
 MOTION_CODES = frozenset({0, 1, 2, 3, 32, 33})
@@ -24,6 +24,7 @@ CYCLE_CODES = frozenset({70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94})
 POSITION_NEUTRAL_GCODES = frozenset(
     {
         4,
+        65,
         18,
         20,
         21,
@@ -45,6 +46,30 @@ POSITION_NEUTRAL_GCODES = frozenset(
         191,
     }
 )
+
+G65_LOCAL_KEYS = tuple(str(index) for index in range(1, 34))
+G65_ARGUMENTS_TYPE_I = {
+    "A": 1,
+    "B": 2,
+    "C": 3,
+    "D": 7,
+    "E": 8,
+    "F": 9,
+    "H": 11,
+    "M": 13,
+    "Q": 17,
+    "R": 18,
+    "S": 19,
+    "T": 20,
+    "U": 21,
+    "V": 22,
+    "W": 23,
+    "X": 24,
+    "Y": 25,
+    "Z": 26,
+}
+G65_CONTROL_WORDS = frozenset({"G", "L", "N", "O", "P"})
+G65_IJK_BASE = {"I": 4, "J": 5, "K": 6}
 
 
 @dataclass(frozen=True)
@@ -91,6 +116,12 @@ class ProgramFlowDispatch:
     events: tuple[ExecutionEvent, ...]
 
 
+@dataclass(frozen=True)
+class G65LocalFrame:
+    caller_locals: dict[str, float]
+    call_locals: dict[str, float]
+
+
 _NO_FLOW = FlowDispatch(False, -1)
 _NO_CODES = BlockCodes((), (), None, None)
 _NO_PROGRAM_FLOW = ProgramFlowDispatch(SubprogramDispatch(False, -1, False, []), ())
@@ -103,7 +134,9 @@ class ProgramRuntime:
     index: ProgramExecutionIndex
     variables: dict[str, float]
     call_stack: list[tuple[int, int, int]]
+    call_local_scopes: list[G65LocalFrame | None] = field(default_factory=list)
     max_call_depth: int = 64
+    max_macro_call_depth: int = 4
     pc: int = 0
     guard: int = 0
 
@@ -157,7 +190,70 @@ class ProgramRuntime:
             signals_for_words(block.index, words),
         )
 
+    def _sync_call_scopes(self) -> None:
+        """Keep per-call local-scope metadata aligned with the legacy tuple call stack."""
+        if len(self.call_local_scopes) < len(self.call_stack):
+            self.call_local_scopes.extend([None] * (len(self.call_stack) - len(self.call_local_scopes)))
+        elif len(self.call_local_scopes) > len(self.call_stack):
+            del self.call_local_scopes[len(self.call_stack) :]
+
+    def dispatch_g65(
+        self,
+        *,
+        block: object,
+        words: EvaluatedWords,
+        codes: BlockCodes,
+        pc: int,
+        program: object,
+    ) -> ProgramFlowDispatch:
+        """Enter one FANUC G65 macro call before any machine-word side effects are applied."""
+        if 65 not in codes.all_g:
+            return _NO_PROGRAM_FLOW
+
+        line = int(getattr(block, "index", pc)) + 1
+        raw = str(getattr(block, "raw", ""))
+        if "P" not in words:
+            raise ValueError(f"G65 requires a P macro target at line {line}: {raw}")
+        if not float(words["P"]).is_integer() or words["P"] <= 0:
+            raise ValueError(f"G65 P must be a positive integer at line {line}: {raw}")
+        repeat_value = words.get("L", 1.0)
+        if not float(repeat_value).is_integer() or not 1 <= repeat_value <= 9999:
+            raise ValueError(f"G65 L must be an integer from 1 to 9999 at line {line}: {raw}")
+
+        target_o = int(words["P"])
+        target_idx = self.index.olabel_to_index.get(target_o)
+        if target_idx is None:
+            raise ValueError(f"G65 targets missing O{target_o} at line {line}: {raw}")
+
+        self._sync_call_scopes()
+        budget = active_budget.get()
+        max_call_depth = self.max_call_depth if budget is None else budget.limits.call_depth
+        if len(self.call_stack) >= max_call_depth:
+            raise ValueError(f"G65 call depth exceeds limit {max_call_depth} at line {line}: {raw}")
+        macro_depth = sum(scope is not None for scope in self.call_local_scopes)
+        if macro_depth >= self.max_macro_call_depth:
+            raise ValueError(
+                f"G65 macro nesting exceeds {self.max_macro_call_depth} local levels at line {line}: {raw}"
+            )
+
+        arguments = bind_g65_arguments(block.parsed_words, words, line=line, raw=raw)
+        local_frame = G65LocalFrame(
+            caller_locals=snapshot_g65_locals(self.variables),
+            call_locals=dict(arguments),
+        )
+        checkpoint("subprogram_calls")
+        replace_g65_locals(self.variables, local_frame.call_locals)
+        self.call_stack.append((pc + 1, target_idx, int(repeat_value)))
+        self.call_local_scopes.append(local_frame)
+        dispatch = SubprogramDispatch(True, target_idx, False, list(self.call_stack))
+        return ProgramFlowDispatch(
+            dispatch,
+            (g65_call_event(block, program, target_idx, len(self.call_stack)),),
+        )
+
     def dispatch_subprogram(self, mcode: int | float | None, words: dict[str, float], pc: int) -> SubprogramDispatch:
+        self._sync_call_scopes()
+        previous_depth = len(self.call_stack)
         result = dispatch_subprogram_flow(
             mcode=mcode,
             words=words,
@@ -166,6 +262,25 @@ class ProgramRuntime:
             call_stack=self.call_stack,
             max_call_depth=self.max_call_depth,
         )
+        new_depth = len(result.call_stack)
+        if new_depth > previous_depth:
+            self.call_local_scopes.extend([None] * (new_depth - previous_depth))
+        elif new_depth < previous_depth:
+            removed = self.call_local_scopes[new_depth:previous_depth]
+            del self.call_local_scopes[new_depth:previous_depth]
+            for local_frame in reversed(removed):
+                if local_frame is not None:
+                    replace_g65_locals(self.variables, local_frame.caller_locals)
+        elif (
+            mcode == 99
+            and result.handled
+            and not result.stop
+            and new_depth > 0
+            and self.call_local_scopes[-1] is not None
+        ):
+            # FANUC repeats a G65 call with the original argument values on each
+            # L iteration rather than carrying modified #1..#33 into the next pass.
+            replace_g65_locals(self.variables, self.call_local_scopes[-1].call_locals)
         self.call_stack = result.call_stack
         return result
 
@@ -191,6 +306,56 @@ class ProgramRuntime:
         )
 
 
+def snapshot_g65_locals(variables: dict[str, float]) -> dict[str, float]:
+    """Save the caller's current FANUC local-variable level (#1..#33)."""
+    return {key: variables[key] for key in G65_LOCAL_KEYS if key in variables}
+
+
+def replace_g65_locals(variables: dict[str, float], values: dict[str, float]) -> None:
+    """Replace only FANUC local variables while leaving common/named variables untouched."""
+    for key in G65_LOCAL_KEYS:
+        variables.pop(key, None)
+    variables.update(values)
+
+
+def bind_g65_arguments(
+    tokens: tuple[object, ...],
+    words: EvaluatedWords,
+    *,
+    line: int,
+    raw: str,
+) -> dict[str, float]:
+    """Map G65 Type I/II arguments to #1..#33 in source order."""
+    value_offsets: dict[str, int] = {}
+    ijk_occurrences = {"I": 0, "J": 0, "K": 0}
+    arguments: dict[str, float] = {}
+
+    for token in tokens:
+        letter = str(getattr(token, "letter", "")).upper()
+        values = words.all(letter)
+        offset = value_offsets.get(letter, 0)
+        if offset >= len(values):
+            continue
+        value_offsets[letter] = offset + 1
+        value = float(values[offset])
+
+        if letter in G65_CONTROL_WORDS:
+            continue
+        if letter in G65_IJK_BASE:
+            occurrence = ijk_occurrences[letter] + 1
+            ijk_occurrences[letter] = occurrence
+            if occurrence > 10:
+                raise ValueError(f"G65 allows at most 10 {letter} arguments at line {line}: {raw}")
+            variable_number = G65_IJK_BASE[letter] + 3 * (occurrence - 1)
+        else:
+            variable_number = G65_ARGUMENTS_TYPE_I.get(letter)
+            if variable_number is None:
+                raise ValueError(f"Unsupported G65 argument {letter} at line {line}: {raw}")
+        arguments[str(variable_number)] = value
+
+    return arguments
+
+
 def semantic_instructions(program: object | None) -> tuple[SemanticInstruction, ...]:
     """Build the public, immutable instruction stream from the shared AST."""
     ast = getattr(program, "ast", None)
@@ -198,14 +363,20 @@ def semantic_instructions(program: object | None) -> tuple[SemanticInstruction, 
         return ()
     instructions: list[SemanticInstruction] = []
     for _index, node in checkpointed(ast.nodes):
+        g_codes = tuple(code for word in node.words if word.letter == "G" and (code := word.int_code) is not None)
+        m_codes = (
+            ()
+            if 65 in g_codes
+            else tuple(code for word in node.words if word.letter == "M" and (code := word.int_code) is not None)
+        )
         instructions.append(
             SemanticInstruction(
                 node.kind,
                 node.block_index,
                 node.raw,
                 tuple((word.letter, word.expr) for word in node.words),
-                tuple(code for word in node.words if word.letter == "G" and (code := word.int_code) is not None),
-                tuple(code for word in node.words if word.letter == "M" and (code := word.int_code) is not None),
+                g_codes,
+                m_codes,
                 node.nlabel,
                 node.olabel,
             )

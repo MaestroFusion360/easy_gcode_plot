@@ -176,11 +176,26 @@ def execute_trace_step(
         details = ", ".join(f"{tok.letter}{tok.expr}: {msg}" for tok, msg in words.errors)
         raise ValueError(f"Cannot evaluate CNC words at line {block.index + 1}: {block.raw}: {details}")
     ctx.words = evaluated_block.values
-    ctx.signals = evaluated_block.signals
     codes = evaluated_block.codes
     all_g = codes.all_g
     all_m = codes.all_m
     gcode = codes.gcode
+
+    g65_flow = runtime.dispatch_g65(
+        block=block,
+        words=words,
+        codes=codes,
+        pc=ctx.pc,
+        program=program,
+    )
+    if g65_flow.dispatch.handled:
+        event_list.extend(g65_flow.events)
+        ctx.signals = ()
+        ctx.events = tuple(event_list)
+        ctx.pc = g65_flow.dispatch.next_pc
+        return False, motions
+
+    ctx.signals = evaluated_block.signals
 
     if 40 in all_g:
         state.compensation_mode = 40

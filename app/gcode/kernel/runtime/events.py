@@ -41,6 +41,18 @@ def subprogram_number(program, target_block: int | None) -> int | None:
     return program.blocks[target_block].olabel
 
 
+def g65_call_event(block, program, target_block: int, call_depth: int) -> ExecutionEvent:
+    """Describe a G65 macro call using the existing subprogram boundary event contract."""
+    return ExecutionEvent(
+        SUBPROGRAM_START,
+        block.index,
+        code="G65",
+        program_number=subprogram_number(program, target_block),
+        call_depth=call_depth,
+        target_block=target_block,
+    )
+
+
 def program_end_code(events: tuple[ExecutionEvent, ...]) -> str | None:
     return next((event.code for event in reversed(events) if event.kind == PROGRAM_END and event.code), None)
 

@@ -35,22 +35,19 @@ def test_saving_window_preferences_preserves_unrecognized_tool_records(qt_app, k
     assert library.get_tool(kind, key) == before
 
 
-def test_legacy_config_migration_uses_application_directory_not_process_cwd(tmp_path, monkeypatch):
-    app_dir = tmp_path / "app"
-    app_dir.mkdir()
-    legacy = app_dir / "config.ini"
-    legacy.write_text("[PLOT]\nARC_TYPE=2\n", encoding="utf-8")
-    target = tmp_path / "config" / "config.ini"
-    target.parent.mkdir()
-    other_cwd = tmp_path / "elsewhere"
-    other_cwd.mkdir()
+def test_clean_profile_uses_code_defaults_and_ignores_working_directory_config(qt_app, tmp_path, monkeypatch):
+    rogue_dir = tmp_path / "legacy-install"
+    rogue_dir.mkdir()
+    (rogue_dir / "config.ini").write_text("[EXPORT_OPT]\nSAFETY_LINE=true\nSEQ_NUM=true\n", encoding="utf-8")
+    monkeypatch.chdir(rogue_dir)
 
-    monkeypatch.chdir(other_cwd)
-    monkeypatch.setattr(app_settings, "_application_dir", lambda: str(app_dir))
-    monkeypatch.setattr(app_settings, "config_path", lambda: str(target))
-    app_settings._migrate_legacy_config()
+    window = main_window.MainWindow()
 
-    assert target.read_text(encoding="utf-8") == legacy.read_text(encoding="utf-8")
+    assert window.safLine is False
+    assert window.seqNum is False
+    assert not window.settings.contains("EXPORT_OPT/SAFETY_LINE")
+    assert not window.settings.contains("EXPORT_OPT/SEQ_NUM")
+    window.deleteLater()
 
 
 def test_tool_settings_normalization_matches_turning_kernel_keys():

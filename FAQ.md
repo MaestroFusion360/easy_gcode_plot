@@ -130,7 +130,7 @@ Type I roughing ends with one full pass along the roughing profile that already 
 Turning and milling tool definitions are stored in the per-user SQLite database:
 
 ```text
-%LOCALAPPDATA%\easy-gcode-plot\tools.db
+%APPDATA%\easy-gcode-plot\tools.db
 ```
 
 `tools.db` is authoritative. `config.ini` stores UI, editor, plot, WCS, Stock and other application preferences; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported into a current database and are not used as a fallback write target.
@@ -331,11 +331,11 @@ DXF uses separate rapid and cutting layers. Turning uses plot-aligned Z/X entiti
 On Windows:
 
 ```text
-%LOCALAPPDATA%\easy-gcode-plot\config.ini
-%LOCALAPPDATA%\easy-gcode-plot\tools.db
+%APPDATA%\easy-gcode-plot\config.ini
+%APPDATA%\easy-gcode-plot\tools.db
 ```
 
-`config.ini` contains application preferences; `tools.db` contains the authoritative turning/milling tool library. A legacy `config.ini` beside the launcher may be migrated on first run.
+`config.ini` contains application preferences; `tools.db` contains the authoritative turning/milling tool library. Files beside the launcher are not used as configuration sources.
 
 ### What is available in Settings → Options?
 
@@ -344,6 +344,7 @@ On Windows:
 - Application logging.
 - Auto Update, its sampled-segment limit and the kernel-wide Maximum generated motions limit.
 - G41/G42 correction, arc tolerance and milling Arc Type autodetection.
+- Arc-sampling presets plus maximum radius, minimum radius and minimum chord length controls for GUI trace generation.
 - Persistent optional-block control through `Ignore Block Skip`.
 - Editor font and visual settings.
 - Plot colors, line thickness, axes and grid.
@@ -356,7 +357,7 @@ On Windows:
 When logging is enabled:
 
 ```text
-%LOCALAPPDATA%\easy-gcode-plot\main.log
+%APPDATA%\easy-gcode-plot\main.log
 ```
 
 The application logger records startup, file operations, execution summaries, export completion and related errors.

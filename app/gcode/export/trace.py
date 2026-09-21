@@ -32,6 +32,9 @@ _EXPANDED_MACHINE_M_CODES = {3, 4, 5, 8, 9}
 
 def _expanded_step_control(step, options: ExportOptions) -> tuple[str, bool]:
     """Return non-geometric execution controls and whether they replace step motions."""
+    if any(event.kind == SUBPROGRAM_START and event.code == "G65" for event in step.events):
+        return "", False
+
     gcodes = {code for letter, value in step.words if letter == "G" and (code := _integer_code(value)) is not None}
     home_or_machine_move = bool(gcodes & {28, 30, 53})
     dwell = 4 in gcodes

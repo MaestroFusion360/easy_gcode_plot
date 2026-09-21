@@ -9,6 +9,7 @@ from libc.stdlib cimport free, malloc, realloc
 
 cdef object _COMMENT_TOOL = re.compile(r"\bT\s*(\d+)\b", re.IGNORECASE)
 cdef object _LITERAL_TOOL = re.compile(br"[+-]?\d+(?:\.0*)?")
+cdef object _LITERAL_G65 = re.compile(br"\+?0*65(?:\.0*)?")
 cdef object _TOOL_HINT = re.compile(
     r"\b(?:TAP(?:PING)?|THREAD(?:ING)?|GROOV(?:E|ING)|DRILL(?:ING)?|BALL|"
     r"FACE MILL|SLOT MILL|CHAMFER|BULL|FLAT(?: END)? MILL|TOOL|OD|ID)\b",
@@ -91,6 +92,8 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
     cdef bint has_t = False
     cdef bint has_xyz = False
     cdef object operation = None
+    cdef bint g65_call = False
+    cdef double initial_scale = scale
 
     while pos <= size:
         if pos == size or (depth == 0 and _word_start(clean, size, pos)):
@@ -117,6 +120,8 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
                         if key is not None:
                             selected.append(key)
                     elif letter == 71:
+                        if _LITERAL_G65.fullmatch(expr) is not None:
+                            g65_call = True
                         if expr == b"20":
                             scale = 25.4
                         elif expr == b"21":
@@ -139,6 +144,8 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
             elif ch == 93 and depth > 0:
                 depth -= 1
         pos += 1
+    if g65_call:
+        return [], None, has_words, False, False, initial_scale
     return selected, operation, has_words, has_t, has_xyz, scale
 
 

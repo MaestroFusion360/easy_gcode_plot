@@ -201,10 +201,24 @@ class Ui_OptionsDlg(object):
 
         self.cncForm.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.ignoreBlockSkipCheck)
 
+        self.arcSamplingPresetLabel = QLabel(self.cncTab)
+        self.arcSamplingPresetLabel.setObjectName(u"arcSamplingPresetLabel")
+
+        self.cncForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.arcSamplingPresetLabel)
+
+        self.arcSamplingPresetCombo = QComboBox(self.cncTab)
+        self.arcSamplingPresetCombo.addItem("")
+        self.arcSamplingPresetCombo.addItem("")
+        self.arcSamplingPresetCombo.addItem("")
+        self.arcSamplingPresetCombo.addItem("")
+        self.arcSamplingPresetCombo.setObjectName(u"arcSamplingPresetCombo")
+
+        self.cncForm.setWidget(3, QFormLayout.ItemRole.FieldRole, self.arcSamplingPresetCombo)
+
         self.arcToleranceLabel = QLabel(self.cncTab)
         self.arcToleranceLabel.setObjectName(u"arcToleranceLabel")
 
-        self.cncForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.arcToleranceLabel)
+        self.cncForm.setWidget(4, QFormLayout.ItemRole.LabelRole, self.arcToleranceLabel)
 
         self.arcToleranceSpin = QDoubleSpinBox(self.cncTab)
         self.arcToleranceSpin.setObjectName(u"arcToleranceSpin")
@@ -212,9 +226,49 @@ class Ui_OptionsDlg(object):
         self.arcToleranceSpin.setMinimum(0.000001000000000)
         self.arcToleranceSpin.setMaximum(10.000000000000000)
         self.arcToleranceSpin.setSingleStep(0.001000000000000)
-        self.arcToleranceSpin.setValue(0.001000000000000)
+        self.arcToleranceSpin.setValue(0.002000000000000)
 
-        self.cncForm.setWidget(3, QFormLayout.ItemRole.FieldRole, self.arcToleranceSpin)
+        self.cncForm.setWidget(4, QFormLayout.ItemRole.FieldRole, self.arcToleranceSpin)
+
+        self.maximumCircularRadiusLabel = QLabel(self.cncTab)
+        self.maximumCircularRadiusLabel.setObjectName(u"maximumCircularRadiusLabel")
+
+        self.cncForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.maximumCircularRadiusLabel)
+
+        self.maximumCircularRadiusSpin = QDoubleSpinBox(self.cncTab)
+        self.maximumCircularRadiusSpin.setObjectName(u"maximumCircularRadiusSpin")
+        self.maximumCircularRadiusSpin.setDecimals(3)
+        self.maximumCircularRadiusSpin.setMinimum(0.001000000000000)
+        self.maximumCircularRadiusSpin.setMaximum(1000000000.000000000000000)
+        self.maximumCircularRadiusSpin.setValue(1000.000000000000000)
+
+        self.cncForm.setWidget(5, QFormLayout.ItemRole.FieldRole, self.maximumCircularRadiusSpin)
+
+        self.minimumCircularRadiusLabel = QLabel(self.cncTab)
+        self.minimumCircularRadiusLabel.setObjectName(u"minimumCircularRadiusLabel")
+
+        self.cncForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.minimumCircularRadiusLabel)
+
+        self.minimumCircularRadiusSpin = QDoubleSpinBox(self.cncTab)
+        self.minimumCircularRadiusSpin.setObjectName(u"minimumCircularRadiusSpin")
+        self.minimumCircularRadiusSpin.setDecimals(3)
+        self.minimumCircularRadiusSpin.setMaximum(1000000000.000000000000000)
+        self.minimumCircularRadiusSpin.setValue(0.010000000000000)
+
+        self.cncForm.setWidget(6, QFormLayout.ItemRole.FieldRole, self.minimumCircularRadiusSpin)
+
+        self.minimumChordLengthLabel = QLabel(self.cncTab)
+        self.minimumChordLengthLabel.setObjectName(u"minimumChordLengthLabel")
+
+        self.cncForm.setWidget(7, QFormLayout.ItemRole.LabelRole, self.minimumChordLengthLabel)
+
+        self.minimumChordLengthSpin = QDoubleSpinBox(self.cncTab)
+        self.minimumChordLengthSpin.setObjectName(u"minimumChordLengthSpin")
+        self.minimumChordLengthSpin.setDecimals(3)
+        self.minimumChordLengthSpin.setMaximum(1000000.000000000000000)
+        self.minimumChordLengthSpin.setValue(0.250000000000000)
+
+        self.cncForm.setWidget(7, QFormLayout.ItemRole.FieldRole, self.minimumChordLengthSpin)
 
         self.tabs.addTab(self.cncTab, "")
         self.plotTab = QWidget()
@@ -510,7 +564,20 @@ class Ui_OptionsDlg(object):
         self.correctionCheck.setText(QCoreApplication.translate("OptionsDlg", u"Correction (G41/G42)", None))
         self.autodetectArcTypeCheck.setText(QCoreApplication.translate("OptionsDlg", u"Autodetect Arc Type", None))
         self.ignoreBlockSkipCheck.setText(QCoreApplication.translate("OptionsDlg", u"Ignore Block Skip", None))
+        self.arcSamplingPresetLabel.setText(QCoreApplication.translate("OptionsDlg", u"Arc sampling preset", None))
+        self.arcSamplingPresetCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Exact", None))
+        self.arcSamplingPresetCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"Normal", None))
+        self.arcSamplingPresetCombo.setItemText(2, QCoreApplication.translate("OptionsDlg", u"Large Program", None))
+        self.arcSamplingPresetCombo.setItemText(3, QCoreApplication.translate("OptionsDlg", u"Very Large Program", None))
+
         self.arcToleranceLabel.setText(QCoreApplication.translate("OptionsDlg", u"Arc tolerance", None))
+        self.arcToleranceSpin.setSuffix(QCoreApplication.translate("OptionsDlg", u" mm", None))
+        self.maximumCircularRadiusLabel.setText(QCoreApplication.translate("OptionsDlg", u"Maximum circular radius", None))
+        self.maximumCircularRadiusSpin.setSuffix(QCoreApplication.translate("OptionsDlg", u" mm", None))
+        self.minimumCircularRadiusLabel.setText(QCoreApplication.translate("OptionsDlg", u"Minimum circular radius", None))
+        self.minimumCircularRadiusSpin.setSuffix(QCoreApplication.translate("OptionsDlg", u" mm", None))
+        self.minimumChordLengthLabel.setText(QCoreApplication.translate("OptionsDlg", u"Minimum chord length", None))
+        self.minimumChordLengthSpin.setSuffix(QCoreApplication.translate("OptionsDlg", u" mm", None))
         self.tabs.setTabText(self.tabs.indexOf(self.cncTab), QCoreApplication.translate("OptionsDlg", u"CNC / Execution", None))
         self.lineWidthLabel.setText(QCoreApplication.translate("OptionsDlg", u"Line width", None))
         self.gridStepLabel.setText(QCoreApplication.translate("OptionsDlg", u"Grid step (0 = adaptive)", None))

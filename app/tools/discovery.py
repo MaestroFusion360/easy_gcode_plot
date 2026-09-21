@@ -149,12 +149,14 @@ def _scan_source_python(source, turning, default_unit_scale, cancelled=None):
         _remember_tool_headers(headers, comments, turning)
 
         words = lex_words(strip_comments(line).upper())
-        scale = _block_scale(words, scale)
-        selected = tuple(_literal_tools(words, turning))
+        g65_call = _is_g65_call(words)
+        if not g65_call:
+            scale = _block_scale(words, scale)
+        selected = () if g65_call else tuple(_literal_tools(words, turning))
         if selected:
             active_tool = selected[-1]
 
-        kind = _operation_kind(words, turning)
+        kind = None if g65_call else _operation_kind(words, turning)
         if active_tool is not None and kind is not None:
             operations.setdefault(active_tool, kind)
 
@@ -163,7 +165,8 @@ def _scan_source_python(source, turning, default_unit_scale, cancelled=None):
         for key in selected:
             occurrences.append((key, inline, nearby, scale))
 
-        previous, previous_line = _next_nearby_comment(previous, previous_line, index, words, comments, inline)
+        context_words = tuple(word for word in words if word.letter == "G") if g65_call else words
+        previous, previous_line = _next_nearby_comment(previous, previous_line, index, context_words, comments, inline)
 
     return headers, occurrences, operations
 
@@ -172,6 +175,18 @@ def _scan_source(source, turning, default_unit_scale, cancelled=None):
     if _native_scan_source is not None:
         return _native_scan_source(source, turning, default_unit_scale, cancelled)
     return _scan_source_python(source, turning, default_unit_scale, cancelled)
+
+
+def _is_g65_call(words) -> bool:
+    for word in words:
+        if word.letter != "G":
+            continue
+        try:
+            if float(word.expr) == 65.0:
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _block_scale(words, scale):

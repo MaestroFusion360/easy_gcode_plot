@@ -80,6 +80,9 @@ def _calculate_source(
     arc_tolerance,
     max_points,
     is_cancelled,
+    maximum_circular_radius=1000.0,
+    minimum_circular_radius=0.01,
+    minimum_chord_length=0.25,
     **snapshot_options,
 ):
     updated_tools = current_tools
@@ -105,7 +108,10 @@ def _calculate_source(
             points = render_trace(
                 result,
                 lathe_radius_view=turning,
-                arc_points_per_circle=_arc_points_per_circle(result, arc_tolerance),
+                chord_error=arc_tolerance,
+                maximum_circular_radius=maximum_circular_radius,
+                minimum_circular_radius=minimum_circular_radius,
+                minimum_chord_length=minimum_chord_length,
                 max_points=max_points,
                 cancelled=is_cancelled,
             )
@@ -292,6 +298,9 @@ class MainWindowExecutionMixin:
         previous_inference = deepcopy(inference.get(attribute, {}))
         correction_enabled = bool(getattr(self, "correctionEnabled", True))
         arc_tolerance = float(getattr(self, "arcTolerance", 0.01))
+        maximum_circular_radius = float(getattr(self, "maximumCircularRadius", 1000.0))
+        minimum_circular_radius = float(getattr(self, "minimumCircularRadius", 0.01))
+        minimum_chord_length = float(getattr(self, "minimumChordLength", 0.25))
 
         self._kernel_execution_active = True
         self._kernel_cancel_requested = False
@@ -329,6 +338,9 @@ class MainWindowExecutionMixin:
             correction_enabled=correction_enabled,
             render=render,
             arc_tolerance=arc_tolerance,
+            maximum_circular_radius=maximum_circular_radius,
+            minimum_circular_radius=minimum_circular_radius,
+            minimum_chord_length=minimum_chord_length,
             max_points=max_points,
             is_cancelled=cancelled,
         )
@@ -399,6 +411,15 @@ class MainWindowExecutionMixin:
         """Convert the configured maximum chord error to a sampling count."""
         return _arc_points_per_circle(result, self.arcTolerance)
 
+    def arcSamplingOptions(self):
+        """Return render-only arc sampling limits configured by the user."""
+        return {
+            "chord_error": self.arcTolerance,
+            "maximum_circular_radius": self.maximumCircularRadius,
+            "minimum_circular_radius": self.minimumCircularRadius,
+            "minimum_chord_length": self.minimumChordLength,
+        }
+
     def analyzeEditorSource(self):
         """Return a fresh kernel analysis for read-only UI consumers."""
         return self._execute_editor_source(show_errors=False)
@@ -411,7 +432,7 @@ class MainWindowExecutionMixin:
             render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
-                arc_points_per_circle=self.arcPointsPerCircle(result),
+                **self.arcSamplingOptions(),
             )
         )
 
@@ -506,7 +527,7 @@ class MainWindowExecutionMixin:
                     lambda _source, **_options: render_trace(
                         result,
                         lathe_radius_view=self.latheMode,
-                        arc_points_per_circle=self.arcPointsPerCircle(result),
+                        **self.arcSamplingOptions(),
                         cancelled=cancellation.is_set,
                     ),
                     "",
@@ -567,6 +588,16 @@ class MainWindowExecutionMixin:
         self._finishDataUpdate(result, points)
         self._auto_update_deferred = False
         return True
+
+    def rerenderCurrentResult(self):
+        """Resample the current trace without re-executing the CNC program."""
+        result = self.execution_result
+        if result is None or not result.motions:
+            return False
+        points = self._render_existing_result(result)
+        if points is None:
+            return False
+        return bool(self._finishDataUpdate(result, points))
 
     def _prepare_playback_metadata(self, result, cancelled):
         self._playback_movements, self._motion_to_playback = build_playback_movements(result.motions)
@@ -655,7 +686,7 @@ class MainWindowExecutionMixin:
             points = render_trace(
                 result,
                 lathe_radius_view=self.latheMode,
-                arc_points_per_circle=self.arcPointsPerCircle(result),
+                **self.arcSamplingOptions(),
             )
         self._deferred_execution_result = None
         self._deferred_execution_source = None

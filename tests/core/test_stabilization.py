@@ -98,7 +98,21 @@ def test_invalid_radius_is_diagnostic(language):
     assert any(d.code == "INVALID_GEOMETRY" for d in result.diagnostics)
 
 
-@pytest.mark.parametrize("source", ["GOTO99", "M98", "M98 P999", "M98 P1.5", "WHILE[1]DO1\nM30", "END1"])
+@pytest.mark.parametrize(
+    "source",
+    [
+        "GOTO99",
+        "M98",
+        "M98 P999",
+        "M98 P1.5",
+        "G65",
+        "G65 P999",
+        "G65 P1.5",
+        "G65 P100 L0",
+        "WHILE[1]DO1\nM30",
+        "END1",
+    ],
+)
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
 def test_invalid_flow_is_not_fallthrough(source, language):
     result = execute(source + "\nG1 X20", language)

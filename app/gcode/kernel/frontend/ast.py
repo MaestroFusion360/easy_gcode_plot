@@ -174,7 +174,7 @@ def build_ast_node(block: object) -> AstNode:
             olabel=olabel,
             words=ast_words,
             g_codes=tuple(g_codes),
-            m_codes=tuple(m_codes),
+            m_codes=() if 65 in g_codes else tuple(m_codes),
         )
 
     if ast_words:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.6.0 - 2026-09-21
+
+- Added FANUC `G65` custom-macro calls for turning and milling: `P` target selection, `L` repetition, Type I/II address-to-`#1..#33` argument binding, four macro-local nesting levels, local-variable restoration on `M99`, and shared execution/export events. `G65` argument words are isolated from normal motion, feed, spindle, M-code and tool-selection side effects; Python/Cython parsing and tool discovery follow the same rule. `G66/G67` remain intentionally out of scope for this release.
+- Removed the obsolete installation-directory `config.ini` and its first-run migration; `%APPDATA%/easy-gcode-plot/config.ini` is now the only settings file and clean-profile defaults come exclusively from code.
+- Added persistent arc-sampling presets and maximum radius, minimum radius and minimum chord length controls under `Options -> CNC / Execution`; GUI trace generation now applies them per arc to reduce unnecessary render points in large programs without changing CNC execution geometry.
+
 ## 1.5.9 - 2026-09-20
 
 - Localized every user-visible Toolpath Statistics report label for the Russian UI while preserving the existing English report text, values, units and statistics calculations.

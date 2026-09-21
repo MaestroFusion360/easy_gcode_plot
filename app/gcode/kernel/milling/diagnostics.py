@@ -2,58 +2,13 @@
 
 from __future__ import annotations
 
-import re
-
-from ..api.resources import SemanticError
 from ..api.types import Diagnostic, ExecutionEvent
-from ..frontend.lang import UndefinedMacroVariableError
+from ..runtime.diagnostics import diagnostic_from_exception
 from ..runtime.events import TOOL_CHANGE
-
-_LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
-
-
-def _exception_chain_contains(exc: Exception, exc_type: type[BaseException]) -> bool:
-    current: BaseException | None = exc
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, exc_type):
-            return True
-        current = current.__cause__ or current.__context__
-    return False
 
 
 def _execution_diagnostic(exc: Exception, program) -> Diagnostic:
-    message = str(exc)
-    code = "UNDEFINED_MACRO" if _exception_chain_contains(exc, UndefinedMacroVariableError) else "EXECUTION_ERROR"
-    status = "malformed"
-    current: BaseException | None = exc
-    seen: set[int] = set()
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, SemanticError):
-            code = current.code
-            status = current.status
-            break
-        current = current.__cause__ or current.__context__
-
-    lowered = message.lower()
-    if code == "EXECUTION_ERROR":
-        if "missing goto target" in lowered or "missing if/goto target" in lowered:
-            code = "FLOW_TARGET_MISSING"
-        elif "m98 targets missing" in lowered:
-            code = "SUBPROGRAM_MISSING"
-        elif "call depth exceeds" in lowered:
-            code = "CALL_DEPTH_EXCEEDED"
-
-    line = None
-    match = _LINE_RE.search(message)
-    if match is not None:
-        line = int(match.group(1))
-    raw = None
-    if line is not None and 1 <= line <= len(program.blocks):
-        raw = program.blocks[line - 1].raw
-    return Diagnostic(code=code, message=message, status=status, line=line, raw=raw)
+    return diagnostic_from_exception(exc, program)
 
 
 def _apply_milling_tool_change(block, state, words, codes, diagnostics, occurrence_events, call_stack):

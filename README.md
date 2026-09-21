@@ -24,7 +24,7 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 
 ## Highlights
 
-- FANUC turning and milling with Macro B expressions, conditions, loops and subprograms.
+- FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, cutter-radius compensation and G50/G51/G52/G68/G69 coordinate transforms.
 - G-code editor with highlighting, line numbers, search, replace and cleanup tools.
@@ -42,7 +42,7 @@ Detailed controller behavior, limitations, configuration and troubleshooting are
 
 ### Windows executable
 
-Download the latest standalone archive from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases), extract it and run `easy_gcode_plot.exe`. Python and Visual Studio are not required for the packaged application.
+Download the latest standalone `.exe` from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases) and run it. Python and Visual Studio are not required for the packaged application.
 
 ### Run from source
 
@@ -91,6 +91,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - **Autodetect Arc Type** — selects relative or absolute-center milling IJK interpretation when only one satisfies Arc tolerance.
 - **Ignore Block Skip** — excludes blocks beginning with `/` without modifying the source.
 - **Correction (G41/G42)** and **Arc tolerance** — control compensation and arc validation.
+- **Arc sampling preset**, **Maximum circular radius**, **Minimum circular radius** and **Minimum chord length** — control GUI trace sampling without changing CNC execution geometry.
 
 Explicit Refresh operations use a cancellable dialog covering tool discovery, parsing, execution, sampling and plot publication.
 

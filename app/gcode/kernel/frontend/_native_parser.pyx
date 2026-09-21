@@ -136,6 +136,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef object f_expr = None
     cdef object a_expr = None
     cdef object c_expr = None
+    cdef bint g65_call = False
     cdef object nlabel = None
     cdef object olabel = None
     cdef object modal
@@ -198,6 +199,8 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             last_g_expr = expr
             if int_code is not None:
                 g_codes.append(int_code)
+                if int_code == 65:
+                    g65_call = True
                 if int_code in (0, 1, 2, 3, 32, 33):
                     motion_expr = expr
                     motion_code = int_code
@@ -231,11 +234,16 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
         elif letter == "C":
             c_expr = expr
 
-    modal = ModalSnapshot(
-        motion_expr if motion_expr is not None else last_g_expr,
-        x_expr, z_expr, u_expr, w_expr, f_expr,
-    )
-    if motion_expr is not None or x_expr is not None or z_expr is not None or u_expr is not None or w_expr is not None:
+    if g65_call:
+        modal = ModalSnapshot(None, None, None, None, None, None)
+    else:
+        modal = ModalSnapshot(
+            motion_expr if motion_expr is not None else last_g_expr,
+            x_expr, z_expr, u_expr, w_expr, f_expr,
+        )
+    if not g65_call and (
+        motion_expr is not None or x_expr is not None or z_expr is not None or u_expr is not None or w_expr is not None
+    ):
         motion = MotionNode(
             motion_expr,
             x_expr, z_expr, u_expr, w_expr,
@@ -243,7 +251,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
         )
     token_tuple = tuple(tokens)
     ast_tuple = tuple(ast_words)
-    if cycle_expr is not None:
+    if not g65_call and cycle_expr is not None:
         cycle = CycleNode("G" + str(cycle_code), token_tuple)
 
     block = Block(index, raw, token_tuple, modal, motion, cycle, None, nlabel, olabel, optional_skip)
@@ -257,7 +265,9 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             i_expr, k_expr, r_expr, f_expr, a_expr, c_expr,
         )
     elif g_codes or m_codes:
-        node = ControlAstNode("control", index, raw, nlabel, olabel, ast_tuple, tuple(g_codes), tuple(m_codes))
+        node = ControlAstNode(
+            "control", index, raw, nlabel, olabel, ast_tuple, tuple(g_codes), () if g65_call else tuple(m_codes)
+        )
     elif ast_tuple:
         node = MetaAstNode("meta", index, raw, nlabel, olabel, ast_tuple, tuple(word.letter for word in ast_tuple))
     else:

@@ -3,8 +3,6 @@
 import logging
 import math
 import os
-import shutil
-import sys
 import threading
 from pathlib import Path
 
@@ -70,29 +68,8 @@ def configure_logging(enabled: bool) -> None:
         project_logger.propagate = previous_propagate
 
 
-def _application_dir() -> str:
-    """Return the stable application directory without depending on process CWD."""
-    if getattr(sys, "frozen", False):
-        return os.path.dirname(os.path.abspath(sys.executable))
-    return str(Path(__file__).resolve().parent.parent)
-
-
-def _migrate_legacy_config() -> None:
-    """Copy a legacy ``config.ini`` next to the application on first run."""
-    target = config_path()
-    if os.path.exists(target):
-        return
-    legacy = os.path.join(_application_dir(), "config.ini")
-    if os.path.exists(legacy):
-        try:
-            shutil.copy2(legacy, target)
-        except OSError:
-            LOGGER.warning("legacy_config_migration_failed source=%s target=%s", legacy, target, exc_info=True)
-
-
 def get_settings() -> QSettings:
     """Return a QSettings instance bound to the per-user config.ini file."""
-    _migrate_legacy_config()
     return QSettings(config_path(), QSettings.Format.IniFormat)
 
 
@@ -109,7 +86,23 @@ def ui_theme() -> str:
 RECENT_FILES_LIMIT = 5
 ARC_TOLERANCE_MIN = 1e-6
 ARC_TOLERANCE_MAX = 10.0
-ARC_TOLERANCE_DEFAULT = 0.001
+ARC_TOLERANCE_DEFAULT = 0.002
+ARC_SAMPLING_PRESET_DEFAULT = "normal"
+ARC_SAMPLING_PRESETS = (
+    ("exact", 0.001, 10000.0, 0.001, 0.05),
+    ("normal", 0.002, 1000.0, 0.01, 0.25),
+    ("large", 0.01, 500.0, 0.05, 1.0),
+    ("very_large", 0.05, 250.0, 0.1, 2.5),
+)
+MAXIMUM_CIRCULAR_RADIUS_MIN = 0.001
+MAXIMUM_CIRCULAR_RADIUS_MAX = 1_000_000_000.0
+MAXIMUM_CIRCULAR_RADIUS_DEFAULT = 1000.0
+MINIMUM_CIRCULAR_RADIUS_MIN = 0.0
+MINIMUM_CIRCULAR_RADIUS_MAX = 1_000_000_000.0
+MINIMUM_CIRCULAR_RADIUS_DEFAULT = 0.01
+MINIMUM_CHORD_LENGTH_MIN = 0.0
+MINIMUM_CHORD_LENGTH_MAX = 1_000_000.0
+MINIMUM_CHORD_LENGTH_DEFAULT = 0.25
 FONT_SIZE_MIN = 6
 FONT_SIZE_MAX = 48
 AUTO_UPDATE_SEGMENTS_MIN = 1000

@@ -1,6 +1,6 @@
 """Custom widgets referenced by Qt Designer forms."""
 
-from math import cos, radians, sin, tan
+from math import atan, cos, degrees, radians, sin, tan
 
 import numpy as np
 from OpenGL import GL
@@ -118,7 +118,12 @@ class PlotView(GLViewWidget):
             self._orthographic_width = max(self._orthographic_width * factor, 1e-9)
             self.update()
         else:
-            self.setCameraPosition(distance=max(float(self.opts["distance"]) * factor, 1e-9))
+            # Changing the perspective FOV scales every view-space depth by
+            # the same ratio. A camera dolly makes geometry behind the orbit
+            # center appear to zoom more slowly than geometry in front of it.
+            half_tangent = tan(radians(float(self.opts["fov"])) * 0.5) * factor
+            self.opts["fov"] = max(0.01, min(179.0, 2.0 * degrees(atan(half_tangent))))
+            self.update()
 
     def orbit(self, azim, elev):
         """Start free rotation in perspective when leaving a fixed orthographic view."""
@@ -134,9 +139,7 @@ class PlotView(GLViewWidget):
             self.orthographicOrbitStarted.emit()
 
     def wheelEvent(self, ev):
-        """Zoom parallel views by changing their world span rather than camera depth."""
-        if not self.isOrthographic():
-            return super().wheelEvent(ev)
+        """Zoom all projections at a depth-independent visual rate."""
         delta = ev.angleDelta().x()
         if delta == 0:
             delta = ev.angleDelta().y()

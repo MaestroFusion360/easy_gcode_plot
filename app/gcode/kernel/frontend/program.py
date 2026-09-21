@@ -111,18 +111,23 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
         motion_g_word = next((w for w, code in reversed(g_codes) if code in motion_codes), None)
         cycle_g_word = next((w for w, code in reversed(g_codes) if code in cycle_codes), None)
         cycle_g_lit = try_literal_int(cycle_g_word.expr) if cycle_g_word is not None else None
+        g65_call = any(code == 65 for _word, code in g_codes)
 
         modal = ModalSnapshot(
-            g_expr=(motion_g_word.expr if motion_g_word is not None else (g_words[-1].expr if g_words else None)),
-            x_expr=word_map.get("X"),
-            z_expr=word_map.get("Z"),
-            u_expr=word_map.get("U"),
-            w_expr=word_map.get("W"),
-            f_expr=word_map.get("F"),
+            g_expr=(
+                None
+                if g65_call
+                else (motion_g_word.expr if motion_g_word is not None else (g_words[-1].expr if g_words else None))
+            ),
+            x_expr=None if g65_call else word_map.get("X"),
+            z_expr=None if g65_call else word_map.get("Z"),
+            u_expr=None if g65_call else word_map.get("U"),
+            w_expr=None if g65_call else word_map.get("W"),
+            f_expr=None if g65_call else word_map.get("F"),
         )
 
         motion_node: MotionNode | None = None
-        if any(k in word_map for k in ("X", "Z", "U", "W")) or motion_g_word is not None:
+        if not g65_call and (any(k in word_map for k in ("X", "Z", "U", "W")) or motion_g_word is not None):
             motion_node = MotionNode(
                 g_expr=motion_g_word.expr if motion_g_word is not None else None,
                 x_expr=word_map.get("X"),
@@ -138,7 +143,7 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
             )
 
         cycle_node: CycleNode | None = None
-        if cycle_g_lit is not None:
+        if not g65_call and cycle_g_lit is not None:
             cycle_node = CycleNode(cycle=f"G{cycle_g_lit}", params=words)
 
         # N/O labels are taken only from genuine address tokens.  The bracket-aware

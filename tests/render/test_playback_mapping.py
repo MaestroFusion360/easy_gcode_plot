@@ -40,6 +40,20 @@ def test_arc_tessellation_density_does_not_change_playback_count():
     assert len(_playback(result)) == 2
 
 
+def test_arc_sampling_limits_reduce_render_points_without_changing_motions():
+    result = execute("G17 G90 G0 X100 Y0\nG3 X-100 Y0 I-100 J0", language="fanuc_mill")
+
+    exact = render_trace(result, chord_error=0.002)
+    capped_radius = render_trace(result, chord_error=0.002, maximum_circular_radius=10.0)
+    capped_chord = render_trace(result, chord_error=0.002, minimum_chord_length=10.0)
+    tiny_arc_filtered = render_trace(result, chord_error=0.002, minimum_circular_radius=200.0)
+
+    assert len(exact) > len(capped_radius) > len(tiny_arc_filtered)
+    assert len(exact) > len(capped_chord) > len(tiny_arc_filtered)
+    assert len(result.motions) == 2
+    assert exact[-1] == capped_radius[-1] == capped_chord[-1] == tiny_arc_filtered[-1]
+
+
 def test_simplified_programming_uses_real_transition_motions_not_samples():
     result = execute("G0 X90 Z1\nG1 Z0\nX87.8 R1\nX84.45 A20 R1.8\nZ-30.05\nX75.5 C1\nZ-40")
 
