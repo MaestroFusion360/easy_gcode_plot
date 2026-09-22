@@ -110,6 +110,52 @@ def test_lathe_fit_keeps_tall_stock_inside_widescreen_viewport(qt_app):
     window.deleteLater()
 
 
+def test_lathe_zoom_uses_camera_distance_without_changing_near_zero_fov(qt_app):
+    window = MainWindow()
+    window.ui.actionLatheMode.setChecked(True)
+    qt_app.processEvents()
+
+    view = window.ui.graphicsView
+    assert view.projectionMode() == "perspective"
+    assert view.opts["fov"] == pytest.approx(0.01)
+
+    original_distance = float(view.opts["distance"])
+    original_center = QVector3D(view.opts["center"])
+    original_rotation = view.opts["rotation"]
+
+    window.zoomIn()
+
+    assert view.opts["fov"] == pytest.approx(0.01)
+    assert view.opts["distance"] == pytest.approx(original_distance * 0.9)
+    assert view.opts["center"] == original_center
+    assert view.opts["rotation"] == original_rotation
+
+    zoomed_distance = float(view.opts["distance"])
+    window.zoomOut()
+
+    assert view.opts["fov"] == pytest.approx(0.01)
+    assert view.opts["distance"] == pytest.approx(zoomed_distance * 1.1)
+    assert view.opts["center"] == original_center
+    assert view.opts["rotation"] == original_rotation
+    window.deleteLater()
+
+
+def test_milling_3d_zoom_keeps_existing_fov_behavior(qt_app):
+    window = MainWindow()
+    window.ui.actionLatheMode.setChecked(False)
+    qt_app.processEvents()
+
+    view = window.ui.graphicsView
+    view.opts["fov"] = 60.0
+    original_distance = float(view.opts["distance"])
+
+    window.zoomIn()
+
+    assert view.opts["fov"] < 60.0
+    assert view.opts["distance"] == pytest.approx(original_distance)
+    window.deleteLater()
+
+
 @pytest.mark.parametrize(
     ("view_mode", "fov", "elevation", "azimuth"),
     [

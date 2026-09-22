@@ -35,6 +35,9 @@ class MotionAstNode(AstNode):
     f_expr: str | None = None
     a_expr: str | None = None
     c_expr: str | None = None
+    y_expr: str | None = None
+    v_expr: str | None = None
+    j_expr: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,6 +155,9 @@ def build_ast_node(block: object) -> AstNode:
             f_expr=getattr(motion, "f_expr", None),
             a_expr=getattr(motion, "a_expr", None),
             c_expr=getattr(motion, "c_expr", None),
+            y_expr=getattr(motion, "y_expr", None),
+            v_expr=getattr(motion, "v_expr", None),
+            j_expr=getattr(motion, "j_expr", None),
         )
 
     g_codes: list[int] = []

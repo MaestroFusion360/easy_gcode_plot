@@ -268,6 +268,71 @@ def test_milling_g73_retract_clearance_is_one_mm_in_inch_mode():
     assert first_retract_end - first_peck_end == pytest.approx(1.0)
 
 
+def test_milling_g84_tapping_returns_from_depth_at_feed():
+    result = execute("G21 G90 G17\nG0 Z5\nG84 X0 Y0 Z-5 R1 F100\nG80\nM30", language="fanuc_mill")
+
+    assert result.ok, result.diagnostics
+    _assert_cycle_z_moves(
+        result,
+        "G84",
+        [
+            (0, 5.0, 1.0),
+            (1, 1.0, -5.0),
+            (1, -5.0, 1.0),
+        ],
+    )
+
+
+def test_milling_g82_publishes_dwell_for_each_hole():
+    result = execute(
+        "G21 G90 G17\nG0 Z5\nG82 X0 Y0 Z-5 R1 P1500 F100\nX10\nG80\nM30",
+        language="fanuc_mill",
+    )
+
+    assert result.ok, result.diagnostics
+    dwell = [signal for signal in result.signals if signal.kind == "dwell" and signal.code == "G82"]
+    assert [signal.value for signal in dwell] == pytest.approx([1.5, 1.5])
+
+
+def test_milling_g84_publishes_spindle_synchronization_and_reverse():
+    result = execute("G21 G90 G17\nG0 Z5\nG84 X0 Y0 Z-5 R1 F100\nG80\nM30", language="fanuc_mill")
+
+    assert result.ok, result.diagnostics
+    kinds = [signal.kind for signal in result.signals if signal.code == "G84"]
+    assert kinds == ["spindle_sync", "spindle_reverse"]
+
+
+def test_milling_g86_publishes_spindle_stop_at_depth():
+    result = execute("G21 G90 G17\nG0 Z5\nG86 X0 Y0 Z-5 R1 F100\nG80\nM30", language="fanuc_mill")
+
+    assert result.ok, result.diagnostics
+    assert [(signal.kind, signal.code) for signal in result.signals if signal.code == "G86"] == [
+        ("spindle_stop", "G86")
+    ]
+
+
+def test_milling_g73_retract_distance_is_a_kernel_option():
+    result = execute(
+        "G21 G90 G17\nG0 Z5\nG73 X0 Y0 Z-5 R1 Q2 F100\nG80\nM30",
+        language="fanuc_mill",
+        milling_g73_retract_distance=0.25,
+    )
+
+    assert result.ok, result.diagnostics
+    moves = _cycle_z_moves(result, "G73")
+    assert moves[1] == pytest.approx((1, 1.0, -1.0))
+    assert moves[2] == pytest.approx((0, -1.0, -0.75))
+
+
+@pytest.mark.parametrize("distance", [-1.0, float("inf"), float("nan")])
+def test_milling_g73_retract_distance_must_be_finite_and_non_negative(distance):
+    result = execute("G73 X0 Y0 Z-5 R1 Q2 F100\nM30", language="fanuc_mill", milling_g73_retract_distance=distance)
+
+    assert not result.ok
+    assert not result.complete
+    assert any("G73 retract distance" in diagnostic.message for diagnostic in result.diagnostics)
+
+
 def test_milling_real_subprogram_fixture_repeats_m98_m99_and_returns_to_main_program(fixture_text):
     result = execute(fixture_text("milling/subprogram.nc"), language="fanuc_mill")
     assert result.ok, result.diagnostics

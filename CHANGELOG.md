@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.6.1 - 2026-09-22
+
+- Fixed milling `G84` tapping so withdrawal from depth is emitted as synchronized feed motion instead of rapid motion.
+- Added turning `G53` non-modal machine-coordinate motion while preserving the active WCS for subsequent blocks.
+- Added machine-specific modal-group validation for the supported code set. Conflicting codes now produce `MODAL_GROUP_CONFLICT` and the complete block is skipped instead of silently applying the last code.
+- Corrected the shared AST so milling `G90/G94` are not classified as turning cycles, and preserved `Y/J/V` plus coordinate-only modal motion blocks with Python/Cython parser parity.
+- Added kernel/API support for `G54.1 P1-P99` through `extended_wcs_offsets`, and `G10 L2 P1-P6` / `G10 L20 P1-P99` runtime work-offset programming without requiring UI configuration.
+- Modeled milling `G82` dwell, `G84` spindle synchronization/reversal and `G86` spindle-stop signals. The high-speed `G73` retract distance is now configurable through `milling_g73_retract_distance` instead of being hardcoded in cycle expansion.
+- Fixed Lathe Mode zoom so perspective zoom no longer stalls at the intentionally near-orthographic `0.01` FOV limit. Turning zoom now changes camera distance while preserving the existing projection, orientation and visual appearance; milling 3D keeps its previous FOV-based zoom behavior.
+- Made the WCS dialog vertically compact and resizable instead of enforcing the previous oversized minimum height.
+- Fixed missing `QDoubleSpinBox` up/down arrows in the Windows 10 dark-theme fallback. Spin-box buttons now keep native Windows geometry while the dark compatibility style explicitly renders visible arrows; the Windows 11 native dark-style path is unchanged.
+- Added regression coverage for Lathe Mode zoom behavior, preserved turning camera FOV/orientation, compact WCS sizing and Windows 10 dark-theme spin-box arrow rendering.
+
 ## 1.6.0 - 2026-09-21
 
 - Added FANUC `G65` custom-macro calls for turning and milling: `P` target selection, `L` repetition, Type I/II address-to-`#1..#33` argument binding, four macro-local nesting levels, local-variable restoration on `M99`, and shared execution/export events. `G65` argument words are isolated from normal motion, feed, spindle, M-code and tool-selection side effects; Python/Cython parsing and tool discovery follow the same rule. `G66/G67` remain intentionally out of scope for this release.

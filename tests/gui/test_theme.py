@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import pytest
 from PyQt6.Qsci import QsciScintilla
-from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QApplication, QStyle
+from PyQt6.QtCore import QRect
+from PyQt6.QtGui import QColor, QImage, QPainter, QPalette
+from PyQt6.QtWidgets import QApplication, QDoubleSpinBox, QStyle, QStyleFactory, QStyleOptionSpinBox
 
 from app import theme
 from app.main_window import MainWindow
@@ -144,34 +145,47 @@ def test_dark_theme_uses_palette_only_as_color_scheme_fallback(qt_app, monkeypat
     assert palettes[0].color(QPalette.ColorRole.Window).name() == "#1f1f1f"
 
 
-def test_dark_input_stylesheet_makes_spin_boxes_readable(qt_app):
-    theme.reset_theme_state()
-    theme._apply_dark_input_stylesheet(qt_app)
+def test_dark_spinbox_proxy_overlays_visible_up_and_down_arrows(qt_app):
+    base = QStyleFactory.create("Fusion")
+    assert base is not None
+    style = theme._DarkSpinBoxArrowStyle(base)
+    spinbox = QDoubleSpinBox()
+    spinbox.resize(120, 28)
+    spinbox.setPalette(theme._dark_palette())
+    spinbox.setStyle(style)
 
-    stylesheet = qt_app.styleSheet()
-    assert "QAbstractSpinBox" in stylesheet
-    assert "QAbstractSpinBox::up-arrow" in stylesheet
-    assert "QAbstractSpinBox::down-arrow" in stylesheet
+    option = QStyleOptionSpinBox()
+    spinbox.initStyleOption(option)
+    image = QImage(spinbox.size(), QImage.Format.Format_ARGB32)
+    image.fill(QColor("#000000"))
+    painter = QPainter(image)
+    style.drawComplexControl(QStyle.ComplexControl.CC_SpinBox, option, painter, spinbox)
+    painter.end()
+
+    expected = theme._dark_palette().color(QPalette.ColorRole.ButtonText).name()
+    for subcontrol in (QStyle.SubControl.SC_SpinBoxUp, QStyle.SubControl.SC_SpinBoxDown):
+        rect = style.subControlRect(QStyle.ComplexControl.CC_SpinBox, option, subcontrol, spinbox)
+        assert rect != QRect()
+        pixels = [
+            image.pixelColor(x, y).name()
+            for y in range(rect.top(), rect.bottom() + 1)
+            for x in range(rect.left(), rect.right() + 1)
+        ]
+        assert expected in pixels
 
 
-def test_light_theme_clears_the_dark_input_stylesheet(qt_app):
-    theme._apply_dark_input_stylesheet(qt_app)
-    theme.reset_theme_state()
-
-    theme.apply_application_theme(qt_app, "light")
-
-    assert qt_app.styleSheet() == ""
-
-
-def test_windows_dark_compatibility_applies_input_stylesheet(qt_app, monkeypatch):
+def test_windows_dark_compatibility_installs_spinbox_proxy_without_stylesheet(qt_app, monkeypatch):
     monkeypatch.setattr(theme, "_set_color_scheme", lambda _app, _target: True)
     monkeypatch.setattr(theme, "_needs_windows_dark_compatibility", lambda *_args: True)
 
     theme.reset_theme_state()
     theme.apply_application_theme(qt_app, "dark")
 
-    assert "QAbstractSpinBox::up-arrow" in qt_app.styleSheet()
+    assert isinstance(qt_app.style(), theme._DarkSpinBoxArrowStyle)
+    assert qt_app.styleSheet() == ""
+
     theme.apply_application_theme(qt_app, "light")
+    assert not isinstance(qt_app.style(), theme._DarkSpinBoxArrowStyle)
     assert qt_app.styleSheet() == ""
 
 

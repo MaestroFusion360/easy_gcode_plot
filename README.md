@@ -26,7 +26,7 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 
 - FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
-- Milling canned cycles, helical arcs, cutter-radius compensation and G50/G51/G52/G68/G69 coordinate transforms.
+- Milling canned cycles, helical arcs, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
 - G-code editor with highlighting, line numbers, search, replace and cleanup tools.
 - Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.
 - Cutter-aware turning Stock Removal, including thread profiles.

@@ -7,6 +7,7 @@ from dataclasses import replace
 
 from ..kernel import ExecutionResult, TraceMotion
 from ..kernel.events import PROGRAM_END, PROGRAM_START
+from ..kernel.geometry.coordinates import extended_wcs_id
 from .options import ExportOptions
 
 
@@ -40,6 +41,7 @@ def _motion_in_active_wcs(
     turning: bool = False,
 ) -> TraceMotion:
     offsets = dict(result.wcs_offsets)
+    offsets.update({extended_wcs_id(p_number): value for p_number, value in result.extended_wcs_offsets})
     offset = offsets.get(step.active_wcs, (0.0, 0.0, 0.0))
     if not any(abs(value) > 1e-12 for value in offset):
         return motion

@@ -8,7 +8,9 @@ from ..api.resources import SemanticError
 from ..api.types import Diagnostic
 from ..frontend.lang import UndefinedMacroVariableError
 from ..frontend.model import Program
+from ..geometry.coordinates import is_extended_wcs_gcode
 from .events import SUBPROGRAM_START
+from .execution import modal_group_conflicts
 
 SUPPORTED_TURNING_G_CODES = frozenset(
     {
@@ -17,6 +19,7 @@ SUPPORTED_TURNING_G_CODES = frozenset(
         2,
         3,
         4,
+        10,
         18,
         20,
         21,
@@ -28,6 +31,7 @@ SUPPORTED_TURNING_G_CODES = frozenset(
         41,
         42,
         50,
+        53,
         54,
         55,
         56,
@@ -59,6 +63,21 @@ SUPPORTED_TURNING_G_CODES = frozenset(
 )
 
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
+
+
+def modal_conflict_diagnostics(gcodes, language: str, block) -> tuple[Diagnostic, ...]:
+    """Build source-aware diagnostics for every modal-group conflict."""
+    return tuple(
+        Diagnostic(
+            "MODAL_GROUP_CONFLICT",
+            f"Conflicting {group} codes in one block: {', '.join(f'G{code:g}' for code in codes)}",
+            "error",
+            "malformed",
+            block.index + 1,
+            block.raw,
+        )
+        for group, codes in modal_group_conflicts(gcodes, language)
+    )
 
 
 def _is_literal_g65_block(block) -> bool:
@@ -176,6 +195,8 @@ def fractional_code_diagnostics(program: Program, steps) -> tuple[Diagnostic, ..
                 continue
             value = float(raw_value)
             if value.is_integer():
+                continue
+            if letter == "G" and is_extended_wcs_gcode(value):
                 continue
             key = (block_index, letter, value)
             if key in seen:

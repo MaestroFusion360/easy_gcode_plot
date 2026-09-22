@@ -71,6 +71,8 @@ class ModalSnapshot:
     u_expr: str | None
     w_expr: str | None
     f_expr: str | None
+    y_expr: str | None = None
+    v_expr: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +88,9 @@ class MotionNode:
     f_expr: str | None
     a_expr: str | None
     c_expr: str | None
+    y_expr: str | None = None
+    v_expr: str | None = None
+    j_expr: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

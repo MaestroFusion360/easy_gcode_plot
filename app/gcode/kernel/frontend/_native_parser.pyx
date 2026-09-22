@@ -127,10 +127,13 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef object cycle_expr = None
     cdef object cycle_code = None
     cdef object x_expr = None
+    cdef object y_expr = None
     cdef object z_expr = None
     cdef object u_expr = None
+    cdef object v_expr = None
     cdef object w_expr = None
     cdef object i_expr = None
+    cdef object j_expr = None
     cdef object k_expr = None
     cdef object r_expr = None
     cdef object f_expr = None
@@ -204,7 +207,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
                 if int_code in (0, 1, 2, 3, 32, 33):
                     motion_expr = expr
                     motion_code = int_code
-                if int_code in (70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94):
+                if int_code in (70, 71, 72, 73, 74, 75, 76, 80, 83, 84):
                     cycle_expr = expr
                     cycle_code = int_code
         elif letter == "M" and int_code is not None:
@@ -215,14 +218,20 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             olabel = int_code
         elif letter == "X":
             x_expr = expr
+        elif letter == "Y":
+            y_expr = expr
         elif letter == "Z":
             z_expr = expr
         elif letter == "U":
             u_expr = expr
+        elif letter == "V":
+            v_expr = expr
         elif letter == "W":
             w_expr = expr
         elif letter == "I":
             i_expr = expr
+        elif letter == "J":
+            j_expr = expr
         elif letter == "K":
             k_expr = expr
         elif letter == "R":
@@ -235,19 +244,22 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             c_expr = expr
 
     if g65_call:
-        modal = ModalSnapshot(None, None, None, None, None, None)
+        modal = ModalSnapshot(None, None, None, None, None, None, None, None)
     else:
         modal = ModalSnapshot(
             motion_expr if motion_expr is not None else last_g_expr,
             x_expr, z_expr, u_expr, w_expr, f_expr,
+            y_expr, v_expr,
         )
     if not g65_call and (
-        motion_expr is not None or x_expr is not None or z_expr is not None or u_expr is not None or w_expr is not None
+        motion_expr is not None or x_expr is not None or y_expr is not None or z_expr is not None
+        or u_expr is not None or v_expr is not None or w_expr is not None
     ):
         motion = MotionNode(
             motion_expr,
             x_expr, z_expr, u_expr, w_expr,
             i_expr, k_expr, r_expr, f_expr, a_expr, c_expr,
+            y_expr, v_expr, j_expr,
         )
     token_tuple = tuple(tokens)
     ast_tuple = tuple(ast_words)
@@ -263,6 +275,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             motion_code,
             x_expr, z_expr, u_expr, w_expr,
             i_expr, k_expr, r_expr, f_expr, a_expr, c_expr,
+            y_expr, v_expr, j_expr,
         )
     elif g_codes or m_codes:
         node = ControlAstNode(

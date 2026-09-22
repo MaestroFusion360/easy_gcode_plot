@@ -325,6 +325,7 @@ class MainWindow(
             self.latheMode = True
             self._view_mode = "lathe"
             self.ui.graphicsView.setProjectionMode("perspective")
+            self.ui.graphicsView.setPerspectiveZoomMode("distance")
             self.ui.action3D.setEnabled(False)
             self.ui.actionTop.setEnabled(False)
             self.ui.actionFront.setEnabled(False)
@@ -341,6 +342,7 @@ class MainWindow(
         else:
             self.latheMode = False
             self._view_mode = "3d"
+            self.ui.graphicsView.setPerspectiveZoomMode("fov")
             self.ui.action3D.setEnabled(True)
             self.ui.actionTop.setEnabled(True)
             self.ui.actionFront.setEnabled(True)

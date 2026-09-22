@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import sys
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QPalette
-from PyQt6.QtWidgets import QStyleFactory
+from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtGui import QColor, QPalette, QPolygon
+from PyQt6.QtWidgets import QAbstractSpinBox, QProxyStyle, QStyle, QStyleFactory
 
 THEMES = ("light", "dark")
 DEFAULT_THEME = "light"
@@ -87,44 +87,68 @@ _STATE = {
     "applied": None,
     "palette_fallback": False,
     "style_fallback": False,
-    "input_stylesheet": False,
 }
 
-# The legacy ``windows`` style draws spin-box controls with a black frame and
-# black arrows even when it is given a dark QPalette.  A small, input-only
-# stylesheet makes every QAbstractSpinBox (Stock, WCS, Options, tool editors,
-# ...) readable in dark mode without replacing the platform style.
-_DARK_INPUT_STYLESHEET = """
-QAbstractSpinBox {
-    border: 1px solid #4a4a4a;
-    border-radius: 3px;
-    background: #252526;
-    color: #e6e6e6;
-    padding-right: 18px;
-}
-QAbstractSpinBox::up-button, QAbstractSpinBox::down-button {
-    subcontrol-origin: border;
-    width: 16px;
-    background: #333337;
-    border: 1px solid #4a4a4a;
-}
-QAbstractSpinBox::up-arrow {
-    image: none;
-    width: 0;
-    height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-bottom: 5px solid #e6e6e6;
-}
-QAbstractSpinBox::down-arrow {
-    image: none;
-    width: 0;
-    height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    border-top: 5px solid #e6e6e6;
-}
-"""
+# The legacy ``windows`` style hard-codes dark spin-box arrows even when the
+# application palette is dark.  Styling QAbstractSpinBox with an application
+# stylesheet is tempting, but on Windows 10 QStyleSheetStyle then owns the
+# spin-box subcontrols and can suppress the proxy-style arrow primitives.
+# Keep the native control geometry and paint only the two arrow glyphs after
+# the base style has rendered the spin box.
+
+
+class _DarkSpinBoxArrowStyle(QProxyStyle):
+    """Overlay visible spin-box arrows on the legacy Windows dark fallback."""
+
+    _ARROWS = (
+        (QStyle.SubControl.SC_SpinBoxUp, True),
+        (QStyle.SubControl.SC_SpinBoxDown, False),
+    )
+
+    def drawComplexControl(self, control, option, painter, widget=None):  # noqa: N802 - Qt API
+        super().drawComplexControl(control, option, painter, widget)
+        if control != QStyle.ComplexControl.CC_SpinBox or not isinstance(widget, QAbstractSpinBox):
+            return
+        if option.buttonSymbols == QAbstractSpinBox.ButtonSymbols.NoButtons:
+            return
+
+        group = (
+            QPalette.ColorGroup.Active
+            if option.state & QStyle.StateFlag.State_Enabled
+            else QPalette.ColorGroup.Disabled
+        )
+        color = option.palette.color(group, QPalette.ColorRole.ButtonText)
+
+        painter.save()
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color)
+        for subcontrol, points_up in self._ARROWS:
+            if not option.subControls & subcontrol:
+                continue
+            rect = self.subControlRect(control, option, subcontrol, widget)
+            if rect.width() < 3 or rect.height() < 3:
+                continue
+            center = rect.center()
+            half_width = max(2, min(4, (rect.width() - 4) // 2))
+            half_height = max(2, min(3, (rect.height() - 2) // 2))
+            if points_up:
+                points = QPolygon(
+                    [
+                        QPoint(center.x() - half_width, center.y() + half_height // 2),
+                        QPoint(center.x() + half_width, center.y() + half_height // 2),
+                        QPoint(center.x(), center.y() - half_height),
+                    ]
+                )
+            else:
+                points = QPolygon(
+                    [
+                        QPoint(center.x() - half_width, center.y() - half_height // 2),
+                        QPoint(center.x() + half_width, center.y() - half_height // 2),
+                        QPoint(center.x(), center.y() + half_height),
+                    ]
+                )
+            painter.drawPolygon(points)
+        painter.restore()
 
 
 def reset_theme_state() -> None:
@@ -174,9 +198,6 @@ def apply_application_theme(app, theme) -> None:
         # application palette, so the startup palette is restored last.
         _restore_platform_style(app)
         _set_color_scheme(app, target)
-        if _STATE["input_stylesheet"]:
-            app.setStyleSheet("")
-            _STATE["input_stylesheet"] = False
         if _STATE["palette_fallback"]:
             app.setPalette(QPalette(_STATE["palette"]))
             _STATE["palette_fallback"] = False
@@ -219,19 +240,22 @@ def _needs_windows_dark_compatibility(platform_name: str, style_name: str) -> bo
 
 
 def _enable_windows_dark_compatibility(app) -> None:
-    """Replace Windows Vista style with palette-aware Windows style for dark UI."""
+    """Use a palette-aware Windows base plus explicit dark spin-box arrows."""
     if _style_name(app) == "windowsvista":
         fallback = QStyleFactory.create("windows")
         if fallback is not None:
             app.setStyle(fallback)
+
+    if not isinstance(app.style(), _DarkSpinBoxArrowStyle):
+        style_name = _style_name(app)
+        base_style = QStyleFactory.create(style_name) if style_name else None
+        if base_style is not None:
+            proxy = _DarkSpinBoxArrowStyle(base_style)
+            proxy.setObjectName(style_name)
+            app.setStyle(proxy)
+            # Light mode restores the exact startup platform style.  This flag
+            # covers both Vista->Windows and the temporary arrow proxy.
             _STATE["style_fallback"] = True
-    _apply_dark_input_stylesheet(app)
-
-
-def _apply_dark_input_stylesheet(app) -> None:
-    """Make spin-box controls readable on the legacy dark fallback styles."""
-    app.setStyleSheet(_DARK_INPUT_STYLESHEET)
-    _STATE["input_stylesheet"] = True
 
 
 def _restore_platform_style(app) -> None:

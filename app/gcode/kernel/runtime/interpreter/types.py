@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...api.types import ExecutionEvent, ExecutionStep
+from ...api.types import Diagnostic, ExecutionEvent, ExecutionStep
 from ..execution import ProgramRuntime
 from ..state import RuntimeState
 
@@ -38,6 +38,7 @@ class TraceExecutionContext:
     program_start_block: int = 0
     program_number: int | None = None
     contour_block_indices: set[int] | None = None
+    diagnostics: list[Diagnostic] | None = None
 
     @property
     def pc(self) -> int:
@@ -52,6 +53,8 @@ class TraceExecutionContext:
             self.cycle_options = {}
         if self.contour_block_indices is None:
             self.contour_block_indices = set()
+        if self.diagnostics is None:
+            self.diagnostics = []
 
 
 # Compatibility name: turning and milling now publish the same ExecutionStep contract.

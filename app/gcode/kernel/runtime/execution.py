@@ -24,6 +24,7 @@ CYCLE_CODES = frozenset({70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94})
 POSITION_NEUTRAL_GCODES = frozenset(
     {
         4,
+        10,
         65,
         18,
         20,
@@ -46,6 +47,25 @@ POSITION_NEUTRAL_GCODES = frozenset(
         191,
     }
 )
+
+_COMMON_MODAL_GROUPS = {
+    "plane": frozenset({17, 18, 19}),
+    "units": frozenset({20, 21}),
+    "wcs": frozenset({54, 54.1, 55, 56, 57, 58, 59}),
+    "cutter_compensation": frozenset({40, 41, 42}),
+}
+_MILLING_MODAL_GROUPS = {
+    **_COMMON_MODAL_GROUPS,
+    "motion": frozenset({0, 1, 2, 3, 73, 80, 81, 82, 83, 84, 85, 86}),
+    "distance_mode": frozenset({90, 91}),
+    "feed_mode": frozenset({94, 95}),
+    "cycle_return": frozenset({98, 99}),
+}
+_TURNING_MODAL_GROUPS = {
+    **_COMMON_MODAL_GROUPS,
+    "motion": frozenset({0, 1, 2, 3, 32, 33, 80, 83, 84, 90, 92, 94}),
+    "feed_mode": frozenset({98, 99}),
+}
 
 G65_LOCAL_KEYS = tuple(str(index) for index in range(1, 34))
 G65_ARGUMENTS_TYPE_I = {
@@ -125,6 +145,18 @@ class G65LocalFrame:
 _NO_FLOW = FlowDispatch(False, -1)
 _NO_CODES = BlockCodes((), (), None, None)
 _NO_PROGRAM_FLOW = ProgramFlowDispatch(SubprogramDispatch(False, -1, False, []), ())
+
+
+def modal_group_conflicts(gcodes: tuple[int | float, ...], language: str) -> tuple[tuple[str, tuple[int, ...]], ...]:
+    """Return conflicting supported modal codes grouped by machine dialect."""
+    groups = _MILLING_MODAL_GROUPS if language == "fanuc_mill" else _TURNING_MODAL_GROUPS
+    numeric_codes = {int(code) if float(code).is_integer() else float(code) for code in gcodes}
+    conflicts = []
+    for name, members in groups.items():
+        present = tuple(sorted(numeric_codes & members))
+        if len(present) > 1:
+            conflicts.append((name, present))
+    return tuple(conflicts)
 
 
 @dataclass

@@ -237,6 +237,25 @@ def test_g30_does_not_reuse_configured_g28_reference():
     assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((20, 10))
 
 
+def test_turning_g53_uses_machine_coordinates_without_changing_active_wcs():
+    source = """\
+G21 G18 G54
+G0 X20 Z0
+G53 G0 X0 Z0
+G1 X10 Z-5 F100
+M30
+"""
+    result = execute(source, language="fanuc_turn", wcs_offsets={54: (100.0, 50.0)})
+
+    assert result.ok, result.diagnostics
+    assert len(result.motions) == 3
+    assert (result.motions[0].end_x, result.motions[0].end_z) == pytest.approx((120.0, 50.0))
+    assert result.motions[1].source_kind == "g53"
+    assert (result.motions[1].end_x, result.motions[1].end_z) == pytest.approx((0.0, 0.0))
+    assert result.execution_steps[2].active_wcs == 54
+    assert (result.motions[2].end_x, result.motions[2].end_z) == pytest.approx((110.0, 45.0))
+
+
 def test_turning_source_trace_applies_compact_a_c_r_direct_programming():
     source = "\n".join(
         [

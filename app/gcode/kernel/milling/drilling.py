@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..api.resources import checkpoint
-from ..api.types import TraceMotion
+from ..api.types import MachineSignal, TraceMotion
 from ..runtime.drilling import axial_cycle_moves
 from .state import MillState, _machine, _xyz
 
@@ -25,7 +25,9 @@ _DRILL_BEHAVIOR = {
     81: _DrillBehavior(),
     82: _DrillBehavior(),
     83: _DrillBehavior(peck=True),
-    84: _DrillBehavior(),
+    # Tapping remains synchronized with the spindle on withdrawal, so its
+    # return is cutting/feed motion rather than a rapid retract.
+    84: _DrillBehavior(feed_return=True),
     85: _DrillBehavior(feed_return=True),
     86: _DrillBehavior(),
 }
@@ -40,6 +42,26 @@ def _update_cycle_parameters(state: MillState, words) -> None:
         state.cycle_q = abs(words["Q"] * state.unit_scale)
     if "F" in words:
         state.cycle_feed = words["F"] * state.unit_scale
+    if "P" in words:
+        if words["P"] < 0:
+            raise ValueError("Milling canned-cycle P dwell must not be negative")
+        state.cycle_p = words["P"] / 1000.0
+
+
+def _cycle_signals(block, state: MillState, words) -> tuple[MachineSignal, ...]:
+    """Describe controller actions associated with one emitted canned cycle."""
+    if state.cycle not in _DRILL_BEHAVIOR or not any(key in words for key in ("X", "Y", "Z", "R")):
+        return ()
+    if state.cycle == 82 and state.cycle_p > 0.0:
+        return (MachineSignal("dwell", block.index, "G82", state.cycle_p),)
+    if state.cycle == 84:
+        return (
+            MachineSignal("spindle_sync", block.index, "G84"),
+            MachineSignal("spindle_reverse", block.index, "G84"),
+        )
+    if state.cycle == 86:
+        return (MachineSignal("spindle_stop", block.index, "G86"),)
+    return ()
 
 
 def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
@@ -91,7 +113,7 @@ def _drill(block, state: MillState, words, *, wcs_offsets) -> list[TraceMotion]:
         r,
         state.cycle_z,
         step=step,
-        retract_distance=1.0,
+        retract_distance=state.g73_retract_distance,
         full_retract=not behavior.high_speed_peck,
         retract_after_final=False,
         return_to=return_z,

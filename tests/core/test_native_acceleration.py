@@ -7,6 +7,7 @@ pytest.importorskip("app.gcode.kernel.frontend._native_parser")
 pytest.importorskip("app.gcode.kernel.milling._native_executor")
 
 from app.gcode.kernel import execute
+from app.gcode.kernel.ast import ControlAstNode, MotionAstNode
 from app.gcode.kernel.frontend.program import _parse_program_python, parse_program
 from app.gcode.kernel.milling import executor as milling_executor
 
@@ -30,6 +31,21 @@ M99
 """
 
     assert parse_program(source) == _parse_program_python(StringIO(source))
+
+
+def test_shared_ast_keeps_milling_modes_out_of_turning_cycle_nodes():
+    program = parse_program("G21 G90 G17\nG94 G01 X10 Y20 F100\nY30\nV2 J1\n")
+
+    assert isinstance(program.ast.nodes[0], ControlAstNode)
+    assert isinstance(program.ast.nodes[1], MotionAstNode)
+    assert program.ast.nodes[1].g_code == 1
+    assert program.ast.nodes[1].y_expr == "20"
+    assert isinstance(program.ast.nodes[2], MotionAstNode)
+    assert program.ast.nodes[2].g_code is None
+    assert program.ast.nodes[2].y_expr == "30"
+    assert isinstance(program.ast.nodes[3], MotionAstNode)
+    assert program.ast.nodes[3].v_expr == "2"
+    assert program.ast.nodes[3].j_expr == "1"
 
 
 def test_native_milling_loop_matches_python_fallback(monkeypatch):

@@ -215,6 +215,12 @@ G43/G49 and H values are tracked for execution/export context, but H-offset geom
 
 Axis-specific scaling of a circular arc would require non-circular/spiral interpolation and is currently reported as unsupported instead of being approximated. A `G51` block without `P` or `I/J/K` also produces a diagnostic because no controller parameter supplies a default factor.
 
+### How do extended work offsets and G10 work?
+
+The kernel supports `G54.1 P1` through `G54.1 P99` for both milling and turning. API callers supply these offsets through the `extended_wcs_offsets` mapping, keyed by the P number. The WCS dialog continues to configure only `G54-G59`; extended offsets intentionally have no UI dependency.
+
+`G10 L2 P1-P6` programs `G54-G59`, and `G10 L20 P1-P99` programs extended `G54.1` offsets for the current execution. X/Y/Z values follow the active G20/G21 units. A G10 block never creates motion, and changing the active offset preserves the physical tool position. Runtime G10 changes are returned in `ExecutionResult.wcs_offsets` and `ExecutionResult.extended_wcs_offsets` but are not written to application settings.
+
 ## Units and arc programming
 
 ### What does the default unit option do?
@@ -247,7 +253,9 @@ Yes. When exporting an R-format full circle, Expanded Execution emits two exact 
 - `G17/G18/G19` planes where applicable.
 - `G20/G21` units.
 - `G28` configured reference return.
-- `G54-G59` work coordinate systems.
+- `G53` non-modal machine-coordinate motion.
+- `G54-G59` and `G54.1 P1-P99` work coordinate systems.
+- `G10 L2/L20` runtime work-offset programming.
 - `G90/G91` absolute/incremental programming where applicable.
 - Macro B expressions and assignments.
 - `IF/GOTO` and `WHILE/END`.
@@ -257,8 +265,8 @@ Yes. When exporting an R-format full circle, Expanded Execution emits two exact 
 ### FANUC milling
 
 - XYZ motion and helical interpolation.
-- G53 machine-coordinate motion.
 - G80/G81/G82/G83/G84/G85/G86 canned cycles.
+- G82 dwell, G84 feed-return/spindle synchronization and G86 spindle-stop semantics.
 - G98/G99 canned-cycle return modes.
 - G94/G95 feed modes.
 - Configured milling tools and cutter-radius compensation.

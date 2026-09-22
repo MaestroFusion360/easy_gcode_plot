@@ -6,9 +6,15 @@ from dataclasses import replace
 
 from ...api.types import ExecutionEvent, ExecutionStep
 from ...frontend.program import resolve_cycle_profile_indices
-from ...geometry.coordinates import rebase_work_position
+from ...geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
+from ..diagnostics import modal_conflict_diagnostics
 from ..events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
-from ..execution import POSITION_NEUTRAL_GCODES, ProgramRuntime, apply_unit_mode, build_program_execution_index
+from ..execution import (
+    POSITION_NEUTRAL_GCODES,
+    ProgramRuntime,
+    apply_unit_mode,
+    build_program_execution_index,
+)
 from ..expansion import expand_cycle_block
 from .dispatch import (
     _X_AXIS_WORDS,
@@ -16,6 +22,7 @@ from .dispatch import (
     dispatch_cycle_block,
     dispatch_cycle_emission,
     dispatch_g28_home,
+    dispatch_g53_machine_motion,
     dispatch_motion_block,
     has_position_words,
     resolve_modal_move,
@@ -57,6 +64,7 @@ def execute_trace_context_with_steps(
     try_wcs_from_gcode_fn,
     to_machine_fn,
     wcs_off_fn,
+    set_wcs_off_fn,
     x_value_to_diameter_fn,
     x_delta_to_diameter_fn,
     motion_ctor,
@@ -82,6 +90,7 @@ def execute_trace_context_with_steps(
             try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
             to_machine_fn=to_machine_fn,
             wcs_off_fn=wcs_off_fn,
+            set_wcs_off_fn=set_wcs_off_fn,
             x_value_to_diameter_fn=x_value_to_diameter_fn,
             x_delta_to_diameter_fn=x_delta_to_diameter_fn,
             motion_ctor=motion_ctor,
@@ -134,6 +143,7 @@ def execute_trace_step(
     try_wcs_from_gcode_fn,
     to_machine_fn,
     wcs_off_fn,
+    set_wcs_off_fn,
     x_value_to_diameter_fn,
     x_delta_to_diameter_fn,
     motion_ctor,
@@ -180,6 +190,12 @@ def execute_trace_step(
     all_g = codes.all_g
     all_m = codes.all_m
     gcode = codes.gcode
+
+    conflict_diagnostics = modal_conflict_diagnostics(all_g, "fanuc_turn", block)
+    if conflict_diagnostics:
+        ctx.diagnostics.extend(conflict_diagnostics)
+        ctx.pc += 1
+        return False, motions
 
     g65_flow = runtime.dispatch_g65(
         block=block,
@@ -231,16 +247,18 @@ def execute_trace_step(
             for item in items
         ]
 
-    _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn, wcs_off_fn)
+    _apply_turning_modal_state(
+        state,
+        all_g,
+        all_m,
+        words,
+        try_wcs_from_gcode_fn,
+        wcs_off_fn,
+        set_wcs_off_fn,
+        x_value_to_diameter_fn,
+    )
 
-    for reference_code in (28, 30):
-        if reference_code in all_g:
-            axes = tuple(
-                axis
-                for axis, addresses in (("X", _X_AXIS_WORDS), ("Z", _Z_AXIS_WORDS))
-                if any(address in words for address in addresses)
-            )
-            event_list.append(home_return_event(block, f"G{reference_code}", axes, len(runtime.call_stack)))
+    event_list.extend(_turning_reference_events(block, all_g, words, len(runtime.call_stack)))
     ctx.events = tuple(event_list)
 
     program_flow = runtime.dispatch_program_flow(
@@ -260,10 +278,11 @@ def execute_trace_step(
         ctx.pc = program_flow.dispatch.next_pc
         return False, motions
 
-    # G4 is non-modal dwell: X is seconds and P is milliseconds, not motion.
-    # Consume the complete block before modal-motion dispatch so G0/G1 state
-    # cannot reinterpret the dwell value as an X coordinate.
-    if 4 in all_g:
+    # G10 programs coordinate-system data.  Its X/Z words are values for the
+    # offset table and must never fall through to the current modal motion.
+    # G10 contains offset data and G4 contains dwell data. Consume either
+    # complete block so X/P values cannot fall through to modal motion.
+    if 10 in all_g or 4 in all_g:
         ctx.pc += 1
         return False, motions
 
@@ -331,6 +350,7 @@ def execute_trace_step(
         words,
         state,
         gcode,
+        all_g,
         ctx,
         emulate_g28_home,
         home_x,
@@ -347,25 +367,35 @@ def execute_trace_step(
     )
 
 
-def _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn, wcs_off_fn):
-    for candidate in all_g:
-        wcs_code = try_wcs_from_gcode_fn(candidate)
-        if wcs_code is not None:
-            state.modal_x, state.modal_z = rebase_work_position(
-                (state.modal_x, state.modal_z),
-                wcs_off_fn(state.active_wcs),
-                wcs_off_fn(wcs_code),
-            )
-            state.active_wcs = wcs_code
-
-    # Modal words on an M98 block are active for the called subprogram.  Apply
-    # state-only words before transferring control; the source block is not
-    # revisited after M99 returns.
+def _apply_turning_modal_state(
+    state,
+    all_g,
+    all_m,
+    words,
+    try_wcs_from_gcode_fn,
+    wcs_off_fn,
+    set_wcs_off_fn,
+    x_value_to_diameter_fn,
+):
     apply_unit_mode(state, all_g)
     if 190 in all_g:
         state.x_is_diameter = True
     if 191 in all_g:
         state.x_is_diameter = False
+
+    _apply_turning_coordinate_state(
+        state,
+        all_g,
+        words,
+        try_wcs_from_gcode_fn,
+        wcs_off_fn,
+        set_wcs_off_fn,
+        x_value_to_diameter_fn,
+    )
+
+    # Modal words on an M98 block are active for the called subprogram.  Apply
+    # state-only words before transferring control; the source block is not
+    # revisited after M99 returns.
     if 98 in all_g:
         state.feed_mode = "per_minute"
     if 99 in all_g:
@@ -394,11 +424,64 @@ def _apply_turning_modal_state(state, all_g, all_m, words, try_wcs_from_gcode_fn
         state.feed = words["F"] * state.unit_scale
 
 
+def _turning_reference_events(block, all_g, words, call_depth):
+    events = []
+    for reference_code in (28, 30):
+        if reference_code in all_g:
+            axes = tuple(
+                axis
+                for axis, addresses in (("X", _X_AXIS_WORDS), ("Z", _Z_AXIS_WORDS))
+                if any(address in words for address in addresses)
+            )
+            events.append(home_return_event(block, f"G{reference_code}", axes, call_depth))
+    return events
+
+
+def _apply_turning_coordinate_state(
+    state,
+    all_g,
+    words,
+    try_wcs_from_gcode_fn,
+    wcs_off_fn,
+    set_wcs_off_fn,
+    x_value_to_diameter_fn,
+):
+    """Apply G10 and WCS selection while preserving machine position."""
+    for candidate in all_g:
+        if candidate == 10:
+            target = programmed_wcs_id(words)
+            machine_x, machine_z = (
+                state.modal_x + wcs_off_fn(state.active_wcs)[0],
+                state.modal_z + wcs_off_fn(state.active_wcs)[1],
+            )
+            offset_x, offset_z = wcs_off_fn(target)
+            if "X" in words:
+                offset_x = x_value_to_diameter_fn(words["X"] * state.unit_scale, state.x_is_diameter)
+            if "Z" in words:
+                offset_z = words["Z"] * state.unit_scale
+            set_wcs_off_fn(target, (offset_x, offset_z))
+            if target == state.active_wcs:
+                state.modal_x = machine_x - offset_x
+                state.modal_z = machine_z - offset_z
+            continue
+        wcs_code = try_wcs_from_gcode_fn(candidate)
+        if wcs_code is None:
+            wcs_code = extended_wcs_from_gcode(candidate, words)
+        if wcs_code is not None:
+            state.modal_x, state.modal_z = rebase_work_position(
+                (state.modal_x, state.modal_z),
+                wcs_off_fn(state.active_wcs),
+                wcs_off_fn(wcs_code),
+            )
+            state.active_wcs = wcs_code
+
+
 def _execute_turning_motion(
     ast_node,
     words,
     state,
     gcode,
+    all_g,
     ctx,
     emulate_g28_home,
     home_x,
@@ -427,22 +510,19 @@ def _execute_turning_motion(
         ctx.pc += 1
         return False, motions
 
-    if non_motion_g and has_pos and gcode not in (28, 30) and gcode not in POSITION_NEUTRAL_GCODES:
-        # An unmodeled position-bearing command may have changed physical
-        # position. Taint only the addressed axes and resume after absolute
-        # X/Z re-establishes them; never invent a connecting segment.
-        state.unknown_x_after_g28 = ("X" in words) or ("U" in words)
-        state.unknown_z_after_g28 = ("Z" in words) or ("W" in words)
-        state.position_unknown_reason = "unsupported"
+    if _taint_unsupported_position(state, words, gcode, has_pos, non_motion_g):
         ctx.pc += 1
         return False, motions
 
-    g28d = dispatch_g28_home(
+    reference = _dispatch_turning_reference_motion(
+        all_g=all_g,
         emulate_g28_home=emulate_g28_home,
         gcode=gcode,
+        modal_move=state.modal_move,
         words=words,
         modal_x=state.modal_x,
         modal_z=state.modal_z,
+        modal_feed=state.feed,
         unit_scale=state.unit_scale,
         x_is_diameter=state.x_is_diameter,
         home_x=home_x,
@@ -458,10 +538,10 @@ def _execute_turning_motion(
         active_wcs=state.active_wcs,
         wcs_off_fn=wcs_off_fn,
     )
-    if g28d.handled:
-        motions.extend(tagged(g28d.emitted_motions))
-        state.modal_x = g28d.new_modal_x
-        state.modal_z = g28d.new_modal_z
+    if reference[0]:
+        motions.extend(tagged(reference[3]))
+        state.modal_x = reference[1]
+        state.modal_z = reference[2]
         ctx.pc += 1
         return False, motions
 
@@ -524,3 +604,87 @@ def _execute_turning_motion(
         state.modal_z = md.new_modal_z
     ctx.pc += 1
     return False, motions
+
+
+def _taint_unsupported_position(state, words, gcode, has_pos, non_motion_g) -> bool:
+    """Fail closed for an unmodeled position-bearing turning command."""
+    if not non_motion_g or not has_pos or gcode in (28, 30):
+        return False
+    state.unknown_x_after_g28 = ("X" in words) or ("U" in words)
+    state.unknown_z_after_g28 = ("Z" in words) or ("W" in words)
+    state.position_unknown_reason = "unsupported"
+    return True
+
+
+def _dispatch_turning_reference_motion(
+    *,
+    all_g,
+    emulate_g28_home,
+    gcode,
+    modal_move,
+    words,
+    modal_x,
+    modal_z,
+    modal_feed,
+    unit_scale,
+    x_is_diameter,
+    home_x,
+    home_z,
+    to_machine_fn,
+    x_value_to_diameter_fn,
+    x_delta_to_diameter_fn,
+    motion_ctor,
+    point_ctor,
+    source_block,
+    source_nlabel,
+    source_raw,
+    active_wcs,
+    wcs_off_fn,
+):
+    """Dispatch non-modal G53 or configured G28 through one trace contract."""
+    g53 = dispatch_g53_machine_motion(
+        enabled=53 in all_g,
+        modal_move=modal_move,
+        words=words,
+        modal_x=modal_x,
+        modal_z=modal_z,
+        modal_feed=modal_feed,
+        unit_scale=unit_scale,
+        x_is_diameter=x_is_diameter,
+        to_machine_fn=to_machine_fn,
+        wcs_off_fn=wcs_off_fn,
+        x_value_to_diameter_fn=x_value_to_diameter_fn,
+        x_delta_to_diameter_fn=x_delta_to_diameter_fn,
+        motion_ctor=motion_ctor,
+        point_ctor=point_ctor,
+        source_block=source_block,
+        source_nlabel=source_nlabel,
+        source_raw=source_raw,
+        active_wcs=active_wcs,
+    )
+    if g53.handled:
+        emitted = [] if g53.emitted_motion is None else [g53.emitted_motion]
+        return True, g53.new_modal_x, g53.new_modal_z, emitted
+
+    g28 = dispatch_g28_home(
+        emulate_g28_home=emulate_g28_home,
+        gcode=gcode,
+        words=words,
+        modal_x=modal_x,
+        modal_z=modal_z,
+        unit_scale=unit_scale,
+        x_is_diameter=x_is_diameter,
+        home_x=home_x,
+        home_z=home_z,
+        to_machine_fn=to_machine_fn,
+        x_value_to_diameter_fn=x_value_to_diameter_fn,
+        x_delta_to_diameter_fn=x_delta_to_diameter_fn,
+        motion_ctor=motion_ctor,
+        point_ctor=point_ctor,
+        source_block=source_block,
+        source_nlabel=source_nlabel,
+        source_raw=source_raw,
+        active_wcs=active_wcs,
+        wcs_off_fn=wcs_off_fn,
+    )
+    return g28.handled, g28.new_modal_x, g28.new_modal_z, g28.emitted_motions

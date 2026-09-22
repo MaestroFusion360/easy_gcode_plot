@@ -5,10 +5,11 @@ import logging
 from pathlib import Path
 
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QDialog
 
 from app import main_window
 from app import settings as app_settings
+from app.ui.generated.dialogs.wcs import Ui_WcsDlg
 from app.ui.windows.window_settings import (
     EDITOR_FONT_FAMILY_KEY,
     EDITOR_FONT_ITALIC_KEY,
@@ -20,6 +21,19 @@ from app.ui.windows.window_settings import (
 @pytest.fixture
 def qt_app():
     return QApplication.instance() or QApplication([])
+
+
+def test_wcs_dialog_can_shrink_below_legacy_fixed_height(qt_app):
+    dialog = QDialog()
+    ui = Ui_WcsDlg()
+    ui.setupUi(dialog)
+
+    assert dialog.minimumHeight() == 0
+    assert dialog.height() == 330
+    compact_height = dialog.minimumSizeHint().height()
+    assert compact_height < 430
+    dialog.resize(dialog.width(), compact_height)
+    assert dialog.height() < 430
 
 
 @pytest.mark.parametrize(("kind", "key"), [("turning", "T9898"), ("milling", "T98")])

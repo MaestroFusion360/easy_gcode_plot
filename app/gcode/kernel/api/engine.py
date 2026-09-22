@@ -11,8 +11,11 @@ from ..frontend.model import Motion, Point2, Program
 from ..frontend.program import parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
 from ..geometry import resolve_arc
 from ..geometry.coordinates import WcsOffset, WcsOffsets  # noqa: F401 - compatibility re-export
+from ..geometry.coordinates import milling_extended_wcs_offsets as _mill_extended_wcs_offsets
 from ..geometry.coordinates import milling_wcs_offsets as _mill_wcs_offsets
+from ..geometry.coordinates import published_extended_wcs_offsets as _result_extended_wcs_offsets
 from ..geometry.coordinates import published_wcs_offsets as _result_wcs_offsets
+from ..geometry.coordinates import turning_extended_wcs_offsets as _turn_extended_wcs_offsets
 from ..geometry.coordinates import turning_wcs_offsets as _turn_wcs_offsets
 from ..milling import execute_milling
 from ..runtime.diagnostics import SUPPORTED_TURNING_G_CODES as SUPPORTED_G_CODES  # noqa: F401
@@ -174,6 +177,8 @@ def _execute_impl(
     home_y: float = 0.0,
     home_z: float = 0.0,
     wcs_offsets: WcsOffsets | None = None,
+    extended_wcs_offsets: WcsOffsets | None = None,
+    milling_g73_retract_distance: float = 1.0,
     emulate_g28_home: bool = False,
     include_instructions: bool = True,
 ) -> ExecutionResult:
@@ -200,6 +205,7 @@ def _execute_impl(
 
     if language == "fanuc_mill":
         mill_offsets = _mill_wcs_offsets(wcs_offsets)
+        mill_offsets.update(_mill_extended_wcs_offsets(extended_wcs_offsets))
         return replace(
             execute_milling(
                 source,
@@ -207,17 +213,21 @@ def _execute_impl(
                 default_unit_scale=default_unit_scale,
                 home=(home_x, home_y, home_z),
                 wcs_offsets=mill_offsets,
+                g73_retract_distance=milling_g73_retract_distance,
                 include_instructions=include_instructions,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
+            extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
         )
 
     program: Program | None = None
     unsupported: tuple[Diagnostic, ...] = ()
     turn_offsets = _turn_wcs_offsets(wcs_offsets)
+    turn_offsets.update(_turn_extended_wcs_offsets(extended_wcs_offsets))
     try:
         program = parse_program(source)
         unsupported = _unsupported_g_diagnostics(program)
+        execution_diagnostics: list[Diagnostic] = []
         rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(
             program,
@@ -238,7 +248,9 @@ def _execute_impl(
             motion_ctor=Motion,
             point_ctor=Point2,
             tools=tools,
+            diagnostics=execution_diagnostics,
         )
+        unsupported += tuple(execution_diagnostics)
         unsupported += _fractional_code_diagnostics(program, trace_steps)
     except Exception as exc:
         return ExecutionResult(
@@ -267,6 +279,7 @@ def _execute_impl(
         execution_steps=tuple(trace_steps),
         events=events,
         wcs_offsets=_result_wcs_offsets(turn_offsets),
+        extended_wcs_offsets=_result_extended_wcs_offsets(turn_offsets),
     )
 
 

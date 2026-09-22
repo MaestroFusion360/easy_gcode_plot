@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..api.types import ExecutionStep
-from ..geometry.coordinates import rebase_work_position
+from ..geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
 from ..geometry.transform import CoordinateTransform, TransformState
 from ..runtime.execution import apply_unit_mode
 from ..runtime.state import MachineRuntimeState
@@ -25,6 +25,8 @@ class MillState(MachineRuntimeState):
     cycle_r: float | None = None
     cycle_q: float | None = None
     cycle_feed: float = 0.0
+    cycle_p: float = 0.0
+    g73_retract_distance: float = 1.0
     return_initial: bool = False
     cycle_initial_z: float | None = None
     cutter_comp: int = 40
@@ -144,6 +146,23 @@ def _cancel_g51_scaling(state: MillState) -> None:
     _preserve_work_position(state, work_position)
 
 
+def _program_wcs_offset(state: MillState, words, *, wcs_offsets) -> None:
+    target = programmed_wcs_id(words)
+    current_machine = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    offset = list(_wcs_offset(wcs_offsets, target))
+    for index, axis in enumerate(("X", "Y", "Z")):
+        if axis in words:
+            offset[index] = words[axis] * state.unit_scale
+    wcs_offsets[target] = (offset[0], offset[1], offset[2])
+    if target == state.active_wcs:
+        work = (
+            current_machine[0] - offset[0],
+            current_machine[1] - offset[1],
+            current_machine[2] - offset[2],
+        )
+        state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
+
+
 def _execution_step(
     state: MillState,
     block,
@@ -175,7 +194,9 @@ def _execution_step(
 
 
 def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) -> bool:
-    if g == 52:
+    if g == 10:
+        _program_wcs_offset(state, words, wcs_offsets=wcs_offsets)
+    elif g == 52:
         _set_g52_shift(state, words)
     elif g == 50:
         _cancel_g51_scaling(state)
@@ -185,15 +206,16 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) ->
         _set_g68_rotation(state, words)
     elif g == 69:
         _cancel_g68_rotation(state)
-    elif isinstance(g, int) and 54 <= g <= 59:
+    elif (extended_wcs := extended_wcs_from_gcode(g, words)) is not None or (isinstance(g, int) and 54 <= g <= 59):
+        selected_wcs = extended_wcs if extended_wcs is not None else g
         transform = _coordinate_transform(state)
         work_position = transform.apply((state.x, state.y, state.z))
         rebased = rebase_work_position(
             work_position,
             _wcs_offset(wcs_offsets, state.active_wcs),
-            _wcs_offset(wcs_offsets, g),
+            _wcs_offset(wcs_offsets, selected_wcs),
         )
-        state.active_wcs = g
+        state.active_wcs = selected_wcs
         state.x, state.y, state.z = transform.inverse(rebased)
     else:
         return False

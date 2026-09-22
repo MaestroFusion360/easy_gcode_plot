@@ -92,7 +92,10 @@ def literal_codes(tokens: tuple[WordToken, ...], letter: str) -> tuple[int, ...]
 
 def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
     motion_codes = {0, 1, 2, 3, 32, 33}
-    cycle_codes = {70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94}
+    # G90/G92/G94 are turning cycles but have different milling meanings.
+    # Keep the shared parser dialect-neutral; the selected executor resolves
+    # those codes after parsing.
+    cycle_codes = {70, 71, 72, 73, 74, 75, 76, 80, 83, 84}
     for offset, raw in checkpointed(lines):
         i = start_index + offset
         clean = strip_comments(raw).upper()
@@ -124,10 +127,12 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
             u_expr=None if g65_call else word_map.get("U"),
             w_expr=None if g65_call else word_map.get("W"),
             f_expr=None if g65_call else word_map.get("F"),
+            y_expr=None if g65_call else word_map.get("Y"),
+            v_expr=None if g65_call else word_map.get("V"),
         )
 
         motion_node: MotionNode | None = None
-        if not g65_call and (any(k in word_map for k in ("X", "Z", "U", "W")) or motion_g_word is not None):
+        if not g65_call and (any(k in word_map for k in ("X", "Y", "Z", "U", "V", "W")) or motion_g_word is not None):
             motion_node = MotionNode(
                 g_expr=motion_g_word.expr if motion_g_word is not None else None,
                 x_expr=word_map.get("X"),
@@ -140,6 +145,9 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
                 f_expr=word_map.get("F"),
                 a_expr=word_map.get("A"),
                 c_expr=word_map.get("C"),
+                y_expr=word_map.get("Y"),
+                v_expr=word_map.get("V"),
+                j_expr=word_map.get("J"),
             )
 
         cycle_node: CycleNode | None = None

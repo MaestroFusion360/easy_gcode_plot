@@ -140,6 +140,7 @@ def _build_trace_execution_kwargs(
     x_delta_to_diameter_fn,
     motion_ctor,
     point_ctor,
+    diagnostics: list | None = None,
 ) -> dict[str, object]:
     wcs_map = wcs_offsets or {}
     active_wcs = 54
@@ -155,11 +156,16 @@ def _build_trace_execution_kwargs(
     def wcs_off(code: int) -> tuple[float, float]:
         return wcs_map.get(code, (0.0, 0.0))
 
+    def set_wcs_off(code: int, offset: tuple[float, float]) -> None:
+        wcs_map[code] = offset
+
     def to_machine(px: float, pz: float) -> tuple[float, float]:
         ox, oz = wcs_off(state.active_wcs)
         return px + ox, pz + oz
 
     ctx = build_trace_execution_context(program=program, initial_state=state)
+    if diagnostics is not None:
+        ctx.diagnostics = diagnostics
     ctx.cycle_options = dict(pq_mm_for_g74758384=pq_mm_for_g74758384, supplementary_angles=supplementary_angles)
     return dict(
         program=program,
@@ -174,6 +180,7 @@ def _build_trace_execution_kwargs(
         try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
         to_machine_fn=to_machine,
         wcs_off_fn=wcs_off,
+        set_wcs_off_fn=set_wcs_off,
         x_value_to_diameter_fn=x_value_to_diameter_fn,
         x_delta_to_diameter_fn=x_delta_to_diameter_fn,
         motion_ctor=motion_ctor,
@@ -201,6 +208,7 @@ def build_source_motion_trace_with_steps(
     motion_ctor,
     point_ctor,
     tools: dict[str, dict[str, object]] | None = None,
+    diagnostics: list | None = None,
 ):
     execution_kwargs = _build_trace_execution_kwargs(
         program,
@@ -220,6 +228,7 @@ def build_source_motion_trace_with_steps(
         x_delta_to_diameter_fn=x_delta_to_diameter_fn,
         motion_ctor=motion_ctor,
         point_ctor=point_ctor,
+        diagnostics=diagnostics,
     )
     motions, steps = execute_trace_context_with_steps(**execution_kwargs)
     motions, steps = _apply_source_corner_direct_programming(motions, steps)

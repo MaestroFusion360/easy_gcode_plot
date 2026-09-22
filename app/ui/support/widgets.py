@@ -27,6 +27,7 @@ class PlotView(GLViewWidget):
         super().__init__(parent)
         self._background_gradient = False
         self._projection_mode = "perspective"
+        self._perspective_zoom_mode = "fov"
         self._orthographic_width = 2.0
         self._orthographic_near = 0.01
         self._orthographic_far = 1000.0
@@ -52,6 +53,12 @@ class PlotView(GLViewWidget):
             return
         self._projection_mode = mode
         self.update()
+
+    def setPerspectiveZoomMode(self, mode):
+        """Choose whether perspective zoom changes field of view or camera distance."""
+        if mode not in {"fov", "distance"}:
+            raise ValueError("perspective zoom mode must be 'fov' or 'distance'")
+        self._perspective_zoom_mode = mode
 
     def setOrthographicProjection(self, width, near_clip, far_clip):
         """Set the visible horizontal span and depth range for parallel projection."""
@@ -116,6 +123,13 @@ class PlotView(GLViewWidget):
         factor = max(float(factor), 1e-6)
         if self.isOrthographic():
             self._orthographic_width = max(self._orthographic_width * factor, 1e-9)
+            self.update()
+        elif self._perspective_zoom_mode == "distance":
+            # Lathe view deliberately uses a near-zero FOV to keep the X/Z
+            # projection visually orthographic. Keep that established view
+            # unchanged and zoom by dollying the camera instead of trying to
+            # reduce an FOV that is already clamped at its minimum.
+            self.opts["distance"] = max(float(self.opts["distance"]) * factor, 1e-9)
             self.update()
         else:
             # Changing the perspective FOV scales every view-space depth by

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import math
+
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
 from ..frontend.program import parse_program
+from ..runtime.diagnostics import modal_conflict_diagnostics
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
 from ..runtime.execution import ProgramRuntime, semantic_instructions
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
+from .drilling import _cycle_signals
 from .motion import _emit_milling_motions, _g53_home_axes
 from .state import MillState, _apply_pre_flow_modal_state, _execution_step, _wcs_offset
 
@@ -34,6 +38,22 @@ def _report_unknown_g_codes(diagnostics, unknown_g, position_words, block) -> No
         )
 
 
+def _validate_g73_retract_distance(value: float) -> None:
+    if not math.isfinite(value) or value < 0.0:
+        raise ValueError("G73 retract distance must be finite and non-negative")
+
+
+def _record_executed_motion_block(motions, executed, block) -> None:
+    if motions and (not executed or executed[-1] != block.index):
+        executed.append(block.index)
+
+
+def _append_cycle_signals(block, state, words, occurrence_signals, signals):
+    generated = _cycle_signals(block, state, words)
+    signals.extend(generated)
+    return occurrence_signals + generated
+
+
 def execute_milling(
     source: str,
     *,
@@ -41,6 +61,7 @@ def execute_milling(
     default_unit_scale: float = 1.0,
     home: tuple[float, float, float] = (0.0, 0.0, 0.0),
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
+    g73_retract_distance: float = 1.0,
     include_instructions: bool = True,
 ):
 
@@ -53,6 +74,7 @@ def execute_milling(
         y=home[1] - oy,
         z=home[2] - oz,
         unit_scale=float(default_unit_scale),
+        g73_retract_distance=float(g73_retract_distance),
     )
     motions: list[TraceMotion] = []
     diagnostics: list[Diagnostic] = []
@@ -67,6 +89,7 @@ def execute_milling(
         2,
         3,
         4,
+        10,
         17,
         18,
         19,
@@ -82,6 +105,7 @@ def execute_milling(
         51,
         52,
         53,
+        54.1,
         54,
         55,
         56,
@@ -134,6 +158,7 @@ def execute_milling(
         )
 
     try:
+        _validate_g73_retract_distance(state.g73_retract_distance)
         while 0 <= runtime.pc < len(program.blocks):
             if _execute_simple_blocks is not None and _execute_simple_blocks(
                 program, runtime, state, motions, executed, steps, wcs_offsets
@@ -164,6 +189,13 @@ def execute_milling(
             codes = evaluated_block.codes
             gcodes = codes.all_g
             evaluated = evaluated_block.values
+
+            conflict_diagnostics = modal_conflict_diagnostics(gcodes, "fanuc_mill", block)
+            if conflict_diagnostics:
+                diagnostics.extend(conflict_diagnostics)
+                record_step(block, occurrence_events, words=evaluated)
+                runtime.advance()
+                continue
 
             g65_flow = runtime.dispatch_g65(
                 block=block,
@@ -250,9 +282,9 @@ def execute_milling(
             motion_start = len(motions)
 
             _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets)
+            occurrence_signals = _append_cycle_signals(block, state, words, occurrence_signals, signals)
 
-            if motions and (not executed or executed[-1] != block.index):
-                executed.append(block.index)
+            _record_executed_motion_block(motions, executed, block)
             record_step(
                 block,
                 occurrence_events,

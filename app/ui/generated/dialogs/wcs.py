@@ -24,8 +24,8 @@ class Ui_WcsDlg(object):
     def setupUi(self, WcsDlg):
         if not WcsDlg.objectName():
             WcsDlg.setObjectName(u"WcsDlg")
-        WcsDlg.resize(520, 430)
-        WcsDlg.setMinimumSize(QSize(520, 430))
+        WcsDlg.resize(520, 330)
+        WcsDlg.setMinimumSize(QSize(520, 0))
         self.verticalLayout = QVBoxLayout(WcsDlg)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.titleLabel = QLabel(WcsDlg)

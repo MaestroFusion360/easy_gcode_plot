@@ -144,7 +144,7 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
                 state.cycle_initial_z = state.z
             state.cycle = g
 
-    if 4 in gcodes or any(g in gcodes for g in (50, 51, 52, 68, 69)):
+    if 4 in gcodes or any(g in gcodes for g in (10, 50, 51, 52, 68, 69)):
         pass
     elif 53 in gcodes:
         m = _machine_coordinate_motion(block, state, words, wcs_offsets=wcs_offsets)

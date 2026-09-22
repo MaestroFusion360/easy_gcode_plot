@@ -205,15 +205,82 @@ def test_fractional_mcode_is_not_rounded_to_program_end(language, source):
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
-def test_g54_1_is_not_treated_as_g54(language):
+def test_g54_1_selects_configured_extended_wcs_without_ui_state(language):
     result = execute(
-        "G55\nG54.1 P1\nG1 X10 F100\nM30",
+        "G55\nG1 X10 F100\nG54.1 P1\nG1 X20\nM30",
         language,
         wcs_offsets={54: (100.0, 0.0, 0.0), 55: (200.0, 0.0, 0.0)},
+        extended_wcs_offsets={1: (300.0, 0.0, 0.0)},
     )
+
     assert result.ok, result.diagnostics
-    assert result.motions[-1].end_x == pytest.approx(210.0)
-    assert any(d.code == "UNSUPPORTED_G_CODE" and "G54.1" in d.message for d in result.diagnostics)
+    assert [motion.end_x for motion in result.motions] == pytest.approx([210.0, 320.0])
+    assert result.execution_steps[2].active_wcs == 1001
+    assert not any(d.code == "UNSUPPORTED_G_CODE" for d in result.diagnostics)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+@pytest.mark.parametrize("selector", ["", "P0", "P100", "P1.5"])
+def test_g54_1_rejects_missing_or_out_of_range_p(language, selector):
+    result = execute(f"G54.1 {selector}\nM30", language)
+
+    assert not result.ok
+    assert any("G54.1" in diagnostic.message and "P" in diagnostic.message for diagnostic in result.diagnostics)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_g10_programs_standard_and_extended_work_offsets_without_motion(language):
+    result = execute(
+        "G55\nG1 X10 F100\nG10 L2 P2 X250\nG1 X20\nG10 L20 P1 X300\nG54.1 P1\nG1 X30\nM30",
+        language,
+        wcs_offsets={55: (200.0, 0.0, 0.0)},
+    )
+
+    assert result.ok, result.diagnostics
+    assert [motion.end_x for motion in result.motions] == pytest.approx([210.0, 270.0, 330.0])
+    assert all(motion.source_kind == "motion" for motion in result.motions)
+    offsets = dict(result.wcs_offsets)
+    assert offsets[55][0] == pytest.approx(250.0)
+    assert dict(result.extended_wcs_offsets)[1][0] == pytest.approx(300.0)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_g10_uses_active_units_and_preserves_machine_position(language):
+    result = execute("G20 G10 L2 P1 X1\nG54\nG1 X2 F4\nM30", language)
+
+    assert result.ok, result.diagnostics
+    assert result.motions[-1].end_x == pytest.approx(76.2)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+@pytest.mark.parametrize("parameters", ["L2", "P1", "L2 P0", "L2 P7", "L20 P100", "L3 P1"])
+def test_g10_rejects_unsupported_work_offset_parameters(language, parameters):
+    result = execute(f"G10 {parameters} X1\nM30", language)
+
+    assert not result.ok
+    assert any("G10" in diagnostic.message for diagnostic in result.diagnostics)
+
+
+@pytest.mark.parametrize(
+    ("language", "conflicting_block"),
+    [
+        ("fanuc_mill", "G17 G18"),
+        ("fanuc_mill", "G90 G91"),
+        ("fanuc_mill", "G54 G55"),
+        ("fanuc_mill", "G0 G1 X10"),
+        ("fanuc_turn", "G17 G18"),
+        ("fanuc_turn", "G54 G55"),
+        ("fanuc_turn", "G0 G1 X10"),
+    ],
+)
+def test_modal_group_conflict_skips_entire_block(language, conflicting_block):
+    result = execute(f"{conflicting_block}\nG1 X1 F100\nM30", language)
+
+    assert not result.ok
+    conflict = next(d for d in result.diagnostics if d.code == "MODAL_GROUP_CONFLICT")
+    assert conflict.line == 1
+    assert result.execution_steps[0].emitted_count == 0
+    assert [motion.end_x for motion in result.motions] == pytest.approx([1.0])
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])

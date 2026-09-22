@@ -240,6 +240,61 @@ def dispatch_g28_home(
     return G28Dispatch(True, new_modal_x, new_modal_z, emitted)
 
 
+def dispatch_g53_machine_motion(
+    *,
+    enabled: bool,
+    modal_move: int,
+    words: dict[str, float],
+    modal_x: float,
+    modal_z: float,
+    modal_feed: float,
+    unit_scale: float,
+    x_is_diameter: bool,
+    to_machine_fn,
+    wcs_off_fn,
+    x_value_to_diameter_fn,
+    x_delta_to_diameter_fn,
+    motion_ctor,
+    point_ctor,
+    source_block: int,
+    source_nlabel: int | None,
+    source_raw: str | None,
+    active_wcs: int,
+) -> MotionDispatch:
+    """Execute one non-modal turning move directly in machine coordinates."""
+    if not enabled or modal_move not in (0, 1):
+        return MotionDispatch(False, modal_x, modal_z, None)
+
+    start_x, start_z = to_machine_fn(modal_x, modal_z)
+    end_x, end_z = start_x, start_z
+    if "X" in words:
+        end_x = x_value_to_diameter_fn(words["X"] * unit_scale, x_is_diameter)
+    elif "U" in words:
+        end_x += x_delta_to_diameter_fn(words["U"] * unit_scale, x_is_diameter)
+    if "Z" in words:
+        end_z = words["Z"] * unit_scale
+    elif "W" in words:
+        end_z += words["W"] * unit_scale
+
+    offset_x, offset_z = wcs_off_fn(active_wcs)
+    new_modal_x = end_x - offset_x
+    new_modal_z = end_z - offset_z
+    if (start_x, start_z) == (end_x, end_z):
+        return MotionDispatch(True, new_modal_x, new_modal_z, None)
+
+    emitted = motion_ctor(
+        modal_move,
+        point_ctor(start_x, start_z),
+        point_ctor(end_x, end_z),
+        feed=modal_feed if modal_move == 1 and modal_feed > 0 else None,
+        source_block=source_block,
+        source_nlabel=source_nlabel,
+        source_raw=source_raw,
+        source_kind="g53",
+    )
+    return MotionDispatch(True, new_modal_x, new_modal_z, emitted)
+
+
 def dispatch_motion_block(
     *,
     has_pos: bool,
