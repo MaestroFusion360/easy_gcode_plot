@@ -303,7 +303,113 @@
     </message>
 </context>
 <context>
+    <name>HoleCalculatorDialog</name>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="8"/>
+        <source>Hole Calculator</source>
+        <translation>Калькулятор отверстий</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="15"/>
+        <source>Circular</source>
+        <translation>По окружности</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="17"/>
+        <source>Diameter</source>
+        <translation>Диаметр</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="19"/>
+        <source>Start angle</source>
+        <translation>Начальный угол</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="21"/>
+        <source>Center X</source>
+        <translation>Центр X</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="23"/>
+        <source>Center Y</source>
+        <translation>Центр Y</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="25"/>
+        <source>Hole count</source>
+        <translation>Количество отверстий</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="27"/>
+        <source>Counterclockwise</source>
+        <translation>Против часовой стрелки</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="31"/>
+        <source>Grid</source>
+        <translation>Сетка</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="33"/>
+        <source>Start X</source>
+        <translation>Начало X</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="35"/>
+        <source>Start Y</source>
+        <translation>Начало Y</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="37"/>
+        <source>Step X</source>
+        <translation>Шаг X</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="39"/>
+        <source>Step Y</source>
+        <translation>Шаг Y</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="41"/>
+        <source>Count X</source>
+        <translation>Количество по X</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="43"/>
+        <source>Count Y</source>
+        <translation>Количество по Y</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="62"/>
+        <source>Clear</source>
+        <translation>Очистить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/hole_calculator.ui" line="63"/>
+        <source>Insert</source>
+        <translation>Вставить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/calculators.py" line="90"/>
+        <source>Diameter must be greater than zero.</source>
+        <translation>Диаметр должен быть больше нуля.</translation>
+    </message>
+</context>
+<context>
     <name>MainWindow</name>
+    <message><source>STALE</source><translation>УСТАРЕЛО</translation></message>
+    <message><source>READY</source><translation>ГОТОВО</translation></message>
+    <message><source>ERROR</source><translation>ОШИБКА</translation></message>
+    <message><source>WARNING</source><translation>ПРЕДУПРЕЖДЕНИЕ</translation></message>
+    <message><source>OK</source><translation>ОК</translation></message>
+    <message><source>UPDATING</source><translation>ОБНОВЛЕНИЕ</translation></message>
+    <message><source>LATHE</source><translation>ТОКАРНЫЙ</translation></message>
+    <message><source>MILLING</source><translation>ФРЕЗЕРНЫЙ</translation></message>
+    <message><source>Steps: %1 | Motions: %2</source><translation>Шагов: %1 | Перемещений: %2</translation></message>
+    <message><source>Errors: %1</source><translation>Ошибок: %1</translation></message>
+    <message><source>Warnings: %1</source><translation>Предупреждений: %1</translation></message>
+    <message><source>Motion %1 / %2</source><translation>Перемещение %1 / %2</translation></message>
+    <message><source>Trajectory exceeds the Auto Update limit of %1 points; press Update.</source><translation>Траектория превышает предел автообновления в %1 точек; нажмите «Обновить».</translation></message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
         <location filename="../app/ui/windows/main_window_editor_ops.py" line="227"/>
@@ -694,7 +800,7 @@
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="773"/>
-        <location filename="../app/main_window.py" line="195"/>
+        <location filename="../app/main_window.py" line="227"/>
         <source>Tool Library</source>
         <translation>Библиотека инструментов</translation>
     </message>
@@ -787,27 +893,42 @@
         <translation>Удалить пробелы</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="101"/>
+        <location filename="../app/main_window.py" line="103"/>
         <source>Stock</source>
         <translation>Заготовка</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="103"/>
+        <location filename="../app/main_window.py" line="105"/>
         <source>Configure turning Stock Removal</source>
         <translation>Настроить снятие заготовки для точения</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="118"/>
+        <location filename="../app/main_window.py" line="112"/>
+        <source>Hole Calculator</source>
+        <translation>Калькулятор отверстий</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="117"/>
+        <source>Pocket Calculator</source>
+        <translation>Калькулятор карманов</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="122"/>
+        <source>Snippets</source>
+        <translation>Шаблоны</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="144"/>
         <source>File Type</source>
         <translation>Тип файла</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="187"/>
+        <location filename="../app/main_window.py" line="219"/>
         <source>Tool Library is unavailable because tools.db could not be read</source>
         <translation>Библиотека инструментов недоступна: не удалось прочитать tools.db</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="203"/>
+        <location filename="../app/main_window.py" line="235"/>
         <source>Cancelling CNC execution; close again when it has stopped.</source>
         <translation>Отмена выполнения ЧПУ; закройте окно ещё раз после остановки.</translation>
     </message>
@@ -1431,6 +1552,226 @@ Do you want to save your changes?</source>
         <location filename="../app/ui/dialogs/options.py" line="314"/>
         <source>Plot colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета графика должны быть корректными именами цветов Qt, например #008000.</translation>
+    </message>
+</context>
+<context>
+    <name>PocketCalculatorDialog</name>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="6"/>
+        <source>Pocket Calculator</source>
+        <translation>Калькулятор карманов</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="16"/>
+        <source>Pocket type</source>
+        <translation>Тип кармана</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="17"/>
+        <source>Circular</source>
+        <translation>Круглый</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="17"/>
+        <source>Rectangular</source>
+        <translation>Прямоугольный</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="18"/>
+        <source>Tool diameter</source>
+        <translation>Диаметр инструмента</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="20"/>
+        <source>Pocket diameter</source>
+        <translation>Диаметр кармана</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="22"/>
+        <source>Pocket width</source>
+        <translation>Ширина кармана</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="24"/>
+        <source>Pocket height</source>
+        <translation>Высота кармана</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="26"/>
+        <source>Corner radius</source>
+        <translation>Радиус угла</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="28"/>
+        <source>Stepover</source>
+        <translation>Шаг перекрытия</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="30"/>
+        <source>Center X</source>
+        <translation>Центр X</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="32"/>
+        <source>Center Y</source>
+        <translation>Центр Y</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="34"/>
+        <source>Direction</source>
+        <translation>Направление</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="35"/>
+        <source>CCW</source>
+        <translation>Против часовой</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="35"/>
+        <source>CW</source>
+        <translation>По часовой</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="41"/>
+        <source>Z reference</source>
+        <translation>Безопасная Z</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="43"/>
+        <source>Z start</source>
+        <translation>Начало Z</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="45"/>
+        <source>Z end</source>
+        <translation>Конечная Z</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="47"/>
+        <source>Z step</source>
+        <translation>Шаг Z</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="49"/>
+        <source>XY stock</source>
+        <translation>Припуск XY</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="51"/>
+        <source>Z stock</source>
+        <translation>Припуск Z</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="53"/>
+        <source>Feed rate</source>
+        <translation>Подача</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="55"/>
+        <source>Spiral</source>
+        <translation>Спираль</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="55"/>
+        <source>Helical entry</source>
+        <translation>Врезание по спирали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="55"/>
+        <source>Finish contour (tool center)</source>
+        <translation>Чистовой контур (центр инструмента)</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="72"/>
+        <source>Clear</source>
+        <translation>Очистить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/pocket_calculator.ui" line="73"/>
+        <source>Insert</source>
+        <translation>Вставить</translation>
+    </message>
+</context>
+<context>
+    <name>SnippetsDialog</name>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Snippets</source>
+        <translation>Шаблоны</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Up</source>
+        <translation>Вверх</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Down</source>
+        <translation>Вниз</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Add</source>
+        <translation>Добавить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Save</source>
+        <translation>Сохранить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Rename</source>
+        <translation>Переименовать</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Delete</source>
+        <translation>Удалить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <location filename="../app/ui/dialogs/calculators.py" line="37"/>
+        <location filename="../app/ui/dialogs/calculators.py" line="149"/>
+        <source>Insert</source>
+        <translation>Вставить</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/snippets.ui" line="2"/>
+        <source>Cancel</source>
+        <translation>Отмена</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/snippets.py" line="148"/>
+        <source>Snippet {0}</source>
+        <translation>Фрагмент {0}</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/snippets.py" line="78"/>
+        <location filename="../app/ui/dialogs/snippets.py" line="163"/>
+        <location filename="../app/ui/dialogs/snippets.py" line="182"/>
+        <source>Could not save snippet.</source>
+        <translation>Не удалось сохранить фрагмент.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/snippets.py" line="200"/>
+        <source>Rename snippet</source>
+        <translation>Переименовать фрагмент</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/snippets.py" line="201"/>
+        <source>New snippet name:</source>
+        <translation>Новое имя фрагмента:</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/snippets.py" line="228"/>
+        <source>Delete snippet</source>
+        <translation>Удаление фрагмента</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/snippets.py" line="229"/>
+        <source>Delete selected snippet?</source>
+        <translation>Удалить выбранный фрагмент?</translation>
     </message>
 </context>
 <context>

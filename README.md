@@ -28,6 +28,7 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, `G15/G16` polar-coordinate programming, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
 - G-code editor with highlighting, line numbers, search, replace and cleanup tools.
+- CNC editing assistants for circular/grid hole patterns, circular/rectangular pockets and reusable persistent snippets.
 - Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.
 - Toolpath statistics and CIMCO-style UTF-8 Tool List export from the resolved trace and configured tools.
 - Cutter-aware turning Stock Removal, including thread profiles.
@@ -69,8 +70,20 @@ uv run --no-dev python main.py
 3. Configure WCS, machine home and tools when required.
 4. Refresh and inspect the resolved toolpath.
 5. Use playback, Tokens/Macro Variables and Statistics to inspect execution. The Macro Variables tab shows the actual Macro B state captured at the current logical playback step.
-6. Optionally import an STL reference model.
-7. Export the required program or trajectory representation.
+6. Use **CNC Functions → Hole Calculator**, **Pocket Calculator** or **Snippets** to generate and insert frequently used code at the editor caret.
+7. Optionally import an STL reference model.
+8. Export the required program or trajectory representation.
+
+## CNC editing assistants
+
+The **CNC Functions** menu and toolbar provide three editor tools:
+
+- **Hole Calculator** inserts coordinates for holes distributed around a circle or over a serpentine rectangular grid and shows a live XY preview.
+- **Pocket Calculator** generates a milling fragment for circular or rectangular pockets. It supports clockwise/counterclockwise cutting, multiple Z depths, XY/Z stock, conventional or spiral clearing, helical entry and an optional finish pass along the calculated tool-center contour. Its compact resizable layout includes a live XY preview; rectangular Spiral generates interior clearing before the final contour.
+- Hole and Pocket calculators are milling-only assistants: their actions and Insert buttons are disabled in Lathe mode. Because calculation is already reflected by the live preview, the final action is simply **Insert**.
+- **Snippets** manages reusable G-code fragments. Snippets can be added, edited, renamed, reordered, deleted and inserted at the current editor caret. They are stored in the per-user SQLite database `snippets.db`; legacy UTF-8 files from the adjacent `snippets` directory are imported once and retained as a backup. Unsaved edits are protected by a Save/Discard/Cancel prompt when selection or dialog state would otherwise replace them, and manual ordering is persisted.
+
+The calculators insert code into the editor; they do not execute or export it automatically. Refresh the toolpath after reviewing the generated block.
 
 Unsupported or ambiguous controller behavior is reported explicitly instead of being converted into guessed geometry.
 

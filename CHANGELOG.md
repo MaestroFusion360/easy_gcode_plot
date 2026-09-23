@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.6.3 - 2026-09-23
+
+- Fixed milling 3D camera jumps during automatic refresh after pasting or dropping G-code. Ordinary updates preserve the camera center and zoom; a newly inserted path is fitted only when it grows or moves substantially and would otherwise extend beyond the current view. Turning camera behavior is unchanged.
+- Added Hole Calculator, Pocket Calculator and Snippets dialogs ported from CNCEditor, including circular/grid hole coordinates, circular/rectangular pocket G-code, helical-entry and compensation options, persistent editable snippets, insertion at the editor caret, and the original CNCEditor toolbar icons. Calculator windows are now compact/resizable with live painter-based XY previews, use a simple Insert action, place pocket-option checkboxes in the first column, and are disabled in Lathe mode; rectangular Spiral generates a real interior clearing path plus the final contour. Snippets uses a SQLite library, imports the former text-file store once without deleting it, protects unsaved edits when selection/closing changes and persists manual Up/Down ordering.
+
 ## 1.6.2 - 2026-09-23
 
 - Added a machine-neutral cycle execution contract while preserving machine-specific expansion models. Milling canned cycles now return geometry, signals, modal updates and position updates as one atomic outcome built against temporary state; the existing turning expansion pipeline is connected through an adapter without rewriting G70-G76 semantics. Cycle implementations now live under canonical `turning/cycles` and `milling/cycles` packages, with historical import paths retained as aliases.

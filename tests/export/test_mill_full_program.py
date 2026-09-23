@@ -268,3 +268,31 @@ def test_cli_allows_program_mode_for_milling(tmp_path, fixture_text):
         == 0
     )
     _assert_mill_round_trip(source_text, output.read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "G21 G17 G90 G54\nG10 L2 P1 X10\nG0 X2\nG53 G0 X5\nM30",
+        "G21 G17 G90\nG51 X0 Y0 P2000\nG0 X1 Y1\nM30",
+        "G21 G17 G90\nG52 X10\nG0 X1\nG52 X0\nG0 X2\nM30",
+        "G21 G17 G90\nG68 X0 Y0 R90\nG0 X1 Y0\nG69\nM30",
+    ],
+)
+def test_full_mill_export_preserves_machine_trace_with_coordinate_controls(source):
+    result = execute(source, language="fanuc_mill")
+    assert result.ok, result.diagnostics
+    exported = export_full_mill_program(result, source.splitlines())
+    _assert_mill_round_trip(source, exported)
+    if "G53" in source:
+        assert "G53G0X5" in exported
+    if "G51" in source:
+        assert "G51" not in exported
+
+
+def test_full_mill_export_rejects_wcs_change_after_motion():
+    source = "G21 G17 G90 G54\nG0 X2\nG10 L2 P1 X10\nG0 X3\nM30"
+    result = execute(source, language="fanuc_mill")
+    assert result.ok, result.diagnostics
+    with pytest.raises(ValueError, match="changes WCS offsets after motion"):
+        export_full_mill_program(result, source.splitlines())

@@ -111,6 +111,52 @@ def test_loaded_program_fits_view_once_after_geometry_is_built(qt_app, tmp_path)
     window.deleteLater()
 
 
+def test_milling_auto_refresh_fits_new_large_path_once_and_preserves_later_camera(qt_app):
+    window = MainWindow()
+    window.autoUpdateEnabled = True
+    window.latheMode = False
+    window._view_mode = "3d"  # pylint: disable=protected-access
+    view = window.ui.graphicsView
+    view.setCameraPosition(distance=40.0)
+    fits = []
+    original_fit = window.fitToView
+
+    def record_fit():
+        fits.append(True)
+        original_fit()
+
+    window.fitToView = record_fit
+    window.ui.editor.setText("G21 G17 G90\nG0 X0 Y0 Z0\nG1 X1000 Y500 Z-20 F100\nM30")
+    assert window.autoUpdate()
+    assert fits == [True]
+    fitted_distance = float(view.opts["distance"])
+    assert fitted_distance > 40.0
+
+    window.ui.editor.setText("G21 G17 G90\nG0 X0 Y0 Z0\nG1 X1010 Y500 Z-20 F100\nM30")
+    assert window.autoUpdate()
+    assert fits == [True]
+    assert float(view.opts["distance"]) == pytest.approx(fitted_distance)
+    window.deleteLater()
+
+
+def test_milling_auto_refresh_keeps_camera_for_small_new_path(qt_app):
+    window = MainWindow()
+    window.autoUpdateEnabled = True
+    window.latheMode = False
+    window._view_mode = "3d"  # pylint: disable=protected-access
+    window.xPosMach = 0.0
+    window.yPosMach = 0.0
+    window.zPosMach = 0.0
+    view = window.ui.graphicsView
+    view.setCameraPosition(distance=1000.0)
+    previous_center = view.opts["center"]
+    window.ui.editor.setText("G21 G17 G90\nG0 X0 Y0 Z0\nG1 X10 Y5 Z-2 F100\nM30")
+    assert window.autoUpdate()
+    assert float(view.opts["distance"]) == pytest.approx(1000.0)
+    assert view.opts["center"] == previous_center
+    window.deleteLater()
+
+
 def test_auto_refresh_preserves_editor_cursor_position(qt_app):
     window = MainWindow()
     window.ui.actionLatheMode.setChecked(True)

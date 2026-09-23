@@ -43,7 +43,11 @@ class _PlotCompletion:
             self.cancelled = True
             return
         if result is not None and result.motions and points is not None:
-            self.finished = bool(self.owner.finishDataUpdate(result, points, cancelled=cancelled))
+            self.finished = bool(
+                self.owner.finishDataUpdate(
+                    result, points, cancelled=cancelled, auto_fit_milling=self.expected_source is not None
+                )
+            )
             self.cancelled = not self.finished and cancelled()
 
     def calculation(self, payload, cancelled):
@@ -486,13 +490,16 @@ class MainWindowExecutionMixin:
             self._deferred_execution_result = result
             self._deferred_execution_source = source_snapshot
             self.ui.statusbar.showMessage(
-                f"Trajectory exceeds the Auto Update limit of {auto_limit:,} points; press Update.", 10000
+                QCoreApplication.translate(
+                    "MainWindow", "Trajectory exceeds the Auto Update limit of %1 points; press Update."
+                ).replace("%1", f"{auto_limit:,}"),
+                10000,
             )
             return False
         if points is None:
             return False
         self._auto_update_deferred = False
-        return bool(self._finishDataUpdate(result, points))
+        return bool(self._finishDataUpdate(result, points, auto_fit_milling=True))
 
     def autoUpdate(self):
         """Debounced refresh for programs whose sampled render path is small."""
@@ -668,7 +675,7 @@ class MainWindowExecutionMixin:
         self.ui.horizontalSlider.blockSignals(False)
         return playback_value
 
-    def _publish_plot_scene(self, result, playback_value, cancelled):
+    def _publish_plot_scene(self, result, playback_value, cancelled, *, auto_fit_milling=False):
         if hasattr(self, "_refresh_auto_stock_suggestion"):
             self._refresh_auto_stock_suggestion()
         if _cancellation_requested(cancelled):
@@ -686,9 +693,13 @@ class MainWindowExecutionMixin:
         if getattr(self, "_fit_view_after_program_load", False):
             self._fit_view_after_program_load = False
             self.fitToView()
+        elif auto_fit_milling:
+            self.fitToView()
         return True
 
-    def _finish_data_update_impl(self, result=None, points=None, playback_value=None, cancelled=None):
+    def _finish_data_update_impl(
+        self, result=None, points=None, playback_value=None, cancelled=None, *, auto_fit_milling=False
+    ):
         """Bind ``ExecutionResult`` to render, statistics and playback consumers."""
         started = perf_counter()
         if _cancellation_requested(cancelled):
@@ -703,6 +714,11 @@ class MainWindowExecutionMixin:
                 lathe_radius_view=self.latheMode,
                 **self.arcSamplingOptions(),
             )
+        fit_new_milling_path = bool(
+            auto_fit_milling
+            and hasattr(self, "_should_auto_fit_milling")
+            and self._should_auto_fit_milling(self._cached_toolpath_bounds(), points)
+        )
         self._deferred_execution_result = None
         self._deferred_execution_source = None
         self.execution_result = result
@@ -727,7 +743,7 @@ class MainWindowExecutionMixin:
         statistics_ms = (perf_counter() - statistics_started) * 1000.0
         playback_value = self._configure_playback_controls(result, playback_value)
         scene_started = perf_counter()
-        if not self._publish_plot_scene(result, playback_value, cancelled):
+        if not self._publish_plot_scene(result, playback_value, cancelled, auto_fit_milling=fit_new_milling_path):
             raise _PlotUpdateCancelledError
         self._set_playback_program_end(playback_value == len(self._playback_movements))
         LOGGER.info(
@@ -745,16 +761,22 @@ class MainWindowExecutionMixin:
         )
         return True
 
-    def finishDataUpdate(self, result=None, points=None, playback_value=None, cancelled=None):
+    def finishDataUpdate(
+        self, result=None, points=None, playback_value=None, cancelled=None, *, auto_fit_milling=False
+    ):
         """Publish a result and convert cooperative cancellation to a false result."""
         try:
-            return self._finish_data_update_impl(result, points, playback_value, cancelled)
+            return self._finish_data_update_impl(
+                result, points, playback_value, cancelled, auto_fit_milling=auto_fit_milling
+            )
         except _PlotUpdateCancelledError:
             return False
 
-    def _finishDataUpdate(self, result=None, points=None, playback_value=None, cancelled=None):
+    def _finishDataUpdate(
+        self, result=None, points=None, playback_value=None, cancelled=None, *, auto_fit_milling=False
+    ):
         """Compatibility wrapper for existing main-window consumers."""
-        return self.finishDataUpdate(result, points, playback_value, cancelled)
+        return self.finishDataUpdate(result, points, playback_value, cancelled, auto_fit_milling=auto_fit_milling)
 
     def lstExport(self):
         """Compatibility hook: export data now comes directly from ExecutionResult."""

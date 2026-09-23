@@ -214,6 +214,50 @@ class MainWindowPlotMixin:
             (min(item[axis][0] for item in bounds), max(item[axis][1] for item in bounds)) for axis in range(3)
         )
 
+    def _should_auto_fit_milling(self, previous_bounds, points):
+        """Fit only when a newly pasted 3D path has outgrown the current view."""
+        if self.latheMode or getattr(self, "_view_mode", "3d") != "3d" or not points:
+            return False
+        view = self.ui.graphicsView
+        if view.isOrthographic():
+            return False
+        bounds = _render_point_bounds(points)
+        if bounds is None:
+            return False
+        spans = [high - low for low, high in bounds]
+        if previous_bounds is not None:
+            old_spans = [high - low for low, high in previous_bounds]
+            old_size = max(*old_spans, 1.0)
+            new_size = max(spans)
+            center_shift = max(
+                abs((low + high - old_low - old_high) / 2.0)
+                for (low, high), (old_low, old_high) in zip(bounds, previous_bounds)
+            )
+            if new_size < old_size * 3.0 and center_shift < old_size * 2.0:
+                return False
+
+        matrix = view.viewMatrix()
+        camera_center = matrix * QVector4D(view.opts["center"], 1.0)
+        distance = float(view.opts["distance"])
+        tangent = math.tan(math.radians(max(float(view.opts.get("fov", 60.0)), 0.01)) / 2.0)
+        aspect = max(float(view.width()), 1.0) / max(float(view.height()), 1.0)
+        for x in bounds[0]:
+            for y in bounds[1]:
+                for z in bounds[2]:
+                    corner = matrix * QVector4D(x, y, z, 1.0)
+                    depth = corner.z() - camera_center.z()
+                    half_width = (distance - depth) * tangent * 0.8
+                    if (
+                        half_width <= 0
+                        or max(
+                            abs(corner.x() - camera_center.x()),
+                            abs(corner.y() - camera_center.y()) * aspect,
+                        )
+                        > half_width
+                    ):
+                        return True
+        return False
+
     def fitToView(self):
         """Center and fit the complete rendered toolpath and STL in the active projection."""
         started = perf_counter()
@@ -734,6 +778,9 @@ class MainWindowPlotMixin:
         """Set camera view with optional distance recalculation."""
         if use_calc_dist:
             self.calcDist()
+            bounds = self._cached_toolpath_bounds()
+            if bounds is not None:
+                self.ui.graphicsView.opts["center"] = QVector3D(*(low + (high - low) / 2.0 for low, high in bounds))
             dist = self.dist * dist_scale
         else:
             dist = 1.0
@@ -804,12 +851,10 @@ class MainWindowPlotMixin:
         LOGGER.info("plot_view_changed mode=left")
 
     def calcDist(self):
-        """Calculate camera center/distance from the cached toolpath bounds."""
+        """Calculate fit distance without moving the current camera center."""
         bounds = self._cached_toolpath_bounds()
         if bounds is None:
             return
         spans = tuple(high - low for low, high in bounds)
-        center = tuple(low + span / 2.0 for (low, _high), span in zip(bounds, spans))
         diagonal = math.sqrt(sum(span * span for span in spans))
         self.dist = diagonal + diagonal * 0.5
-        self.ui.graphicsView.opts["center"] = QVector3D(*center)

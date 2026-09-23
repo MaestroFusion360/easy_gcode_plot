@@ -10,9 +10,11 @@ from PyQt6.QtWidgets import QComboBox, QMainWindow, QMessageBox, QToolBar
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
 from app.settings import RECENT_FILES_LIMIT as _RECENT_FILES_LIMIT
 from app.settings import normalized_milling_tools, normalized_recent_files, normalized_tools
+from app.ui.dialogs.calculators import HoleCalculatorDialog, PocketCalculatorDialog
 from app.ui.dialogs.general import About, BlockNum, Export, Find, Wcs
 from app.ui.dialogs.help import HelpDialog
 from app.ui.dialogs.options import OptionsDialog
+from app.ui.dialogs.snippets import SnippetsDialog
 from app.ui.dialogs.statistics import StatisticsDialog
 from app.ui.dialogs.stock_dialog import StockDialog
 from app.ui.dialogs.tokens import TokensDialog
@@ -102,6 +104,30 @@ class MainWindow(
         self.ui.actionStock.setObjectName("actionStock")
         self.ui.actionStock.setToolTip(QCoreApplication.translate("MainWindow", "Configure turning Stock Removal"))
         self.ui.menuSettings.insertAction(self.ui.actionWCS, self.ui.actionStock)
+        self.ui.menuCNC_Functions.addSeparator()
+        self.ui.cncToolBar.addSeparator()
+        for name, text, icon_path in (
+            (
+                "actionHoleCalculator",
+                QCoreApplication.translate("MainWindow", "Hole Calculator"),
+                ":/resource/icons/holeCalc.png",
+            ),
+            (
+                "actionPocketCalculator",
+                QCoreApplication.translate("MainWindow", "Pocket Calculator"),
+                ":/resource/icons/spiral.png",
+            ),
+            (
+                "actionSnippets",
+                QCoreApplication.translate("MainWindow", "Snippets"),
+                ":/resource/icons/snippets.png",
+            ),
+        ):
+            action = QAction(QIcon(icon_path), text, self)
+            action.setObjectName(name)
+            setattr(self.ui, name, action)
+            self.ui.menuCNC_Functions.addAction(action)
+            self.ui.cncToolBar.addAction(action)
 
         self.ui.actionGroupArcType = QActionGroup(self)
         self.ui.actionGroupArcType.setExclusive(True)
@@ -172,6 +198,12 @@ class MainWindow(
         self.tokensDlg = TokensDialog(self)
         self.statisticsDlg = StatisticsDialog(self)
         self.stockDlg = StockDialog(self)
+        self.holeCalculatorDlg = HoleCalculatorDialog(self)
+        self.pocketCalculatorDlg = PocketCalculatorDialog(self)
+        self.snippetsDlg = SnippetsDialog(self)
+        getattr(self.ui, "actionHoleCalculator").triggered.connect(self.holeCalculatorDlg.show)
+        getattr(self.ui, "actionPocketCalculator").triggered.connect(self.pocketCalculatorDlg.show)
+        getattr(self.ui, "actionSnippets").triggered.connect(self.snippetsDlg.show)
         self.timer = QBasicTimer()
         self.autoUpdateTimer = QTimer(self)
         self.autoUpdateTimer.setSingleShot(True)
@@ -295,6 +327,15 @@ class MainWindow(
         turning = bool(self.latheMode)
         self.ui.actionStock.setEnabled(turning)
         self.ui.actionToolLibrary.setEnabled(not self._tool_library_load_error)
+        milling_assistants_enabled = not turning
+        getattr(self.ui, "actionHoleCalculator").setEnabled(milling_assistants_enabled)
+        getattr(self.ui, "actionPocketCalculator").setEnabled(milling_assistants_enabled)
+        if hasattr(self, "holeCalculatorDlg"):
+            self.holeCalculatorDlg.set_insertion_enabled(milling_assistants_enabled)
+            self.pocketCalculatorDlg.set_insertion_enabled(milling_assistants_enabled)
+            if turning:
+                self.holeCalculatorDlg.hide()
+                self.pocketCalculatorDlg.hide()
 
         # Fanuc turning always interprets I/K relative to the arc start.  Keep
         # the configurable Arc Type visible only where it is actually used.

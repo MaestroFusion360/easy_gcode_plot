@@ -106,18 +106,34 @@ class MainWindowEditorMixin:
                 state = "WARNING"
             else:
                 state = "OK"
-        self.executionStatusLabel.setText(state)
-        self.modeStatusLabel.setText("LATHE" if self.latheMode else "MILLING")
+
+        def tr(value):
+            return QCoreApplication.translate("MainWindow", value)
+
+        state_labels = {
+            "STALE": tr("STALE"),
+            "READY": tr("READY"),
+            "ERROR": tr("ERROR"),
+            "WARNING": tr("WARNING"),
+            "OK": tr("OK"),
+            "UPDATING": tr("UPDATING"),
+        }
+        self.executionStatusLabel.setText(state_labels.get(state, state))
+        self.modeStatusLabel.setText(tr("LATHE") if self.latheMode else tr("MILLING"))
         steps = () if result is None else getattr(result, "execution_steps", ())
         motions = () if result is None else result.motions
-        self.traceStatusLabel.setText(f"Steps: {len(steps)} | Motions: {len(motions)}")
+        self.traceStatusLabel.setText(
+            tr("Steps: %1 | Motions: %2").replace("%1", str(len(steps))).replace("%2", str(len(motions)))
+        )
         errors = sum(
             getattr(d, "severity", "error").lower() == "error" for d in (() if result is None else result.diagnostics)
         )
         warnings = sum(
             getattr(d, "severity", "error").lower() == "warning" for d in (() if result is None else result.diagnostics)
         )
-        parts = ([f"Errors: {errors}"] if errors else []) + ([f"Warnings: {warnings}"] if warnings else [])
+        parts = ([tr("Errors: %1").replace("%1", str(errors))] if errors else []) + (
+            [tr("Warnings: %1").replace("%1", str(warnings))] if warnings else []
+        )
         self.diagnosticsStatusLabel.setText(" / ".join(parts) or "\u2713")
         diagnostics = () if result is None else result.diagnostics
         self.diagnosticsStatusLabel.setToolTip(
@@ -139,7 +155,11 @@ class MainWindowEditorMixin:
             return
         maximum = self.ui.horizontalSlider.maximum()
         if self.ui.actionPlay.isChecked() and maximum:
-            self.traceStatusLabel.setText(f"Motion {value} / {maximum}")
+            self.traceStatusLabel.setText(
+                QCoreApplication.translate("MainWindow", "Motion %1 / %2")
+                .replace("%1", str(value))
+                .replace("%2", str(maximum))
+            )
         else:
             self.updateExecutionStatus()
 

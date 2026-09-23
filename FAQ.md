@@ -6,6 +6,7 @@ This document is the detailed user and developer reference for Easy G-Code Plot.
 
 - [Getting started](#getting-started)
 - [Interface and playback](#interface-and-playback)
+- [CNC editing assistants](#cnc-editing-assistants)
 - [Lathe mode](#lathe-mode)
 - [Tool libraries](#tool-libraries)
 - [Turning Stock Removal](#turning-stock-removal)
@@ -77,6 +78,36 @@ The execution dialog covers tool discovery, source parsing, CNC execution, trace
 ### Can the built-in FAQ be resized?
 
 Yes. **Help → FAQ** opens a normal resizable window with Minimize, Maximize and Close controls. Contents links navigate within the document; the License link opens the packaged `LICENSE.md` document.
+
+## CNC editing assistants
+
+### Where are Hole Calculator, Pocket Calculator and Snippets?
+
+All three tools are available from **CNC Functions** and from their toolbar icons. Hole Calculator and Pocket Calculator are milling-only, so they are disabled in Lathe mode; Snippets remains available. Generated text is inserted at the current editor caret, replacing the current selection when one exists. Since the calculators already show a live preview, their final action is simply **Insert**. The source remains editable, and the toolpath is updated through the normal Auto Update or Refresh workflow.
+
+### What does Hole Calculator generate?
+
+The **Circular** tab distributes the requested number of XY coordinates evenly around a diameter, starting at the specified angle and moving clockwise or counterclockwise. The **Grid** tab creates an XY rectangular pattern and alternates the X direction on each row to produce a serpentine traversal.
+
+Only coordinate blocks are inserted. Add the required drilling cycle, safe moves, feeds and controller-specific commands around them in the CNC program.
+
+### What does Pocket Calculator generate?
+
+Pocket Calculator inserts a milling fragment for either a circular or rectangular pocket. Tool and pocket dimensions, center, stepover, safe/reference Z, start/end depth, depth step, stock and feed are configurable. Optional controls select clockwise/counterclockwise cutting, spiral clearing, helical entry and a finish pass on the calculated tool-center contour. The finish pass removes the configured XY stock without emitting G41/G42. A live XY preview updates while parameters change; rectangular Spiral clears continuously from the interior and then runs the final outer contour. The calculator rejects unsafe Z ordering and paths above 20,000 estimated points.
+
+The calculator uses a compact resizable multi-column layout rather than enforcing a tall fixed minimum height. The generated fragment is a starting point for the active program, not a complete safety-validated machine program. Verify tool data, compensation register, work offset, spindle/coolant state, clearances and controller compatibility before machining.
+
+### Where are snippets stored?
+
+Snippets are stored in a SQLite database beside the per-user application configuration. On Windows this is normally:
+
+```text
+%LOCALAPPDATA%\easy-gcode-plot\snippets.db
+```
+
+When upgrading from the earlier text-file implementation, existing UTF-8 files from the adjacent `snippets` directory are imported once. The original `.txt` files are retained as a backup and are no longer used for subsequent edits.
+
+Use **Add** to create a fragment, edit its text and press **Save**. If the current text has unsaved changes, changing the selected snippet or closing the dialog asks whether to Save, Discard or Cancel instead of replacing the editor contents silently. **Rename**, **Delete**, **Up** and **Down** manage the list; manual Up/Down order is persisted across launches. **Insert** places the selected fragment into the CNC editor.
 
 ## Lathe mode
 

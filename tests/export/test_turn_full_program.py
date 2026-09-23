@@ -2,10 +2,21 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from app.gcode.exporter import ExportOptions, export_cycle_groups, export_full_program
 from app.gcode.kernel import execute
+
+
+def test_turn_full_program_rejects_unverified_trace_gap():
+    source = "G21 G18\nG0 X20 Z2\nG1 X10 Z0 F100\nM30"
+    result = execute(source, language="fanuc_turn")
+    assert result.ok, result.diagnostics
+    broken = replace(result, motions=(result.motions[0], replace(result.motions[1], start_x=18)))
+    with pytest.raises(ValueError, match="position gap"):
+        export_full_program(broken, source.splitlines())
 
 
 @pytest.mark.parametrize(

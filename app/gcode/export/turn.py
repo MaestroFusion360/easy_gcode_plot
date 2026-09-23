@@ -84,23 +84,9 @@ def _append_motion_chunk(
         if previous_end_mm is not None and (
             abs(previous_end_mm[0] - start_mm[0]) > 1e-6 or abs(previous_end_mm[1] - start_mm[1]) > 1e-6
         ):
-            reposition = TraceMotion(
-                move=0,
-                start_x=previous_end_mm[0],
-                start_z=previous_end_mm[1],
-                end_x=motion.start_x,
-                end_z=motion.start_z,
-                plane=18,
-            )
-            lines.append(
-                motion_line(
-                    _scale_turn_motion(
-                        reposition,
-                        unit_scale=step.unit_scale,
-                        x_is_diameter=step.x_is_diameter,
-                    ),
-                    options,
-                )
+            raise ValueError(
+                "Cannot export a continuous turning program: the executed trace has a position gap "
+                "and no verified repositioning move"
             )
         scaled = _scale_turn_motion(
             motion,

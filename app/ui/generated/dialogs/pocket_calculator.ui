@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>PocketCalculatorDialog</class>
+ <widget class="QDialog" name="PocketCalculatorDialog">
+  <property name="geometry"><rect><x>0</x><y>0</y><width>1000</width><height>420</height></rect></property>
+  <property name="windowTitle"><string>Pocket Calculator</string></property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="bodyLayout">
+     <item>
+      <widget class="QWidget" name="fieldsWidget">
+       <layout class="QHBoxLayout" name="fieldsLayout">
+        <property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property>
+        <item>
+         <layout class="QFormLayout" name="geometryForm">
+          <item row="0" column="0"><widget class="QLabel" name="typeLabel"><property name="text"><string>Pocket type</string></property></widget></item>
+          <item row="0" column="1"><layout class="QHBoxLayout" name="typeLayout"><item><widget class="QRadioButton" name="circularRadio"><property name="text"><string>Circular</string></property><property name="checked"><bool>true</bool></property></widget></item><item><widget class="QRadioButton" name="rectangularRadio"><property name="text"><string>Rectangular</string></property></widget></item></layout></item>
+          <item row="1" column="0"><widget class="QLabel" name="toolDiameterLabel"><property name="text"><string>Tool diameter</string></property></widget></item>
+          <item row="1" column="1"><widget class="QDoubleSpinBox" name="toolDiameterSpin"/></item>
+          <item row="2" column="0"><widget class="QLabel" name="pocketDiameterLabel"><property name="text"><string>Pocket diameter</string></property></widget></item>
+          <item row="2" column="1"><widget class="QDoubleSpinBox" name="pocketDiameterSpin"/></item>
+          <item row="3" column="0"><widget class="QLabel" name="pocketWidthLabel"><property name="text"><string>Pocket width</string></property></widget></item>
+          <item row="3" column="1"><widget class="QDoubleSpinBox" name="pocketWidthSpin"/></item>
+          <item row="4" column="0"><widget class="QLabel" name="pocketHeightLabel"><property name="text"><string>Pocket height</string></property></widget></item>
+          <item row="4" column="1"><widget class="QDoubleSpinBox" name="pocketHeightSpin"/></item>
+          <item row="5" column="0"><widget class="QLabel" name="cornerRadiusLabel"><property name="text"><string>Corner radius</string></property></widget></item>
+          <item row="5" column="1"><widget class="QDoubleSpinBox" name="cornerRadiusSpin"/></item>
+          <item row="6" column="0"><widget class="QLabel" name="stepoverLabel"><property name="text"><string>Stepover</string></property></widget></item>
+          <item row="6" column="1"><widget class="QDoubleSpinBox" name="stepoverSpin"/></item>
+          <item row="7" column="0"><widget class="QLabel" name="centerXLabel"><property name="text"><string>Center X</string></property></widget></item>
+          <item row="7" column="1"><widget class="QDoubleSpinBox" name="centerXSpin"/></item>
+          <item row="8" column="0"><widget class="QLabel" name="centerYLabel"><property name="text"><string>Center Y</string></property></widget></item>
+          <item row="8" column="1"><widget class="QDoubleSpinBox" name="centerYSpin"/></item>
+          <item row="9" column="0"><widget class="QLabel" name="directionLabel"><property name="text"><string>Direction</string></property></widget></item>
+          <item row="9" column="1"><layout class="QHBoxLayout" name="directionLayout"><item><widget class="QRadioButton" name="ccwRadio"><property name="text"><string>CCW</string></property><property name="checked"><bool>true</bool></property></widget></item><item><widget class="QRadioButton" name="cwRadio"><property name="text"><string>CW</string></property></widget></item></layout></item>
+          <item row="10" column="0" colspan="2"><layout class="QVBoxLayout" name="optionsLayout"><item><widget class="QCheckBox" name="spiralCheck"><property name="text"><string>Spiral</string></property></widget></item><item><widget class="QCheckBox" name="helixCheck"><property name="text"><string>Helical entry</string></property></widget></item><item><widget class="QCheckBox" name="correctionCheck"><property name="text"><string>Finish contour (tool center)</string></property></widget></item></layout></item>
+         </layout>
+        </item>
+        <item>
+         <layout class="QFormLayout" name="cuttingForm">
+          <item row="0" column="0" colspan="2"><widget class="QLabel" name="cuttingHeaderSpacer"><property name="text"><string notr="true"> </string></property></widget></item>
+          <item row="1" column="0"><widget class="QLabel" name="zReferenceLabel"><property name="text"><string>Z reference</string></property></widget></item>
+          <item row="1" column="1"><widget class="QDoubleSpinBox" name="zReferenceSpin"/></item>
+          <item row="2" column="0"><widget class="QLabel" name="zStartLabel"><property name="text"><string>Z start</string></property></widget></item>
+          <item row="2" column="1"><widget class="QDoubleSpinBox" name="zStartSpin"/></item>
+          <item row="3" column="0"><widget class="QLabel" name="zEndLabel"><property name="text"><string>Z end</string></property></widget></item>
+          <item row="3" column="1"><widget class="QDoubleSpinBox" name="zEndSpin"/></item>
+          <item row="4" column="0"><widget class="QLabel" name="zStepLabel"><property name="text"><string>Z step</string></property></widget></item>
+          <item row="4" column="1"><widget class="QDoubleSpinBox" name="zStepSpin"/></item>
+          <item row="5" column="0"><widget class="QLabel" name="stockXYLabel"><property name="text"><string>XY stock</string></property></widget></item>
+          <item row="5" column="1"><widget class="QDoubleSpinBox" name="stockXYSpin"/></item>
+          <item row="6" column="0"><widget class="QLabel" name="stockZLabel"><property name="text"><string>Z stock</string></property></widget></item>
+          <item row="6" column="1"><widget class="QDoubleSpinBox" name="stockZSpin"/></item>
+          <item row="7" column="0"><widget class="QLabel" name="feedLabel"><property name="text"><string>Feed rate</string></property></widget></item>
+          <item row="7" column="1"><widget class="QDoubleSpinBox" name="feedSpin"/></item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QWidget" name="previewHost">
+       <property name="minimumSize"><size><width>260</width><height>220</height></size></property>
+       <layout class="QVBoxLayout" name="previewLayout"><property name="leftMargin"><number>0</number></property><property name="topMargin"><number>0</number></property><property name="rightMargin"><number>0</number></property><property name="bottomMargin"><number>0</number></property></layout>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item><spacer name="buttonSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint"><size><width>40</width><height>20</height></size></property></spacer></item>
+     <item><widget class="QPushButton" name="clearButton"><property name="text"><string>Clear</string></property></widget></item>
+     <item><widget class="QPushButton" name="insertButton"><property name="text"><string>Insert</string></property></widget></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

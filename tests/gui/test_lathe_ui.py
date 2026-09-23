@@ -94,6 +94,25 @@ def test_toolbar_layout_state_round_trip(qt_app):
     window.deleteLater()
 
 
+def test_milling_calculators_are_unavailable_in_lathe_mode(qt_app):
+    window = _window(qt_app)
+
+    window.ui.actionLatheMode.setChecked(True)
+
+    assert not getattr(window.ui, "actionHoleCalculator").isEnabled()
+    assert not getattr(window.ui, "actionPocketCalculator").isEnabled()
+    assert not window.holeCalculatorDlg.ui.insertButton.isEnabled()
+    assert not window.pocketCalculatorDlg.ui.insertButton.isEnabled()
+
+    window.ui.actionLatheMode.setChecked(False)
+
+    assert getattr(window.ui, "actionHoleCalculator").isEnabled()
+    assert getattr(window.ui, "actionPocketCalculator").isEnabled()
+    assert window.holeCalculatorDlg.ui.insertButton.isEnabled()
+    assert window.pocketCalculatorDlg.ui.insertButton.isEnabled()
+    window.deleteLater()
+
+
 def test_lathe_mode_disables_y_wcs_and_converts_x_at_the_ui_boundary(qt_app):
     window = _window(qt_app)
     window.wcsOffsets[54] = (20.0, 7.0, -3.0)
