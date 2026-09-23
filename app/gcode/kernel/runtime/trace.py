@@ -7,7 +7,12 @@ from dataclasses import replace
 from ..compensation.turning import apply_tool_nose_compensation
 from ..frontend.model import ProfileSegment
 from ..geometry import apply_corner_direct_programming
-from .interpreter import TraceRuntimeState, build_trace_execution_context, execute_trace_context_with_steps
+from .interpreter import (
+    TraceRuntimeState,
+    TurningExecutionSemantics,
+    build_trace_execution_context,
+    execute_trace_context_with_steps,
+)
 
 
 def _source_motion_owners(motions, steps) -> list[int]:
@@ -173,18 +178,19 @@ def _build_trace_execution_kwargs(
         rough_cycles=rough_cycles,
         finish_cycles=finish_cycles,
         skip_optional_blocks=skip_optional_blocks,
-        emulate_g28_home=emulate_g28_home,
-        x_is_diameter=x_is_diameter,
-        home_x=home_x,
-        home_z=home_z,
-        try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
-        to_machine_fn=to_machine,
-        wcs_off_fn=wcs_off,
-        set_wcs_off_fn=set_wcs_off,
-        x_value_to_diameter_fn=x_value_to_diameter_fn,
-        x_delta_to_diameter_fn=x_delta_to_diameter_fn,
-        motion_ctor=motion_ctor,
-        point_ctor=point_ctor,
+        semantics=TurningExecutionSemantics(
+            try_wcs_from_gcode=try_wcs_from_gcode_fn,
+            to_machine=to_machine,
+            wcs_offset=wcs_off,
+            set_wcs_offset=set_wcs_off,
+            x_value_to_diameter=x_value_to_diameter_fn,
+            x_delta_to_diameter=x_delta_to_diameter_fn,
+            make_motion=motion_ctor,
+            make_point=point_ctor,
+            home_x=home_x,
+            home_z=home_z,
+            emulate_g28_home=emulate_g28_home,
+        ),
     )
 
 

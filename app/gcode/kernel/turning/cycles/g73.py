@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..api.resources import checkpoint
-from ..frontend.model import Motion, Point2, ProfileSegment
+from ...api.resources import checkpoint
+from ...frontend.model import Motion, Point2, ProfileSegment
 from .common import _append_profile_trace, add_motion, ensure_cycle_return
 from .profile import _shift_profile
 

@@ -39,6 +39,7 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
             block.flow_node is not None
             or block.optional_skip
             or state.cycle != 80
+            or state.polar_active
             or state.unknown_axes
             or state.transform.translation != (0.0, 0.0, 0.0)
             or state.transform.rotation_active
@@ -153,6 +154,7 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                 state.active_wcs,
                 state.feed_mode,
                 state.spindle_rpm,
+                variables=runtime.variable_snapshot(),
             )
         )
         runtime.advance()

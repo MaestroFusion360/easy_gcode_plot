@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import math
 
-from ..api.resources import SemanticError, checkpoint, require_progress
-from ..frontend.model import Motion, Point2
-from ..frontend.program import radius_to_diameter
+from ...api.resources import SemanticError, checkpoint, require_progress
+from ...frontend.model import Motion, Point2
+from ...frontend.program import radius_to_diameter
 from .common import add_motion, add_motion_with_meta
+
+_G76_TOOL_ANGLES = frozenset({0, 29, 30, 55, 60, 80})
 
 
 def _parse_g76_packed_p(packed_p: int) -> tuple[int, int, int]:
@@ -21,6 +23,24 @@ def _parse_g76_packed_p(packed_p: int) -> tuple[int, int, int]:
 
 def _parse_g76_finish_passes(packed_p: int) -> int:
     return _parse_g76_packed_p(packed_p)[0]
+
+
+def _g76_infeed_shift(remaining_rad: float, tool_angle: int, direction_z: float) -> float:
+    """Return the axial single-edge infeed offset for one radial pass depth."""
+    if tool_angle not in _G76_TOOL_ANGLES:
+        raise SemanticError(
+            "UNSUPPORTED_G76_TOOL_ANGLE",
+            f"G76 tool angle must be one of {sorted(_G76_TOOL_ANGLES)} degrees; got {tool_angle}",
+            "unsupported",
+        )
+    if tool_angle == 0:
+        return 0.0
+    return -direction_z * max(0.0, remaining_rad) * math.tan(math.radians(tool_angle / 2.0))
+
+
+def _g76_pass_z(total_rad, actual_rad, tool_angle, direction_z, stock_z, target_z) -> tuple[float, float]:
+    shift = _g76_infeed_shift(total_rad - actual_rad, tool_angle, direction_z)
+    return stock_z + shift, target_z + shift
 
 
 def _g76_constant_area_depths(
@@ -109,7 +129,7 @@ def build_g76_threading(
     if total_rad <= 1e-12 or first_rad <= 1e-12:
         return motions
 
-    finish_passes, chamfer_tenths, _tool_angle = _parse_g76_packed_p(packed_p)
+    finish_passes, chamfer_tenths, tool_angle = _parse_g76_packed_p(packed_p)
     pass_depths = _g76_constant_area_depths(
         total_rad,
         first_rad,
@@ -144,19 +164,20 @@ def build_g76_threading(
     tool = Point2(stock_x, stock_z)
     for index, depth_rad in enumerate(pass_depths):
         actual_rad = min(total_rad, max(0.0, depth_rad))
+        pass_start_z, pass_end_z = _g76_pass_z(total_rad, actual_rad, tool_angle, direction_z, stock_z, target_z)
         x_end = crest_end_x + direction_x * radius_to_diameter(actual_rad)
         x_start = crest_start_x + direction_x * radius_to_diameter(actual_rad)
         if depth_rad >= total_rad - 1e-9:
             x_end = target_x
             x_start = target_x + taper_start_dia
-        pass_start = point(x_start, stock_z)
-        pass_end = point(x_end, target_z)
-        retract_end = point(stock_x, target_z)
+        pass_start = point(x_start, pass_start_z)
+        pass_end = point(x_end, pass_end_z)
+        retract_end = point(stock_x, pass_end_z)
 
         add_motion(motions, 0, tool, pass_start)
         if chamfer_len > 1e-12 and thread_len > chamfer_len + 1e-12:
-            z_chamfer = target_z - direction_z * chamfer_len
-            t = (z_chamfer - stock_z) / (target_z - stock_z)
+            z_chamfer = pass_end_z - direction_z * chamfer_len
+            t = (z_chamfer - pass_start_z) / (pass_end_z - pass_start_z)
             x_chamfer = x_start + (x_end - x_start) * t
             chamfer_start = point(x_chamfer, z_chamfer)
             add_motion_with_meta(motions, 1, pass_start, chamfer_start, None, feed)

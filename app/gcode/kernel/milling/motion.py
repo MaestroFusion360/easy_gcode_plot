@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from ..api.resources import checkpoint
 from ..api.types import TraceMotion
+from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.home import reference_return
-from .drilling import _drill
+from .cycles import execute_milling_cycle
 from .state import MillState, _coordinate_transform, _machine, _wcs_offset, _xyz
 
 
@@ -125,7 +126,7 @@ def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets)
 
 def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets):
     if _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets):
-        return
+        return ()
 
     action_g = None
     for g in gcodes:
@@ -139,10 +140,23 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
     for g in gcodes:
         if g in (0, 1, 2, 3):
             state.move = g
-        elif g in (73, 80, 81, 82, 83, 84, 85, 86):
-            if g in (73, 81, 82, 83, 84, 85, 86) and state.cycle == 80:
-                state.cycle_initial_z = state.z
-            state.cycle = g
+
+    cycle_geometry_blocked = any(g in gcodes for g in (4, 10, 28, 50, 51, 52, 53, 68, 69))
+    cycle_outcome = execute_milling_cycle(
+        CycleContext(
+            block=block,
+            words=words,
+            codes=tuple(gcodes),
+            machine_state=state,
+            modal_cycle_state=state,
+            coordinate_context=wcs_offsets,
+        ),
+        emit_geometry=not cycle_geometry_blocked,
+    )
+    apply_cycle_outcome(state, cycle_outcome)
+    if cycle_outcome.handled:
+        motions.extend(cycle_outcome.motions)
+        return cycle_outcome.signals
 
     if 4 in gcodes or any(g in gcodes for g in (10, 50, 51, 52, 68, 69)):
         pass
@@ -183,10 +197,9 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
         ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
         work = (path.target[0] - ox, path.target[1] - oy, path.target[2] - oz)
         state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
-    elif state.cycle in (73, 81, 82, 83, 84, 85, 86) and any(k in words for k in ("X", "Y", "Z", "R")):
-        motions.extend(_drill(block, state, words, wcs_offsets=wcs_offsets))
     elif state.cycle == 80 and (any(k in words for k in ("X", "Y", "Z")) or any(g in (0, 1, 2, 3) for g in gcodes)):
         m = _motion(block, state, words, wcs_offsets=wcs_offsets)
         if m:
             checkpoint("generated_motions")
             motions.append(m)
+    return ()

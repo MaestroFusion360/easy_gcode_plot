@@ -1,5 +1,6 @@
 """FANUC lathe-cycle expansion, organized by cycle family."""
 
+from .adapter import adapt_cycle_emission
 from .common import (
     add_feed_orthogonal,
     add_motion,
@@ -22,6 +23,7 @@ from .g94 import add_g94_facing_pass
 from .profile import build_offset_profile, is_boring_cycle
 
 __all__ = [
+    "adapt_cycle_emission",
     "add_feed_orthogonal",
     "add_g90_longitudinal_pass",
     "add_g92_thread_pass",

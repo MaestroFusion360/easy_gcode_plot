@@ -60,6 +60,60 @@ def test_undefined_macro_is_structured_fail_closed_error():
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_macro_b_vacant_g65_arguments_compare_equal_to_permanent_null(language):
+    source = """G65 P9000
+G1 X#100 F100
+M30
+O9000
+#100=99
+IF[#1 EQ #0] GOTO10
+#100=1
+N10 M99
+"""
+    result = execute(source, language=language)
+    assert result.ok, result.diagnostics
+    assert result.motions[-1].end_x == pytest.approx(99)
+    assert all("0" not in dict(step.variables) for step in result.execution_steps)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_macro_b_null_is_distinct_from_numeric_zero_and_is_zero_in_arithmetic(language):
+    source = """#100=0
+#101=0
+IF[#1 EQ 0] GOTO10
+#100=#1+5
+IF[#1 NE #0] GOTO10
+#101=7
+N10 G1 X#100 Z#101 F100
+M30
+"""
+    result = execute(source, language=language)
+    assert result.ok, result.diagnostics
+    assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((5, 7))
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_macro_b_assigning_null_clears_variable_and_assigning_to_zero_fails(language):
+    cleared = execute("#100=12\n#100=#0\nIF[#100 EQ #0] GOTO10\n#101=1\nN10 M30", language=language)
+    rejected = execute("#0=123\nM30", language=language)
+
+    assert cleared.ok, cleared.diagnostics
+    assert all("100" not in dict(step.variables) for step in cleared.execution_steps[1:])
+    assert not rejected.ok
+    assert rejected.diagnostics[0].code == "INVALID_MACRO_ASSIGNMENT"
+    assert "Cannot assign" in rejected.diagnostics[0].message
+    assert all("0" not in dict(step.variables) for step in rejected.execution_steps)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_macro_b_indirect_assignment_resolves_lhs_expression(language):
+    source = "#1=100\n#[#1]=5\n#[#1+1]=#100+2\nG1 X#100 Z#101 F100\nM30"
+    result = execute(source, language=language)
+    assert result.ok, result.diagnostics
+    assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((5, 7))
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
 def test_g65_type_i_type_ii_arguments_restore_locals_and_do_not_apply_machine_side_effects(language):
     source = """\
 #1=100
@@ -143,3 +197,40 @@ M99
 
     assert not result.ok
     assert any(diagnostic.code == "CALL_DEPTH_EXCEEDED" for diagnostic in result.diagnostics)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_execution_steps_capture_active_g65_locals_and_restore_caller(language):
+    source = """\
+#1=999
+G65 P9000 A10 B20
+G1 X100 F100
+M30
+O9000
+#100=#1+#2
+G1 X#100 F100
+M99
+"""
+    result = execute(source, language=language)
+
+    macro_motion = next(step for step in result.execution_steps if step.source_block == 6)
+    returned_motion = next(step for step in result.execution_steps if step.source_block == 2)
+    return_step = next(step for step in result.execution_steps if step.source_block == 7)
+    macro_variables = dict(macro_motion.variables)
+    assert macro_variables["1"] == 10
+    assert macro_variables["2"] == 20
+    assert macro_variables["100"] == 30
+    assert dict(return_step.variables)["1"] == 999
+    assert "2" not in dict(return_step.variables)
+    assert dict(returned_motion.variables)["1"] == 999
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_execution_steps_reuse_unchanged_macro_variable_snapshots(language):
+    result = execute("#100=1\nG1 X1 F100\nX2\nX3\n#100=2\nX4\nX5\nM30", language=language)
+    assert result.ok, result.diagnostics
+
+    steps = result.execution_steps
+    assert steps[1].variables is steps[2].variables is steps[3].variables
+    assert steps[4].variables is not steps[3].variables
+    assert steps[4].variables is steps[5].variables is steps[6].variables

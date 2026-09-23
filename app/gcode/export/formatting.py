@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from ..comments import DEFAULT_COMMENT_STYLE, extract_comments, format_comment, strip_comments
 from ..core import format_gcode_number
 from ..kernel import TraceMotion
 from ..kernel.events import PROGRAM_END, SUBPROGRAM_END, SUBPROGRAM_START
@@ -13,8 +14,9 @@ from .options import ExportOptions
 _TURN_CYCLE_G_CODES = {70, 71, 72, 73, 74, 75, 76, 83, 84, 90, 92, 94}
 _TURN_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, 30, 32, 33, *_TURN_CYCLE_G_CODES}
 _MILL_CYCLE_G_CODES = {81, 82, 83, 84, 85, 86}
-_MILL_GEOMETRY_G_CODES = {0, 1, 2, 3, 28, *_MILL_CYCLE_G_CODES}
+_MILL_GEOMETRY_G_CODES = {0, 1, 2, 3, 15, 16, 28, *_MILL_CYCLE_G_CODES}
 _WORD_RE = re.compile(r"([A-Z])([+\-]?(?:\d+(?:\.\d*)?|\.\d+))", re.IGNORECASE)
+_ADDRESS_BOUNDARY_RE = re.compile(r"(?<=[0-9.\]#])(?=[A-Z](?=[+\-]?(?:\d|\.|#|\[)))", re.IGNORECASE)
 
 
 def _g(move: int, leading_zero: bool) -> str:
@@ -194,32 +196,16 @@ def _subprogram_label(event) -> str:
     return "UNKNOWN"
 
 
-def _format_comment(text: str) -> str:
-    body = text.strip()
-    return f"({body})" if body else ""
+def _format_comment(text: str, style: str = DEFAULT_COMMENT_STYLE) -> str:
+    return format_comment(text, style)
 
 
 def _strip_comments(line: str) -> str:
-    out = line
-    while "(" in out and ")" in out:
-        start = out.find("(")
-        end = out.find(")", start + 1)
-        if end < 0:
-            break
-        out = out[:start] + out[end + 1 :]
-    if ";" in out:
-        out = out.split(";", 1)[0]
-    return out
+    return strip_comments(line)
 
 
 def _extract_comments(line: str) -> list[str]:
-    comments = [match.group(1).strip() for match in re.finditer(r"\((.*?)\)", line) if match.group(1).strip()]
-    semi = line.find(";")
-    if semi >= 0:
-        text = line[semi + 1 :].strip()
-        if text:
-            comments.append(text)
-    return comments
+    return extract_comments(line)
 
 
 def _normalize_words_line(line: str) -> str:
@@ -327,8 +313,13 @@ def _number_full_program_lines(lines: list[str], options: ExportOptions) -> list
     spacer = " " if options.sequence_spacing or options.delimiter else ""
     for line in lines:
         stripped = line.strip()
-        structural = not stripped or stripped == "%" or stripped.startswith("O") or stripped.startswith("(")
-        output = line if options.delimiter or structural else line.replace(" ", "")
+        structural = not stripped or stripped == "%" or stripped.startswith(("O", "(", ";"))
+        if structural:
+            output = line
+        elif options.delimiter:
+            output = _ADDRESS_BOUNDARY_RE.sub(" ", line)
+        else:
+            output = line.replace(" ", "")
         if not options.sequence_numbers or structural:
             numbered.append(output)
             continue

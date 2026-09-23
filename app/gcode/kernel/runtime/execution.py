@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 from ..api.resources import SemanticError, active_budget, checkpoint, checkpointed
 from ..api.types import ExecutionEvent, SemanticInstruction
-from ..frontend.lang import eval_condition, evaluate_expression
+from ..frontend.lang import MACRO_NULL, eval_condition, evaluate_expression
 from ..frontend.program import EvaluatedWords, eval_words
 from .events import g65_call_event, program_flow_events
 from .signals import signals_for_words
@@ -57,14 +57,19 @@ _COMMON_MODAL_GROUPS = {
 _MILLING_MODAL_GROUPS = {
     **_COMMON_MODAL_GROUPS,
     "motion": frozenset({0, 1, 2, 3, 73, 80, 81, 82, 83, 84, 85, 86}),
+    "polar_coordinates": frozenset({15, 16}),
     "distance_mode": frozenset({90, 91}),
     "feed_mode": frozenset({94, 95}),
     "cycle_return": frozenset({98, 99}),
+    "tool_length_compensation": frozenset({43, 49}),
+    "coordinate_scaling": frozenset({50, 51}),
+    "coordinate_rotation": frozenset({68, 69}),
 }
 _TURNING_MODAL_GROUPS = {
     **_COMMON_MODAL_GROUPS,
     "motion": frozenset({0, 1, 2, 3, 32, 33, 80, 83, 84, 90, 92, 94}),
     "feed_mode": frozenset({98, 99}),
+    "spindle_mode": frozenset({96, 97}),
 }
 
 G65_LOCAL_KEYS = tuple(str(index) for index in range(1, 34))
@@ -171,6 +176,7 @@ class ProgramRuntime:
     max_macro_call_depth: int = 4
     pc: int = 0
     guard: int = 0
+    _cached_variable_snapshot: tuple[tuple[str, float], ...] = field(default=(), init=False, repr=False)
 
     @classmethod
     def create(cls, program: object, *, variables: dict[str, float] | None = None) -> ProgramRuntime:
@@ -192,6 +198,13 @@ class ProgramRuntime:
 
     def advance(self) -> None:
         self.pc += 1
+
+    def variable_snapshot(self) -> tuple[tuple[str, float], ...]:
+        """Return an interned immutable snapshot, reusing it until values change."""
+        current = tuple(sorted(self.variables.items()))
+        if current != self._cached_variable_snapshot:
+            self._cached_variable_snapshot = current
+        return self._cached_variable_snapshot
 
     def jump(self, pc: int) -> None:
         self.pc = pc
@@ -348,6 +361,30 @@ def replace_g65_locals(variables: dict[str, float], values: dict[str, float]) ->
     for key in G65_LOCAL_KEYS:
         variables.pop(key, None)
     variables.update(values)
+
+
+def _assign_macro_variable(flow, variables: dict[str, float], *, line: int, raw: str) -> None:
+    if flow.value_expr is None:
+        return
+    if flow.var_expr is not None:
+        index = evaluate_expression(flow.var_expr, variables)
+        if not float(index).is_integer():
+            raise ValueError(f"Indirect macro assignment index must be integer at line {line}: {raw}")
+        key = str(int(index))
+    elif flow.var_key is not None:
+        key = flow.var_key if flow.var_key.isdigit() else flow.var_key.upper()
+    else:
+        return
+    if key == "0":
+        raise ValueError(f"Cannot assign to permanent vacant variable #0 at line {line}: {raw}")
+    try:
+        value = evaluate_expression(flow.value_expr, variables, null_aware=True)
+    except Exception as exc:
+        raise ValueError(f"Cannot evaluate assignment at line {line}: {raw}: {exc}") from exc
+    if value is MACRO_NULL:
+        variables.pop(key, None)
+    else:
+        variables[key] = value
 
 
 def bind_g65_arguments(
@@ -549,13 +586,7 @@ def dispatch_macro_flow(
     raw = str(getattr(block, "raw", ""))
 
     if flow.kind == "assign":
-        if flow.var_key is not None and flow.value_expr is not None:
-            try:
-                value = evaluate_expression(flow.value_expr, variables)
-            except Exception as exc:
-                raise ValueError(f"Cannot evaluate assignment at line {line}: {raw}: {exc}") from exc
-            key = flow.var_key if flow.var_key.isdigit() else flow.var_key.upper()
-            variables[key] = value
+        _assign_macro_variable(flow, variables, line=line, raw=raw)
         return FlowDispatch(True, pc + 1)
 
     if flow.kind == "goto":

@@ -7,12 +7,13 @@ from pathlib import Path
 from threading import Event
 
 from PyQt6.QtCore import QCoreApplication, QFileInfo, QIODevice, QSaveFile
-from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
+from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
 from app.gcode.core import format_gcode_number
 from app.gcode.dxf_exporter import export_dxf
 from app.gcode.exporter import DXF_MODE, _window_export_options, export_pgm, export_program
 from app.gcode.kernel.io import read_nc_text
+from app.gcode.trace_tools import format_tool_list, trace_statistics
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
 from app.ui.windows.execution_worker import run_execution
@@ -41,6 +42,52 @@ def _atomic_write(path, text, *, encoding):
         raise OSError(error)
     if not output.commit():
         raise OSError(output.errorString())
+
+
+def _export_diagnostic_text(result, error) -> str:
+    """Build a complete, copyable explanation for an export failure."""
+    diagnostics = () if result is None else getattr(result, "diagnostics", ())
+    sections = []
+    for diagnostic in sorted(diagnostics, key=lambda item: getattr(item, "severity", "error") != "error"):
+        severity = str(getattr(diagnostic, "severity", "error")).upper()
+        line = getattr(diagnostic, "line", None)
+        location = QCoreApplication.translate("MainWindow", "line {0}").format(line) if line is not None else ""
+        heading = " — ".join(part for part in (severity, location, str(diagnostic.code)) if part)
+        body = [heading, str(diagnostic.message)]
+        raw = getattr(diagnostic, "raw", None)
+        if raw:
+            body.append(QCoreApplication.translate("MainWindow", "Source: {0}").format(raw))
+        sections.append("\n".join(body))
+    if not sections:
+        sections.append(str(error))
+    return "\n\n".join(sections)
+
+
+def _show_export_error(owner, error, result) -> None:
+    """Show export diagnostics in an always-visible, copyable text area."""
+    invalid_execution = result is None or not result.ok or not result.complete
+    dialog = QMessageBox(owner)
+    dialog.setIcon(QMessageBox.Icon.Warning)
+    dialog.setWindowTitle(QCoreApplication.translate("MainWindow", "Export failed"))
+    if invalid_execution:
+        dialog.setText(
+            QCoreApplication.translate(
+                "MainWindow", "Export is unavailable because CNC execution is invalid or incomplete."
+            )
+        )
+        dialog.setInformativeText(
+            QCoreApplication.translate("MainWindow", "Correct the diagnostics below and run the export again.")
+        )
+    else:
+        dialog.setText(QCoreApplication.translate("MainWindow", "The program could not be exported."))
+    details = QPlainTextEdit(_export_diagnostic_text(result, error), dialog)
+    details.setReadOnly(True)
+    details.setLineWrapMode(QPlainTextEdit.LineWrapMode.NoWrap)
+    details.setMinimumSize(720, 240)
+    layout = dialog.layout()
+    layout.addWidget(details, layout.rowCount(), 0, 1, layout.columnCount())
+    dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
+    dialog.exec()
 
 
 def _export_target(owner):
@@ -158,7 +205,7 @@ class MainWindowFileMixin:
 
     def _setup_recent_files_menu(self):
         """Create the File -> Recent Files menu without changing the generated UI."""
-        self.recentFilesMenu = QMenu("Recent Files", self.ui.menu_File)
+        self.recentFilesMenu = QMenu(QCoreApplication.translate("MainWindow", "Recent Files"), self.ui.menu_File)
         separator = next((action for action in self.ui.menu_File.actions() if action.isSeparator()), None)
         if separator is None:
             self.ui.menu_File.addMenu(self.recentFilesMenu)
@@ -170,14 +217,16 @@ class MainWindowFileMixin:
         self.recentFilesMenu.clear()
         self.recentFiles = _normalized_recent_files(self.recentFiles)
         if not self.recentFiles:
-            action = self.recentFilesMenu.addAction("(Empty)")
+            action = self.recentFilesMenu.addAction(QCoreApplication.translate("MainWindow", "(Empty)"))
             action.setEnabled(False)
             return
         for index, path in enumerate(self.recentFiles, start=1):
             action = self.recentFilesMenu.addAction(f"{index}. {path}")
             action.triggered.connect(lambda _checked=False, p=path: self._open_recent_file(p))
         self.recentFilesMenu.addSeparator()
-        self.recentFilesMenu.addAction("Clear Recent", self._clear_recent_files)
+        self.recentFilesMenu.addAction(
+            QCoreApplication.translate("MainWindow", "Clear Recent"), self._clear_recent_files
+        )
 
     def _persist_recent_files(self):
         self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
@@ -377,6 +426,46 @@ class MainWindowFileMixin:
         """Return just the filename component."""
         return QFileInfo(fullFileName).fileName()
 
+    def exportToolList(self):
+        """Export a CIMCO-style list from the current resolved toolpath."""
+        if not _ensure_current_export_trace(self):
+            return False
+        result = self.execution_result
+        source_path = self.curFile or None
+        default_stem = Path(source_path).stem if source_path else "tool-list"
+        target, _selected_filter = QFileDialog.getSaveFileName(
+            self,
+            QCoreApplication.translate("MainWindow", "Tool List"),
+            f"{default_stem}-tool-list.txt",
+            QCoreApplication.translate("MainWindow", "Text files (*.txt);;All files (*)"),
+        )
+        if not target:
+            return False
+        if not Path(target).suffix:
+            target += ".txt"
+        tools = self.tools if self.latheMode else self.millingTools
+        report = format_tool_list(
+            result,
+            trace_statistics(result, rapid_feed=self.rapidFeed),
+            tools,
+            file_path=source_path,
+            turning=self.latheMode,
+        )
+        try:
+            _atomic_write(target, report + "\n", encoding="utf-8-sig")
+        except OSError as exc:
+            QMessageBox.critical(
+                self,
+                QCoreApplication.translate("MainWindow", "Tool List"),
+                QCoreApplication.translate("MainWindow", "Cannot write tool list %s:\n%s.") % (target, exc),
+            )
+            return False
+        self.statusBar().showMessage(
+            QCoreApplication.translate("MainWindow", "Tool list exported to %s") % target,
+            5000,
+        )
+        return True
+
     def export(self):
         """Export current program to a chosen file path."""
         target = _export_target(self)
@@ -385,6 +474,17 @@ class MainWindowFileMixin:
         path, dxf_export = target
         started = time.time()
         if not _ensure_current_export_trace(self):
+            result = getattr(self, "execution_result", None)
+            if result is None or not result.ok or not result.complete:
+                _show_export_error(
+                    self,
+                    ValueError(
+                        QCoreApplication.translate(
+                            "MainWindow", "No valid CNC execution result is available for export"
+                        )
+                    ),
+                    result,
+                )
             return
         result = self.execution_result
         cancellation = Event()
@@ -412,7 +512,7 @@ class MainWindowFileMixin:
             return
         except Exception as exc:  # Export/file-system errors are surfaced to the GUI.
             LOGGER.exception("export_failed path=%s", path)
-            QMessageBox.warning(self, QCoreApplication.translate("MainWindow", "Easy G-code Plot"), str(exc))
+            _show_export_error(self, exc, result)
             return
         elapsed_ms = (time.time() - started) * 1000.0
         LOGGER.info("export_completed path=%s duration_ms=%.3f", path, elapsed_ms)

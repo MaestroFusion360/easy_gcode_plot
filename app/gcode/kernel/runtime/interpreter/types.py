@@ -57,6 +57,23 @@ class TraceExecutionContext:
             self.diagnostics = []
 
 
+@dataclass(frozen=True)
+class TurningExecutionSemantics:
+    """Machine-specific operations required by the generic turning executor."""
+
+    try_wcs_from_gcode: object
+    to_machine: object
+    wcs_offset: object
+    set_wcs_offset: object
+    x_value_to_diameter: object
+    x_delta_to_diameter: object
+    make_motion: object
+    make_point: object
+    home_x: float
+    home_z: float
+    emulate_g28_home: bool
+
+
 # Compatibility name: turning and milling now publish the same ExecutionStep contract.
 TraceStepSnapshot = ExecutionStep
 

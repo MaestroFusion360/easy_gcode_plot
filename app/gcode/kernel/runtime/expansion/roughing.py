@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from ...frontend.model import Point2, ProfileSegment
 from ...frontend.program import resolve_cycle_profile_indices, scaled_word, scaled_word_or, x_delta_to_diameter
 from ...geometry import build_profile_segments
-from ...lathe_cycles import (
+from ...turning.cycles import (
     build_g71_roughing,
     build_g72_facing,
     build_g73_pattern,

@@ -5,6 +5,8 @@ import re
 from PyQt6.Qsci import QsciLexerCustom
 from PyQt6.QtGui import QColor
 
+from app.gcode.comments import DEFAULT_COMMENT_STYLE, normalize_comment_style, strip_comments
+
 
 class GcodeLexer(QsciLexerCustom):
     """Custom QScintilla lexer for highlighting G-code."""
@@ -12,6 +14,7 @@ class GcodeLexer(QsciLexerCustom):
     def __init__(self, parent=None):
         """Initialize lexer styles and colors."""
         super().__init__(parent)
+        self.comment_style = DEFAULT_COMMENT_STYLE
 
         self.stylesLexer = {
             0: "Default",
@@ -24,6 +27,13 @@ class GcodeLexer(QsciLexerCustom):
             setattr(self, value, key)
 
         self.initColors()
+
+    def set_comment_style(self, style):
+        """Use the configured CNC comment syntax and refresh highlighting."""
+        self.comment_style = normalize_comment_style(style)
+        editor = self.editor()
+        if editor is not None:
+            editor.recolor()
 
     def initColors(self, colors=None):
         """Assign colors for each move type style."""
@@ -91,9 +101,7 @@ class GcodeLexer(QsciLexerCustom):
                     blockskip = "".join(re.findall(r"^\/.*", line))
                     if blockskip:
                         line = line.replace(blockskip, "")
-                    comment = "".join(re.findall(r"\(.*?\)", line))
-                    if comment:
-                        line = line.replace(comment, "")
+                    line = strip_comments(line, self.comment_style)
                     circular = re.findall(r"[G]0?[2-3][\D]", line)
                     linear = re.findall(r"[G]0?[1][\D]", line)
                     rapid = re.findall(r"[G]0?[0][\D]", line)
@@ -112,11 +120,9 @@ class GcodeLexer(QsciLexerCustom):
             blockskip = "".join(re.findall(r"^\/.*", line))
             if blockskip:
                 line = line.replace(blockskip, "")
-            comment = "".join(re.findall(r"\(.*?\)", line))
-            if comment:
-                line = line.replace(comment, "")
+            line = strip_comments(line, self.comment_style)
             lineNum = "".join(re.findall(r"^[N]\d+[\s]+", line))
-            if comment:
+            if lineNum:
                 line = line.replace(lineNum, "")
 
             axis = re.findall(r"[XYZIJKR]{1}(?:[+-]?[\d\.]+|\#\<.*\>|\[.*\]|\#\d+)", line)

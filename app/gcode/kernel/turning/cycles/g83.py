@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..frontend.model import Motion, Point2
+from ...frontend.model import Motion, Point2
 from .common import add_motion, add_motion_with_meta
 from .g74 import _append_peck_z_turning
 

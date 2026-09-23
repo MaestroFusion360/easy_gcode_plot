@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..frontend.model import Motion, Point2
-from ..runtime.drilling import axial_cycle_moves
+from ...frontend.model import Motion, Point2
+from ...runtime.drilling import axial_cycle_moves
 from .common import add_motion, add_motion_with_meta
 
 

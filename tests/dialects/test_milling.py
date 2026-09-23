@@ -17,6 +17,164 @@ from app.gcode.kernel.api import engine as kernel_engine
 from app.gcode.trace_tools import render_trace, trace_statistics
 
 
+def _motion_endpoints(result, source_blocks):
+    return [
+        (motion.end_x, motion.end_y, motion.end_z)
+        for motion in result.motions
+        if motion.source_block in source_blocks and motion.source_kind == "motion"
+    ]
+
+
+def test_milling_polar_drilling_fixture_matches_absolute_and_incremental_manual_examples(fixture_text):
+    result = execute(fixture_text("milling/polar_drilling.nc"), language="fanuc_mill")
+    assert result.ok, result.diagnostics
+
+    expected = [(86.602540, 50.0), (-86.602540, 50.0), (0.0, -100.0)]
+    for blocks in ({4, 5, 6}, {10, 11, 12}):
+        holes = [
+            (motion.end_x, motion.end_y)
+            for motion in result.motions
+            if motion.source_block in blocks and motion.source_kind == "cycle" and motion.move == 1
+        ]
+        assert len(holes) == len(expected)
+        for actual, target in zip(holes, expected, strict=True):
+            assert actual == pytest.approx(target, abs=1e-6)
+
+
+def test_milling_polar_incremental_center_and_g15_cartesian_restore():
+    result = execute(
+        "G21 G17 G90\nG0 X10 Y20\nG91 G16\nG0 X5 Y90\nG15 G90\nG0 X1 Y2\nM30",
+        language="fanuc_mill",
+    )
+    assert result.ok, result.diagnostics
+    assert [(motion.end_x, motion.end_y) for motion in result.motions] == pytest.approx([(10, 20), (10, 25), (1, 2)])
+
+
+@pytest.mark.parametrize("activation", ("G17 G90 G16", "G90 G17 G16", "G16 G17 G90"))
+def test_milling_polar_activation_uses_effective_block_modes_regardless_of_word_order(activation):
+    result = execute(f"G21\n{activation}\nG0 X10 Y90\nM30", language="fanuc_mill")
+    assert result.ok, result.diagnostics
+    assert (result.motions[-1].end_x, result.motions[-1].end_y) == pytest.approx((0, 10), abs=1e-6)
+
+
+def test_milling_polar_plane_change_resets_modal_radius_and_angle():
+    result = execute(
+        "G21 G17 G90 G16\nG0 X10 Y30\nG18\nG0 X90\nG0 Z5\nM30",
+        language="fanuc_mill",
+    )
+    assert result.ok, result.diagnostics
+    switched, radial = result.motions[-2:]
+    assert (switched.end_x, switched.end_z) == pytest.approx((0, 0), abs=1e-6)
+    assert (radial.end_x, radial.end_z) == pytest.approx((5, 0), abs=1e-6)
+
+
+@pytest.mark.parametrize(
+    ("plane", "words", "expected"),
+    [
+        (17, "X10 Y90", (0, 10, 0)),
+        (18, "Z10 X90", (10, 0, 0)),
+        (19, "Y10 Z90", (0, 0, 10)),
+        (17, "X10 Y-90", (0, -10, 0)),
+        (17, "X10 Y390", (8.660254, 5, 0)),
+    ],
+)
+def test_milling_polar_plane_axis_order_and_unbounded_angles(plane, words, expected):
+    result = execute(f"G21 G{plane} G90 G16\nG0 {words}\nM30", language="fanuc_mill")
+    assert result.ok, result.diagnostics
+    motion = result.motions[-1]
+    assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx(expected, abs=1e-6)
+
+
+def test_milling_polar_units_scale_radius_but_not_angle_and_macro_words_resolve_first():
+    source = "#100=1\n#101=90\nG20 G17 G90 G16\nG0 X[#100] Y[#101]\nG21 G91\nG0 X1\nM30"
+    result = execute(source, language="fanuc_mill")
+    assert result.ok, result.diagnostics
+    endpoints = [(motion.end_x, motion.end_y) for motion in result.motions]
+    for actual, expected in zip(endpoints, [(0, 25.4), (0, 26.4)], strict=True):
+        assert actual == pytest.approx(expected, abs=1e-6)
+
+
+def test_milling_polar_radius_arc_resolves_cartesian_endpoint():
+    result = execute(
+        "G21 G17 G90\nG0 X10 Y0\nG16\nG2 X10 Y90 R10 F100\nM30",
+        language="fanuc_mill",
+    )
+    assert result.ok, result.diagnostics
+    arc = result.motions[-1]
+    assert arc.move == 2
+    assert (arc.end_x, arc.end_y, arc.end_z) == pytest.approx((0, 10, 0), abs=1e-6)
+    assert arc.radius == pytest.approx(10)
+
+
+@pytest.mark.parametrize("center_words", ["I-10 J0", "I-10 J0 R10", ""])
+def test_milling_polar_arc_without_exclusive_r_is_skipped_and_execution_recovers(center_words):
+    source = f"G21 G17 G90\nG0 X10 Y0\nG16\nG2 X10 Y90 {center_words} M8\nG1 X10 Y180\nG15\nM30"
+    result = execute(source, language="fanuc_mill")
+    assert not result.ok
+    assert result.complete
+    assert [diagnostic.code for diagnostic in result.diagnostics] == ["UNSUPPORTED_POLAR_ARC_CENTER"]
+    assert all(signal.block_index != 3 for signal in result.signals)
+    assert all(motion.source_block != 3 for motion in result.motions)
+    assert (result.motions[-1].end_x, result.motions[-1].end_y) == pytest.approx((-10, 0), abs=1e-6)
+
+
+def test_milling_polar_control_coordinates_remain_cartesian_and_do_not_change_radius_angle():
+    dwell = execute("G17 G90 G16\nG0 X10 Y0\nG4 X999\nG0 Y90\nM30", language="fanuc_mill")
+    g52 = execute("G17 G90 G16\nG52 X10 Y20\nG15\nG0 X0 Y0\nM30", language="fanuc_mill")
+    g51 = execute("G17 G90 G16\nG51 X0 Y0 P2000\nG15\nG0 X1 Y1\nM30", language="fanuc_mill")
+    g68 = execute("G17 G90 G16\nG68 X0 Y0 R90\nG15\nG0 X1 Y0\nM30", language="fanuc_mill")
+    g10 = execute("G17 G90 G16\nG10 L2 P1 X10 Y20\nG15 G54\nG0 X0 Y0\nM30", language="fanuc_mill")
+    g53 = execute("G17 G90 G16\nG53 G0 X3 Y4\nM30", language="fanuc_mill")
+    for result in (dwell, g52, g51, g68, g10, g53):
+        assert result.ok, result.diagnostics
+    assert (dwell.motions[-1].end_x, dwell.motions[-1].end_y) == pytest.approx((0, 10))
+    assert (g52.motions[-1].end_x, g52.motions[-1].end_y) == pytest.approx((10, 20))
+    assert (g51.motions[-1].end_x, g51.motions[-1].end_y) == pytest.approx((2, 2))
+    assert (g68.motions[-1].end_x, g68.motions[-1].end_y) == pytest.approx((0, 1))
+    assert (g10.motions[-1].end_x, g10.motions[-1].end_y) == pytest.approx((10, 20))
+    assert (g53.motions[-1].end_x, g53.motions[-1].end_y) == pytest.approx((3, 4))
+
+
+def test_milling_polar_conversion_precedes_wcs_local_rotation_and_scaling_transforms():
+    extended = execute(
+        "G21 G17 G90 G54.1 P7 G16\nG0 X10 Y90\nM30",
+        language="fanuc_mill",
+        extended_wcs_offsets={7: (100, 200, 3)},
+    )
+    local = execute("G21 G17 G90\nG52 X10 Y20\nG16\nG0 X10 Y90\nM30", language="fanuc_mill")
+    rotated = execute("G21 G17 G90\nG68 X0 Y0 R90\nG16\nG0 X10 Y0\nM30", language="fanuc_mill")
+    scaled = execute("G21 G17 G90\nG51 X0 Y0 P2000\nG16\nG0 X10 Y0\nM30", language="fanuc_mill")
+    for result in (extended, local, rotated, scaled):
+        assert result.ok, result.diagnostics
+    assert (extended.motions[-1].end_x, extended.motions[-1].end_y, extended.motions[-1].end_z) == pytest.approx(
+        (100, 210, 0), abs=1e-6
+    )
+    assert (local.motions[-1].end_x, local.motions[-1].end_y) == pytest.approx((10, 30), abs=1e-6)
+    assert (rotated.motions[-1].end_x, rotated.motions[-1].end_y) == pytest.approx((0, 10), abs=1e-6)
+    assert (scaled.motions[-1].end_x, scaled.motions[-1].end_y) == pytest.approx((20, 0), abs=1e-6)
+
+
+def test_milling_polar_modal_conflict_skips_complete_block():
+    result = execute("G17 G90\nG15 G16 X10 Y30\nG0 X1 Y2\nM30", language="fanuc_mill")
+    assert not result.ok
+    assert [diagnostic.code for diagnostic in result.diagnostics] == ["MODAL_GROUP_CONFLICT"]
+    assert [(motion.end_x, motion.end_y) for motion in result.motions] == pytest.approx([(1, 2)])
+
+
+@pytest.mark.parametrize(
+    ("programming", "selection", "offsets"),
+    [
+        ("G10 L2 P1", "G54", {}),
+        ("G10 L20 P7", "G54.1 P7", {7: (0, 0, 0)}),
+    ],
+)
+def test_milling_g10_g91_incrementally_modifies_existing_work_offset(programming, selection, offsets):
+    source = f"G21 G90\n{programming} X100 Y20\nG91\n{programming} X5 Y-2\nG90 {selection}\nG0 X0 Y0\nM30"
+    result = execute(source, language="fanuc_mill", extended_wcs_offsets=offsets)
+    assert result.ok, result.diagnostics
+    assert (result.motions[-1].end_x, result.motions[-1].end_y) == pytest.approx((105, 18))
+
+
 def test_milling_arc_planes_are_logical_and_keep_programmed_endpoints():
     result = execute(MILLING_ARC_PLANES, language="fanuc_mill")
     assert result.ok, result.diagnostics

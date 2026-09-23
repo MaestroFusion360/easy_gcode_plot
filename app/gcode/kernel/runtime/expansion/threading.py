@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from ...frontend.model import Point2
 from ...frontend.program import scaled_word, scaled_word_or, x_value_to_diameter
-from ...lathe_cycles import add_g92_thread_pass, build_g76_threading, ensure_cycle_return
+from ...turning.cycles import add_g92_thread_pass, build_g76_threading, ensure_cycle_return
 from .simple import expand_longitudinal_cycle
 
 

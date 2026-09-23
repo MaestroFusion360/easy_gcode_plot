@@ -52,6 +52,7 @@ from .runtime import signals as _signals
 from .runtime import trace as _trace
 from .runtime import trace_metadata as _trace_metadata
 from .runtime.interpreter import types as _interpreter_types
+from .turning import cycles as _turning_cycles
 
 __all__ = [
     "AstNode",
@@ -98,8 +99,12 @@ _COMPAT_MODULES = {
     "interpreter_types": _interpreter_types,
     "milling_compensation": _compensation_milling,
     "tool_compensation": _compensation_turning,
+    "lathe_cycles": _turning_cycles,
 }
 
 for _name, _module in _COMPAT_MODULES.items():
     sys.modules.setdefault(f"{__name__}.{_name}", _module)
     setattr(sys.modules[__name__], _name, _module)
+
+for _name in ("common", "g70", "g71", "g72", "g73", "g74", "g75", "g76", "g83", "g84", "g90", "g92", "g94", "profile"):
+    sys.modules.setdefault(f"{__name__}.lathe_cycles.{_name}", getattr(_turning_cycles, _name))

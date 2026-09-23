@@ -6,8 +6,10 @@ from pathlib import Path
 import pytest
 
 from app.gcode.kernel import execute
-from app.gcode.kernel.lathe_cycles import g76 as cycle_module
+from app.gcode.kernel.frontend.model import Point2, ProfileSegment
 from app.gcode.kernel.resources import ExecutionLimits, SemanticError
+from app.gcode.kernel.turning.cycles import g72 as g72_module
+from app.gcode.kernel.turning.cycles import g76 as cycle_module
 from app.gcode.trace_tools import (
     RenderLimitExceeded,
     format_trace_statistics,
@@ -268,9 +270,13 @@ def test_g10_rejects_unsupported_work_offset_parameters(language, parameters):
         ("fanuc_mill", "G90 G91"),
         ("fanuc_mill", "G54 G55"),
         ("fanuc_mill", "G0 G1 X10"),
+        ("fanuc_mill", "G43 G49 H1 Z1"),
+        ("fanuc_mill", "G50 G51 P2000 X0 Y0"),
+        ("fanuc_mill", "G68 G69 X0 Y0 R90"),
         ("fanuc_turn", "G17 G18"),
         ("fanuc_turn", "G54 G55"),
         ("fanuc_turn", "G0 G1 X10"),
+        ("fanuc_turn", "G96 G97 S100"),
     ],
 )
 def test_modal_group_conflict_skips_entire_block(language, conflicting_block):
@@ -281,6 +287,17 @@ def test_modal_group_conflict_skips_entire_block(language, conflicting_block):
     assert conflict.line == 1
     assert result.execution_steps[0].emitted_count == 0
     assert [motion.end_x for motion in result.motions] == pytest.approx([1.0])
+
+
+def test_g72_type_ii_multiple_disjoint_spans_fail_with_explicit_diagnostic(monkeypatch):
+    segment = ProfileSegment(0, 1, Point2(10, 0), Point2(20, -5), False, 0, False, Point2(0, 0))
+    monkeypatch.setattr(g72_module, "_profile_intersections_at_z", lambda _profile, _z: [10, 12, 16, 18])
+
+    with pytest.raises(SemanticError) as exc_info:
+        g72_module.build_g72_facing([segment], 20, 1, 1, 0.5, 0, 0, 100, type_ii=True)
+
+    assert exc_info.value.code == "UNSUPPORTED_G72_TYPE_II_SPANS"
+    assert exc_info.value.status == "unsupported"
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
@@ -602,3 +619,23 @@ def test_g76_hard_pass_limit_raises_semantic_resource_error(monkeypatch):
 
     assert exc_info.value.code == "RESOURCE_LIMIT"
     assert exc_info.value.status == "resource_limit"
+
+
+def test_g76_tool_angle_changes_single_edge_infeed_but_preserves_final_endpoint():
+    def cutting_paths(angle):
+        result = execute(f"G21 G18 G90\nG0 X20 Z2\nG76 P0200{angle:02d} Q100 R0\nG76 X16 Z-20 P1000 Q300 F2\nM30")
+        assert result.ok, result.diagnostics
+        return [motion for motion in result.motions if motion.source_kind == "cycle" and motion.move == 1]
+
+    angle_55 = cutting_paths(55)
+    angle_60 = cutting_paths(60)
+    straight = cutting_paths(0)
+    assert angle_55[0].start_z != pytest.approx(angle_60[0].start_z)
+    assert all(motion.start_z == pytest.approx(2) for motion in straight)
+    assert angle_55[-1].end_z == angle_60[-1].end_z == straight[-1].end_z == pytest.approx(-20)
+
+
+def test_g76_rejects_tool_angles_outside_the_fanuc_two_line_set():
+    result = execute("G21 G18\nG0 X20 Z2\nG76 P020045 Q100 R0\nG76 X16 Z-20 P1000 Q300 F2\nM30")
+    assert not result.ok
+    assert result.diagnostics[-1].code == "UNSUPPORTED_G76_TOOL_ANGLE"

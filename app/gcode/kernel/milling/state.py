@@ -9,6 +9,7 @@ from ..geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, r
 from ..geometry.transform import CoordinateTransform, TransformState
 from ..runtime.execution import apply_unit_mode
 from ..runtime.state import MachineRuntimeState
+from .polar import activate_polar, cancel_polar, resolve_polar_endpoint, select_polar_plane
 
 
 @dataclass
@@ -35,9 +36,17 @@ class MillState(MachineRuntimeState):
     selected_tool: str | None = None
     selected_tool_block: int | None = None
     unknown_axes: set[str] = field(default_factory=set)
+    polar_active: bool = False
+    polar_center: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    polar_radius: float = 0.0
+    polar_angle: float = 0.0
+    polar_plane: int = 17
 
 
 def _xyz(words, state: MillState) -> tuple[float, float, float]:
+    if state.polar_active:
+        return resolve_polar_endpoint(words, state)
+
     def resolve(letter: str, current: float) -> float:
         if letter not in words:
             return current
@@ -152,7 +161,8 @@ def _program_wcs_offset(state: MillState, words, *, wcs_offsets) -> None:
     offset = list(_wcs_offset(wcs_offsets, target))
     for index, axis in enumerate(("X", "Y", "Z")):
         if axis in words:
-            offset[index] = words[axis] * state.unit_scale
+            value = words[axis] * state.unit_scale
+            offset[index] = value if state.absolute else offset[index] + value
     wcs_offsets[target] = (offset[0], offset[1], offset[2])
     if target == state.active_wcs:
         work = (
@@ -174,6 +184,7 @@ def _execution_step(
     events=(),
     stop: bool = False,
     wcs_offsets=None,
+    variables: tuple[tuple[str, float], ...] = (),
 ) -> ExecutionStep:
     return ExecutionStep(
         source_block=block.index,
@@ -190,6 +201,7 @@ def _execution_step(
         active_wcs=state.active_wcs,
         feed_mode=state.feed_mode,
         spindle_rpm=state.spindle_rpm,
+        variables=variables,
     )
 
 
@@ -222,14 +234,34 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) ->
     return True
 
 
+def _apply_polar_modal_state(state: MillState, g, *, effective_plane: int, effective_absolute: bool) -> bool:
+    if g in (17, 18, 19):
+        state.plane = g
+        select_polar_plane(state, g)
+    elif g == 15:
+        cancel_polar(state)
+    elif g == 16:
+        activate_polar(state, plane=effective_plane, absolute=effective_absolute)
+    else:
+        return False
+    return True
+
+
 def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets) -> None:
     """Apply state-only modal words before an M98/M99 control transfer."""
     apply_unit_mode(state, gcodes)
+    effective_plane = next((g for g in reversed(gcodes) if g in (17, 18, 19)), state.plane)
+    effective_absolute = next((g == 90 for g in reversed(gcodes) if g in (90, 91)), state.absolute)
     for g in gcodes:
         if g in (20, 21):
             continue
-        if g in (17, 18, 19):
-            state.plane = g
+        if _apply_polar_modal_state(
+            state,
+            g,
+            effective_plane=effective_plane,
+            effective_absolute=effective_absolute,
+        ):
+            pass
         elif g == 90:
             state.absolute = True
         elif g == 91:

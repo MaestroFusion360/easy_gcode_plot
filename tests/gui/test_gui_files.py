@@ -29,6 +29,18 @@ class _StatusBar:
         self.messages.append((message, timeout))
 
 
+def test_export_diagnostics_include_line_code_message_and_source():
+    result = execute("G0 X1\nG65 P8130\nM30", language="fanuc_mill")
+
+    text = main_window_file_ops._export_diagnostic_text(result, ValueError("invalid execution"))
+
+    assert "ERROR" in text
+    assert "line 2" in text
+    assert "SUBPROGRAM_MISSING" in text
+    assert "G65 targets missing O8130" in text
+    assert "Source: G65 P8130" in text
+
+
 def test_recent_files_are_unique_case_insensitively_and_limited():
     recent = main_window._normalized_recent_files(
         ["C:/A.nc", "c:\\a.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc", "C:/F.nc"]

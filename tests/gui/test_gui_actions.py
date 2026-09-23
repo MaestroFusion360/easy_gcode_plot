@@ -27,6 +27,10 @@ def test_main_ui_has_separate_options_and_tokens_settings_actions(qt_app):
     assert ui.actionOptions.shortcut().toString() == "F2"
     assert all("..." not in action.text() for action in settings_actions)
 
+    assert ui.actionExportToolList in ui.menuCNC_Functions.actions()
+    assert ui.actionExportToolList.text() == "Tool List"
+    assert not ui.actionExportToolList.icon().isNull()
+
 
 def test_machine_specific_actions_follow_active_profile_without_restart(qt_app):
     window = MainWindow()

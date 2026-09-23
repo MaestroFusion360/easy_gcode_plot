@@ -242,6 +242,7 @@ class MainWindow(
         self.ui.actionRemoveSpaces.triggered.connect(self.removeSpaces)
         self.ui.actionRemoveEmptyLines.triggered.connect(self.removeLines)
         self.ui.actionStatistics.triggered.connect(self.statistics)
+        self.ui.actionExportToolList.triggered.connect(self.exportToolList)
         self.ui.actionPrevToolchange.triggered.connect(self.previousToolchange)
         self.ui.actionNextToolchange.triggered.connect(self.nextToolchange)
         self.ui.actionStock.triggered.connect(self.stockDlg.show)
@@ -283,6 +284,7 @@ class MainWindow(
         self.ui.horizontalSlider.sliderMoved.connect(self.sliderDrag)
         self.ui.horizontalSlider.valueChanged.connect(self.valueHandler)
         self.ui.horizontalSlider.valueChanged.connect(self.updatePlaybackStatus)
+        self.ui.horizontalSlider.valueChanged.connect(self._macro_playback_position_changed)
         self.ui.actionAbout.triggered.connect(self.aboutDlg.show)
         self.ui.actionFAQ.triggered.connect(self.helpDlg.show)
 

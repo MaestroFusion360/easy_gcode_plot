@@ -80,6 +80,18 @@ def modal_conflict_diagnostics(gcodes, language: str, block) -> tuple[Diagnostic
     )
 
 
+def unsupported_g53_motion_diagnostic(block, modal_move: int) -> Diagnostic:
+    """Report a turning G53 block whose effective motion mode is unsupported."""
+    return Diagnostic(
+        "UNSUPPORTED_G53_MOTION",
+        f"Turning G53 supports only G0/G1 machine-coordinate motion; G{modal_move} block skipped",
+        "error",
+        "unsupported",
+        block.index + 1,
+        block.raw,
+    )
+
+
 def _is_literal_g65_block(block) -> bool:
     for word in block.parsed_words:
         if word.letter != "G":
@@ -96,6 +108,7 @@ def _runtime_error_code(message: str, undefined_macro: bool) -> str:
     if undefined_macro or "undefined macro variable" in message:
         return "UNDEFINED_MACRO"
     rules = (
+        (("cannot assign to permanent vacant variable #0",), "INVALID_MACRO_ASSIGNMENT"),
         (("missing goto target", "missing if/goto target"), "FLOW_TARGET_MISSING"),
         (("m98 targets missing", "g65 targets missing"), "SUBPROGRAM_MISSING"),
         (("call depth exceeds", "macro nesting exceeds"), "CALL_DEPTH_EXCEEDED"),

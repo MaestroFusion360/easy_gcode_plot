@@ -47,22 +47,25 @@ def test_legacy_module_paths_reexport_canonical_objects(legacy_name, attribute, 
 
 def test_historical_package_root_exports_remain_available():
     from app.gcode.kernel.api import SUPPORTED_LANGUAGES
-    from app.gcode.kernel.lathe_cycles import (
+    from app.gcode.kernel.milling import MillState
+    from app.gcode.kernel.runtime import CycleContext, CycleOutcome, apply_cycle_outcome, expand_cycle_block
+    from app.gcode.kernel.turning.cycles import (
         add_feed_orthogonal,
         add_motion,
         add_motion_with_meta,
         add_rapid_orthogonal,
     )
-    from app.gcode.kernel.milling import MillState
-    from app.gcode.kernel.runtime import expand_cycle_block
 
     assert SUPPORTED_LANGUAGES == frozenset({"fanuc_turn", "fanuc_mill"})
     assert MillState.__module__ == "app.gcode.kernel.milling.state"
     assert expand_cycle_block.__module__ == "app.gcode.kernel.runtime.expansion.engine"
-    assert add_motion.__module__ == "app.gcode.kernel.lathe_cycles.common"
-    assert add_motion_with_meta.__module__ == "app.gcode.kernel.lathe_cycles.common"
-    assert add_feed_orthogonal.__module__ == "app.gcode.kernel.lathe_cycles.common"
-    assert add_rapid_orthogonal.__module__ == "app.gcode.kernel.lathe_cycles.common"
+    assert CycleContext.__module__ == "app.gcode.kernel.runtime.cycles"
+    assert CycleOutcome.__module__ == "app.gcode.kernel.runtime.cycles"
+    assert apply_cycle_outcome.__module__ == "app.gcode.kernel.runtime.cycles"
+    assert add_motion.__module__ == "app.gcode.kernel.turning.cycles.common"
+    assert add_motion_with_meta.__module__ == "app.gcode.kernel.turning.cycles.common"
+    assert add_feed_orthogonal.__module__ == "app.gcode.kernel.turning.cycles.common"
+    assert add_rapid_orthogonal.__module__ == "app.gcode.kernel.turning.cycles.common"
 
 
 def test_public_facade_is_the_canonical_api_engine():
@@ -115,3 +118,13 @@ def test_milling_public_entry_point_matches_package_reexport():
     from app.gcode.kernel.milling.executor import execute_milling as module_entry
 
     assert package_entry is module_entry
+
+
+def test_historical_cycle_packages_alias_canonical_modules():
+    legacy_turning = importlib.import_module("app.gcode.kernel.lathe_cycles.g71")
+    canonical_turning = importlib.import_module("app.gcode.kernel.turning.cycles.g71")
+    legacy_milling = importlib.import_module("app.gcode.kernel.milling.drilling")
+    canonical_milling = importlib.import_module("app.gcode.kernel.milling.cycles.drilling")
+
+    assert legacy_turning is canonical_turning
+    assert legacy_milling is canonical_milling

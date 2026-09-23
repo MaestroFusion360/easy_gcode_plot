@@ -8,6 +8,7 @@ from PyQt6.QtGui import QColor, QFont, QRegularExpressionValidator
 from PyQt6.QtWidgets import QColorDialog, QDialog, QDialogButtonBox, QMessageBox
 
 from app import theme
+from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, comment_markers, normalize_comment_style
 from app.settings import (
     ARC_SAMPLING_PRESET_DEFAULT,
     ARC_SAMPLING_PRESETS,
@@ -37,6 +38,7 @@ def _option_snapshot(window):
         "correction": getattr(window, "correctionEnabled", True),
         "autodetect_arc_type": getattr(window, "autodetectArcType", True),
         "ignore_block_skip": getattr(window, "ignoreBlockSkip", False),
+        "comment_style": getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE),
         "arc_sampling_preset": getattr(window, "arcSamplingPreset", ARC_SAMPLING_PRESET_DEFAULT),
         "arc_tolerance": getattr(window, "arcTolerance", ARC_TOLERANCE_DEFAULT),
         "maximum_circular_radius": getattr(window, "maximumCircularRadius", MAXIMUM_CIRCULAR_RADIUS_DEFAULT),
@@ -97,6 +99,9 @@ def _apply_cnc_options(window, ui):
     window.minimumChordLength = ui.minimumChordLengthSpin.value()
     window.autodetectArcType = ui.autodetectArcTypeCheck.isChecked()
     window.ignoreBlockSkip = ui.ignoreBlockSkipCheck.isChecked()
+    window.commentStyle = SEMICOLON if ui.commentStyleCombo.currentIndex() else DEFAULT_COMMENT_STYLE
+    window.co, window.ci = comment_markers(window.commentStyle)
+    window.lexer.set_comment_style(window.commentStyle)
 
 
 def _apply_editor_display_options(window):
@@ -192,6 +197,9 @@ class OptionsDialog(QDialog):
         self._load_arc_sampling_values(window)
         self.ui.autodetectArcTypeCheck.setChecked(getattr(window, "autodetectArcType", True))
         self.ui.ignoreBlockSkipCheck.setChecked(getattr(window, "ignoreBlockSkip", False))
+        self.ui.commentStyleCombo.setCurrentIndex(
+            1 if normalize_comment_style(getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE)) == SEMICOLON else 0
+        )
         self.ui.fontCombo.setCurrentFont(QFont(window.fontFamily))
         self.ui.fontSizeSpin.setValue(window.sizeTxt)
         self.ui.caretLineCheck.setChecked(window.caretLine)
@@ -448,6 +456,7 @@ class OptionsDialog(QDialog):
         self.ui.correctionCheck.setChecked(True)
         self.ui.autodetectArcTypeCheck.setChecked(True)
         self.ui.ignoreBlockSkipCheck.setChecked(False)
+        self.ui.commentStyleCombo.setCurrentIndex(0)
         self.ui.arcSamplingPresetCombo.setCurrentIndex(1)
         self._set_arc_sampling_values(ARC_SAMPLING_PRESETS[1])
         self.ui.fontCombo.setCurrentFont(QFont("Courier New"))

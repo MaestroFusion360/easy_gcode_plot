@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.6.2 - 2026-09-23
+
+- Added a machine-neutral cycle execution contract while preserving machine-specific expansion models. Milling canned cycles now return geometry, signals, modal updates and position updates as one atomic outcome built against temporary state; the existing turning expansion pipeline is connected through an adapter without rewriting G70-G76 semantics. Cycle implementations now live under canonical `turning/cycles` and `milling/cycles` packages, with historical import paths retained as aliases.
+- Added FANUC milling `G16/G15` polar-coordinate programming with `G17/G18/G19` plane selection, absolute/incremental radius-angle commands, WCS/local-origin and current-position pole selection, canned-cycle positioning, R-format circular interpolation, coordinate-transform integration and Python/native execution parity. Turning remains unchanged.
+- Added FANUC Macro B vacant-variable semantics for `#0` and omitted G65 arguments, indirect `#[expr]` assignment, and shared immutable variable snapshots that avoid duplicating unchanged macro state across execution steps.
+- Fixed milling `G10` under `G91` to increment existing L2/L20 work offsets instead of silently replacing them.
+- Fixed two-line turning `G76` so the packed tool-angle digits now produce FANUC single-edge flank infeed for the supported 0/29/30/55/60/80-degree set instead of being silently ignored; unsupported angles now fail explicitly.
+- Expanded modal conflict validation for milling tool-length compensation, scaling and rotation plus turning spindle modes, and added an explicit `UNSUPPORTED_G72_TYPE_II_SPANS` failure for ambiguous multi-span facing profiles.
+- Refactored kernel execution without intentional CNC semantic changes: milling now uses named evaluation/validation/state/flow/motion phases with a single block finalizer, while turning machine-specific operations are grouped behind one execution-semantics contract instead of a growing callback list.
+- Added a standalone `Tool List` CNC function that reuses resolved per-tool statistics to produce a CIMCO-style UTF-8 text report with program/file metadata, configured tool geometry and exact per-tool Z minimums.
+- Fixed turning `G53` fail-open behavior for arc modes. `G53 G2/G3` now reports `UNSUPPORTED_G53_MOTION` and skips the complete block instead of silently executing a WCS-relative arc.
+- Expanded the Tokens diagnostic window into `Tokens/Macro Variables` with a read-only Macro Variables inspector driven by execution-step snapshots. The inspector follows the current logical playback position, shows only variables that actually exist at that point, includes active G65 local-variable scopes and restored caller values after M99, updates during playback/step/slider navigation without re-executing the program, and works consistently for turning and milling Python/native execution paths.
+- Added a persistent CNC comment-style selector under `Options -> CNC / Execution`. Parenthesized comments remain the default, while semicolon comments can now be selected consistently for editor lexing, generated statistics and every text export mode; existing source programs using either syntax remain readable.
+- Improved export failure reporting with an always-visible, copyable diagnostics field containing severity, diagnostic code, source line, explanation and the offending G-code block, so incomplete or invalid executions no longer require opening Tokens or relying on the temporary status-bar message.
+- Fixed `MILL FULL PROGRAM` export so the Delimiter option is also applied to retained controller blocks such as compact `G0G91G28Z0`, producing `G0 G91 G28 Z0` consistently with generated motion blocks.
+- Localized the dynamic Recent Files menu, including its empty state and clear-list action, for the Russian interface.
+- Fixed the Windows complexity-check script failing in project paths containing Cyrillic characters by decoding Ruff's JSON output explicitly as UTF-8.
+
 ## 1.6.1 - 2026-09-22
 
 - Fixed milling `G84` tapping so withdrawal from depth is emitted as synchronized feed motion instead of rapid motion.

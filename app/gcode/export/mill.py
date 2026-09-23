@@ -102,7 +102,7 @@ def export_full_mill_program(
         safety.append("G21")
 
     lines: list[str] = ["%", _program_number(result, options), " ".join(safety)]
-    lines.append(_format_comment("EXPANDED MILL PROGRAM"))
+    lines.append(_format_comment("EXPANDED MILL PROGRAM", options.comment_style))
     program_start_blocks = event_blocks(result.events, PROGRAM_START)
     subprogram_target_blocks = {
         event.target_block
@@ -118,7 +118,7 @@ def export_full_mill_program(
         event_kinds = _event_kinds(step)
 
         for comment in comments:
-            lines.append(_format_comment(comment))
+            lines.append(_format_comment(comment, options.comment_style))
 
         if not clean or clean == "%":
             continue
@@ -162,7 +162,7 @@ def export_full_mill_program(
 
         if any(motion.cycle_generated for motion in motions):
             source = clean or block.raw.strip()
-            lines.append(_format_comment(f"EXPANDED MILL CYCLE: {source}"))
+            lines.append(_format_comment(f"EXPANDED MILL CYCLE: {source}", options.comment_style))
 
         _append_mill_motion_chunk(
             lines,

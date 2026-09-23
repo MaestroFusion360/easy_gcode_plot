@@ -27,6 +27,10 @@ def test_options_dialog_is_independent_and_exposes_language_and_theme(qt_app):
     assert dialog.ui.languageCombo.isEnabled() is True
     assert dialog.ui.themeCombo.count() == 2
     assert dialog.ui.themeCombo.isEnabled() is True
+    assert [dialog.ui.commentStyleCombo.itemText(index) for index in range(2)] == [
+        "Parentheses ()",
+        "Semicolon ;",
+    ]
 
 
 @pytest.mark.parametrize("level, interval", [(1, 1000), (2, 250), (3, 100), (4, 40), (5, 10)])
@@ -194,6 +198,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.arcToleranceSpin.setValue(0.02)
     dialog.ui.correctionCheck.setChecked(False)
     dialog.ui.ignoreBlockSkipCheck.setChecked(True)
+    dialog.ui.commentStyleCombo.setCurrentIndex(1)
     dialog.ui.autoUpdateCheck.setChecked(False)
     dialog.ui.autoUpdateMaxSegmentsSpin.setValue(7500)
     dialog.ui.maxGeneratedMotionsSpin.setValue(350000)
@@ -217,6 +222,9 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.arcTolerance == 0.02
     assert window.correctionEnabled is False
     assert window.ignoreBlockSkip is True
+    assert window.commentStyle == "semicolon"
+    assert (window.co, window.ci) == (";", "")
+    assert window.lexer.comment_style == "semicolon"
     assert window.autoUpdateEnabled is False
     assert window.autoUpdateMaxSegments == 7500
     assert window.maxGeneratedMotions == 350000

@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from ...frontend.model import Motion
 from ...frontend.program import scaled_word, scaled_word_or, x_delta_to_diameter, x_value_to_diameter
-from ...lathe_cycles import build_g74_cycle, build_g75_cycle
+from ...turning.cycles import build_g74_cycle, build_g75_cycle
 
 
 def _peck_target_x(state, words, *, optional: bool) -> float | None:

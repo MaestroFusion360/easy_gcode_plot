@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from ...frontend.model import Motion, Point2
 from ...frontend.program import scaled_word, scaled_word_or, x_delta_to_diameter, x_value_to_diameter
-from ...lathe_cycles import ensure_cycle_return
+from ...turning.cycles import ensure_cycle_return
 
 
 def _longitudinal_target_x(state, words, *, last_x: float) -> float:

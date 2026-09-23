@@ -8,11 +8,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtGui import QAction, QColor, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
 from PyQt6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
 
 from app import theme
+from app.gcode.core import format_gcode_number
 from app.gcode.kernel.api_types import ExecutionResult
 from app.gcode.kernel.lang import try_literal_int
 from app.ui.generated.dialogs.tokens import Ui_TokensDlg
@@ -38,6 +39,7 @@ TABLE_HEADINGS = (
     "Valid",
 )
 TABLE_WIDTHS = (42, 240, 250, 38, 50, 50, 48, 82, 78, 72, 92, 92, 72, 78, 140, 120, 260, 58)
+VARIABLE_HEADINGS = ("#", "Value")
 _STATUS_COLORS = {
     "light": {
         "OK": QColor("#e7f6e7"),
@@ -159,6 +161,57 @@ def rows_from_execution(source: str, result: ExecutionResult) -> list[TokenRow]:
     return rows
 
 
+def _variable_name(key: str) -> str:
+    name = str(key)
+    if name.startswith("#"):
+        return name
+    return f"#{name}" if name.isdigit() else f"#<{name}>"
+
+
+def _variable_sort_key(item: tuple[str, float]) -> tuple[int, int | str]:
+    key = str(item[0])
+    plain = key[1:] if key.startswith("#") else key
+    if plain.isdigit():
+        return 0, int(plain)
+    if plain.startswith("<") and plain.endswith(">"):
+        plain = plain[1:-1]
+    return 1, plain.casefold()
+
+
+def variables_for_playback(
+    execution_result: ExecutionResult | None,
+    playback_movements,
+    playback_value: int,
+    at_program_end: bool = False,
+) -> tuple[tuple[str, float], ...]:
+    """Return the captured Macro B state for one logical playback position."""
+    if execution_result is None or playback_value <= 0:
+        return ()
+    steps = execution_result.execution_steps
+    if not steps:
+        return ()
+    if at_program_end:
+        return tuple(sorted(steps[-1].variables, key=_variable_sort_key))
+    movements = tuple(playback_movements)
+    if not movements:
+        return ()
+    playback_index = min(int(playback_value), len(movements)) - 1
+    target_motion = movements[playback_index].motion_end - 1
+    emitted_end = 0
+    for step in steps:
+        emitted_end += step.emitted_count
+        if step.emitted_count and target_motion < emitted_end:
+            return tuple(sorted(step.variables, key=_variable_sort_key))
+    return ()
+
+
+def _translated_variable_headings() -> tuple[str, str]:
+    return (
+        QCoreApplication.translate("TokensDlg", "#"),
+        QCoreApplication.translate("TokensDlg", "Value"),
+    )
+
+
 class TokensDialog(QDialog):
     """Display parser tokens and execution diagnostics for the live editor text."""
 
@@ -167,29 +220,101 @@ class TokensDialog(QDialog):
         parent,
         source_provider: Callable[[], str] | None = None,
         analysis_provider: Callable[[], ExecutionResult] | None = None,
+        *,
+        execution_provider: Callable[[], ExecutionResult | None] | None = None,
+        playback_provider: Callable[[], tuple[object, int]] | None = None,
+        stale_provider: Callable[[], bool] | None = None,
+        program_end_provider: Callable[[], bool] | None = None,
     ):
         super().__init__(parent)
         self.ui = Ui_TokensDlg()
         self.ui.setupUi(self)
         self._source_provider = source_provider or (lambda: parent.ui.editor.text())
         self._analysis_provider = analysis_provider or parent.analyzeEditorSource
+        self._execution_provider = execution_provider or (lambda: getattr(parent, "execution_result", None))
+        self._playback_provider = playback_provider or (
+            lambda: (getattr(parent, "_playback_movements", ()), parent.ui.horizontalSlider.value())
+        )
+        self._stale_provider = stale_provider or (lambda: bool(getattr(parent, "_plot_source_stale", False)))
+        self._program_end_provider = program_end_provider or (
+            lambda: bool(getattr(parent, "_playback_at_program_end", False))
+        )
         self.model = QStandardItemModel(0, len(TABLE_HEADINGS), self)
         self.model.setHorizontalHeaderLabels(TABLE_HEADINGS)
         self.ui.tokenTable.setModel(self.model)
+        self.variables_model = QStandardItemModel(0, len(VARIABLE_HEADINGS), self)
+        self.variables_model.setHorizontalHeaderLabels(_translated_variable_headings())
+        self.ui.macroVariablesTable.setModel(self.variables_model)
+        self.ui.macroVariablesTable.verticalHeader().setVisible(False)
+        self.ui.macroVariablesTable.horizontalHeader().setStretchLastSection(True)
+        self.ui.macroVariablesTable.setColumnWidth(0, 180)
         self.ui.tokenTable.verticalHeader().setVisible(False)
         self.ui.tokenTable.verticalHeader().setMinimumSectionSize(18)
         self.ui.tokenTable.verticalHeader().setDefaultSectionSize(22)
-        self.ui.refreshButton.clicked.connect(self.refresh)
+        self.ui.refreshButton.clicked.connect(self._refresh_current_tab)
         self.ui.exportCsvButton.clicked.connect(self.export_csv)
         self.ui.resetColumnsButton.clicked.connect(self.reset_columns)
         self.ui.tokenTable.customContextMenuRequested.connect(self._show_context_menu)
         self._copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.ui.tokenTable)
         self._copy_shortcut.activated.connect(self.copy_selected_rows)
+        self.ui.tabWidget.currentChanged.connect(self._tab_changed)
         self.reset_columns()
+        self._update_footer_state()
 
     def showEvent(self, event):
-        self.refresh()
+        self._refresh_current_tab()
         super().showEvent(event)
+
+    def _tab_changed(self, _index):
+        self._update_footer_state()
+        if self.isVisible():
+            self._refresh_current_tab()
+
+    def _update_footer_state(self):
+        self.ui.resetColumnsButton.setEnabled(self.ui.tabWidget.currentWidget() is self.ui.tokensTab)
+
+    def playback_position_changed(self, _value):
+        self.refresh_macro_variables_if_visible()
+
+    def refresh_macro_variables_if_visible(self):
+        if self.isVisible() and self.ui.tabWidget.currentWidget() is self.ui.macroVariablesTab:
+            self.refresh_macro_variables()
+
+    def _refresh_current_tab(self):
+        if self.ui.tabWidget.currentWidget() is self.ui.macroVariablesTab:
+            self.refresh_macro_variables()
+        else:
+            self.refresh()
+
+    def refresh_macro_variables(self):
+        """Refresh the read-only inspector from existing execution snapshots."""
+        self.variables_model.removeRows(0, self.variables_model.rowCount())
+        if self._stale_provider():
+            self.ui.macroVariablesStatusLabel.setText(
+                QCoreApplication.translate(
+                    "TokensDlg", "Execution is stale. Update the toolpath to inspect Macro Variables."
+                )
+            )
+            return
+        result = self._execution_provider()
+        if result is None:
+            self.ui.macroVariablesStatusLabel.setText(QCoreApplication.translate("TokensDlg", "No execution data."))
+            return
+        movements, playback_value = self._playback_provider()
+        variables = variables_for_playback(
+            result,
+            movements,
+            playback_value,
+            self._program_end_provider(),
+        )
+        self.ui.macroVariablesStatusLabel.clear()
+        for key, value in variables:
+            name_item = QStandardItem(_variable_name(key))
+            value_item = QStandardItem(format_gcode_number(value))
+            name_item.setEditable(False)
+            value_item.setEditable(False)
+            value_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.variables_model.appendRow((name_item, value_item))
 
     def refresh(self):
         source = self._source_provider()
@@ -227,17 +352,24 @@ class TokensDialog(QDialog):
         menu.exec(self.ui.tokenTable.viewport().mapToGlobal(position))
 
     def export_csv(self):
+        variables_tab = self.ui.tabWidget.currentWidget() is self.ui.macroVariablesTab
+        model = self.variables_model if variables_tab else self.model
+        headings = VARIABLE_HEADINGS if variables_tab else TABLE_HEADINGS
+        default_name = "macro-variables.csv" if variables_tab else "tokens-validation.csv"
         filename, _selected_filter = QFileDialog.getSaveFileName(
-            self, "Export token validation", "tokens-validation.csv", "CSV files (*.csv);;All files (*)"
+            self,
+            QCoreApplication.translate("TokensDlg", "Export CSV"),
+            default_name,
+            "CSV files (*.csv);;All files (*)",
         )
         if not filename:
             return
         try:
             with Path(filename).open("w", encoding="utf-8", newline="") as stream:
                 writer = csv.writer(stream, delimiter=";")
-                writer.writerow(TABLE_HEADINGS)
-                for row in range(self.model.rowCount()):
-                    writer.writerow(self.model.item(row, column).text() for column in range(self.model.columnCount()))
+                writer.writerow(headings)
+                for row in range(model.rowCount()):
+                    writer.writerow(model.item(row, column).text() for column in range(model.columnCount()))
         except OSError as exc:
             QMessageBox.critical(
                 self,
@@ -247,9 +379,12 @@ class TokensDialog(QDialog):
             return
         parent = self.parent()
         if parent is not None and hasattr(parent, "statusBar"):
-            parent.statusBar().showMessage(
-                QCoreApplication.translate("TokensDlg", "Token validation exported to {0}").format(filename), 5000
+            message = (
+                QCoreApplication.translate("TokensDlg", "Macro variables exported to {0}")
+                if variables_tab
+                else QCoreApplication.translate("TokensDlg", "Token validation exported to {0}")
             )
+            parent.statusBar().showMessage(message.format(filename), 5000)
 
     def reset_columns(self):
         for column, width in enumerate(TABLE_WIDTHS):

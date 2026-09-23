@@ -6,6 +6,7 @@ from PyQt6.QtGui import QColor, QFont, QVector3D
 from PyQt6.QtWidgets import QApplication
 
 from app import theme
+from app.gcode.comments import DEFAULT_COMMENT_STYLE, comment_markers, normalize_comment_style
 from app.gcode.exporter import (
     DXF_MODE,
     EXPANDED_EXECUTION_MODE,
@@ -267,8 +268,7 @@ class MainWindowSettingsMixin:
         self.seqNumSpacing = self.settings.value("EXPORT_OPT/SEQ_NUM_SPACING", False, type=bool)
         self.delim = self.settings.value("EXPORT_OPT/DELIMITER", False, type=bool)
         self.leadingZero = self.settings.value("EXPORT_OPT/LEADING_ZERO", False, type=bool)
-        self.co = self.settings.value("EXPORT_OPT/COMMENT_START", "(")
-        self.ci = self.settings.value("EXPORT_OPT/COMMENT_END", ")")
+        self._load_comment_style()
         self.er = self.settings.value("EXPORT_OPT/ER_CHAR", "%")
 
         # Geometry
@@ -281,6 +281,15 @@ class MainWindowSettingsMixin:
             self.setWindowState(Qt.WindowState.WindowMaximized)
         self.resize(widthApp, heightApp)
         self.move(x, y)
+
+    def _load_comment_style(self):
+        stored = self.settings.value("CNC/COMMENT_STYLE", None)
+        if stored is None:
+            legacy_start = self.settings.value("EXPORT_OPT/COMMENT_START", "(")
+            stored = "semicolon" if legacy_start == ";" else DEFAULT_COMMENT_STYLE
+        self.commentStyle = normalize_comment_style(stored)
+        self.co, self.ci = comment_markers(self.commentStyle)
+        self.lexer.set_comment_style(self.commentStyle)
 
     def _load_arc_sampling_settings(self):
         preset_ids = {preset[0] for preset in ARC_SAMPLING_PRESETS}
@@ -418,6 +427,7 @@ class MainWindowSettingsMixin:
             ("CORRECTION_ENABLED", self.correctionEnabled),
             ("AUTODETECT_ARC_TYPE", self.autodetectArcType),
             ("IGNORE_BLOCK_SKIP", self.ignoreBlockSkip),
+            ("COMMENT_STYLE", self.commentStyle),
             ("ARC_TOLERANCE", self.arcTolerance),
             ("ARC_SAMPLING_PRESET", self.arcSamplingPreset),
             ("MAXIMUM_CIRCULAR_RADIUS", self.maximumCircularRadius),
@@ -469,8 +479,8 @@ class MainWindowSettingsMixin:
         self.settings.setValue("SEQ_NUM_SPACING", self.seqNumSpacing)
         self.settings.setValue("DELIMITER", self.delim)
         self.settings.setValue("LEADING_ZERO", self.leadingZero)
-        self.settings.setValue("COMMENT_START", self.co)
-        self.settings.setValue("COMMENT_END", self.ci)
+        self.settings.remove("COMMENT_START")
+        self.settings.remove("COMMENT_END")
         self.settings.setValue("ER_CHAR", self.er)
         self.settings.endGroup()
         self.settings.beginGroup("GEOMETRY")

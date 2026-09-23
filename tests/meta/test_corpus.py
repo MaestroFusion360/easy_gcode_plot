@@ -15,6 +15,7 @@ EXPECTED_FIXTURES = {
     "milling/macro_hole_milling.nc",
     "milling/macro_thread_milling.nc",
     "milling/plate_setup_complete.nc",
+    "milling/polar_drilling.nc",
     "milling/subprogram.nc",
     "milling/wcs_test.nc",
     "turning/basic_turning_cycles.NC",

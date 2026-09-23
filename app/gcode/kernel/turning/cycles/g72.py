@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
-from ..api.resources import SemanticError, checkpoint
-from ..frontend.model import Motion, Point2, ProfileSegment
-from ..frontend.program import radius_to_diameter
+from ...api.resources import SemanticError, checkpoint
+from ...frontend.model import Motion, Point2, ProfileSegment
+from ...frontend.program import radius_to_diameter
 from .common import _append_profile_trace, add_motion, add_motion_with_meta, add_rapid_orthogonal, ensure_cycle_return
 from .profile import _distinct_in_profile_order, _profile_intersections_at_z
+
+
+def _unsupported_type_ii_spans() -> list[Motion]:
+    raise SemanticError(
+        "UNSUPPORTED_G72_TYPE_II_SPANS",
+        "G72 Type II profile produces multiple disjoint spans on one facing plane",
+        "unsupported",
+    )
 
 
 def build_g72_facing(
@@ -102,7 +110,7 @@ def build_g72_facing(
         else:
             # Multiple disjoint spans require controller-specific Type II
             # material-side semantics.  Do not invent a traversal order.
-            return []
+            return _unsupported_type_ii_spans()
         safe_pt = Point2(cut_start_x, pass_z + retract_z_signed)
         cut_start = Point2(cut_start_x, pass_z)
         cut_end = Point2(cut_end_x, pass_z)

@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..frontend.model import Motion, Point2
-from ..frontend.program import radius_to_diameter
+from ...frontend.model import Motion, Point2
+from ...frontend.program import radius_to_diameter
 from .common import _linspace_steps, add_motion, append_turning_pecks, ensure_cycle_return
 
 

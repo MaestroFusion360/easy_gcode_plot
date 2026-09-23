@@ -5,7 +5,7 @@ from __future__ import annotations
 from ...frontend.model import Point2
 from ...frontend.program import resolve_cycle_profile_indices
 from ...geometry import build_profile_segments
-from ...lathe_cycles import build_finish_contour, ensure_cycle_return
+from ...turning.cycles import build_finish_contour, ensure_cycle_return
 
 
 def _expand_g70(

@@ -14,6 +14,15 @@ from app.gcode.kernel import execute
 from app.gcode.trace_tools import arc_geometry
 
 
+def test_semicolon_comment_style_is_used_by_export():
+    result = execute("G0 X1 ; source comment\nM30", "fanuc_mill")
+
+    text = export_result(result, ExportOptions(comment_style="semicolon"))
+
+    assert ";EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY" in text
+    assert "(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)" not in text
+
+
 def test_full_program_exports_preserve_active_wcs_coordinates():
     turn_source = "G21 G18 G90 G54\nG0 X10 Z5\nM30"
     turn = execute(turn_source, "fanuc_turn", wcs_offsets={54: (100.0, 0.0, 200.0)})

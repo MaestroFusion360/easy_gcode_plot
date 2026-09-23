@@ -9,6 +9,7 @@ from time import perf_counter
 
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
+from app.gcode.comments import format_comment
 from app.gcode.core import last_index
 from app.gcode.kernel import execute
 from app.gcode.kernel.api.resources import ExecutionLimits
@@ -140,6 +141,16 @@ def _cancellation_requested(cancelled) -> bool:
 
 
 class MainWindowExecutionMixin:
+    def _macro_playback_position_changed(self, value):
+        self._playback_at_program_end = False
+        if hasattr(self, "tokensDlg"):
+            self.tokensDlg.playback_position_changed(value)
+
+    def _set_playback_program_end(self, active):
+        self._playback_at_program_end = bool(active)
+        if hasattr(self, "tokensDlg"):
+            self.tokensDlg.refresh_macro_variables_if_visible()
+
     def timerEvent(self, event):
         """Advance playback by logical CNC motion, not editor line."""
         if event.timerId() != self.timer.timerId():
@@ -157,7 +168,9 @@ class MainWindowExecutionMixin:
                 self.ui.actionPlay.setChecked(False)
                 self.timer.stop()
             else:
-                self.stop()
+                self.ui.actionPlay.setChecked(False)
+                self.timer.stop()
+            self._set_playback_program_end(True)
             return
         self.ui.horizontalSlider.setValue(value + 1)
 
@@ -260,6 +273,8 @@ class MainWindowExecutionMixin:
         self._auto_update_show_dialog = bool(show_dialog)
         if hasattr(self, "updateExecutionStatus"):
             self.updateExecutionStatus("STALE")
+        if hasattr(self, "tokensDlg"):
+            self.tokensDlg.refresh_macro_variables_if_visible()
         if getattr(self, "_auto_update_in_progress", False):
             self._kernel_cancel_requested = True
             self._auto_update_pending = True
@@ -714,6 +729,7 @@ class MainWindowExecutionMixin:
         scene_started = perf_counter()
         if not self._publish_plot_scene(result, playback_value, cancelled):
             raise _PlotUpdateCancelledError
+        self._set_playback_program_end(playback_value == len(self._playback_movements))
         LOGGER.info(
             "plot_updated total_ms=%.3f render_ms=%.3f pack_ms=%.3f statistics_ms=%.3f scene_ms=%.3f "
             "motions=%d render_points=%d lathe=%s playback=%d",
@@ -762,15 +778,13 @@ class MainWindowExecutionMixin:
             time_text = "{h:02}:{m:02}:{s:02}".format(
                 h=floor(time_min / 60), m=floor(time_min % 60), s=floor(time_sec % 60)
             )
-        return (
-            self.co
-            + f"Toolpath Length: {float(stats['total_length']):.3f}"
-            + self.ci
-            + "\n"
-            + self.co
-            + f"Machining Time: {time_text}"
-            + self.ci
-            + "\n"
+        style = self.commentStyle
+        return "\n".join(
+            (
+                format_comment(f"Toolpath Length: {float(stats['total_length']):.3f}", style),
+                format_comment(f"Machining Time: {time_text}", style),
+                "",
+            )
         )
 
     def toolPathLimits(self):
@@ -786,30 +800,17 @@ class MainWindowExecutionMixin:
         if bounds is None:
             return ""
         (xmin, xmax), (ymin, ymax), (zmin, zmax) = bounds
-        return (
-            self.co
-            + f"X MIN: {round(xmin, 3)}"
-            + self.ci
-            + "\n"
-            + self.co
-            + f"Y MIN: {round(ymin, 3)}"
-            + self.ci
-            + "\n"
-            + self.co
-            + f"Z MIN: {round(zmin, 3)}"
-            + self.ci
-            + "\n"
-            + self.co
-            + f"X MAX: {round(xmax, 3)}"
-            + self.ci
-            + "\n"
-            + self.co
-            + f"Y MAX: {round(ymax, 3)}"
-            + self.ci
-            + "\n"
-            + self.co
-            + f"Z MAX: {round(zmax, 3)}"
-            + self.ci
+        style = self.commentStyle
+        return "\n".join(
+            format_comment(f"{axis} {bound}: {round(value, 3)}", style)
+            for axis, bound, value in (
+                ("X", "MIN", xmin),
+                ("Y", "MIN", ymin),
+                ("Z", "MIN", zmin),
+                ("X", "MAX", xmax),
+                ("Y", "MAX", ymax),
+                ("Z", "MAX", zmax),
+            )
         )
 
     def statistics(self):

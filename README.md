@@ -26,9 +26,10 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 
 - FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
-- Milling canned cycles, helical arcs, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
+- Milling canned cycles, helical arcs, `G15/G16` polar-coordinate programming, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
 - G-code editor with highlighting, line numbers, search, replace and cleanup tools.
 - Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.
+- Toolpath statistics and CIMCO-style UTF-8 Tool List export from the resolved trace and configured tools.
 - Cutter-aware turning Stock Removal, including thread profiles.
 - ASCII and binary STL overlays with solid and feature-edge modes.
 - SQLite-backed turning and milling tool libraries.
@@ -67,7 +68,7 @@ uv run --no-dev python main.py
 2. Enable `Lathe Mode` for turning or leave it disabled for milling.
 3. Configure WCS, machine home and tools when required.
 4. Refresh and inspect the resolved toolpath.
-5. Use playback, Tokens and Statistics to inspect execution.
+5. Use playback, Tokens/Macro Variables and Statistics to inspect execution. The Macro Variables tab shows the actual Macro B state captured at the current logical playback step.
 6. Optionally import an STL reference model.
 7. Export the required program or trajectory representation.
 

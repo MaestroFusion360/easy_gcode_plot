@@ -7,7 +7,9 @@ from dataclasses import replace
 from ...api.types import ExecutionEvent, ExecutionStep
 from ...frontend.program import resolve_cycle_profile_indices
 from ...geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
-from ..diagnostics import modal_conflict_diagnostics
+from ...turning.cycles import adapt_cycle_emission
+from ..cycles import CycleContext, apply_cycle_outcome
+from ..diagnostics import modal_conflict_diagnostics, unsupported_g53_motion_diagnostic
 from ..events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
 from ..execution import (
     POSITION_NEUTRAL_GCODES,
@@ -27,7 +29,7 @@ from .dispatch import (
     has_position_words,
     resolve_modal_move,
 )
-from .types import TraceExecutionContext, TraceRuntimeState
+from .types import TraceExecutionContext, TraceRuntimeState, TurningExecutionSemantics
 
 
 def build_trace_execution_context(
@@ -57,18 +59,7 @@ def execute_trace_context_with_steps(
     rough_cycles: list[list[object]],
     finish_cycles: list[list[object]],
     skip_optional_blocks: bool,
-    emulate_g28_home: bool,
-    x_is_diameter: bool,
-    home_x: float,
-    home_z: float,
-    try_wcs_from_gcode_fn,
-    to_machine_fn,
-    wcs_off_fn,
-    set_wcs_off_fn,
-    x_value_to_diameter_fn,
-    x_delta_to_diameter_fn,
-    motion_ctor,
-    point_ctor,
+    semantics: TurningExecutionSemantics,
 ) -> tuple[list[object], list[ExecutionStep]]:
     motions: list[object] = []
     steps: list[ExecutionStep] = []
@@ -83,18 +74,7 @@ def execute_trace_context_with_steps(
             rough_cycles=rough_cycles,
             finish_cycles=finish_cycles,
             skip_optional_blocks=skip_optional_blocks,
-            emulate_g28_home=emulate_g28_home,
-            x_is_diameter=x_is_diameter,
-            home_x=home_x,
-            home_z=home_z,
-            try_wcs_from_gcode_fn=try_wcs_from_gcode_fn,
-            to_machine_fn=to_machine_fn,
-            wcs_off_fn=wcs_off_fn,
-            set_wcs_off_fn=set_wcs_off_fn,
-            x_value_to_diameter_fn=x_value_to_diameter_fn,
-            x_delta_to_diameter_fn=x_delta_to_diameter_fn,
-            motion_ctor=motion_ctor,
-            point_ctor=point_ctor,
+            semantics=semantics,
         )
         motions.extend(step_motions)
         src_block = pc_before
@@ -120,7 +100,7 @@ def execute_trace_context_with_steps(
                 spindle_limit_rpm=ctx.state.spindle_limit_rpm,
                 spindle_running=ctx.state.spindle_running,
                 modal_move=ctx.state.modal_move,
-                variables=tuple(sorted(ctx.runtime.variables.items())),
+                variables=ctx.runtime.variable_snapshot(),
                 events=ctx.events,
             )
         )
@@ -136,18 +116,7 @@ def execute_trace_step(
     rough_cycles: list[list[object]],
     finish_cycles: list[list[object]],
     skip_optional_blocks: bool,
-    emulate_g28_home: bool,
-    x_is_diameter: bool,
-    home_x: float,
-    home_z: float,
-    try_wcs_from_gcode_fn,
-    to_machine_fn,
-    wcs_off_fn,
-    set_wcs_off_fn,
-    x_value_to_diameter_fn,
-    x_delta_to_diameter_fn,
-    motion_ctor,
-    point_ctor,
+    semantics: TurningExecutionSemantics,
 ) -> tuple[bool, list[object]]:
     motions: list[object] = []
     blocks = program.blocks
@@ -194,6 +163,12 @@ def execute_trace_step(
     conflict_diagnostics = modal_conflict_diagnostics(all_g, "fanuc_turn", block)
     if conflict_diagnostics:
         ctx.diagnostics.extend(conflict_diagnostics)
+        ctx.pc += 1
+        return False, motions
+
+    effective_motion = resolve_modal_move(ast_node, gcode, state.modal_move)
+    if 53 in all_g and effective_motion not in (0, 1):
+        ctx.diagnostics.append(unsupported_g53_motion_diagnostic(block, effective_motion))
         ctx.pc += 1
         return False, motions
 
@@ -252,10 +227,10 @@ def execute_trace_step(
         all_g,
         all_m,
         words,
-        try_wcs_from_gcode_fn,
-        wcs_off_fn,
-        set_wcs_off_fn,
-        x_value_to_diameter_fn,
+        semantics.try_wcs_from_gcode,
+        semantics.wcs_offset,
+        semantics.set_wcs_offset,
+        semantics.x_value_to_diameter,
     )
 
     event_list.extend(_turning_reference_events(block, all_g, words, len(runtime.call_stack)))
@@ -333,15 +308,21 @@ def execute_trace_step(
             modal_z=state.modal_z,
             source_block=block.index,
             blocks=blocks,
-            to_machine_fn=to_machine_fn,
-            motion_ctor=motion_ctor,
-            point_ctor=point_ctor,
+            to_machine_fn=semantics.to_machine,
+            motion_ctor=semantics.make_motion,
+            point_ctor=semantics.make_point,
         )
-        motions.extend(tagged(ced.emitted_motions))
-        state.modal_x = ced.new_modal_x
-        state.modal_z = ced.new_modal_z
-        state.rough_idx = ced.new_rough_idx
-        state.finish_idx = ced.new_finish_idx
+        cycle_context = CycleContext(
+            block=block,
+            words=words,
+            codes=tuple(all_g),
+            machine_state=state,
+            runtime_state=ctx,
+            modal_cycle_state=cyc,
+        )
+        cycle_outcome = adapt_cycle_emission(cycle_context, ced, tagged(ced.emitted_motions))
+        motions.extend(cycle_outcome.motions)
+        apply_cycle_outcome(state, cycle_outcome)
         ctx.pc += 1
         return False, motions
 
@@ -352,15 +333,15 @@ def execute_trace_step(
         gcode,
         all_g,
         ctx,
-        emulate_g28_home,
-        home_x,
-        home_z,
-        to_machine_fn,
-        wcs_off_fn,
-        x_value_to_diameter_fn,
-        x_delta_to_diameter_fn,
-        motion_ctor,
-        point_ctor,
+        semantics.emulate_g28_home,
+        semantics.home_x,
+        semantics.home_z,
+        semantics.to_machine,
+        semantics.wcs_offset,
+        semantics.x_value_to_diameter,
+        semantics.x_delta_to_diameter,
+        semantics.make_motion,
+        semantics.make_point,
         block,
         motions,
         tagged,

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ..api.resources import SemanticError, checkpoint, require_progress
-from ..frontend.model import Motion, Point2, ProfileSegment
-from ..geometry import arc_center_from_r, try_compute_signed_arc_radius_from_center
-from ..runtime.drilling import axial_cycle_moves
+from ...api.resources import SemanticError, checkpoint, require_progress
+from ...frontend.model import Motion, Point2, ProfileSegment
+from ...geometry import arc_center_from_r, try_compute_signed_arc_radius_from_center
+from ...runtime.drilling import axial_cycle_moves
 
 
 def add_motion(

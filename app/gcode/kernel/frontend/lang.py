@@ -8,7 +8,9 @@ import math
 import re
 from dataclasses import dataclass
 
-ASSIGN_RE = re.compile(r"^\s*#(?:(\d+)|<([A-Z_][A-Z0-9_]*)>)\s*=\s*(.+?)\s*$", re.IGNORECASE)
+from ...comments import strip_comments as _strip_comments
+
+ASSIGN_RE = re.compile(r"^\s*#(?:(\d+)|<([A-Z_][A-Z0-9_]*)>|\[(.+)\])\s*=\s*(.+?)\s*$", re.IGNORECASE)
 IF_GOTO_RE = re.compile(r"^\s*IF\s*\[(.+)\]\s*GOTO\s*(\d+)\s*$", re.IGNORECASE)
 GOTO_RE = re.compile(r"^\s*GOTO\s*(\d+)\s*$", re.IGNORECASE)
 WHILE_RE = re.compile(r"^\s*WHILE\s*\[(.+)\]\s*DO\s*(\d+)\s*$", re.IGNORECASE)
@@ -20,6 +22,96 @@ NUMERIC_LITERAL_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
 
 class UndefinedMacroVariableError(ValueError):
     """Raised when a Macro B variable reference has no runtime value."""
+
+
+class _MacroNull:
+    """FANUC vacant value: distinct in comparisons, numeric zero in arithmetic."""
+
+    def __float__(self):
+        return 0.0
+
+    def __int__(self):
+        return 0
+
+    def __bool__(self):
+        return False
+
+    def __str__(self):
+        return "NULL"
+
+    def __repr__(self):
+        return "NULL"
+
+    def __pos__(self):
+        return 0.0
+
+    def __neg__(self):
+        return -0.0
+
+    def __abs__(self):
+        return 0.0
+
+    def __add__(self, other):
+        return 0.0 + other
+
+    def __radd__(self, other):
+        return other + 0.0
+
+    def __sub__(self, other):
+        return 0.0 - other
+
+    def __rsub__(self, other):
+        return other - 0.0
+
+    def __mul__(self, other):
+        return 0.0 * other
+
+    def __rmul__(self, other):
+        return other * 0.0
+
+    def __truediv__(self, other):
+        return 0.0 / other
+
+    def __rtruediv__(self, other):
+        return other / 0.0
+
+    def __floordiv__(self, other):
+        return 0.0 // other
+
+    def __rfloordiv__(self, other):
+        return other // 0.0
+
+    def __mod__(self, other):
+        return 0.0 % other
+
+    def __rmod__(self, other):
+        return other % 0.0
+
+    def __pow__(self, other):
+        return 0.0**other
+
+    def __rpow__(self, other):
+        return other**0.0
+
+    def __lt__(self, other):
+        return 0.0 < other
+
+    def __le__(self, other):
+        return 0.0 <= other
+
+    def __gt__(self, other):
+        return 0.0 > other
+
+    def __ge__(self, other):
+        return 0.0 >= other
+
+
+MACRO_NULL = _MacroNull()
+
+
+def strip_comments(line: str) -> str:
+    """Strip both supported CNC comment syntaxes while parsing."""
+    return _strip_comments(line)
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,24 +127,8 @@ class FlowNode:
     target_label: int | None = None
     loop_id: int | None = None
     var_key: str | None = None
+    var_expr: str | None = None
     value_expr: str | None = None
-
-
-def strip_comments(line: str) -> str:
-    out = []
-    in_paren = False
-    for ch in line:
-        if ch == "(":
-            in_paren = True
-            continue
-        if ch == ")":
-            in_paren = False
-            continue
-        if ch == ";" and not in_paren:
-            break
-        if not in_paren:
-            out.append(ch)
-    return "".join(out).strip()
 
 
 def _is_word_start(clean: str, pos: int) -> bool:
@@ -133,9 +209,14 @@ def parse_flow(clean: str) -> FlowNode | None:
 
     m_assign = ASSIGN_RE.match(flow_text)
     if m_assign:
-        num_key, name_key, rhs = m_assign.groups()
+        num_key, name_key, var_expr, rhs = m_assign.groups()
         key = num_key if num_key is not None else (name_key or "").upper()
-        return FlowNode(kind="assign", var_key=key, value_expr=rhs.strip())
+        return FlowNode(
+            kind="assign",
+            var_key=key or None,
+            var_expr=var_expr.strip() if var_expr is not None else None,
+            value_expr=rhs.strip(),
+        )
 
     m_if = IF_GOTO_RE.match(flow_text)
     if m_if:
@@ -226,10 +307,12 @@ def _translate_expr(expr: str) -> str:
     return t
 
 
-def _macro_variable_value(key: str, variables: dict[str, float]) -> float:
-    if key == "0":
-        return 0.0
-    if key not in variables:
+def _macro_variable_value(key: str, variables: dict[str, float], *, null_aware: bool = False) -> float | _MacroNull:
+    if key == "0" or key not in variables:
+        if null_aware:
+            return MACRO_NULL
+        if key == "0":
+            raise UndefinedMacroVariableError("Macro variable #0 is vacant")
         raise UndefinedMacroVariableError(f"Undefined macro variable #{key}")
     return float(variables[key])
 
@@ -259,7 +342,7 @@ def _indirect_variable_value(inner: str, variables: dict[str, float]) -> float:
     return _macro_variable_value(str(int(index_value)), variables)
 
 
-def _expand_variables(expr: str, variables: dict[str, float]) -> str:
+def _expand_variables(expr: str, variables: dict[str, float], *, null_aware: bool = False) -> str:
     out = expr
     guard = 0
 
@@ -276,13 +359,15 @@ def _expand_variables(expr: str, variables: dict[str, float]) -> str:
     def repl_name(mo: re.Match[str]) -> str:
         name = mo.group(1).upper()
         if name not in variables:
+            if null_aware:
+                return str(MACRO_NULL)
             raise UndefinedMacroVariableError(f"Undefined macro variable #<{name}>")
         return str(variables[name])
 
     out = HASH_NAME_RE.sub(repl_name, out)
 
     def repl_num(mo: re.Match[str]) -> str:
-        return str(_macro_variable_value(mo.group(1), variables))
+        return str(_macro_variable_value(mo.group(1), variables, null_aware=null_aware))
 
     out = HASH_NUM_RE.sub(repl_num, out)
     return out
@@ -312,6 +397,7 @@ SAFE_FUNCS = {
     "MAX": max,
     "XOR": _fanuc_xor,
 }
+SAFE_VALUES = {**SAFE_FUNCS, "NULL": MACRO_NULL}
 
 SAFE_NODES = (
     ast.Expression,
@@ -371,19 +457,21 @@ def _safe_eval(expr: str) -> float:
                 raise ValueError("Unsupported call target")
             if node.func.id not in SAFE_FUNCS:
                 raise ValueError(f"Unsupported function: {node.func.id}")
-        if isinstance(node, ast.Name) and node.id not in SAFE_FUNCS:
+        if isinstance(node, ast.Name) and node.id not in SAFE_VALUES:
             raise ValueError(f"Unsupported name: {node.id}")
 
-    value = eval(compile(tree, "<expr>", "eval"), {"__builtins__": {}}, SAFE_FUNCS)
+    value = eval(compile(tree, "<expr>", "eval"), {"__builtins__": {}}, SAFE_VALUES)
     if isinstance(value, bool):
         return 1.0 if value else 0.0
+    if value is MACRO_NULL:
+        return MACRO_NULL
     value = float(value)
     if not math.isfinite(value):
         raise ValueError("Non-finite expression result")
     return value
 
 
-def evaluate_expression(expr: str, variables: dict[str, float]) -> float:
+def evaluate_expression(expr: str, variables: dict[str, float], *, null_aware: bool = False) -> float | _MacroNull:
     raw = expr.strip()
     if not raw:
         return 0.0
@@ -392,7 +480,7 @@ def evaluate_expression(expr: str, variables: dict[str, float]) -> float:
         if not math.isfinite(value):
             raise ValueError("Non-finite numeric word")
         return value
-    expanded = _expand_variables(raw, variables)
+    expanded = _expand_variables(raw, variables, null_aware=null_aware)
     translated = _translate_expr(expanded)
     return _safe_eval(translated)
 
@@ -427,7 +515,8 @@ def validate_expression_syntax(expr: str) -> None:
 
 
 def eval_condition(expr: str, variables: dict[str, float]) -> bool:
-    return abs(evaluate_expression(expr, variables)) > 1e-12
+    value = evaluate_expression(expr, variables, null_aware=True)
+    return False if value is MACRO_NULL else abs(value) > 1e-12
 
 
 def pick_assign_expression(rhs: str, variables: dict[str, float]) -> str:

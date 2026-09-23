@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..frontend.model import Motion, Point2, ProfileSegment
-from ..geometry import try_compute_signed_arc_radius_from_center
+from ...frontend.model import Motion, Point2, ProfileSegment
+from ...geometry import try_compute_signed_arc_radius_from_center
 from .common import add_motion, add_motion_with_meta
 
 

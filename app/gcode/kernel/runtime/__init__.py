@@ -2,7 +2,16 @@
 
 from __future__ import annotations
 
-__all__ = ["expand_cycle_block"]  # pylint: disable=undefined-all-variable
+from .cycles import CycleContext, CycleOutcome, apply_cycle_outcome
+
+# ``expand_cycle_block`` is provided lazily by ``__getattr__`` below.
+# pylint: disable=undefined-all-variable
+__all__ = [
+    "CycleContext",
+    "CycleOutcome",
+    "apply_cycle_outcome",
+    "expand_cycle_block",
+]
 
 
 def __getattr__(name: str):

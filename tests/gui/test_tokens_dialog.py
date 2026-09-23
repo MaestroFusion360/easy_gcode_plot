@@ -10,7 +10,15 @@ from PyQt6.QtCore import QItemSelectionModel
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from app.gcode.kernel import execute
-from app.ui.dialogs.tokens import TABLE_HEADINGS, TABLE_WIDTHS, TokensDialog, rows_from_execution
+from app.main_window import MainWindow
+from app.ui.dialogs.tokens import (
+    TABLE_HEADINGS,
+    TABLE_WIDTHS,
+    TokensDialog,
+    rows_from_execution,
+    variables_for_playback,
+)
+from app.ui.plot.playback import build_playback_movements
 
 
 @pytest.fixture(scope="module")
@@ -143,3 +151,130 @@ def test_tokens_copy_export_and_reset_columns(qt_app, monkeypatch, tmp_path):
     assert tuple(dialog.ui.tokenTable.columnWidth(column) for column in range(len(TABLE_WIDTHS))) == TABLE_WIDTHS
     assert dialog.ui.tokenTable.horizontalScrollBar().value() == 0
     assert dialog.ui.tokenTable.verticalScrollBar().value() == 0
+
+
+def test_shared_footer_refreshes_and_exports_macro_variables(qt_app, monkeypatch, tmp_path):
+    source = "#100=25.5\nG1 X1 F100"
+    result = execute(source, language="fanuc_mill")
+    movements = build_playback_movements(result.motions)[0]
+    analyses = []
+    parent = QMainWindow()
+    dialog = TokensDialog(
+        parent,
+        lambda: source,
+        lambda: analyses.append(True),
+        execution_provider=lambda: result,
+        playback_provider=lambda: (movements, 1),
+        stale_provider=lambda: False,
+    )
+    dialog.ui.tabWidget.setCurrentWidget(dialog.ui.macroVariablesTab)
+
+    assert not dialog.ui.resetColumnsButton.isEnabled()
+    dialog.ui.refreshButton.click()
+    assert analyses == []
+    assert dialog.variables_model.item(0, 1).text() == "25.5"
+
+    output = tmp_path / "macro-variables.csv"
+    monkeypatch.setattr("app.ui.dialogs.tokens.QFileDialog.getSaveFileName", lambda *args: (str(output), "CSV"))
+    dialog.ui.exportCsvButton.click()
+    with output.open(encoding="utf-8", newline="") as stream:
+        exported = list(csv.reader(stream, delimiter=";"))
+    assert exported == [["#", "Value"], ["#100", "25.5"]]
+
+    dialog.ui.tabWidget.setCurrentWidget(dialog.ui.tokensTab)
+    assert dialog.ui.resetColumnsButton.isEnabled()
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_macro_variables_follow_logical_playback_and_program_end(language):
+    source = "#100=10\nG1 X10 F100\n#100=20\nG1 X20\n#100=0\nM30"
+    result = execute(source, language=language)
+    movements = build_playback_movements(result.motions)[0]
+
+    assert variables_for_playback(result, movements, 0) == ()
+    assert dict(variables_for_playback(result, movements, 1))["100"] == 10
+    assert dict(variables_for_playback(result, movements, 2))["100"] == 20
+    assert dict(variables_for_playback(result, movements, 2, at_program_end=True))["100"] == 0
+
+
+def test_macro_variables_are_sorted_numeric_then_named():
+    result = execute("#100=1\n#2=2\n#<NAME>=3.2\nG1 X1 F100", language="fanuc_mill")
+    movements = build_playback_movements(result.motions)[0]
+
+    assert variables_for_playback(result, movements, 1) == (("2", 2.0), ("100", 1.0), ("NAME", 3.2))
+
+
+def test_macro_variables_tab_uses_snapshots_without_analyzing_again(qt_app):
+    source = "#100=10\nG1 X1 F100"
+    result = execute(source, language="fanuc_mill")
+    movements = build_playback_movements(result.motions)[0]
+    analyses = []
+    parent = QMainWindow()
+    dialog = TokensDialog(
+        parent,
+        lambda: source,
+        lambda: analyses.append(True),
+        execution_provider=lambda: result,
+        playback_provider=lambda: (movements, 1),
+        stale_provider=lambda: False,
+    )
+    dialog.ui.tabWidget.setCurrentWidget(dialog.ui.macroVariablesTab)
+    dialog.show()
+    qt_app.processEvents()
+
+    assert analyses == []
+    assert dialog.variables_model.rowCount() == 1
+    assert dialog.variables_model.item(0, 0).text() == "#100"
+    assert dialog.variables_model.item(0, 1).text() == "10"
+
+
+def test_macro_variables_tab_reports_missing_and_stale_execution(qt_app):
+    state = {"result": None, "stale": False}
+    parent = QMainWindow()
+    dialog = TokensDialog(
+        parent,
+        lambda: "",
+        lambda: None,
+        execution_provider=lambda: state["result"],
+        playback_provider=lambda: ((), 0),
+        stale_provider=lambda: state["stale"],
+    )
+    dialog.refresh_macro_variables()
+    assert dialog.ui.macroVariablesStatusLabel.text() == "No execution data."
+
+    state["stale"] = True
+    dialog.refresh_macro_variables()
+    assert dialog.ui.macroVariablesStatusLabel.text() == (
+        "Execution is stale. Update the toolpath to inspect Macro Variables."
+    )
+
+
+def test_main_window_macro_variables_follow_slider_and_hide_stale_snapshots(qt_app):
+    source = "#100=10\nG1 X10 F100\n#100=20\nG1 X20\n#100=0\nM30"
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    window.ui.editor.setText(source)
+    assert window.updateData()
+    result = window.execution_result
+
+    assert window.ui.actionTokens.text() == "Tokens/Macro Variables"
+    assert window.tokensDlg.ui.tabWidget.tabText(0) == "Tokens"
+    assert window.tokensDlg.ui.tabWidget.tabText(1) == "Macro Variables"
+    window.tokensDlg.ui.tabWidget.setCurrentWidget(window.tokensDlg.ui.macroVariablesTab)
+    window.tokensDlg.show()
+    qt_app.processEvents()
+
+    assert window.tokensDlg.variables_model.item(0, 1).text() == "0"
+    window.ui.horizontalSlider.setValue(1)
+    assert window.tokensDlg.variables_model.item(0, 1).text() == "10"
+    window.ui.horizontalSlider.setValue(2)
+    assert window.tokensDlg.variables_model.item(0, 1).text() == "20"
+    assert window.execution_result is result
+
+    window.ui.editor.append("#101=1")
+    qt_app.processEvents()
+    assert window.tokensDlg.variables_model.rowCount() == 0
+    assert window.tokensDlg.ui.macroVariablesStatusLabel.text() == (
+        "Execution is stale. Update the toolpath to inspect Macro Variables."
+    )
+    window.deleteLater()

@@ -270,6 +270,18 @@ class Ui_OptionsDlg(object):
 
         self.cncForm.setWidget(7, QFormLayout.ItemRole.FieldRole, self.minimumChordLengthSpin)
 
+        self.commentStyleLabel = QLabel(self.cncTab)
+        self.commentStyleLabel.setObjectName(u"commentStyleLabel")
+
+        self.cncForm.setWidget(8, QFormLayout.ItemRole.LabelRole, self.commentStyleLabel)
+
+        self.commentStyleCombo = QComboBox(self.cncTab)
+        self.commentStyleCombo.addItem("")
+        self.commentStyleCombo.addItem("")
+        self.commentStyleCombo.setObjectName(u"commentStyleCombo")
+
+        self.cncForm.setWidget(8, QFormLayout.ItemRole.FieldRole, self.commentStyleCombo)
+
         self.tabs.addTab(self.cncTab, "")
         self.plotTab = QWidget()
         self.plotTab.setObjectName(u"plotTab")
@@ -578,6 +590,10 @@ class Ui_OptionsDlg(object):
         self.minimumCircularRadiusSpin.setSuffix(QCoreApplication.translate("OptionsDlg", u" mm", None))
         self.minimumChordLengthLabel.setText(QCoreApplication.translate("OptionsDlg", u"Minimum chord length", None))
         self.minimumChordLengthSpin.setSuffix(QCoreApplication.translate("OptionsDlg", u" mm", None))
+        self.commentStyleLabel.setText(QCoreApplication.translate("OptionsDlg", u"Comment style", None))
+        self.commentStyleCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Parentheses ()", None))
+        self.commentStyleCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"Semicolon ;", None))
+
         self.tabs.setTabText(self.tabs.indexOf(self.cncTab), QCoreApplication.translate("OptionsDlg", u"CNC / Execution", None))
         self.lineWidthLabel.setText(QCoreApplication.translate("OptionsDlg", u"Line width", None))
         self.gridStepLabel.setText(QCoreApplication.translate("OptionsDlg", u"Grid step (0 = adaptive)", None))

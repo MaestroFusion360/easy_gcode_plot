@@ -71,6 +71,25 @@ def test_mill_full_program_round_trips_arc_planes_and_full_circle(source):
     _assert_mill_round_trip(source, text)
 
 
+def test_mill_full_program_flattens_polar_coordinates_without_leaving_g16_active(fixture_text):
+    source = fixture_text("milling/polar_drilling.nc")
+    result = execute(source, language="fanuc_mill")
+    assert result.ok, result.diagnostics
+
+    text = export_full_mill_program(
+        result,
+        source.splitlines(),
+        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+    )
+
+    assert "G16" not in text
+    assert "G15" not in text
+    assert "X86.60254 Y50" in text
+    assert "X-86.60254 Y50" in text
+    assert "Y-100" in text
+    _assert_mill_round_trip(source, text)
+
+
 def test_mill_full_program_flattens_subprograms_and_preserves_inch_incremental_controls(fixture_text):
     source = fixture_text("milling/subprogram.nc")
     result = execute(source, language="fanuc_mill")
@@ -143,6 +162,21 @@ M9 M02
     assert "G4 P250" in text
     assert "M9" in text
     _assert_mill_round_trip(source, text)
+
+
+def test_mill_full_program_applies_delimiter_to_compact_home_return_block():
+    source = "G0G90G54\nG0G91G28Z0\nG90X400\nM30"
+    result = execute(source, language="fanuc_mill")
+    assert result.ok, result.diagnostics
+
+    text = export_full_mill_program(
+        result,
+        source.splitlines(),
+        ExportOptions(delimiter=True, analysis_banner=False),
+    )
+
+    assert "G0 G91 G28 Z0" in text
+    assert "G0G91G28Z0" not in text
 
 
 def test_mill_full_program_exports_compensation_transition_without_double_compensation():

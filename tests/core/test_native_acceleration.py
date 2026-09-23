@@ -84,3 +84,23 @@ M99
     fallback = execute(source, language="fanuc_mill")
 
     assert accelerated == fallback
+
+
+def test_native_milling_polar_fallback_matches_python_execution(monkeypatch):
+    source = """G21 G17 G90
+G0 X5 Y5 Z2
+G16
+G0 X10 Y30
+G91 Y120
+Y120
+G15 G90
+G1 X2 Y3 F100
+M30
+"""
+    accelerated = execute(source, language="fanuc_mill")
+    assert milling_executor._execute_simple_blocks is not None
+
+    monkeypatch.setattr(milling_executor, "_execute_simple_blocks", None)
+    fallback = execute(source, language="fanuc_mill")
+
+    assert accelerated == fallback

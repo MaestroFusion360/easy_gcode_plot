@@ -17,6 +17,7 @@ from .types import (
     TraceExecutionContext,
     TraceRuntimeState,
     TraceStepSnapshot,
+    TurningExecutionSemantics,
 )
 
 __all__ = [
@@ -27,6 +28,7 @@ __all__ = [
     "TraceExecutionContext",
     "TraceRuntimeState",
     "TraceStepSnapshot",
+    "TurningExecutionSemantics",
     "build_trace_execution_context",
     "dispatch_cycle_block",
     "dispatch_cycle_emission",

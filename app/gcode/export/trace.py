@@ -82,13 +82,13 @@ def _append_expanded_event(
         occurrence = call_counts[label]
         active_calls[event.call_depth] = (label, occurrence)
         _append_blank_line(lines)
-        lines.append(_format_comment(f"SUBPROGRAM {label} START - CALL {occurrence}"))
+        lines.append(_format_comment(f"SUBPROGRAM {label} START - CALL {occurrence}", options.comment_style))
         return
 
     if event.kind == SUBPROGRAM_END:
         label = _subprogram_label(event)
         active_label, occurrence = active_calls.pop(event.call_depth, (label, call_counts.get(label, 1)))
-        lines.append(_format_comment(f"SUBPROGRAM {active_label} END - CALL {occurrence}"))
+        lines.append(_format_comment(f"SUBPROGRAM {active_label} END - CALL {occurrence}", options.comment_style))
         lines.append("")
         return
 
@@ -158,7 +158,7 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None,
         if start_event is not None and start_event.code:
             lines.append(start_event.code.upper())
     if options.analysis_banner:
-        lines.append("(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)")
+        lines.append(_format_comment("EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY", options.comment_style))
     if options.safety_line:
         lines.append("G00 G17 G40 G49 G80 G90" if options.delimiter else "G00G17G40G49G80G90")
     turning = result.language == "fanuc_turn"

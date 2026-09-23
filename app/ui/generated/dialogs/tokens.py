@@ -17,7 +17,8 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QHBoxLayout,
     QHeaderView, QLabel, QPushButton, QSizePolicy,
-    QSpacerItem, QTableView, QVBoxLayout, QWidget)
+    QSpacerItem, QTabWidget, QTableView, QVBoxLayout,
+    QWidget)
 
 class Ui_TokensDlg(object):
     def setupUi(self, TokensDlg):
@@ -31,10 +32,17 @@ class Ui_TokensDlg(object):
         self.verticalLayout.setSpacing(4)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.verticalLayout.setContentsMargins(6, 6, 6, 6)
+        self.tabWidget = QTabWidget(TokensDlg)
+        self.tabWidget.setObjectName(u"tabWidget")
+        self.tokensTab = QWidget()
+        self.tokensTab.setObjectName(u"tokensTab")
+        self.tokensLayout = QVBoxLayout(self.tokensTab)
+        self.tokensLayout.setObjectName(u"tokensLayout")
+        self.tokensLayout.setContentsMargins(6, 6, 6, 6)
         self.headerLayout = QHBoxLayout()
         self.headerLayout.setSpacing(6)
         self.headerLayout.setObjectName(u"headerLayout")
-        self.titleLabel = QLabel(TokensDlg)
+        self.titleLabel = QLabel(self.tokensTab)
         self.titleLabel.setObjectName(u"titleLabel")
         font = QFont()
         font.setBold(True)
@@ -42,7 +50,7 @@ class Ui_TokensDlg(object):
 
         self.headerLayout.addWidget(self.titleLabel)
 
-        self.legendLabel = QLabel(TokensDlg)
+        self.legendLabel = QLabel(self.tokensTab)
         self.legendLabel.setObjectName(u"legendLabel")
 
         self.headerLayout.addWidget(self.legendLabel)
@@ -52,9 +60,9 @@ class Ui_TokensDlg(object):
         self.headerLayout.addItem(self.headerSpacer)
 
 
-        self.verticalLayout.addLayout(self.headerLayout)
+        self.tokensLayout.addLayout(self.headerLayout)
 
-        self.tokenTable = QTableView(TokensDlg)
+        self.tokenTable = QTableView(self.tokensTab)
         self.tokenTable.setObjectName(u"tokenTable")
         self.tokenTable.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.tokenTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -66,7 +74,33 @@ class Ui_TokensDlg(object):
         self.tokenTable.setWordWrap(False)
         self.tokenTable.setSortingEnabled(False)
 
-        self.verticalLayout.addWidget(self.tokenTable)
+        self.tokensLayout.addWidget(self.tokenTable)
+
+        self.tabWidget.addTab(self.tokensTab, "")
+        self.macroVariablesTab = QWidget()
+        self.macroVariablesTab.setObjectName(u"macroVariablesTab")
+        self.macroVariablesLayout = QVBoxLayout(self.macroVariablesTab)
+        self.macroVariablesLayout.setObjectName(u"macroVariablesLayout")
+        self.macroVariablesLayout.setContentsMargins(6, 6, 6, 6)
+        self.macroVariablesStatusLabel = QLabel(self.macroVariablesTab)
+        self.macroVariablesStatusLabel.setObjectName(u"macroVariablesStatusLabel")
+        self.macroVariablesStatusLabel.setWordWrap(True)
+
+        self.macroVariablesLayout.addWidget(self.macroVariablesStatusLabel)
+
+        self.macroVariablesTable = QTableView(self.macroVariablesTab)
+        self.macroVariablesTable.setObjectName(u"macroVariablesTable")
+        self.macroVariablesTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.macroVariablesTable.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
+        self.macroVariablesTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.macroVariablesTable.setSortingEnabled(False)
+        self.macroVariablesTable.setWordWrap(False)
+
+        self.macroVariablesLayout.addWidget(self.macroVariablesTable)
+
+        self.tabWidget.addTab(self.macroVariablesTab, "")
+
+        self.verticalLayout.addWidget(self.tabWidget)
 
         self.buttonLayout = QHBoxLayout()
         self.buttonLayout.setObjectName(u"buttonLayout")
@@ -95,13 +129,19 @@ class Ui_TokensDlg(object):
 
         self.retranslateUi(TokensDlg)
 
+        self.tabWidget.setCurrentIndex(0)
+
+
         QMetaObject.connectSlotsByName(TokensDlg)
     # setupUi
 
     def retranslateUi(self, TokensDlg):
-        TokensDlg.setWindowTitle(QCoreApplication.translate("TokensDlg", u"Tokens", None))
+        TokensDlg.setWindowTitle(QCoreApplication.translate("TokensDlg", u"Tokens/Macro Variables", None))
         self.titleLabel.setText(QCoreApplication.translate("TokensDlg", u"Program Token Validation", None))
         self.legendLabel.setText(QCoreApplication.translate("TokensDlg", u"Green: parsed, Red: suspicious line", None))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.tokensTab), QCoreApplication.translate("TokensDlg", u"Tokens", None))
+        self.macroVariablesStatusLabel.setText(QCoreApplication.translate("TokensDlg", u"No execution data.", None))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.macroVariablesTab), QCoreApplication.translate("TokensDlg", u"Macro Variables", None))
         self.refreshButton.setText(QCoreApplication.translate("TokensDlg", u"Refresh", None))
         self.exportCsvButton.setText(QCoreApplication.translate("TokensDlg", u"Export CSV", None))
         self.resetColumnsButton.setText(QCoreApplication.translate("TokensDlg", u"Reset Columns", None))

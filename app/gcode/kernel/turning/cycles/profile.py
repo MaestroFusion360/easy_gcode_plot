@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from ..frontend.model import Point2, ProfileSegment
-from ..geometry import segment_points
+from ...frontend.model import Point2, ProfileSegment
+from ...geometry import segment_points
 
 
 def _outward_normal_radius(prev: Point2, curr: Point2, nxt: Point2, prefer_positive_x: bool) -> Point2:

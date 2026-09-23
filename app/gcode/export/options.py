@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
+from ..comments import DEFAULT_COMMENT_STYLE, normalize_comment_style
+
 TURN_FULL_PROGRAM_MODE = 0
 MILL_FULL_PROGRAM_MODE = 1
 EXPANDED_EXECUTION_MODE = 2
@@ -30,6 +32,7 @@ class ExportOptions:
     analysis_banner: bool = True
     linearization_tolerance: float = 0.0005
     include_execution_events: bool = True
+    comment_style: str = DEFAULT_COMMENT_STYLE
 
 
 def _turn_program_options(options: ExportOptions | None) -> ExportOptions:
@@ -68,4 +71,5 @@ def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
         start_program=str(window.startPgmExp or ""),
         end_program=str(window.endPgmExp or ""),
         safety_line=bool(window.safLine),
+        comment_style=normalize_comment_style(getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE)),
     )

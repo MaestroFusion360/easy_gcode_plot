@@ -29,7 +29,7 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 
 The simplest Windows installation is the standalone executable from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). It does not require a separate Python installation.
 
-To run from source, install Python 3.11+ and [uv](https://docs.astral.sh/uv/), then run:
+To run from source, install Python 3.11+, [uv](https://docs.astral.sh/uv/) and a C compiler (Visual Studio Build Tools with **Desktop development with C++** on Windows, or the platform compiler and Python development headers on Linux/macOS), then run:
 
 ```bash
 git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
@@ -272,6 +272,12 @@ Yes. When exporting an R-format full circle, Expanded Execution emits two exact 
 - Configured milling tools and cutter-radius compensation.
 - G52 local coordinate shifts, G68/G69 coordinate rotation and G51/G50 coordinate scaling.
 
+### How does FANUC milling polar-coordinate programming work?
+
+`G16` enables radius/angle endpoint programming and `G15` returns to ordinary Cartesian coordinates. `G17`, `G18` and `G19` select the polar plane; its first axis is the radius and its second axis is the angle in degrees. `G90` uses the active work/local origin as the pole and absolute radius/angle values, while `G91 G16` captures the current position as the pole and later `G91` words increment the modal radius or angle. Omitted polar components retain their previous values.
+
+Polar programming is milling-only. Polar `G2/G3` follows the supported FANUC contract and requires an `R` arc radius; I/J/K center programming in `G16` mode is rejected instead of guessed. `G12.1/G13.1` polar interpolation is not implemented.
+
 ### FANUC turning
 
 - X/Z and U/W motion with diameter/radius handling.
@@ -312,9 +318,13 @@ Select `Inches` at the bottom-left of the window to convert every displayed leng
 
 One or more motions lack a trustworthy physical feed rate. A common cause is feed-per-revolution execution without a known spindle RPM. The application reports unknown time instead of treating that feed as millimetres per minute.
 
-### What is the Tokens window for?
+### What is the Tokens/Macro Variables window for?
 
-**Settings → Tokens** shows parser words, evaluated values, source position, execution status and diagnostics. Suspicious or unsupported rows are highlighted and can be copied or exported as CSV.
+**Settings → Tokens/Macro Variables** has two read-only diagnostic tabs. **Tokens** shows parser words, evaluated values, source position, execution status and diagnostics. Suspicious or unsupported rows are highlighted and can be copied or exported as CSV.
+
+**Macro Variables** shows the Macro B variable state captured at the current logical playback position. Only variables that exist at that execution point are shown. G65 local variables follow the active macro-call scope and are restored after M99. Moving Play, Step or the slider updates the inspector from the existing execution snapshots without re-executing the CNC program. If the current source is stale relative to the displayed execution result, Macro Variables are not shown until the toolpath is updated.
+
+Macro variable `#0` is permanently vacant and cannot be assigned. Omitted G65 local arguments are also vacant, so standard tests such as `IF[#1 EQ #0]` work. Assigning `#0` to another variable clears that variable, while indirect assignment such as `#[#1]=5` resolves the destination variable number at runtime.
 
 ### Which export types are available?
 
@@ -323,6 +333,7 @@ One or more motions lack a trustworthy physical feed rate. A common cause is fee
 - Expanded Execution.
 - Plot Data.
 - DXF trajectory.
+- Tool List text report from **CNC Functions → Tool List**.
 
 Expanded Execution follows actual occurrence order, including subprogram calls and generated cycle motions. It preserves relevant WCS, home returns, threading, dwell, spindle and coolant events.
 
@@ -411,7 +422,7 @@ Use `--encoding cp1251` for Windows-1251 input. Export modes include `program` a
 
 ### How is the project organized?
 
-- `app/gcode/kernel/` owns deterministic CNC parsing and execution. Its implementation is split into `api/` (public execution facade and result types), `frontend/` (lexing, parsing, AST/model and NC input), `geometry/` (analytical/profile geometry and coordinate systems), `lathe_cycles/` (turning-cycle motion builders), `compensation/` (turning and milling compensation), `runtime/` (control flow, cycle expansion, interpreter, events/signals and trace construction) and `milling/` (milling state, motion and canned-cycle execution).
+- `app/gcode/kernel/` owns deterministic CNC parsing and execution. Its implementation is split into `api/` (public execution facade and result types), `frontend/` (lexing, parsing, AST/model and NC input), `geometry/` (analytical/profile geometry and coordinate systems), `turning/cycles/` and `milling/cycles/` (machine-specific cycle implementations behind the shared runtime cycle contract), `compensation/` (turning and milling compensation), `runtime/` (control flow, cycle contracts/expansion, interpreter, events/signals and trace construction) and `milling/` (milling state and motion execution). Historical `lathe_cycles` and `milling.drilling` import paths remain compatibility aliases.
 - `app/gcode/export/` owns Full Program, Expanded Execution, Plot Data and DXF serialization. Exporters consume the authoritative kernel result/resolved trace and do not implement a second G-code interpreter.
 - `app/gcode/trace_tools.py` owns render sampling and statistics derived from the resolved trace.
 - `app/ui/` owns PyQt GUI behavior, grouped into `dialogs/` (dialogs and tool editors), `plot/` (OpenGL items, STL, overlays and playback), `windows/` (main-window mixins and the execution worker) and `support/` (editor lexer, units, numeric input and shared widgets).

@@ -256,6 +256,28 @@ M30
     assert (result.motions[2].end_x, result.motions[2].end_z) == pytest.approx((110.0, 45.0))
 
 
+@pytest.mark.parametrize("arc_code", [2, 3])
+def test_turning_g53_rejects_arc_motion_and_skips_complete_block(arc_code):
+    source = f"""\
+G18 G54
+G0 X20 Z0
+G53 G{arc_code} X10 Z-10 R10 F100
+G1 X30 Z-5 F200
+M30
+"""
+    result = execute(source, language="fanuc_turn", wcs_offsets={54: (100.0, 50.0)})
+
+    assert not result.ok
+    assert result.complete
+    assert [diagnostic.code for diagnostic in result.diagnostics] == ["UNSUPPORTED_G53_MOTION"]
+    assert result.diagnostics[0].line == 3
+    assert len(result.motions) == 2
+    assert all(motion.source_block != 2 for motion in result.motions)
+    assert result.motions[1].move == 1
+    assert (result.motions[1].start_x, result.motions[1].start_z) == pytest.approx((120.0, 50.0))
+    assert (result.motions[1].end_x, result.motions[1].end_z) == pytest.approx((130.0, 45.0))
+
+
 def test_turning_source_trace_applies_compact_a_c_r_direct_programming():
     source = "\n".join(
         [
@@ -360,3 +382,10 @@ def test_g94_facing_cycle_is_not_published_as_threading():
 
     assert any(motion.move == 1 for motion in result.motions)
     assert not any(motion.threading for motion in result.motions)
+
+
+@pytest.mark.parametrize("code", (15, 16))
+def test_turning_polar_coordinate_commands_remain_unsupported(code):
+    result = execute(f"G21 G18 G90\nG{code}\nG0 X20 Z-5\nM30", language="fanuc_turn")
+    assert any(diagnostic.code == "UNSUPPORTED_G_CODE" for diagnostic in result.diagnostics)
+    assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((20, -5))

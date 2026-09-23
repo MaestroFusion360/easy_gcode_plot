@@ -457,6 +457,7 @@ class MainWindowPlotMixin:
         self.render_points = []
         self._motion_render_end = []
         self._playback_movements = ()
+        self._playback_at_program_end = False
         self._motion_to_playback = ()
         self._source_motion_index = {}
         self._syncing_cursor = False

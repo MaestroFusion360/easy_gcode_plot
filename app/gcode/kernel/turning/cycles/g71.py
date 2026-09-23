@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..api.resources import SemanticError, checkpoint
-from ..frontend.model import Motion, Point2, ProfileSegment
-from ..geometry import clip_polyline_max_x, clip_polyline_min_x, segment_points, try_find_entry_on_profile
+from ...api.resources import SemanticError, checkpoint
+from ...frontend.model import Motion, Point2, ProfileSegment
+from ...geometry import clip_polyline_max_x, clip_polyline_min_x, segment_points, try_find_entry_on_profile
 from .common import _append_profile_trace, add_feed_orthogonal, add_motion, add_motion_with_meta, ensure_cycle_return
 
 

@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app import i18n
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import trace_statistics
+from app.gcode.trace_tools import format_tool_list, trace_statistics
 from app.main_window import MainWindow
 from app.ui.dialogs.statistics import StatisticsDialog
 
@@ -118,3 +118,54 @@ def test_statistics_context_menu_uses_application_copy_and_select_all_icons(qt_a
     menu.deleteLater()
     dialog.deleteLater()
     qt_app.processEvents()
+
+
+def test_tool_list_formats_file_metadata_geometry_and_per_tool_zmin(tmp_path):
+    source = """\
+O1001
+G21 G90 G17
+T1 M6
+G0 Z5
+G1 Z-1 F100
+T2 M6
+G1 Z-11
+M30
+"""
+    result = execute(source, language="fanuc_mill")
+    statistics = trace_statistics(result)
+    nc_file = tmp_path / "Документы" / "1001.nc"
+    nc_file.parent.mkdir()
+    nc_file.write_text(source, encoding="utf-8")
+    tools = {
+        "T1": {"type": "face_mill", "diameter": 50.0, "cornerRadius": 0.0},
+        "T2": {"type": "mill_flat", "diameter": 12.0, "cornerRadius": 0.0},
+    }
+
+    report = format_tool_list(result, statistics, tools, file_path=str(nc_file))
+
+    assert report.startswith("Tool List: 1001")
+    assert "File              : 1001.nc" in report
+    assert f"Full name         : {nc_file.resolve()}" in report
+    assert "T1              D=50 CR=0 - ZMIN=-1 - FACE MILL" in report
+    assert "T2              D=12 CR=0 - ZMIN=-11 - FLAT END MILL" in report
+
+
+def test_main_window_exports_tool_list_as_utf8_bom(qt_app, monkeypatch, tmp_path):
+    output = tmp_path / "tools.txt"
+    window = MainWindow()
+    window.ui.actionLatheMode.setChecked(False)
+    window.autoUpdateEnabled = False
+    window.millingTools = {"T1": {"type": "drill", "diameter": 4.2, "tipAngle": 118.0}}
+    window.ui.editor.setText("O7\nG21 G90\nT1 M6\nG0 Z5\nG1 Z-10 F100\nM30")
+    assert window.updateData()
+    monkeypatch.setattr(
+        "app.ui.windows.main_window_file_ops.QFileDialog.getSaveFileName",
+        lambda *args: (str(output), "Text"),
+    )
+
+    assert window.exportToolList()
+    assert output.read_bytes().startswith(b"\xef\xbb\xbf")
+    exported = output.read_text(encoding="utf-8-sig")
+    assert "Tool List: 7" in exported
+    assert "T1              D=4.2 TAPER=118DEG - ZMIN=-10 - DRILL" in exported
+    window.deleteLater()

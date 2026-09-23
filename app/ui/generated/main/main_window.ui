@@ -284,6 +284,7 @@
     <addaction name="actionRemoveSpaces"/>
     <addaction name="actionRemoveEmptyLines"/>
     <addaction name="actionStatistics"/>
+    <addaction name="actionExportToolList"/>
    </widget>
    <addaction name="menu_File"/>
    <addaction name="menu_Edit"/>
@@ -782,7 +783,7 @@
   </action>
   <action name="actionTokens">
    <property name="text">
-    <string>Tokens</string>
+    <string>Tokens/Macro Variables</string>
    </property>
   </action>
   <action name="actionGrid">
@@ -822,6 +823,18 @@
    </property>
    <property name="text">
     <string>Statistics</string>
+   </property>
+  </action>
+  <action name="actionExportToolList">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/toollist.png</normaloff>:/resource/icons/toollist.png</iconset>
+   </property>
+   <property name="text">
+    <string>Tool List</string>
+   </property>
+   <property name="toolTip">
+    <string>Export the tools used by the current resolved program</string>
    </property>
   </action>
   <action name="actionPrevToolchange">
