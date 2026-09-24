@@ -1,14 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>HelpDialog</class>
- <widget class="QDialog" name="HelpDialog">
-  <property name="minimumSize"><size><width>520</width><height>360</height></size></property>
-  <property name="windowTitle"><string>Easy G-Code Plot — FAQ</string></property>
-  <layout class="QVBoxLayout" name="verticalLayout">
-   <item><widget class="QTextBrowser" name="browser"><property name="openExternalLinks"><bool>true</bool></property></widget></item>
-   <item><widget class="QDialogButtonBox" name="buttonBox"><property name="standardButtons"><set>QDialogButtonBox::StandardButton::Close</set></property></widget></item>
-  </layout>
- </widget>
- <resources/>
- <connections/>
+    <class>HelpDialog</class>
+    <widget class="QDialog" name="HelpDialog">
+        <property name="minimumSize">
+            <size>
+                <width>520</width>
+                <height>360</height>
+            </size>
+        </property>
+        <property name="windowTitle">
+            <string>Easy G-Code Plot — FAQ</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+                <widget class="QTextBrowser" name="browser">
+                    <property name="openExternalLinks">
+                        <bool>true</bool>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QDialogButtonBox" name="buttonBox">
+                    <property name="standardButtons">
+                        <set>QDialogButtonBox::StandardButton::Close</set>
+                    </property>
+                </widget>
+            </item>
+        </layout>
+    </widget>
+    <resources/>
+    <connections/>
 </ui>

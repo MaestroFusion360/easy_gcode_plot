@@ -13,6 +13,7 @@ cd "$project_root"
 if [[ ${1:-} == --fix ]]; then
     "${uv_run[@]}" ruff format "${targets[@]}"
     "${uv_run[@]}" ruff check "${targets[@]}" --fix
+    bash "$script_dir/generate-resources.sh" --project-root "$project_root"
 elif (( $# > 0 )); then
     printf 'Usage: %s [--fix]\n' "$0" >&2
     exit 2
@@ -20,5 +21,7 @@ else
     "${uv_run[@]}" ruff format --check "${targets[@]}"
     "${uv_run[@]}" ruff check "${targets[@]}"
 fi
+"${uv_run[@]}" python scripts/check_ui_format.py
+"${uv_run[@]}" python scripts/check_qt_sources.py
 "${uv_run[@]}" python scripts/check_complexity.py
 exec "${uv_run[@]}" pylint "${targets[@]}"

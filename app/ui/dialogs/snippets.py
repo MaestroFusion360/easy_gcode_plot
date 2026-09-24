@@ -57,14 +57,17 @@ class SnippetsDialog(QDialog):
         self.snippets = [_Snippet(record.id, record.name, record.body) for record in self.library.list_snippets()]
         self._refresh_list(0 if self.snippets else -1)
 
+    def _show_save_error(self):
+        QMessageBox.warning(
+            self, self.windowTitle(), QCoreApplication.translate("SnippetsDialog", "Could not save snippet.")
+        )
+
     def _write_order(self) -> bool:
         try:
             self.library.reorder([item.id for item in self.snippets])
         except (sqlite3.Error, ValueError):
             LOGGER.exception("snippet_order_save_failed path=%s", self.database_path)
-            QMessageBox.warning(
-                self, self.windowTitle(), QCoreApplication.translate("SnippetsDialog", "Could not save snippet.")
-            )
+            self._show_save_error()
             return False
         return True
 
@@ -108,7 +111,7 @@ class SnippetsDialog(QDialog):
         answer = QMessageBox.question(
             self,
             self.windowTitle(),
-            f'{self.ui.saveButton.text()} "{snippet_name}"?',
+            f'{QCoreApplication.translate("SnippetsDialog", "Save")} "{snippet_name}"?',
             QMessageBox.StandardButton.Save | QMessageBox.StandardButton.Discard | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Save,
         )
@@ -137,9 +140,7 @@ class SnippetsDialog(QDialog):
             self.library.update_body(snippet.id, text)
         except sqlite3.Error:
             LOGGER.exception("snippet_save_failed id=%s path=%s", snippet.id, self.database_path)
-            QMessageBox.warning(
-                self, self.windowTitle(), QCoreApplication.translate("SnippetsDialog", "Could not save snippet.")
-            )
+            self._show_save_error()
             return False
         snippet.text = text
         if row == self._active_row:
@@ -154,9 +155,7 @@ class SnippetsDialog(QDialog):
             record = self.library.add(name)
         except (sqlite3.Error, ValueError):
             LOGGER.exception("snippet_create_failed path=%s", self.database_path)
-            QMessageBox.warning(
-                self, self.windowTitle(), QCoreApplication.translate("SnippetsDialog", "Could not save snippet.")
-            )
+            self._show_save_error()
             return
         self.snippets.append(_Snippet(record.id, record.name, record.body))
         self._refresh_list(len(self.snippets) - 1)

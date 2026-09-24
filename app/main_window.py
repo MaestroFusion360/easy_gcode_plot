@@ -5,11 +5,16 @@ from time import perf_counter
 
 from PyQt6.QtCore import QBasicTimer, QCoreApplication, QSize, Qt, QTimer
 from PyQt6.QtGui import QAction, QActionGroup, QIcon, QQuaternion
-from PyQt6.QtWidgets import QComboBox, QMainWindow, QMessageBox, QToolBar
+from PyQt6.QtWidgets import QComboBox, QMainWindow, QMenu, QMessageBox, QSlider, QToolBar, QToolButton
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
+from app.settings import (
+    DEFAULT_TOOLBAR_ICON_SIZE,
+    normalized_milling_tools,
+    normalized_recent_files,
+    normalized_tools,
+)
 from app.settings import RECENT_FILES_LIMIT as _RECENT_FILES_LIMIT
-from app.settings import normalized_milling_tools, normalized_recent_files, normalized_tools
 from app.ui.dialogs.calculators import HoleCalculatorDialog, PocketCalculatorDialog
 from app.ui.dialogs.general import About, BlockNum, Export, Find, Wcs
 from app.ui.dialogs.help import HelpDialog
@@ -55,7 +60,6 @@ PICK_DISTANCE_PX = _PICK_DISTANCE_PX
 CURSOR_SIZE_PX = _CURSOR_SIZE_PX
 RAPID_COLOR = _RAPID_COLOR
 LOGGER = logging.getLogger(__name__)
-TOOLBAR_ICON_SIZE = QSize(24, 24)
 
 
 class MainWindow(
@@ -75,6 +79,7 @@ class MainWindow(
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
         self._configure_runtime_ui()
+        self._configure_playback_speed_slider()
         self._plot_navigation = PlotNavigation(self.ui.graphicsView, self._update_adaptive_grid, self._pick_trace_at)
         self.ui.graphicsView.installEventFilter(self._plot_navigation)
 
@@ -92,15 +97,9 @@ class MainWindow(
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
-        for toolbar in (
-            self.ui.fileToolBar,
-            self.ui.editToolBar,
-            self.ui.cncToolBar,
-            self.ui.viewToolBar,
-            self.ui.playbackToolBar,
-        ):
-            toolbar.setIconSize(TOOLBAR_ICON_SIZE)
-        self.ui.actionStock = QAction(QCoreApplication.translate("MainWindow", "Stock"), self)
+        self.ui.actionStock = QAction(
+            QIcon(":/resource/icons/stock.png"), QCoreApplication.translate("MainWindow", "Stock"), self
+        )
         self.ui.actionStock.setObjectName("actionStock")
         self.ui.actionStock.setToolTip(QCoreApplication.translate("MainWindow", "Configure turning Stock Removal"))
         self.ui.menuSettings.insertAction(self.ui.actionWCS, self.ui.actionStock)
@@ -140,25 +139,99 @@ class MainWindow(
 
         self.ui.fileTypeCombo = QComboBox(self)
         self.ui.fileTypeCombo.setObjectName("fileTypeCombo")
-        self.ui.fileTypeCombo.addItems(["Text File", "ISO G-Code"])
-        self.ui.fileTypeCombo.setToolTip(QCoreApplication.translate("MainWindow", "File Type"))
+        self.ui.fileTypeCombo.addItems(
+            [
+                QCoreApplication.translate("MainWindow", "Text File"),
+                QCoreApplication.translate("MainWindow", "ISO G-Code"),
+            ]
+        )
+        self.ui.fileTypeCombo.hide()
+        self.ui.fileTypeMenu = QMenu(self)
+        self.ui.fileTypeMenu.setObjectName("fileTypeMenu")
+        self._file_type_icons = (
+            QIcon(":/resource/icons/text.png"),
+            QIcon(":/resource/icons/text-color.png"),
+        )
+        self._file_type_action_group = QActionGroup(self)
+        self._file_type_action_group.setExclusive(True)
+        self._file_type_actions = []
+        for index in range(self.ui.fileTypeCombo.count()):
+            action = self.ui.fileTypeMenu.addAction(self.ui.fileTypeCombo.itemText(index))
+            action.setIcon(self._file_type_icons[index])
+            action.setCheckable(True)
+            self._file_type_action_group.addAction(action)
+            action.triggered.connect(
+                lambda _checked=False, selected=index: self.ui.fileTypeCombo.setCurrentIndex(selected)
+            )
+            self._file_type_actions.append(action)
+        self.ui.fileTypeButton = QToolButton(self.ui.cncToolBar)
+        self.ui.fileTypeButton.setObjectName("fileTypeButton")
+        self.ui.fileTypeButton.setMenu(self.ui.fileTypeMenu)
+        self.ui.fileTypeButton.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.ui.fileTypeButton.setIcon(self._file_type_icons[0])
+        self.ui.fileTypeButton.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
+        self.ui.fileTypeButton.setAutoRaise(True)
+        self.ui.fileTypeButton.setToolTip(QCoreApplication.translate("MainWindow", "File Type"))
+        self.syncFileTypeMenu(self.ui.fileTypeCombo.currentIndex())
         actions = self.ui.cncToolBar.actions()
         if actions:
             first_action = actions[0]
-            self.ui.cncToolBar.insertWidget(first_action, self.ui.fileTypeCombo)
+            self.ui.cncToolBar.insertWidget(first_action, self.ui.fileTypeButton)
             self.ui.cncToolBar.insertSeparator(first_action)
         else:
-            self.ui.cncToolBar.addWidget(self.ui.fileTypeCombo)
+            self.ui.cncToolBar.addWidget(self.ui.fileTypeButton)
+
+        self._toolbar_action_icons = {
+            action: action.icon()
+            for toolbar in self._toolbars()
+            for action in toolbar.actions()
+            if not action.icon().isNull()
+        }
+        self.applyToolbarIconSize(DEFAULT_TOOLBAR_ICON_SIZE)
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+
+    def _configure_playback_speed_slider(self):
+        self.ui.playbackSpeedSlider = QSlider(Qt.Orientation.Horizontal, self.ui.playbackToolBar)
+        self.ui.playbackSpeedSlider.setObjectName("playbackSpeedSlider")
+        self.ui.playbackSpeedSlider.setRange(1, 5)
+        self.ui.playbackSpeedSlider.setSingleStep(1)
+        self.ui.playbackSpeedSlider.setPageStep(1)
+        self.ui.playbackSpeedSlider.setTickInterval(1)
+        self.ui.playbackSpeedSlider.setTickPosition(QSlider.TickPosition.TicksAbove)
+        self.ui.playbackSpeedSlider.setFixedWidth(120)
+        self.ui.playbackSpeedSlider.setToolTip(QCoreApplication.translate("OptionsDlg", "Playback speed"))
+        self.ui.playbackToolBar.addWidget(self.ui.playbackSpeedSlider)
+
+    def syncFileTypeMenu(self, index: int):
+        selected = 1 if index == 1 else 0
+        for action_index, action in enumerate(self._file_type_actions):
+            action.setChecked(action_index == selected)
+        label = self.ui.fileTypeCombo.itemText(selected)
+        self.ui.fileTypeMenu.setTitle(label)
+        self.ui.fileTypeButton.setText(label)
+        self.ui.fileTypeButton.setIcon(self._file_type_icons[selected])
+
+    def applyToolbarIconSize(self, dimension: int):
+        """Use one icon size for every toolbar, including small source images."""
+        size = QSize(dimension, dimension)
+        for toolbar in self._toolbars():
+            toolbar.setIconSize(size)
+        for action, original in self._toolbar_action_icons.items():
+            pixmap = original.pixmap(size)
+            if pixmap.size() != size:
+                pixmap = pixmap.scaled(
+                    size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+                )
+            action.setIcon(QIcon(pixmap))
 
     def _toolbars(self):
         """Return toolbars in their canonical default order."""
         return (
             self.ui.fileToolBar,
             self.ui.editToolBar,
-            self.ui.cncToolBar,
             self.ui.viewToolBar,
+            self.ui.cncToolBar,
             self.ui.playbackToolBar,
         )
 
@@ -205,6 +278,7 @@ class MainWindow(
         getattr(self.ui, "actionPocketCalculator").triggered.connect(self.pocketCalculatorDlg.show)
         getattr(self.ui, "actionSnippets").triggered.connect(self.snippetsDlg.show)
         self.timer = QBasicTimer()
+        self.ui.playbackSpeedSlider.valueChanged.connect(self.setPlaybackSpeed)
         self.autoUpdateTimer = QTimer(self)
         self.autoUpdateTimer.setSingleShot(True)
         self.autoUpdateTimer.setInterval(AUTO_REFRESH_DELAY_MS)

@@ -3,6 +3,9 @@ from types import SimpleNamespace
 
 import pytest
 from PyQt6.Qsci import QsciScintilla
+from PyQt6.QtCore import QPoint, QPointF, Qt
+from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
 
 from app.gcode.generators import PocketParameters, hole_circle, hole_grid, pocket_preview_geometry, pocket_program
@@ -163,6 +166,54 @@ def _snippets_dialog(tmp_path, monkeypatch):
     return SnippetsDialog(), directory
 
 
+def test_snippet_buttons_use_icons_without_visible_labels(tmp_path, monkeypatch):
+    dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
+    for name, label in (
+        ("upButton", "Up"),
+        ("downButton", "Down"),
+        ("addButton", "Add"),
+        ("saveButton", "Save"),
+        ("renameButton", "Rename"),
+        ("deleteButton", "Delete"),
+    ):
+        button = getattr(dialog.ui, name)
+        assert button.text() == ""
+        assert not button.icon().isNull()
+        assert button.iconSize().width() == 24
+        assert button.toolTip() == label
+        assert button.accessibleName() == label
+    assert dialog.ui.insertButton.text() == "Insert"
+    assert dialog.ui.cancelButton.text() == "Cancel"
+
+
+def test_snippet_editor_zoom_changes_only_text_size(tmp_path, monkeypatch):
+    dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
+    editor = dialog.ui.snippetEditor
+    original = "G1 X" + "1234567890" * 20 + "\nG0 X0 Y0"
+    dialog.snippets[0].text = original
+    editor.setPlainText(original)
+    dialog.ui.saveButton.setEnabled(False)
+    wheel = QWheelEvent(
+        QPointF(5, 5),
+        QPointF(5, 5),
+        QPoint(0, 0),
+        QPoint(0, 120),
+        Qt.MouseButton.NoButton,
+        Qt.KeyboardModifier.ControlModifier,
+        Qt.ScrollPhase.ScrollUpdate,
+        False,
+    )
+    QApplication.sendEvent(editor.viewport(), wheel)
+    assert editor.font().pointSize() == 10
+    QTest.keyClick(editor, Qt.Key.Key_Minus, Qt.KeyboardModifier.ControlModifier)
+    assert editor.font().pointSize() == 9
+    QTest.keyClick(editor, Qt.Key.Key_Plus, Qt.KeyboardModifier.ControlModifier)
+    QTest.keyClick(editor, Qt.Key.Key_0, Qt.KeyboardModifier.ControlModifier)
+    assert editor.font().pointSize() == 9
+    assert editor.toPlainText() == original
+    assert not dialog.ui.saveButton.isEnabled()
+
+
 def test_snippet_selection_change_prompts_and_cancel_preserves_editor(tmp_path, monkeypatch):
     dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
     dialog.ui.snippetEditor.setPlainText("A changed")
@@ -176,6 +227,7 @@ def test_snippet_selection_change_prompts_and_cancel_preserves_editor(tmp_path, 
     dialog.ui.snippetList.setCurrentRow(1)
 
     assert prompts
+    assert prompts[0][0][2] == 'Save "A"?'
     assert dialog.ui.snippetList.currentRow() == 0
     assert dialog.ui.snippetEditor.toPlainText() == "A changed"
     assert dialog.library.list_snippets()[0].body == "A original"

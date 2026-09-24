@@ -13,13 +13,16 @@ from app.settings import (
     ARC_SAMPLING_PRESET_DEFAULT,
     ARC_SAMPLING_PRESETS,
     ARC_TOLERANCE_DEFAULT,
+    DEFAULT_TOOLBAR_ICON_SIZE,
     GENERATED_MOTIONS_DEFAULT,
     MAXIMUM_CIRCULAR_RADIUS_DEFAULT,
     MINIMUM_CHORD_LENGTH_DEFAULT,
     MINIMUM_CIRCULAR_RADIUS_DEFAULT,
+    TOOLBAR_ICON_SIZES,
     configure_logging,
 )
 from app.ui.generated.dialogs.options import Ui_OptionsDlg
+from app.ui.support.hotkey_editor import HotkeyEditor
 from app.ui.windows.main_window_execution import playback_interval_ms
 
 LOGGER = logging.getLogger(__name__)
@@ -65,6 +68,7 @@ def _option_snapshot(window):
         "stl_color": getattr(window, "stlColor", "#b0b0b0"),
         "stl_wireframe": getattr(window, "stlWireframe", False),
         "playback_speed": getattr(window, "playbackSpeed", 3),
+        "toolbar_icon_size": getattr(window, "toolbarIconSize", DEFAULT_TOOLBAR_ICON_SIZE),
     }
 
 
@@ -138,6 +142,7 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_OptionsDlg()
         self.ui.setupUi(self)
+        self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (
             (self.ui.rapidColorButton, self.ui.rapidColorEdit),
             (self.ui.linearColorButton, self.ui.linearColorEdit),
@@ -177,6 +182,7 @@ class OptionsDialog(QDialog):
 
     def load_values(self):
         window = self.parent()
+        self.hotkeyEditor.load(window)
         self.ui.encodingCombo.setCurrentIndex(1 if getattr(window, "fileEncoding", "utf-8") == "cp1251" else 0)
         self.ui.fileTypeCombo.setCurrentIndex(
             getattr(window, "defaultFileType", window.ui.fileTypeCombo.currentIndex())
@@ -184,6 +190,10 @@ class OptionsDialog(QDialog):
         self.ui.unitsCombo.setCurrentIndex(1 if getattr(window, "defaultUnits", "mm") == "inch" else 0)
         self.ui.languageCombo.setCurrentIndex(1 if getattr(window, "uiLanguage", "en") == "ru" else 0)
         self.ui.themeCombo.setCurrentIndex(1 if getattr(window, "uiTheme", "light") == "dark" else 0)
+        icon_size = getattr(window, "toolbarIconSize", DEFAULT_TOOLBAR_ICON_SIZE)
+        self.ui.toolpanelIconsCombo.setCurrentIndex(
+            TOOLBAR_ICON_SIZES.index(icon_size) if icon_size in TOOLBAR_ICON_SIZES else 1
+        )
         self.ui.loggingCheck.setChecked(getattr(window, "loggingEnabled", False))
         self.ui.autoUpdateCheck.setChecked(getattr(window, "autoUpdateEnabled", True))
         self.ui.autoUpdateMaxSegmentsSpin.setValue(getattr(window, "autoUpdateMaxSegments", 20000))
@@ -275,6 +285,35 @@ class OptionsDialog(QDialog):
                 ),
             )
 
+    def _selected_hotkeys(self):
+        hotkeys = self.hotkeyEditor.values
+        assigned = [value for value in hotkeys.values() if value]
+        if len(assigned) != len(set(assigned)):
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("OptionsDlg", "Options"),
+                QCoreApplication.translate("OptionsDlg", "Hotkeys must be unique."),
+            )
+            return None
+        return hotkeys
+
+    def _valid_plot_colors(self, color_edits):
+        if all(QColor(edit.text()).isValid() for edit in color_edits):
+            return True
+        QMessageBox.warning(
+            self,
+            QCoreApplication.translate("OptionsDlg", "Options"),
+            QCoreApplication.translate("OptionsDlg", "Plot colors must be valid Qt color names, for example #008000."),
+        )
+        return False
+
+    def _apply_hotkeys(self, window):
+        hotkeys = self._selected_hotkeys()
+        if hotkeys is None:
+            return False
+        window.setHotkeys(hotkeys)
+        return True
+
     def accept(self):
         window = self.parent()
         previous_options = _option_snapshot(window)
@@ -307,19 +346,16 @@ class OptionsDialog(QDialog):
             self.ui.backgroundColorEdit,
             self.ui.stlColorEdit,
         )
-        if any(not QColor(edit.text()).isValid() for edit in color_edits):
-            QMessageBox.warning(
-                self,
-                QCoreApplication.translate("OptionsDlg", "Options"),
-                QCoreApplication.translate(
-                    "OptionsDlg", "Plot colors must be valid Qt color names, for example #008000."
-                ),
-            )
+        if not self._valid_plot_colors(color_edits):
+            return
+        if not self._apply_hotkeys(window):
             return
         window.fileEncoding = "cp1251" if self.ui.encodingCombo.currentIndex() else "utf-8"
         window.defaultFileType = self.ui.fileTypeCombo.currentIndex()
         window.defaultUnits = "inch" if self.ui.unitsCombo.currentIndex() else "mm"
         self._apply_language_and_theme(window, previous_language, previous_theme)
+        window.toolbarIconSize = TOOLBAR_ICON_SIZES[self.ui.toolpanelIconsCombo.currentIndex()]
+        window.applyToolbarIconSize(window.toolbarIconSize)
         window.loggingEnabled = self.ui.loggingCheck.isChecked()
         window.autoUpdateEnabled = self.ui.autoUpdateCheck.isChecked()
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
@@ -352,12 +388,12 @@ class OptionsDialog(QDialog):
         window.plotAxes = self.ui.axesCheck.isChecked()
         window.plotGrid = self.ui.gridCheck.isChecked()
         window.showStock = self.ui.showStockCheck.isChecked()
-        window.playbackSpeed = self.ui.playbackSpeedSlider.value()
-        window.speedTimer = playback_interval_ms(window.playbackSpeed)
+        window.setPlaybackSpeed(self.ui.playbackSpeedSlider.value())
         target_file_type = window.defaultFileType
         signals_blocked = window.ui.fileTypeCombo.blockSignals(True)
         window.ui.fileTypeCombo.setCurrentIndex(target_file_type)
         window.ui.fileTypeCombo.blockSignals(signals_blocked)
+        window.syncFileTypeMenu(target_file_type)
         window.ui.actionGrid.setChecked(window.plotGrid)
         if previous_show_stock != window.showStock:
             window.showStockChecked(window.showStock)
@@ -444,11 +480,13 @@ class OptionsDialog(QDialog):
 
     def restore_defaults(self):
         LOGGER.debug("options_restore_defaults_requested")
+        self.hotkeyEditor.reset_defaults()
         self.ui.encodingCombo.setCurrentIndex(0)
         self.ui.fileTypeCombo.setCurrentIndex(0)
         self.ui.unitsCombo.setCurrentIndex(0)
         self.ui.languageCombo.setCurrentIndex(0)
         self.ui.themeCombo.setCurrentIndex(0)
+        self.ui.toolpanelIconsCombo.setCurrentIndex(1)
         self.ui.loggingCheck.setChecked(False)
         self.ui.autoUpdateCheck.setChecked(True)
         self.ui.autoUpdateMaxSegmentsSpin.setValue(20000)

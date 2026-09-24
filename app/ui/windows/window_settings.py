@@ -2,7 +2,7 @@
 
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QColor, QFont, QVector3D
+from PyQt6.QtGui import QColor, QFont, QKeySequence, QVector3D
 from PyQt6.QtWidgets import QApplication
 
 from app import theme
@@ -22,6 +22,7 @@ from app.settings import (
     ARC_TOLERANCE_MIN,
     AUTO_UPDATE_SEGMENTS_MAX,
     AUTO_UPDATE_SEGMENTS_MIN,
+    DEFAULT_TOOLBAR_ICON_SIZE,
     FONT_SIZE_MAX,
     FONT_SIZE_MIN,
     GENERATED_MOTIONS_DEFAULT,
@@ -38,6 +39,7 @@ from app.settings import (
     MINIMUM_CIRCULAR_RADIUS_DEFAULT,
     MINIMUM_CIRCULAR_RADIUS_MAX,
     MINIMUM_CIRCULAR_RADIUS_MIN,
+    TOOLBAR_ICON_SIZES,
     ToolLibraryLoadError,
     bounded_number,
     configure_logging,
@@ -47,6 +49,7 @@ from app.settings import (
 from app.settings import (
     normalized_recent_files as _normalized_recent_files,
 )
+from app.ui.support.hotkeys import LEGACY_KEYS, menu_commands, portable_shortcut
 from app.ui.support.lexer import GcodeLexer
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
@@ -68,6 +71,7 @@ class MainWindowSettingsMixin:
         # logging.basicConfig(level=logging.DEBUG, filename="main.log")
 
         self.settings = get_settings()
+        self._load_hotkeys()
         recent = self.settings.value("FILE/RECENT_FILES", [])
         if isinstance(recent, str):
             recent = [recent]
@@ -78,13 +82,7 @@ class MainWindowSettingsMixin:
         self.rapidFeed = 10000
         self.ui.graphicsView.opts["center"] = QVector3D(0, 0, 0)
 
-        stored_playback_speed = self.settings.value("PLOT/PLAYBACK_SPEED", None)
-        if stored_playback_speed is None:
-            legacy_interval = self.settings.value("PLOT/TIMER_SPEED", 100, type=int)
-            self.playbackSpeed = playback_speed_level(legacy_interval)
-        else:
-            self.playbackSpeed = max(1, min(5, int(stored_playback_speed)))
-        self.speedTimer = playback_interval_ms(self.playbackSpeed)
+        self._load_playback_speed()
         self.arc_type = self.settings.value("PLOT/ARC_TYPE", 1, type=int)
 
         if self.arc_type == 2:
@@ -111,6 +109,9 @@ class MainWindowSettingsMixin:
         self.ui.actionLatheMode.setChecked(self.latheMode)
         self.showStock = self.settings.value("PLOT/SHOW_STOCK", True, type=bool)
         self.uiTheme = theme.normalize_theme(self.settings.value("GENERAL/THEME", theme.DEFAULT_THEME))
+        stored_icon_size = self.settings.value("GENERAL/TOOLBAR_ICON_SIZE", DEFAULT_TOOLBAR_ICON_SIZE, type=int)
+        self.toolbarIconSize = stored_icon_size if stored_icon_size in TOOLBAR_ICON_SIZES else DEFAULT_TOOLBAR_ICON_SIZE
+        self.applyToolbarIconSize(self.toolbarIconSize)
         self._load_plot_colors()
         self.plotLineWidth = bounded_number(
             self.settings.value("PLOT/LINE_WIDTH", 1.5), 1.5, LINE_WIDTH_MIN, LINE_WIDTH_MAX, name="PLOT/LINE_WIDTH"
@@ -382,8 +383,55 @@ class MainWindowSettingsMixin:
         self.millingTools = {}
         self.program_tool_inference = {}
 
+    def _load_playback_speed(self):
+        stored = self.settings.value("PLOT/PLAYBACK_SPEED", None)
+        if stored is None:
+            interval = self.settings.value("PLOT/TIMER_SPEED", 100, type=int)
+            self.playbackSpeed = playback_speed_level(interval)
+        else:
+            self.playbackSpeed = max(1, min(5, int(stored)))
+        self.speedTimer = playback_interval_ms(self.playbackSpeed)
+        self.ui.playbackSpeedSlider.setValue(self.playbackSpeed)
+
+    def setPlaybackSpeed(self, level):
+        """Apply the shared playback speed from the toolbar or Options."""
+        self.playbackSpeed = max(1, min(5, int(level)))
+        self.speedTimer = playback_interval_ms(self.playbackSpeed)
+        blocked = self.ui.playbackSpeedSlider.blockSignals(True)
+        self.ui.playbackSpeedSlider.setValue(self.playbackSpeed)
+        self.ui.playbackSpeedSlider.blockSignals(blocked)
+        if self.timer.isActive():
+            self.timer.start(self.speedTimer, self)
+        self.settings.setValue("PLOT/PLAYBACK_SPEED", self.playbackSpeed)
+        self.settings.setValue("PLOT/TIMER_SPEED", self.speedTimer)
+
+    def _load_hotkeys(self):
+        self.hotkeyActions = {key: action for key, action, _category in menu_commands(self)}
+        self.defaultHotkeys = {key: portable_shortcut(action.shortcut()) for key, action in self.hotkeyActions.items()}
+        shortcuts = {}
+        for key, default in self.defaultHotkeys.items():
+            legacy_key = LEGACY_KEYS.get(key)
+            fallback = self.settings.value(f"HOTKEYS/{legacy_key}", default) if legacy_key else default
+            shortcuts[key] = self.settings.value(f"HOTKEYS/{key}", fallback)
+        self.setHotkeys(shortcuts)
+
+    def setHotkeys(self, shortcuts):
+        """Apply menu-command shortcuts and retain their portable text."""
+        self.hotkeys = {}
+        for key, action in self.hotkeyActions.items():
+            sequence = QKeySequence(
+                str(shortcuts.get(key, self.defaultHotkeys[key])), QKeySequence.SequenceFormat.PortableText
+            )
+            self.hotkeys[key] = portable_shortcut(sequence)
+            action.setShortcut(sequence)
+
+    def _save_hotkeys(self):
+        for key in self.hotkeyActions:
+            self.settings.setValue(f"HOTKEYS/{key}", self.hotkeys[key])
+
     def saveSettings(self):
         """Persist current settings to the ini file."""
+        self._save_hotkeys()
         self.settings.beginGroup("PLOT")
         self.settings.setValue("TIMER_SPEED", self.speedTimer)
         self.settings.setValue("PLAYBACK_SPEED", self.playbackSpeed)
@@ -493,6 +541,10 @@ class MainWindowSettingsMixin:
             self.settings.setValue("START_POS_Y", self.pos().y())
         self.settings.endGroup()
         self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
-        self.settings.setValue("GENERAL/LANGUAGE", self.uiLanguage)
-        self.settings.setValue("GENERAL/THEME", self.uiTheme)
-        self.settings.setValue("GENERAL/LOGGING", self.loggingEnabled)
+        for key, value in (
+            ("LANGUAGE", self.uiLanguage),
+            ("THEME", self.uiTheme),
+            ("TOOLBAR_ICON_SIZE", self.toolbarIconSize),
+            ("LOGGING", self.loggingEnabled),
+        ):
+            self.settings.setValue(f"GENERAL/{key}", value)

@@ -19,6 +19,8 @@ from PyQt6.QtWidgets import (QApplication, QFrame, QHBoxLayout, QLabel,
     QScrollArea, QSizePolicy, QSpacerItem, QToolButton,
     QVBoxLayout, QWidget)
 
+import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
+
 class Ui_ToolLibraryPreviewPane(object):
     def setupUi(self, ToolLibraryPreviewPane):
         if not ToolLibraryPreviewPane.objectName():
@@ -48,16 +50,28 @@ class Ui_ToolLibraryPreviewPane(object):
 
         self.zoomOutButton = QToolButton(ToolLibraryPreviewPane)
         self.zoomOutButton.setObjectName(u"zoomOutButton")
+        icon = QIcon()
+        icon.addFile(u":/resource/icons/minus-16.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.zoomOutButton.setIcon(icon)
+        self.zoomOutButton.setIconSize(QSize(16, 16))
 
         self.controlsLayout.addWidget(self.zoomOutButton)
 
         self.fitButton = QToolButton(ToolLibraryPreviewPane)
         self.fitButton.setObjectName(u"fitButton")
+        icon1 = QIcon()
+        icon1.addFile(u":/resource/icons/fit-screen.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.fitButton.setIcon(icon1)
+        self.fitButton.setIconSize(QSize(16, 16))
 
         self.controlsLayout.addWidget(self.fitButton)
 
         self.zoomInButton = QToolButton(ToolLibraryPreviewPane)
         self.zoomInButton.setObjectName(u"zoomInButton")
+        icon2 = QIcon()
+        icon2.addFile(u":/resource/icons/plus-16.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.zoomInButton.setIcon(icon2)
+        self.zoomInButton.setIconSize(QSize(16, 16))
 
         self.controlsLayout.addWidget(self.zoomInButton)
 
@@ -75,14 +89,20 @@ class Ui_ToolLibraryPreviewPane(object):
 #if QT_CONFIG(tooltip)
         self.zoomOutButton.setToolTip(QCoreApplication.translate("ToolLibraryPreviewPane", u"Zoom out", None))
 #endif // QT_CONFIG(tooltip)
-        self.zoomOutButton.setText(QCoreApplication.translate("ToolLibraryPreviewPane", u"\u2212", None))
+#if QT_CONFIG(accessibility)
+        self.zoomOutButton.setAccessibleName(QCoreApplication.translate("ToolLibraryPreviewPane", u"Zoom out", None))
+#endif // QT_CONFIG(accessibility)
 #if QT_CONFIG(tooltip)
         self.fitButton.setToolTip(QCoreApplication.translate("ToolLibraryPreviewPane", u"Fit preview", None))
 #endif // QT_CONFIG(tooltip)
-        self.fitButton.setText(QCoreApplication.translate("ToolLibraryPreviewPane", u"Fit", None))
+#if QT_CONFIG(accessibility)
+        self.fitButton.setAccessibleName(QCoreApplication.translate("ToolLibraryPreviewPane", u"Fit preview", None))
+#endif // QT_CONFIG(accessibility)
 #if QT_CONFIG(tooltip)
         self.zoomInButton.setToolTip(QCoreApplication.translate("ToolLibraryPreviewPane", u"Zoom in", None))
 #endif // QT_CONFIG(tooltip)
-        self.zoomInButton.setText(QCoreApplication.translate("ToolLibraryPreviewPane", u"+", None))
+#if QT_CONFIG(accessibility)
+        self.zoomInButton.setAccessibleName(QCoreApplication.translate("ToolLibraryPreviewPane", u"Zoom in", None))
+#endif // QT_CONFIG(accessibility)
         pass
     # retranslateUi

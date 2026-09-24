@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$Fix
+    [switch]$Fix,
+    [switch]$CheckResources
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +25,11 @@ try {
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
+
+        & (Join-Path $PSScriptRoot 'generate-resources.ps1') -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
     }
     else {
         & uv @uvRunArguments ruff format --check @targets
@@ -35,6 +41,20 @@ try {
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }
+    }
+
+    & uv @uvRunArguments python scripts/check_ui_format.py
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
+    $qtCheckArguments = @('python', 'scripts/check_qt_sources.py')
+    if ($CheckResources) {
+        $qtCheckArguments += '--check-resources'
+    }
+    & uv @uvRunArguments @qtCheckArguments
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
     }
 
     & uv @uvRunArguments python scripts/check_complexity.py

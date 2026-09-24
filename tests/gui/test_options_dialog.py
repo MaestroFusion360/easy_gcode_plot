@@ -3,13 +3,76 @@
 from __future__ import annotations
 
 import pytest
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
 from app.main_window import MainWindow
 from app.settings import get_settings
+from app.ui.dialogs.hotkey_assignment import HotkeyAssignmentDialog
 from app.ui.dialogs.options import OptionsDialog
+from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
+
+
+def test_view_hotkeys_can_be_changed_and_restored(qt_app):
+    window = MainWindow()
+    assert window.ui.actionRefresh in window.ui.viewToolBar.actions()
+    assert window.ui.actionRefresh not in window.ui.cncToolBar.actions()
+    commands = list(menu_commands(window))
+    assert len(commands) > 30
+    assert {"actionStock", "actionToolLibrary", "actionSnippets", "actionRenumber"}.issubset(window.hotkeys)
+    for action_name, default in (
+        ("actionRefresh", "F5"),
+        ("action3D", "Ctrl+1"),
+        ("actionTop", "Ctrl+2"),
+        ("actionFront", "Ctrl+3"),
+        ("actionLeft", "Ctrl+4"),
+    ):
+        assert window.hotkeys[action_name] == default
+        assert getattr(window.ui, action_name).shortcut() == QKeySequence(default)
+
+    dialog = window.optionsDlg
+    dialog.load_values()
+    assert dialog.ui.hotkeysTable.rowCount() == len(commands)
+    assert dialog.hotkeyEditor.assign("actionRefresh", "Ctrl+Shift+R")
+    assert dialog.hotkeyEditor.assign("actionToolLibrary", "Ctrl+Alt+L")
+    dialog.accept()
+    assert window.ui.actionRefresh.shortcut() == QKeySequence("Ctrl+Shift+R")
+    assert window.ui.actionToolLibrary.shortcut() == QKeySequence("Ctrl+Alt+L")
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.ui.actionRefresh.shortcut() == QKeySequence("Ctrl+Shift+R")
+    assert restored.ui.actionToolLibrary.shortcut() == QKeySequence("Ctrl+Alt+L")
+    restored.optionsDlg.restore_defaults()
+    restored.optionsDlg.accept()
+    assert restored.ui.actionRefresh.shortcut() == QKeySequence("F5")
+    assert restored.ui.actionToolLibrary.shortcut().isEmpty()
+    restored.deleteLater()
+
+
+def test_hotkey_assignment_dialog_builds_shortcut_from_controls(qt_app, monkeypatch):
+    dialog = HotkeyAssignmentDialog("Open", "Ctrl+O", {})
+    assert dialog.ui.commandEdit.text() == "Open"
+    assert dialog.ui.ctrlCheck.isChecked()
+    assert dialog.ui.keyCombo.currentText() == "O"
+    dialog.ui.altCheck.setChecked(True)
+    assert dialog.shortcut() == "Ctrl+Alt+O"
+    dialog.ui.keyCombo.setCurrentIndex(0)
+    assert dialog.shortcut() == ""
+
+    warnings = []
+    monkeypatch.setattr("app.ui.dialogs.hotkey_assignment.QMessageBox.warning", lambda *args: warnings.append(args))
+    occupied = HotkeyAssignmentDialog("Open", "Ctrl+O", {"Ctrl+O": "New"})
+    occupied.accept()
+    assert warnings
+    assert occupied.result() == 0
+
+    occupied.ui.keyCombo.setEditText("not a key")
+    occupied.accept()
+    assert len(warnings) == 2
+    assert occupied.result() == 0
 
 
 @pytest.fixture(scope="module")
@@ -27,10 +90,36 @@ def test_options_dialog_is_independent_and_exposes_language_and_theme(qt_app):
     assert dialog.ui.languageCombo.isEnabled() is True
     assert dialog.ui.themeCombo.count() == 2
     assert dialog.ui.themeCombo.isEnabled() is True
+    assert [dialog.ui.toolpanelIconsCombo.itemText(index) for index in range(3)] == [
+        "Large 32x32",
+        "Medium 24x24",
+        "Small 16x16",
+    ]
+    assert dialog.ui.toolpanelIconsCombo.currentIndex() == 1
     assert [dialog.ui.commentStyleCombo.itemText(index) for index in range(2)] == [
         "Parentheses ()",
         "Semicolon ;",
     ]
+
+
+def test_toolbar_icon_size_applies_to_all_panels_and_persists(qt_app):
+    window = MainWindow()
+    assert window.toolbarIconSize == 24
+    dialog = window.optionsDlg
+    dialog.load_values()
+    dialog.ui.toolpanelIconsCombo.setCurrentIndex(0)
+    dialog.accept()
+    assert window.toolbarIconSize == 32
+    toolbar_names = ("fileToolBar", "editToolBar", "cncToolBar", "viewToolBar", "playbackToolBar")
+    assert all(getattr(window.ui, name).iconSize().width() == 32 for name in toolbar_names)
+    assert getattr(window.ui, "actionHoleCalculator").icon().pixmap(32, 32).width() == 32
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.toolbarIconSize == 32
+    assert all(getattr(restored.ui, name).iconSize().width() == 32 for name in toolbar_names)
+    restored.deleteLater()
 
 
 @pytest.mark.parametrize("level, interval", [(1, 1000), (2, 250), (3, 100), (4, 40), (5, 10)])

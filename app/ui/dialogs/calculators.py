@@ -62,18 +62,22 @@ class HoleCalculatorDialog(QDialog):
         self.ui.patternTabs.currentChanged.connect(self.update_preview)
 
     def restore_defaults(self):
-        self.ui.diameterSpin.setValue(100.0)
-        self.ui.startAngleSpin.setValue(0.0)
-        self.ui.centerXSpin.setValue(0.0)
-        self.ui.centerYSpin.setValue(0.0)
-        self.ui.holeCountSpin.setValue(10)
+        values = {
+            self.ui.diameterSpin: 100.0,
+            self.ui.startAngleSpin: 0.0,
+            self.ui.centerXSpin: 0.0,
+            self.ui.centerYSpin: 0.0,
+            self.ui.holeCountSpin: 10,
+            self.ui.startXSpin: 0.0,
+            self.ui.startYSpin: 0.0,
+            self.ui.stepXSpin: 10.0,
+            self.ui.stepYSpin: 10.0,
+            self.ui.countXSpin: 1,
+            self.ui.countYSpin: 1,
+        }
+        for spin, value in values.items():
+            spin.setValue(value)
         self.ui.ccwCheck.setChecked(True)
-        self.ui.startXSpin.setValue(0.0)
-        self.ui.startYSpin.setValue(0.0)
-        self.ui.stepXSpin.setValue(10.0)
-        self.ui.stepYSpin.setValue(10.0)
-        self.ui.countXSpin.setValue(1)
-        self.ui.countYSpin.setValue(1)
         self.update_preview()
 
     def calculate(self) -> str:

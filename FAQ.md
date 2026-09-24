@@ -62,6 +62,7 @@ The left panel is a QScintilla editor with syntax highlighting, line numbers, se
 - When Lathe Stock Removal playback is active, `Stop` completes the preview, restores the normal plot and leaves the slider at 100%.
 
 Playback speed levels 1–5 correspond to 1000, 250, 100, 40 and 10 ms per logical motion.
+Use the spin box on the Playback toolbar or the slider in Options to change the same saved speed setting.
 
 ### How do I locate a plotted move in the editor?
 
@@ -401,6 +402,8 @@ On Windows:
 - `Show Stock` immediately after `Show canvas grid`.
 - Canvas gradient and STL appearance.
 - Playback speed and adaptive/fixed grid spacing.
+- Toolbar icon size (32×32, 24×24 or 16×16; default 24×24).
+- Menu-command shortcuts in the Hotkeys tab. Select a command, choose modifiers and a key in the assignment dialog, or choose None to clear it. Duplicate assignments are rejected; Restore Defaults restores the built-in keys.
 
 ### Where is the log file?
 
@@ -472,7 +475,7 @@ source NC
   -> CLI, export, statistics, rendering and playback
 ```
 
-CNC semantics belong in the kernel. GUI rendering, statistics and export must not independently reinterpret source commands. During the current core-hardening phase, new execution/analysis capabilities should be implemented and regression-tested in the core/CLI first; UI changes should remain bug fixes until the core contract is stable.
+CNC semantics belong in the kernel. GUI rendering, statistics and export must not independently reinterpret source commands. New execution and analysis capabilities should be implemented and regression-tested in the core and CLI before the UI consumes them.
 
 Historical module-level imports that existed before the package split are intentionally re-exported/aliased where required so the structural refactor does not change the public Python surface. New code should import from the canonical subject packages.
 

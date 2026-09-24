@@ -300,8 +300,8 @@
    </property>
    <property name="iconSize">
     <size>
-     <width>30</width>
-     <height>30</height>
+     <width>24</width>
+     <height>24</height>
     </size>
    </property>
    <attribute name="toolBarArea">
@@ -323,8 +323,8 @@
    </property>
    <property name="iconSize">
     <size>
-     <width>30</width>
-     <height>30</height>
+     <width>24</width>
+     <height>24</height>
     </size>
    </property>
    <attribute name="toolBarArea">
@@ -343,19 +343,12 @@
    <addaction name="actionSelectAll"/>
    <addaction name="actionFindReplace"/>
   </widget>
-  <widget class="QToolBar" name="cncToolBar">
-   <property name="windowTitle"><string>CNC</string></property>
-   <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-   <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
-   <attribute name="toolBarBreak"><bool>false</bool></attribute>
-   <addaction name="actionLatheMode"/>
-   <addaction name="actionRefresh"/>
-  </widget>
   <widget class="QToolBar" name="viewToolBar">
    <property name="windowTitle"><string>View</string></property>
    <property name="iconSize"><size><width>24</width><height>24</height></size></property>
    <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
    <attribute name="toolBarBreak"><bool>false</bool></attribute>
+   <addaction name="actionRefresh"/>
    <addaction name="actionZoom_In"/>
    <addaction name="actionZoom_Out"/>
    <addaction name="actionFitToView"/>
@@ -366,6 +359,20 @@
    <addaction name="actionLeft"/>
    <addaction name="separator"/>
    <addaction name="actionGrid"/>
+  </widget>
+  <widget class="QToolBar" name="cncToolBar">
+   <property name="windowTitle"><string>CNC</string></property>
+   <property name="iconSize"><size><width>24</width><height>24</height></size></property>
+   <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
+   <attribute name="toolBarBreak"><bool>false</bool></attribute>
+   <addaction name="actionLatheMode"/>
+   <addaction name="actionPrevToolchange"/>
+   <addaction name="actionNextToolchange"/>
+   <addaction name="menuBlockNumbers"/>
+   <addaction name="actionRemoveSpaces"/>
+   <addaction name="actionRemoveEmptyLines"/>
+   <addaction name="actionStatistics"/>
+   <addaction name="actionExportToolList"/>
   </widget>
   <widget class="QToolBar" name="playbackToolBar">
    <property name="windowTitle"><string>Playback</string></property>
@@ -537,6 +544,7 @@
    </property>
   </action>
   <action name="actionRefresh">
+   <property name="shortcut"><string>F5</string></property>
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
      <normaloff>:/resource/icons/refresh.png</normaloff>:/resource/icons/refresh.png</iconset>
@@ -614,6 +622,7 @@
    </property>
   </action>
   <action name="action3D">
+   <property name="shortcut"><string>Ctrl+1</string></property>
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
      <normaloff>:/resource/icons/3D.png</normaloff>:/resource/icons/3D.png</iconset>
@@ -626,6 +635,7 @@
    </property>
   </action>
   <action name="actionTop">
+   <property name="shortcut"><string>Ctrl+2</string></property>
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
      <normaloff>:/resource/icons/top.png</normaloff>:/resource/icons/top.png</iconset>
@@ -638,6 +648,7 @@
    </property>
   </action>
   <action name="actionFront">
+   <property name="shortcut"><string>Ctrl+3</string></property>
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
      <normaloff>:/resource/icons/front.png</normaloff>:/resource/icons/front.png</iconset>
@@ -650,6 +661,7 @@
    </property>
   </action>
   <action name="actionLeft">
+   <property name="shortcut"><string>Ctrl+4</string></property>
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
      <normaloff>:/resource/icons/left.png</normaloff>:/resource/icons/left.png</iconset>
@@ -764,16 +776,28 @@
    </property>
   </action>
   <action name="actionWCS">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/wcs.png</normaloff>:/resource/icons/wcs.png</iconset>
+   </property>
    <property name="text">
     <string>WCS</string>
    </property>
   </action>
   <action name="actionToolLibrary">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/toollibrary.png</normaloff>:/resource/icons/toollibrary.png</iconset>
+   </property>
    <property name="text">
     <string>Tool Library</string>
    </property>
   </action>
   <action name="actionOptions">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/options.png</normaloff>:/resource/icons/options.png</iconset>
+   </property>
    <property name="text">
     <string>Options</string>
    </property>
@@ -782,6 +806,10 @@
    </property>
   </action>
   <action name="actionTokens">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/tokens.png</normaloff>:/resource/icons/tokens.png</iconset>
+   </property>
    <property name="text">
     <string>Tokens/Macro Variables</string>
    </property>

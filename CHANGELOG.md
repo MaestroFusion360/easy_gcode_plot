@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.6.4 - 2026-09-24
+
+- Reworked **Options → Hotkeys** into a table covering named menu commands, including nested commands. A separate assignment dialog offers modifier checkboxes and a searchable key list; shortcuts persist per command, can be cleared or restored to defaults, and conflicting assignments are rejected. Default shortcuts were updated for Refresh and standard views.
+- Updated toolbars: moved Refresh to View, placed View after Edit by default, added Statistics and Tool List before the CNC calculators, and added a persistent 1–5 playback-speed slider. The CNC editor mode is now a dropdown with distinct icons for ISO G-Code and Text File. Toolbar icons have configurable 32/24/16-pixel sizes, defaulting to 24 pixels.
+- Added the missing Settings menu icons for Stock, Tool Library, WCS, Options and Tokens, refreshed toolbar icons and fixed Qt resource regeneration so changed icon files are embedded by the lint fix workflow.
+- Updated Snippets with a smaller monospace content font, editor zoom, and icon-only management buttons. Added 16-pixel icons and concise labels/tooltips to Tool Library actions and preview controls.
+- Kept Qt Designer `.ui` sources authoritative, regenerated their Python modules and Russian translations, and extended lint checks for UI formatting and generated UI, translations and resource freshness. Simplified repeated UI handlers without changing CNC behavior.
+
 ## 1.6.3 - 2026-09-23
 
 - Fixed milling 3D camera jumps during automatic refresh after pasting or dropping G-code. Ordinary updates preserve the camera center and zoom; a newly inserted path is fitted only when it grows or moves substantially and would otherwise extend beyond the current view. Turning camera behavior is unchanged.

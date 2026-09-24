@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 from PyQt6.QtCore import QPoint
-from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar
+from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar, QToolBar
 
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
@@ -25,11 +25,90 @@ def test_main_ui_has_separate_options_and_tokens_settings_actions(qt_app):
     assert ui.actionTokens in settings_actions
     assert ui.actionOptions.text() == "Options"
     assert ui.actionOptions.shortcut().toString() == "F2"
+    assert not ui.actionOptions.icon().isNull()
+    assert not ui.actionTokens.icon().isNull()
+    assert not ui.actionWCS.icon().isNull()
+    assert not ui.actionToolLibrary.icon().isNull()
     assert all("..." not in action.text() for action in settings_actions)
 
     assert ui.actionExportToolList in ui.menuCNC_Functions.actions()
     assert ui.actionExportToolList.text() == "Tool List"
     assert not ui.actionExportToolList.icon().isNull()
+
+
+def test_cnc_toolbar_places_existing_commands_before_calculators(qt_app):
+    window = MainWindow()
+    assert window.ui.actionStock in window.ui.menuSettings.actions()
+    assert not window.ui.actionStock.icon().isNull()
+    actions = window.ui.cncToolBar.actions()
+    expected = (
+        window.ui.actionPrevToolchange,
+        window.ui.actionNextToolchange,
+        window.ui.menuBlockNumbers.menuAction(),
+        window.ui.actionRemoveSpaces,
+        window.ui.actionRemoveEmptyLines,
+    )
+    positions = [actions.index(action) for action in expected]
+    assert positions == list(range(positions[0], positions[0] + len(expected)))
+    assert actions[positions[-1] + 1] is window.ui.actionStatistics
+    assert actions[positions[-1] + 2] is window.ui.actionExportToolList
+    assert actions[positions[-1] + 3].isSeparator()
+    assert actions[positions[-1] + 4] is getattr(window.ui, "actionHoleCalculator")
+    assert [toolbar.objectName() for toolbar in window.findChildren(QToolBar)[:4]] == [
+        "fileToolBar",
+        "editToolBar",
+        "viewToolBar",
+        "cncToolBar",
+    ]
+    window.deleteLater()
+
+
+def test_playback_toolbar_speed_slider_updates_timer_and_persists(qt_app):
+    window = MainWindow()
+    slider = window.ui.playbackSpeedSlider
+    assert (slider.minimum(), slider.maximum()) == (1, 5)
+    assert slider.tickInterval() == 1
+    assert slider.tickPosition() == slider.TickPosition.TicksAbove
+    assert slider.value() == window.playbackSpeed
+    assert window.ui.playbackToolBar.widgetForAction(window.ui.playbackToolBar.actions()[-1]) is slider
+
+    slider.setValue(5)
+    assert (window.playbackSpeed, window.speedTimer) == (5, 10)
+    window.settings.sync()
+    window.deleteLater()
+
+    restored = MainWindow()
+    assert restored.ui.playbackSpeedSlider.value() == 5
+    restored.deleteLater()
+
+
+def test_file_type_toolbar_menu_switches_the_editor_lexer(qt_app):
+    window = MainWindow()
+    menu = window.ui.fileTypeMenu
+    actions = menu.actions()
+    assert window.ui.fileTypeCombo.isHidden()
+    assert window.ui.cncToolBar.widgetForAction(window.ui.cncToolBar.actions()[0]) is window.ui.fileTypeButton
+    assert window.ui.fileTypeButton.menu() is menu
+    assert [action.text() for action in actions] == ["Text File", "ISO G-Code"]
+    assert actions[0].isChecked()
+    assert not actions[0].icon().isNull()
+    assert not actions[1].icon().isNull()
+    assert actions[0].icon().cacheKey() != actions[1].icon().cacheKey()
+    assert window.ui.fileTypeButton.icon().cacheKey() == actions[0].icon().cacheKey()
+
+    actions[1].trigger()
+    assert window.ui.fileTypeCombo.currentIndex() == 1
+    assert window.ui.editor.lexer() is window.lexer
+    assert actions[1].isChecked()
+    assert window.ui.fileTypeButton.text() == "ISO G-Code"
+    assert window.ui.fileTypeButton.icon().cacheKey() == actions[1].icon().cacheKey()
+
+    actions[0].trigger()
+    assert window.ui.fileTypeCombo.currentIndex() == 0
+    assert window.ui.editor.lexer() is None
+    assert actions[0].isChecked()
+    assert window.ui.fileTypeButton.icon().cacheKey() == actions[0].icon().cacheKey()
+    window.deleteLater()
 
 
 def test_machine_specific_actions_follow_active_profile_without_restart(qt_app):

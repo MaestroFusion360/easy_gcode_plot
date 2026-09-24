@@ -37,6 +37,7 @@ class MainWindowEditorMixin:
 
     def changeFileType(self, idx):
         """Switch editor highlighting for the selected file type."""
+        self.syncFileTypeMenu(idx)
         self.ui.editor.setLexer(None)
         self.ui.editor.setMarginsForegroundColor(QColor(self.marginColor))
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))

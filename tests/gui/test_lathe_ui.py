@@ -36,10 +36,11 @@ def test_stl_and_lathe_toolbar_actions_are_in_the_required_order(qt_app):
     assert file_actions[export_index + 1] is window.ui.actionImportSTL
     assert edit_actions[0] is window.ui.actionUndo
     assert menu_actions.index(window.ui.actionImportSTL) + 1 == menu_actions.index(window.ui.actionClearSTL)
-    assert cnc_actions.index(window.ui.actionLatheMode) + 1 == cnc_actions.index(window.ui.actionRefresh)
+    assert cnc_actions.index(window.ui.actionLatheMode) + 1 == cnc_actions.index(window.ui.actionPrevToolchange)
+    assert view_actions[0] is window.ui.actionRefresh
     assert window.ui.actionFitToView in view_actions
     assert view_actions.index(window.ui.action3D) + 1 == view_actions.index(window.ui.actionTop)
-    assert playback_actions[-1] is window.ui.actionStep_Forward
+    assert playback_actions[-2] is window.ui.actionStep_Forward
     assert window.optionsDlg.ui.showStockCheck.text() == "Show Stock"
     plot_form = window.optionsDlg.ui.plotForm
     assert plot_form.getWidgetPosition(window.optionsDlg.ui.gridCheck)[0] == 3

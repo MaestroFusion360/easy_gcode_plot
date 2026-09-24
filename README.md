@@ -5,9 +5,9 @@
 <!-- markdownlint-disable MD033 -->
 
 <details>
-  <summary><h2>Main Screen</h2></summary>
+  <summary><h2>Main Window</h2></summary>
   <p align="center">
-    <img src="assets/img1.png" alt="Main Screen">
+    <img src="assets/img1.png" alt="Main Window">
   </p>
 </details>
 
@@ -15,6 +15,27 @@
   <summary><h2>STL Playback</h2></summary>
   <p align="center">
     <img src="assets/img2.gif" alt="STL Playback">
+  </p>
+</details>
+
+<details>
+  <summary><h2>Milling</h2></summary>
+  <p align="center">
+    <img src="assets/img3.png" alt="Milling">
+  </p>
+</details>
+
+<details>
+  <summary><h2>Turning</h2></summary>
+  <p align="center">
+    <img src="assets/img4.png" alt="Turning">
+  </p>
+</details>
+
+<details>
+  <summary><h2>Lathe Stock Removal Simulation</h2></summary>
+  <p align="center">
+    <img src="assets/img5.png" alt="Lathe Stock Removal Simulation">
   </p>
 </details>
 
@@ -97,6 +118,11 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - **Theme** — Light or Dark; custom colors from the **Colors** tab are preserved.
 - **Auto Update** and **Auto update max segments** — control non-modal plot refresh while editing. The segment limit applies only to automatic rendering.
 - **Maximum generated motions** — limits the total motions produced by one kernel execution and protects against runaway expansion.
+- **Toolpanel icons** — selects 32×32, 24×24 or 16×16 toolbar icons; 24×24 is the default.
+
+### Hotkeys
+
+`Settings → Options → Hotkeys` lists commands from the main menus. Select a command and use **Edit shortcut** (or double-click its row) to choose Ctrl, Alt, Shift or Meta and a key. Choose **None** to clear a shortcut; **Restore Defaults** restores the built-in assignments. Conflicting shortcuts are rejected. Refresh defaults to F5; the 3D, Top, Front and Left views default to Ctrl+1, Ctrl+2, Ctrl+3 and Ctrl+4.
 
 ### CNC / Execution
 
@@ -108,6 +134,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - **Arc sampling preset**, **Maximum circular radius**, **Minimum circular radius** and **Minimum chord length** — control GUI trace sampling without changing CNC execution geometry.
 
 Explicit Refresh operations use a cancellable dialog covering tool discovery, parsing, execution, sampling and plot publication.
+The Playback toolbar has a 1–5 speed control using the same setting as Options.
 
 ## Tool Library
 
