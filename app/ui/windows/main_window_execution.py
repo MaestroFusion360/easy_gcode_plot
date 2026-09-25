@@ -11,8 +11,8 @@ from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from app.gcode.comments import format_comment
 from app.gcode.core import last_index
-from app.gcode.kernel import execute
 from app.gcode.kernel.api.resources import ExecutionLimits
+from app.gcode.program_execution import execute_program
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
 from app.tools.setup import refresh_setup
 from app.ui.plot.playback import build_playback_movements
@@ -77,9 +77,6 @@ def _calculate_source(
     current_tools,
     previous_inference,
     turning,
-    setup_unit_scale,
-    turning_tools,
-    milling_tools,
     correction_enabled,
     render,
     arc_tolerance,
@@ -90,21 +87,15 @@ def _calculate_source(
     minimum_chord_length=0.25,
     **snapshot_options,
 ):
-    updated_tools = current_tools
-    inferred = refresh_setup(
-        snapshot_source,
-        updated_tools,
-        previous_inference,
-        turning=turning,
-        default_unit_scale=setup_unit_scale,
-        cancelled=is_cancelled,
-    )
-    # Keep kernel inputs detached from the setup installed back on the window.
-    snapshot_options["tools"] = deepcopy(turning_tools) if correction_enabled else {}
-    snapshot_options["milling_tools"] = deepcopy(milling_tools) if correction_enabled else {}
     snapshot_options["include_instructions"] = False
     execution_started = perf_counter()
-    result = execute(snapshot_source, **snapshot_options)
+    result, updated_tools, inferred = execute_program(
+        snapshot_source,
+        current_tools=current_tools,
+        previous_inference=previous_inference,
+        correction_enabled=correction_enabled,
+        **snapshot_options,
+    )
     execution_ms = (perf_counter() - execution_started) * 1000.0
     points = None
     render_limited = False
@@ -351,9 +342,6 @@ class MainWindowExecutionMixin:
             current_tools=current_tools,
             previous_inference=previous_inference,
             turning=turning,
-            setup_unit_scale=default_unit_scale,
-            turning_tools=turning_tools,
-            milling_tools=milling_tools,
             correction_enabled=correction_enabled,
             render=render,
             arc_tolerance=arc_tolerance,

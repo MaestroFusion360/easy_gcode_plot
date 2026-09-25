@@ -1,5 +1,5 @@
 ---
-name: Test, Windows build and release
+name: Test, build and release
 
 "on":
   push:
@@ -48,6 +48,68 @@ jobs:
       - name: Run static checks
         run: bash scripts/sh/lint.sh
 
+  build-linux:
+    name: Build Linux executables
+    needs: test-linux
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+
+      - name: Install Qt runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends libegl1 libgl1
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
+        with:
+          version: "0.12.9"
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Verify release tag matches project version
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          version=$(uv version --short)
+          if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
+            printf 'Tag %s does not match pyproject version v%s\n' "$GITHUB_REF_NAME" "$version" >&2
+            exit 1
+          fi
+
+      - name: Build executables
+        run: bash scripts/sh/build.sh --skip-tests
+
+      - name: Smoke test packaged CLI
+        run: |
+          ./dist/easy_gcode_plot_cli --help
+          bash scripts/sh/batch/batch_mill.sh
+          bash scripts/sh/batch/batch_turn.sh
+
+      - name: Package Linux executables
+        run: |
+          version=$(uv version --short)
+          archive="Easy-G-Code-Plot-$version-Linux-x64.tar.gz"
+          test -x dist/easy_gcode_plot
+          test -x dist/easy_gcode_plot_cli
+          tar -C dist -czf "dist/$archive" easy_gcode_plot easy_gcode_plot_cli
+          (cd dist && sha256sum "$archive" > "$archive.sha256")
+          (cd dist && sha256sum -c "$archive.sha256")
+          tar -tzf "dist/$archive"
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: Easy-G-Code-Plot-Linux-x64
+          path: |
+            dist/Easy-G-Code-Plot-*-Linux-x64.tar.gz
+            dist/Easy-G-Code-Plot-*-Linux-x64.tar.gz.sha256
+          if-no-files-found: error
+          retention-days: 14
+
   build:
     name: Test and build Windows EXE
     runs-on: windows-latest
@@ -95,15 +157,23 @@ jobs:
         shell: pwsh
         run: ./scripts/ps1/build.ps1 -SkipTests
 
-      - name: Give executable a versioned name
+      - name: Smoke test packaged CLI
+        shell: pwsh
+        run: |
+          & dist/easy_gcode_plot_cli.exe --help
+          if ($LASTEXITCODE -ne 0) { throw "Packaged CLI failed to start." }
+
+      - name: Give executables versioned names
         shell: pwsh
         run: |
           $version = uv version --short
           $releaseExe = "dist/Easy-G-Code-Plot-$version-Windows-x64.exe"
+          $releaseCli = "dist/easy_gcode_plot_cli.exe"
           Copy-Item dist/easy_gcode_plot.exe $releaseExe
-          $hash = (Get-FileHash $releaseExe -Algorithm SHA256).Hash.ToLower()
-          "$hash  $(Split-Path $releaseExe -Leaf)" |
-            Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          @($releaseExe, $releaseCli) | ForEach-Object {
+            $hash = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower()
+            "$hash  $(Split-Path $_ -Leaf)"
+          } | Set-Content dist/SHA256SUMS.txt -Encoding ascii
 
       - name: Upload executable artifact
         uses: actions/upload-artifact@v7
@@ -111,6 +181,7 @@ jobs:
           name: Easy-G-Code-Plot-Windows-x64
           path: |
             dist/Easy-G-Code-Plot-*-Windows-x64.exe
+            dist/easy_gcode_plot_cli.exe
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
@@ -118,7 +189,7 @@ jobs:
   release:
     name: Publish GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build, test-linux]
+    needs: [build, build-linux]
     runs-on: windows-latest
     permissions:
       contents: write
@@ -134,22 +205,33 @@ jobs:
           name: Easy-G-Code-Plot-Windows-x64
           path: dist
 
-      - name: Create release or replace its executable
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: Easy-G-Code-Plot-Linux-x64
+          path: dist/linux
+
+      - name: Create release or replace its executables
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ github.ref_name }}"
-          $asset = (
-            Get-ChildItem dist/Easy-G-Code-Plot-*-Windows-x64.exe `
-              -File -ErrorAction Stop
-          ).FullName
+          $guiAsset = @(Get-ChildItem dist/Easy-G-Code-Plot-*-Windows-x64.exe -File -ErrorAction Stop)
+          if ($guiAsset.Count -ne 1) { throw "Expected exactly one GUI executable." }
+          $assets = @($guiAsset[0].FullName, (Resolve-Path dist/easy_gcode_plot_cli.exe).Path)
           $checksum = (Resolve-Path dist/SHA256SUMS.txt).Path
+          $linuxAsset = @(Get-ChildItem dist/linux/Easy-G-Code-Plot-*-Linux-x64.tar.gz -File -ErrorAction Stop)
+          if ($linuxAsset.Count -ne 1) { throw "Expected exactly one Linux archive." }
+          $linuxChecksum = (Resolve-Path "$($linuxAsset[0].FullName).sha256").Path
+          $assets += $linuxAsset[0].FullName
+          $assets += $checksum
+          $assets += $linuxChecksum
 
           if (gh release view $tag 2>$null) {
-            gh release upload $tag $asset $checksum --clobber
+            gh release upload $tag @assets --clobber
           } else {
-            gh release create $tag $asset $checksum `
+            gh release create $tag @assets `
               --verify-tag --generate-notes --title "Easy G-Code Plot $tag"
           }
 

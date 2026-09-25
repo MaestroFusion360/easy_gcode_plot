@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.5 - 2026-09-25
+
+- Linux releases now include a versioned x64 archive with GUI and CLI executables plus a SHA-256 checksum. CI builds and smoke-tests both batch presets before publication.
+- Replaced terminal JSON dumps with readable execution results for every CLI command. Batch now reports each file as it is processed, followed by final counts and report paths; detailed JSON remains available in output files.
+- Added ready-to-run PowerShell and Linux shell batch presets for the bundled milling and turning fixtures. They use UTF-8, write separate reports to the system temporary directory, and run the built CLI without building or running tests. Milling batch analysis now detects Arc Type per program, with relative IJK as the fallback.
+- Added recursive CLI batch analysis for turning and milling NC files, with JSON and Excel-friendly CSV reports, diagnostic counts, unsupported G/M-code summaries and selectable file extensions.
+- Defined report statuses as `CLEAN`, `WARNINGS`, `ERRORS` and `NO_FILES`, with a nonzero exit code for errors or an empty scan. File read/decode failures remain per-file diagnostics; unexpected analyzer failures surface directly. Bumped the report schema to version 2.
+- Unified GUI and CLI program execution through one shared setup path and the authoritative CNC kernel. Temporary tool discovery now supplies G41/G42 geometry to single-file and batch CLI runs, while GUI manual tool assignments retain priority.
+- Built a separate console CLI executable alongside the windowed GUI. Windows releases publish both executables and a SHA-256 checksum list; local Windows and Linux builds write `.sha256` files beside their executables. Top-level CLI help now lists every command's arguments and defaults; packaged and source commands are documented.
+- Set Python 3.13 as the minimum source runtime and aligned the lint target and lock file with the supported environments.
+- Highlighted fenced command examples in the built-in FAQ with a contrasting background and padding.
+- Aligned PowerShell and shell helpers: lint resource checks, release lint gates, build checksum output, test arguments and startup arguments. Updated build and release documentation.
+- Verified the Ubuntu WSL shell workflow: dependency sync, Qt source generation, lint with resource checks, 933 passing tests, CLI packaging, checksums and both batch presets. Fixed first-run native build state handling and completed the turning preset.
+- Made exported project ZIPs portable to Linux by using forward-slash entry paths and LF line endings for shell scripts.
+
 ## 1.6.4 - 2026-09-24
 
 - Reworked **Options → Hotkeys** into a table covering named menu commands, including nested commands. A separate assignment dialog offers modifier checkboxes and a searchable key list; shortcuts persist per command, can be cleared or restored to defaults, and conflicting assignments are rejected. Default shortcuts were updated for Refresh and standard views.

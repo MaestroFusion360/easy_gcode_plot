@@ -65,7 +65,7 @@ project_version=$(uv version --short)
 }
 
 printf '\n==> Lint / format\n'
-bash "$script_dir/lint.sh" --fix
+bash "$script_dir/lint.sh" --fix --check-resources
 
 printf '\n==> Tests\n'
 bash "$script_dir/test.sh"

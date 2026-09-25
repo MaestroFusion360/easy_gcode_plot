@@ -1,6 +1,6 @@
 # Easy G-Code Plot
 
-[![Windows build](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/windows-release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/windows-release.yml)
+[![Build and release](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -65,15 +65,32 @@ Detailed controller behavior, limitations, configuration and troubleshooting are
 
 ### Windows executable
 
-Download the latest standalone `.exe` from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases) and run it. Python and Visual Studio are not required for the packaged application.
+Download the GUI executable and `easy_gcode_plot_cli.exe` from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). Python and Visual Studio are not required for the packaged applications.
+
+```powershell
+.\easy_gcode_plot_cli.exe --help
+.\easy_gcode_plot_cli.exe batch C:\Programs --lang fanuc_mill -o C:\Reports
+```
+
+### Linux executables
+
+Download `Easy-G-Code-Plot-<version>-Linux-x64.tar.gz` and its `.sha256` file from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). The archive contains separate GUI and CLI executables and preserves their executable permissions. Verify and unpack it with the downloaded version number:
+
+```bash
+version=1.6.5
+sha256sum -c "Easy-G-Code-Plot-$version-Linux-x64.tar.gz.sha256"
+tar -xzf "Easy-G-Code-Plot-$version-Linux-x64.tar.gz"
+./easy_gcode_plot
+./easy_gcode_plot_cli --help
+```
 
 ### Run from source
 
 Requirements:
 
-- Python 3.11+
+- Python 3.13+
 - [uv](https://docs.astral.sh/uv/)
-- A C compiler: Visual Studio Build Tools with **Desktop development with C++** on Windows, or the platform compiler and Python development headers on Linux/macOS.
+- A C compiler: Visual Studio Build Tools with **Desktop development with C++** on Windows, or a platform compiler and Python development headers on Linux.
 
 ```bash
 git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
@@ -149,16 +166,38 @@ The turning library supports Diamond 80, Diamond 35, Square, Round, Triangle, Gr
 
 ## CLI
 
-The CLI uses the same execution kernel as the GUI:
+The CLI uses the same execution kernel as the GUI. In PowerShell, run the Windows release executable from its folder:
 
-```bash
-uv run --no-dev python -m app parse program.nc --lang fanuc_turn
-uv run --no-dev python -m app trace program.nc --lang fanuc_turn -o trace.json
-uv run --no-dev python -m app analyze program.nc --lang fanuc_turn
-uv run --no-dev python -m app export program.nc --lang fanuc_turn -o expanded.nc
+```powershell
+.\easy_gcode_plot_cli.exe parse program.nc --lang fanuc_turn
+.\easy_gcode_plot_cli.exe trace program.nc --lang fanuc_turn -o trace.json
+.\easy_gcode_plot_cli.exe analyze program.nc --lang fanuc_turn
+.\easy_gcode_plot_cli.exe batch .\programs --lang fanuc_mill -o batch-report
+.\easy_gcode_plot_cli.exe export program.nc --lang fanuc_turn -o expanded.nc
 ```
 
-Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input.
+From the repository root, use `.\dist\easy_gcode_plot_cli.exe` instead. When running from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.
+
+To analyze the bundled milling or turning fixtures with an existing build, run a preset script without arguments:
+
+```powershell
+.\scripts\ps1\batch\batch_mill.ps1
+.\scripts\ps1\batch\batch_turn.ps1
+```
+
+```bash
+bash scripts/sh/batch/batch_mill.sh
+bash scripts/sh/batch/batch_turn.sh
+```
+
+The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They run the executable in `dist/` directly without building or running tests. For milling batch files, Arc Type is detected separately for each program from IJK arcs. When no arc identifies the type unambiguously, relative IJK is used.
+The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory.
+
+Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input. The `batch` command scans `.nc`, `.cnc`, `.ptp`, `.tap` and `.txt` recursively by default and writes `batch_report.json` plus an Excel-friendly `batch_report.csv`. File status is `CLEAN` (no diagnostics), `WARNINGS` (review needed) or `ERRORS` (analysis or input failed); an empty scan has overall status `NO_FILES`. `CLEAN` is not machine validation. The summary includes diagnostic frequencies and unknown/unsupported G/M codes. Use `--extensions .nc,.mpf` to override the file set or `--top-level-only` to disable recursive scanning.
+
+CLI execution discovers temporary tool geometry from literal `T` selections and source comments, as the GUI does for a newly opened program. This lets G41/G42 use geometry described in the NC file. Manually assigned Current Program tools and Saved Library entries in the GUI are not imported into CLI runs; verify inferred dimensions before relying on compensated output.
+
+Run `.\easy_gcode_plot_cli.exe --help` to see every command with its arguments and defaults; `.\easy_gcode_plot_cli.exe batch --help` shows only batch options. The CLI writes normal stdout/stderr and returns a nonzero exit code when batch analysis finds errors or no matching files.
 
 ## Development
 
@@ -173,12 +212,25 @@ uv run ruff format --check .
 
 Build helpers have matching PowerShell and shell variants:
 
-| Task | Windows PowerShell | Linux/macOS shell |
+| Task | Windows PowerShell | Linux shell |
 | --- | --- | --- |
 | Tests | `.\scripts\ps1\test.ps1` | `bash scripts/sh/test.sh` |
 | Lint | `.\scripts\ps1\lint.ps1` | `bash scripts/sh/lint.sh` |
 | Native extensions | `.\scripts\ps1\build-native.ps1` | `bash scripts/sh/build-native.sh` |
 | PyInstaller package | `.\scripts\ps1\build.ps1` | `bash scripts/sh/build.sh` |
+
+Lint supports `-Fix` / `--fix` and `-CheckResources` / `--check-resources`; release scripts use both. Test scripts accept a test path and extra pytest arguments. Build scripts test by default, package GUI and CLI separately, and write a SHA-256 `.sha256` file beside each executable in `dist/`. Use `-Console` / `--console` to build only the CLI or `-SkipTests` / `--skip-tests` when tests have already run.
+
+On Linux (including Ubuntu in WSL), build and run the console CLI from the project directory:
+
+```bash
+bash scripts/sh/build.sh --console --skip-tests
+./dist/easy_gcode_plot_cli --help
+bash scripts/sh/batch/batch_mill.sh
+bash scripts/sh/batch/batch_turn.sh
+```
+
+The Linux CLI is an ELF executable without the Windows `.exe` suffix. The batch presets write reports under `${TMPDIR:-/tmp}/easy_gcode_plot/batch/`. Run it inside Linux or through `wsl`; it is not a Windows executable.
 
 Native and release builds reuse the separate `.venv-build` environment and rebuild when tracked Cython sources change. Use `-Refresh`/`--refresh` for a forced native-environment refresh; the full-build equivalents are `-RefreshBuildEnvironment`/`--refresh-build-environment`. PyInstaller validates and packages the native parser, executor and tool-discovery extensions.
 

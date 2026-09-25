@@ -31,6 +31,16 @@ done
 
 build_environment="$project_root/.venv-build"
 python="$build_environment/bin/python"
+dist_path="$project_root/dist"
+
+write_checksum() {
+    local name=$1
+    local path="$dist_path/$name"
+    local hash
+    hash=$(sha256sum "$path" | awk '{print $1}')
+    printf '%s *%s\n' "$hash" "$name" >"$path.sha256"
+    printf 'SHA-256: %s  %s\n' "$hash" "$name"
+}
 
 cd "$project_root"
 
@@ -60,21 +70,20 @@ arguments=(
     --noconfirm
     --clean
     --onefile
-    --name easy_gcode_plot
-    --icon "$project_root/logo.ico"
     --specpath "$project_root/build/pyinstaller"
     --workpath "$project_root/build/pyinstaller/work"
-    --distpath "$project_root/dist"
+    --distpath "$dist_path"
     --collect-submodules app.gcode.export
     --add-data "$project_root/pyproject.toml:."
 )
 
 if [[ "$console" == true ]]; then
-    arguments+=(--console)
-else
-    arguments+=(--windowed)
+    "$python" "${arguments[@]}" --name easy_gcode_plot_cli --console "$project_root/cli_main.py"
+    write_checksum easy_gcode_plot_cli
+    exit 0
 fi
 
-arguments+=("$project_root/main.py")
-
-exec "$python" "${arguments[@]}"
+"$python" "${arguments[@]}" --name easy_gcode_plot --windowed "$project_root/main.py"
+write_checksum easy_gcode_plot
+"$python" "${arguments[@]}" --name easy_gcode_plot_cli --console "$project_root/cli_main.py"
+write_checksum easy_gcode_plot_cli

@@ -6,7 +6,7 @@ import logging
 import re
 
 from PyQt6.QtCore import QCoreApplication, QFile, QIODevice, Qt, QUrl
-from PyQt6.QtGui import QDesktopServices, QTextBlock, QTextCursor, QTextFormat
+from PyQt6.QtGui import QColor, QDesktopServices, QTextBlock, QTextCursor, QTextFormat
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QTextBrowser, QVBoxLayout
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources.
@@ -87,6 +87,13 @@ class HelpDialog(QDialog):
     def _format_document(self) -> None:
         document = self.browser.document()
         document.setDocumentMargin(14.0)
+        base = self.browser.palette().base().color()
+        foreground = self.browser.palette().text().color()
+        code_background = QColor(
+            round(base.red() * 0.93 + foreground.red() * 0.07),
+            round(base.green() * 0.93 + foreground.green() * 0.07),
+            round(base.blue() * 0.93 + foreground.blue() * 0.07),
+        )
         block = document.begin()
         first_block = True
         while block.isValid():
@@ -101,6 +108,12 @@ class HelpDialog(QDialog):
             elif heading_level == 3:
                 block_format.setTopMargin(16.0)
                 block_format.setBottomMargin(8.0)
+            elif self._is_code_block(block_format):
+                block_format.setBackground(code_background)
+                block_format.setLeftMargin(12.0)
+                block_format.setRightMargin(12.0)
+                block_format.setTopMargin(3.0)
+                block_format.setBottomMargin(3.0)
             elif block.text().strip() and block.textList() is None and not self._is_code_block(block_format):
                 block_format.setBottomMargin(8.0)
             if first_block:

@@ -8,10 +8,20 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$entryPoint = Join-Path $projectRoot 'main.py'
 $separator = [System.IO.Path]::PathSeparator
 $buildEnvironment = Join-Path $projectRoot '.venv-build'
 $python = Join-Path $buildEnvironment 'Scripts\python.exe'
+$distPath = Join-Path $projectRoot 'dist'
+
+function Write-ExeChecksum {
+    param([Parameter(Mandatory)][string]$ExeName)
+
+    $exePath = Join-Path $distPath $ExeName
+    $hash = (Get-FileHash -LiteralPath $exePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $checksumPath = "$exePath.sha256"
+    "$hash *$ExeName" | Set-Content -LiteralPath $checksumPath -Encoding ascii
+    Write-Host "SHA-256: $hash  $ExeName"
+}
 
 Push-Location $projectRoot
 try {
@@ -41,20 +51,28 @@ try {
         '--noconfirm',
         '--clean',
         '--onefile',
-        '--name', 'easy_gcode_plot',
         '--icon', (Join-Path $projectRoot 'logo.ico'),
         '--specpath', (Join-Path $projectRoot 'build\pyinstaller'),
         '--workpath', (Join-Path $projectRoot 'build\pyinstaller\work'),
-        '--distpath', (Join-Path $projectRoot 'dist'),
+        '--distpath', $distPath,
         '--collect-submodules', 'app.gcode.export',
         '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}."
     )
 
-    $arguments += if ($Console) { '--console' } else { '--windowed' }
-    $arguments += $entryPoint
+    if ($Console) {
+        & $python @arguments --name easy_gcode_plot_cli --console (Join-Path $projectRoot 'cli_main.py')
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        Write-ExeChecksum -ExeName 'easy_gcode_plot_cli.exe'
+        exit 0
+    }
 
-    & $python @arguments
-    exit $LASTEXITCODE
+    & $python @arguments --name easy_gcode_plot --windowed (Join-Path $projectRoot 'main.py')
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Write-ExeChecksum -ExeName 'easy_gcode_plot.exe'
+    & $python @arguments --name easy_gcode_plot_cli --console (Join-Path $projectRoot 'cli_main.py')
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    Write-ExeChecksum -ExeName 'easy_gcode_plot_cli.exe'
+    exit 0
 }
 finally {
     Pop-Location

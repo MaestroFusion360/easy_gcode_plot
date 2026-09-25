@@ -144,6 +144,16 @@ try {
                 -Destination $DestinationPath `
                 -Force
 
+            if ($DestinationPath.EndsWith('.sh', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $Content = [System.IO.File]::ReadAllText($DestinationPath)
+                $Content = $Content.Replace("`r`n", "`n")
+                [System.IO.File]::WriteAllText(
+                    $DestinationPath,
+                    $Content,
+                    (New-Object System.Text.UTF8Encoding($false))
+                )
+            }
+
             $CopiedCount++
         }
 
@@ -151,14 +161,36 @@ try {
             Fail "No files found to archive in: $ProjectRoot"
         }
 
+        Add-Type -AssemblyName System.IO.Compression
         Add-Type -AssemblyName System.IO.Compression.FileSystem
 
-        [System.IO.Compression.ZipFile]::CreateFromDirectory(
-            $StagingDir,
+        $ArchiveStream = [System.IO.File]::Open(
             $ArchivePath,
-            [System.IO.Compression.CompressionLevel]::Optimal,
-            $false
+            [System.IO.FileMode]::CreateNew
         )
+        try {
+            $Archive = [System.IO.Compression.ZipArchive]::new(
+                $ArchiveStream,
+                [System.IO.Compression.ZipArchiveMode]::Create
+            )
+            try {
+                foreach ($File in Get-ChildItem -LiteralPath $StagingDir -Recurse -File -Force) {
+                    $EntryName = $File.FullName.Substring($StagingDir.Length + 1).Replace('\', '/')
+                    [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile(
+                        $Archive,
+                        $File.FullName,
+                        $EntryName,
+                        [System.IO.Compression.CompressionLevel]::Optimal
+                    ) | Out-Null
+                }
+            }
+            finally {
+                $Archive.Dispose()
+            }
+        }
+        finally {
+            $ArchiveStream.Dispose()
+        }
 
         Write-Host ""
         Write-Host "Project : $ProjectRoot"

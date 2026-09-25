@@ -28,9 +28,9 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 
 ### How do I install it?
 
-The simplest Windows installation is the standalone executable from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). It does not require a separate Python installation.
+Download the Windows GUI and CLI executables or the Linux x64 archive containing both from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). Neither requires a Python installation. Verify the Linux archive with its `.sha256` file before extracting it.
 
-To run from source, install Python 3.11+, [uv](https://docs.astral.sh/uv/) and a C compiler (Visual Studio Build Tools with **Desktop development with C++** on Windows, or the platform compiler and Python development headers on Linux/macOS), then run:
+To run from source, install Python 3.13+, [uv](https://docs.astral.sh/uv/) and a C compiler (Visual Studio Build Tools with **Desktop development with C++** on Windows, or a platform compiler and Python development headers on Linux), then run:
 
 ```bash
 git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
@@ -441,16 +441,38 @@ Press Refresh. The automatic sampled-segment limit is intended to prevent expens
 
 ## CLI
 
-The GUI and CLI share the same kernel:
+The GUI and CLI share the same kernel. Run the Windows release CLI from its folder in PowerShell:
 
-```bash
-uv run --no-dev python -m app parse program.nc --lang fanuc_turn
-uv run --no-dev python -m app trace program.nc --lang fanuc_turn -o trace.json
-uv run --no-dev python -m app analyze program.nc --lang fanuc_turn
-uv run --no-dev python -m app export program.nc --lang fanuc_turn -o expanded.nc
+```powershell
+.\easy_gcode_plot_cli.exe parse program.nc --lang fanuc_turn
+.\easy_gcode_plot_cli.exe trace program.nc --lang fanuc_turn -o trace.json
+.\easy_gcode_plot_cli.exe analyze program.nc --lang fanuc_turn
+.\easy_gcode_plot_cli.exe batch .\programs --lang fanuc_mill -o batch-report
+.\easy_gcode_plot_cli.exe export program.nc --lang fanuc_turn -o expanded.nc
 ```
 
-Use `--encoding cp1251` for Windows-1251 input. Export modes include `program` and `cycles`; use `--lang fanuc_mill` for milling.
+From the repository root, use `.\dist\easy_gcode_plot_cli.exe`. To run from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.
+
+To analyze the bundled fixtures with the already built executable, run a preset script without arguments:
+
+```powershell
+.\scripts\ps1\batch\batch_mill.ps1
+.\scripts\ps1\batch\batch_turn.ps1
+```
+
+```bash
+bash scripts/sh/batch/batch_mill.sh
+bash scripts/sh/batch/batch_turn.sh
+```
+
+The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They do not build or run tests. Milling batch analysis detects Arc Type for each file from IJK arcs. If the file has no unambiguous arc, the kernel uses relative IJK.
+The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory.
+
+Use `--encoding cp1251` for Windows-1251 input. Export modes include `program` and `cycles`; use `--lang fanuc_mill` for milling. `batch` writes detailed JSON and Excel-friendly CSV reports with per-file `CLEAN` / `WARNINGS` / `ERRORS` status, diagnostic totals and aggregated unsupported G/M codes. `CLEAN` means no diagnostics from this analyzer, not machine validation. An empty scan has overall status `NO_FILES` and a nonzero exit code. It scans `.nc`, `.cnc`, `.ptp`, `.tap` and `.txt` recursively by default; override with `--extensions` or `--top-level-only`.
+
+CLI runs use the same temporary tool discovery as the GUI for a newly opened program: literal `T` words and nearby comments determine geometry for G41/G42. The GUI's manually assigned Current Program tools and Saved Library are separate from that discovery and are not loaded by the CLI. Check inferred tool dimensions before using a compensated trace.
+
+Download `easy_gcode_plot_cli.exe` from the Windows release. For example, run `.\easy_gcode_plot_cli.exe batch C:\Programs --lang fanuc_mill -o C:\Reports` in PowerShell. Run `.\easy_gcode_plot_cli.exe --help` for all commands and their parameters, or `.\easy_gcode_plot_cli.exe batch --help` for batch alone.
 
 ## Development
 
@@ -502,11 +524,25 @@ Generated Python modules must not be edited manually. PySide6 supplies maintaine
 
 ### How do I build or release?
 
+On Windows:
+
 ```powershell
 .\scripts\ps1\build.ps1
 $version = "X.Y.Z"
 .\scripts\ps1\release.ps1 -Version $version -Message "Release $version"
 ```
+
+On Linux, use `bash scripts/sh/build.sh` and `bash scripts/sh/release.sh X.Y.Z "Release X.Y.Z"`. The build scripts run tests by default, produce separate GUI and CLI executables, and write SHA-256 `.sha256` files next to them in `dist/`. Use `-Console` / `--console` for only the CLI, or `-SkipTests` / `--skip-tests` if tests have already run. Both release scripts format and lint with resource verification before tests and creating a release commit and tag.
+
+For an Ubuntu or WSL console-only build after tests have passed:
+
+```bash
+bash scripts/sh/build.sh --console --skip-tests
+./dist/easy_gcode_plot_cli --help
+(cd dist && sha256sum -c easy_gcode_plot_cli.sha256)
+```
+
+The Linux executable runs in Linux, including WSL; it cannot be started as a Windows `.exe`. The release script needs a Git checkout, including `.git`. An exported source ZIP can build the CLI but cannot create a release commit or tag.
 
 Native/release tooling uses a separate persistent `.venv-build`; it does not
 replace or prune the developer `.venv`. `build-native.ps1`/`build-native.sh`

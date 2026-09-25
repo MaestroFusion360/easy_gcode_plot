@@ -1,9 +1,9 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.6.4"
+version = "1.6.5"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = { file = "LICENSE.md" }
 
 dependencies = [
@@ -55,6 +55,7 @@ build = [
 ]
 
 [tool.uv]
+environments = ["sys_platform == 'win32'", "sys_platform == 'linux'"]
 required-environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
@@ -64,7 +65,7 @@ testpaths = ["tests"]
 addopts = "-ra"
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 120
 extend-exclude = [
     "app/ui/generated",

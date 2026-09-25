@@ -14,7 +14,6 @@ from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.discovery import _scan_source_python, discover_tools
 from app.tools.library import ToolLibrary
 from app.tools.setup import refresh_setup
-from app.ui.windows import main_window_execution
 from app.ui.windows.main_window_execution import MainWindowExecutionMixin
 
 
@@ -184,7 +183,7 @@ def test_new_program_tool_reaches_kernel_before_execution_and_removes_stock(monk
         observed.append(options["tools"]["T0909"]["noseRadius"])
         return execute(text, **options)
 
-    monkeypatch.setattr(main_window_execution, "execute", checked_execute)
+    monkeypatch.setattr("app.gcode.program_execution.execute", checked_execute)
     window = SimpleNamespace(
         ui=SimpleNamespace(editor=SimpleNamespace(text=lambda: source)),
         latheMode=True,

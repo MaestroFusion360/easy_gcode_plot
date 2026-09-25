@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$targets = @('main.py', 'app', 'tests', 'scripts/check_complexity.py')
+$targets = @('main.py', 'cli_main.py', 'app', 'tests', 'scripts/check_complexity.py')
 $uvRunArguments = @('run')
 if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
     $uvRunArguments += '--active'

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from PyQt6.QtCore import QFile, Qt, QUrl
+from PyQt6.QtGui import QTextFormat
 from PyQt6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
@@ -73,6 +74,23 @@ def test_faq_is_resizable_and_formats_heading_spacing(qt_app):
 
     dialog.navigate_to_anchor(QUrl("#turning-stock-removal"))
     assert dialog.browser.textCursor().block().text() == "Turning Stock Removal"
+
+    window.close()
+    window.deleteLater()
+
+
+def test_faq_command_blocks_have_distinct_background_and_padding(qt_app):
+    window = MainWindow()
+    dialog = window.helpDlg
+    block = dialog.browser.document().begin()
+    while block.isValid() and ".\\easy_gcode_plot_cli.exe batch" not in block.text():
+        block = block.next()
+
+    assert block.isValid()
+    block_format = block.blockFormat()
+    assert block_format.hasProperty(QTextFormat.Property.BlockCodeFence)
+    assert block_format.background().color() != dialog.browser.palette().base().color()
+    assert block_format.leftMargin() >= 12.0
 
     window.close()
     window.deleteLater()

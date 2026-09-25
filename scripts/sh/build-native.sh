@@ -77,7 +77,9 @@ build_state() {
 
 read_state() {
     local path=$1
-    [[ -f "$path" ]] && cat -- "$path"
+    if [[ -f "$path" ]]; then
+        cat -- "$path"
+    fi
 }
 
 write_state() {

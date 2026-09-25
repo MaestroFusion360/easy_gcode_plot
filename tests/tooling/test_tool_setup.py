@@ -10,6 +10,7 @@ from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QLabel, QMessageBox
 
 from app import settings
+from app.gcode.program_execution import execute_program
 from app.main_window import MainWindow
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.setup import refresh_setup
@@ -67,6 +68,30 @@ def test_setup_refresh_updates_inferred_tools_but_preserves_manual_geometry():
     refresh_setup("T2 M6", current, previous, turning=False)
     assert "T1" not in current
     assert current["T2"]["diameter"] == 12
+
+
+def test_shared_execution_preserves_gui_tool_override(monkeypatch):
+    source = "T1 M6 (FLAT MILL D6)\nM30\n"
+    current = {}
+    previous = refresh_setup(source, current, {}, turning=False)
+    current["T1"]["diameter"] = 7
+    observed = {}
+
+    def fake_execute(_source, **options):
+        observed.update(options)
+        return object()
+
+    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    _result, updated, inferred = execute_program(
+        source,
+        language="fanuc_mill",
+        current_tools=current,
+        previous_inference=previous,
+    )
+
+    assert updated["T1"]["diameter"] == 7
+    assert inferred["T1"]["diameter"] == 6
+    assert observed["milling_tools"]["T1"]["diameter"] == 7
 
 
 def test_setup_refresh_removes_manual_assignment_when_t_slot_disappears():

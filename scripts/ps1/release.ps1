@@ -37,7 +37,8 @@ function Run-Lint {
         -NoProfile `
         -ExecutionPolicy Bypass `
         -File (Join-Path $PSScriptRoot 'lint.ps1') `
-        -Fix
+        -Fix `
+        -CheckResources
 
     $LintExitCode = $LASTEXITCODE
 

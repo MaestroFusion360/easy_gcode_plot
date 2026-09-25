@@ -1,7 +1,9 @@
 [CmdletBinding()]
 param(
     [Parameter(Position = 0)]
-    [string]$Path = 'tests'
+    [string]$Path = 'tests',
+    [Parameter(ValueFromRemainingArguments = $true)]
+    [string[]]$ExtraPytestArgs
 )
 
 $ErrorActionPreference = 'Stop'
@@ -9,16 +11,17 @@ $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 
 Push-Location $projectRoot
 try {
-    $pytestArguments = @('run')
+    $uvArguments = @('run')
     if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
-        $pytestArguments += '--active'
+        $uvArguments += '--active'
     }
-    $pytestArguments += @('pytest', $Path)
+    $uvArguments += @('pytest', $Path)
+    $uvArguments += $ExtraPytestArgs
     if ($VerbosePreference -ne 'SilentlyContinue') {
-        $pytestArguments += '-v'
+        $uvArguments += '-v'
     }
 
-    & uv @pytestArguments
+    & uv @uvArguments
     exit $LASTEXITCODE
 }
 finally {

@@ -173,7 +173,7 @@ def test_execution_worker_propagates_errors_and_clears_active_flag(monkeypatch):
     def fail(*args, **kwargs):
         raise ValueError("worker failed")
 
-    monkeypatch.setattr(main_window_execution, "execute", fail)
+    monkeypatch.setattr("app.gcode.program_execution.execute", fail)
     window = _gui_execution_harness("G1 X1", lathe_mode=False)
     with pytest.raises(ValueError, match="worker failed"):
         MainWindowExecutionMixin._calculate_editor_source(window)
@@ -194,9 +194,6 @@ def test_window_calculation_can_cancel_during_tool_discovery():
             current_tools={},
             previous_inference={},
             turning=False,
-            setup_unit_scale=1.0,
-            turning_tools={},
-            milling_tools={},
             correction_enabled=True,
             render=True,
             arc_tolerance=0.001,
@@ -265,7 +262,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr(main_window_execution, "execute", fake_execute)
+    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
     tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 1}}
     offsets = {54: (10.0, 20.0, -2.0)}
     window = SimpleNamespace(
@@ -286,7 +283,8 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     assert result is expected
     assert captured["language"] == "fanuc_mill"
     assert captured["default_unit_scale"] == 25.4
-    assert captured["tools"] == tools
+    assert captured["tools"] == {}
+    assert captured["milling_tools"] == {}
     assert captured["wcs_offsets"] == offsets
     assert captured["home_x"] == 100.0
     assert captured["home_y"] == 200.0
@@ -316,7 +314,7 @@ def test_lathe_execution_always_uses_relative_arc_offsets(monkeypatch):
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr(main_window_execution, "execute", fake_execute)
+    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
     window = _gui_execution_harness("G18 G2 X20 Z-10 I-10 K0", lathe_mode=True)
     window.arc_type = 2
 
