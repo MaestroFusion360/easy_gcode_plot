@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.6 - 2026-09-26
+
+- Refactored single-file CLI export and added `batch-export` around one shared execution, validation and NC/DXF export pipeline.
+- Added semantic mm/inch conversion for expanded NC and DXF, milling arc output choices, coordinate and formatting controls, and byte-identical single/batch output.
+- Added mirrored directory exports with JSON/CSV manifests, input safety checks, and four Windows/Linux batch-export presets.
+- Aligned single-file `analyze` with `batch`: both now use milling arc-type detection and turning unsupported-M-code diagnostics, and report matching per-file statuses and diagnostic counts.
+
 ## 1.6.5 - 2026-09-25
 
 - Linux releases now include a versioned x64 archive with GUI and CLI executables plus a SHA-256 checksum. CI builds and smoke-tests both batch presets before publication.

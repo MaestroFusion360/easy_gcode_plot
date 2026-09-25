@@ -32,7 +32,7 @@ def test_cli_batch_enables_arc_autodetection_for_milling(tmp_path, monkeypatch, 
 def test_cli_help_describes_every_command(capsys):
     assert main(["--help"]) == 0
     output = capsys.readouterr().out
-    for command in ("parse", "trace", "analyze", "export", "batch"):
+    for command in ("parse", "trace", "analyze", "export", "batch", "batch-export"):
         assert any(line.strip().startswith(f"{command} ") for line in output.splitlines())
         assert f"usage: python -m app {command} " in output
     for option in ("--lang", "--encoding", "--output", "--output-dir", "--mode", "--extensions", "--top-level-only"):
@@ -42,6 +42,11 @@ def test_cli_help_describes_every_command(capsys):
         main(["batch", "--help"])
     assert exc.value.code == 0
     assert "--extensions" in capsys.readouterr().out
+
+    with pytest.raises(SystemExit) as exc:
+        main(["batch-export", "--help"])
+    assert exc.value.code == 0
+    assert "--arc-type" in capsys.readouterr().out
 
 
 def test_cli_trace_uses_program_tool_geometry_for_milling_compensation(tmp_path):
@@ -105,7 +110,7 @@ def test_cli_analyze_and_export_consume_same_execution_result(tmp_path):
     source.write_text("G0 X3 Z4\nG1 X6 Z8 F10\nM30\n", encoding="utf-8")
 
     assert main(["analyze", str(source), "-o", str(analysis)]) == 0
-    assert main(["export", str(source), "-o", str(exported)]) == 0
+    assert main(["export", str(source), "--leading-zero", "-o", str(exported)]) == 0
     analysis_data = json.loads(analysis.read_text(encoding="utf-8"))
     assert analysis_data["complete"] is True
     assert analysis_data["motion_count"] == 2
@@ -140,6 +145,7 @@ def test_cli_cycle_export_includes_complete_final_id_g71_contour(tmp_path):
                 str(FIXTURES / "turning" / "cycle71_ID.nc"),
                 "--mode",
                 "cycles",
+                "--leading-zero",
                 "-o",
                 str(exported),
             ]

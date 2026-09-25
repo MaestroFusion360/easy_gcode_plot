@@ -8,14 +8,16 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, analyze_directory, write_batch_reports
-from app.gcode.exporter import (
-    ExportOptions,
-    export_cycle_groups,
-    export_full_mill_program,
-    export_full_program,
-    export_result,
+from app.gcode.batch import (
+    DEFAULT_BATCH_EXTENSIONS,
+    analysis_diagnostic_summary,
+    analysis_status,
+    analyze_directory,
+    execute_analysis_program,
+    write_batch_reports,
 )
+from app.gcode.batch_export import export_directory, write_export_reports
+from app.gcode.export.service import ExportRequest, export_file, validate_export_request
 from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.program_execution import execute_program
@@ -29,15 +31,84 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
         return super()._get_help_string(action)
 
 
+def _add_export_options(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--format", choices=("nc", "dxf"), default="nc", help="Output format")
+    command.add_argument("--mode", choices=("expanded", "full", "cycles"), default="expanded", help="NC export mode")
+    command.add_argument("--units", choices=("auto", "mm", "inch"), default="auto", help="Output units")
+    command.add_argument(
+        "--arc-type",
+        choices=("auto", "ijk-relative", "ijk-absolute", "radius", "linearized"),
+        default="auto",
+        help="Milling expanded arc representation",
+    )
+    command.add_argument("--coordinates", choices=("absolute", "incremental"), default="absolute")
+    for name in (
+        "force-addresses",
+        "sequence-numbers",
+        "sequence-spacing",
+        "spaces",
+        "leading-zero",
+        "comments",
+        "safety-line",
+    ):
+        command.add_argument(f"--{name}", action=argparse.BooleanOptionalAction, default=None)
+    command.add_argument("--sequence-start", type=int, default=1)
+    command.add_argument("--sequence-increment", type=int, default=1)
+
+
+_EXPORT_FLAGS = {
+    "--mode": "mode",
+    "--arc-type": "arc_type",
+    "--coordinates": "coordinates",
+    "--sequence-start": "sequence_start",
+    "--sequence-increment": "sequence_increment",
+}
+for _name in (
+    "force-addresses",
+    "sequence-numbers",
+    "sequence-spacing",
+    "spaces",
+    "leading-zero",
+    "comments",
+    "safety-line",
+):
+    _EXPORT_FLAGS[f"--{_name}"] = _name.replace("-", "_")
+    _EXPORT_FLAGS[f"--no-{_name}"] = _name.replace("-", "_")
+
+
+def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[ExportRequest, frozenset[str]]:
+    explicit = frozenset(
+        _EXPORT_FLAGS[token.split("=", 1)[0]] for token in arguments if token.split("=", 1)[0] in _EXPORT_FLAGS
+    )
+    return ExportRequest(
+        language=args.lang,
+        encoding=args.encoding,
+        format=args.format,
+        mode=args.mode,
+        units=args.units,
+        arc_type=args.arc_type,
+        coordinates=args.coordinates,
+        force_addresses=bool(args.force_addresses),
+        sequence_numbers=bool(args.sequence_numbers),
+        sequence_start=args.sequence_start,
+        sequence_increment=args.sequence_increment,
+        sequence_spacing=bool(args.sequence_spacing),
+        spaces=True if args.spaces is None else args.spaces,
+        leading_zero=bool(args.leading_zero),
+        comments=True if args.comments is None else args.comments,
+        safety_line=bool(args.safety_line),
+    ), explicit
+
+
 def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, ...]]:
     program = Path(sys.argv[0]).name if getattr(sys, "frozen", False) else "python -m app"
-    parser = argparse.ArgumentParser(prog=program, description="Parse, trace and analyze FANUC G-code")
+    parser = argparse.ArgumentParser(prog=program, description="Parse, analyze and export FANUC G-code")
     sub = parser.add_subparsers(dest="command", required=True)
     command_help = {
         "parse": "Parse one NC program and print a terminal summary",
         "trace": "Execute one NC program and optionally write its motion trace as JSON",
         "analyze": "Print execution statistics and optionally write JSON",
-        "export": "Export an executed NC program, trace or cycle groups",
+        "export": "Export one executed NC program or DXF toolpath",
     }
     for name, description in command_help.items():
         command = sub.add_parser(
@@ -55,9 +126,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
             command.add_argument("-o", "--output", type=Path, help="Write detailed JSON to this file")
         if name == "export":
             command.add_argument("-o", "--output", type=Path, required=True, help="Export destination")
-            command.add_argument(
-                "--mode", choices=("trace", "program", "cycles"), default="trace", help="Export format"
-            )
+            _add_export_options(command)
 
     batch = sub.add_parser(
         "batch",
@@ -78,12 +147,27 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         action="store_true",
         help="Do not scan subdirectories",
     )
+    batch_export = sub.add_parser(
+        "batch-export",
+        help="Export a directory of NC programs to a mirrored tree",
+        formatter_class=_HelpFormatter,
+    )
+    batch_export.add_argument("directory", type=Path, help="Directory containing NC programs")
+    batch_export.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn")
+    batch_export.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8")
+    batch_export.add_argument("-o", "--output-dir", type=Path, required=True, help="Separate output directory")
+    batch_export.add_argument("--extensions", default=",".join(DEFAULT_BATCH_EXTENSIONS))
+    batch_export.add_argument("--top-level-only", action="store_true")
+    _add_export_options(batch_export)
     return parser, tuple(sub.choices.values())
 
 
-def _load(path: Path, language: str, encoding: str) -> tuple[str, ExecutionResult]:
+def _load(path: Path, language: str, encoding: str, *, for_analysis: bool = False) -> tuple[str, ExecutionResult]:
     source = read_nc_text(path, encoding=encoding)
-    result, _tools, _inferred = execute_program(source, language=language)
+    if for_analysis:
+        result = execute_analysis_program(source, language=language)
+    else:
+        result, _tools, _inferred = execute_program(source, language=language)
     return source, result
 
 
@@ -109,8 +193,10 @@ def _analysis_document(result: ExecutionResult) -> dict[str, object]:
     return {
         "ok": result.ok,
         "complete": result.complete,
-        "status": "verified" if result.ok and not result.diagnostics else "review",
+        "status": analysis_status(result),
         **summary,
+        "executed_block_count": len(result.executed_blocks),
+        **analysis_diagnostic_summary(result),
         "statistics": summary,
         "diagnostics": [asdict(item) for item in result.diagnostics],
         "signals": [asdict(item) for item in result.signals],
@@ -185,32 +271,50 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
     return 2 if report["status"] in {"ERRORS", "NO_FILES"} else 0
 
 
-def _run_export(args: argparse.Namespace, source: str, result: ExecutionResult) -> int:
-    if not result.ok or not result.complete:
-        _print_program_result("export", args.file, result)
+def _run_export(args: argparse.Namespace, request: ExportRequest) -> int:
+    try:
+        exported = export_file(args.file, args.output, request)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"Export error: {exc}", file=sys.stderr)
         return 2
-    if args.mode == "program":
-        program_exporter = export_full_program if args.lang == "fanuc_turn" else export_full_mill_program
-        text = program_exporter(
-            result,
-            source.splitlines(),
-            ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+    _print_program_result("export", args.file, exported.execution, args.output)
+    return 0 if exported.execution.ok and exported.execution.complete else 2
+
+
+def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: argparse.ArgumentParser) -> int:
+    extensions = tuple(item.strip() for item in args.extensions.split(",") if item.strip())
+    print(f"Exporting NC programs in {Path(args.directory).resolve()} ({args.lang})", flush=True)
+
+    def print_file(item: dict[str, object]) -> None:
+        print(f"[{item['status']}] {item['input_relative_path']}", flush=True)
+        for diagnostic in item["diagnostics"]:
+            location = f"line {diagnostic['line']}: " if diagnostic.get("line") is not None else ""
+            print(f"  {location}{diagnostic['code']}: {diagnostic['message']}", flush=True)
+
+    try:
+        report = export_directory(
+            args.directory,
+            args.output_dir,
+            request,
+            recursive=not args.top_level_only,
+            extensions=extensions,
+            on_file=print_file,
         )
-        _write(args.output, text.rstrip("\n"))
-    elif args.mode == "cycles":
-        text = export_cycle_groups(
-            result,
-            ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
-        )
-        _write(args.output, text.rstrip("\n"))
-    else:
-        _write(args.output, export_result(result, ExportOptions(delimiter=True, leading_zero=True)).rstrip("\n"))
-    _print_program_result("export", args.file, result, args.output)
-    return 0
+        json_path, csv_path = write_export_reports(report, args.output_dir)
+    except (FileNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
+        parser.error(str(exc))
+    summary = report["summary"]
+    print(f"\nResult: {report['status']}")
+    print(
+        f"Processed: {summary['files_total']}  Exported: {summary['exported']}  "
+        f"Warnings: {summary['warnings']}  Errors: {summary['errors']}"
+    )
+    print(f"JSON report: {json_path}\nCSV report:  {csv_path}")
+    return 2 if report["status"] in {"ERRORS", "NO_FILES"} else 0
 
 
 def _run_single(args: argparse.Namespace) -> int:
-    source, result = _load(args.file, args.lang, args.encoding)
+    _source, result = _load(args.file, args.lang, args.encoding, for_analysis=args.command == "analyze")
     if args.command == "parse":
         _print_program_result("parse", args.file, result)
     elif args.command == "trace":
@@ -223,8 +327,6 @@ def _run_single(args: argparse.Namespace) -> int:
         if args.output is not None:
             _write(args.output, json.dumps(_analysis_document(result), ensure_ascii=False, indent=2))
         _print_program_result("analyze", args.file, result, args.output)
-    else:
-        return _run_export(args, source, result)
     return 0 if result.ok and result.complete else 2
 
 
@@ -238,8 +340,15 @@ def main(argv: list[str] | None = None) -> int:
             command.print_help()
         return 0
     args = parser.parse_args(arguments)
-    if args.command == "export" and args.lang == "fanuc_mill" and args.mode == "cycles":
-        parser.error("export --mode cycles is only available for fanuc_turn")
+    if args.command in {"export", "batch-export"}:
+        request, explicit = _export_request(args, arguments)
+        try:
+            validate_export_request(request, explicit=explicit)
+        except ValueError as exc:
+            parser.error(str(exc))
+        if args.command == "export":
+            return _run_export(args, request)
+        return _run_batch_export(args, request, parser)
     if args.command == "batch":
         return _run_batch(args, parser)
     return _run_single(args)

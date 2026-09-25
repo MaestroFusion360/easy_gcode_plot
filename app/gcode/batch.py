@@ -6,7 +6,7 @@ import csv
 import json
 import re
 from collections import Counter, defaultdict
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
@@ -18,6 +18,8 @@ from app.gcode.program_execution import execute_program
 
 BATCH_REPORT_SCHEMA_VERSION = 2
 DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".tap", ".txt")
+_NC_HEADER_RE = re.compile(rb"(?m)^\s*O\d{1,5}(?:\b|\s*\()", re.IGNORECASE)
+_NC_BLOCK_RE = re.compile(rb"(?m)^\s*(?:N\d+\s*)?[GMT]\d+(?:\.\d+)?\b", re.IGNORECASE)
 STATUS_CLEAN = "CLEAN"
 STATUS_WARNINGS = "WARNINGS"
 STATUS_ERRORS = "ERRORS"
@@ -54,10 +56,37 @@ def discover_nc_files(
     if not directory.is_dir():
         raise NotADirectoryError(f"Batch input path is not a directory: {directory}")
 
-    allowed = frozenset(_normalize_extensions(extensions))
+    normalized = _normalize_extensions(extensions)
+    allowed = frozenset(normalized)
+    detect_nonstandard_names = normalized == DEFAULT_BATCH_EXTENSIONS
     candidates = directory.rglob("*") if recursive else directory.iterdir()
-    files = [path for path in candidates if path.is_file() and path.suffix.lower() in allowed]
-    return tuple(sorted(files, key=lambda path: path.relative_to(directory).as_posix().casefold()))
+    files = [
+        path
+        for path in candidates
+        if path.is_file()
+        and (path.suffix.lower() in allowed or (detect_nonstandard_names and _looks_like_nc_program(path)))
+    ]
+    return tuple(
+        sorted(
+            files,
+            key=lambda path: (
+                path.relative_to(directory).as_posix().casefold(),
+                path.relative_to(directory).as_posix(),
+            ),
+        )
+    )
+
+
+def _looks_like_nc_program(path: Path) -> bool:
+    """Recognize FANUC programs whose names use part numbers instead of NC extensions."""
+    try:
+        with path.open("rb") as stream:
+            prefix = stream.read(8192)
+    except OSError:
+        return False
+    if b"\0" in prefix or not prefix:
+        return False
+    return bool(_NC_HEADER_RE.search(prefix) or len(_NC_BLOCK_RE.findall(prefix)) >= 2)
 
 
 def _unsupported_codes(diagnostics: Iterable[Diagnostic], diagnostic_code: str) -> tuple[str, ...]:
@@ -112,6 +141,36 @@ def _turning_unmodeled_m_diagnostics(result: ExecutionResult) -> tuple[Diagnosti
     return tuple(diagnostics)
 
 
+def execute_analysis_program(source: str, *, language: str, include_instructions: bool = True) -> ExecutionResult:
+    """Use the same execution options and diagnostics for single and batch analysis."""
+    result, _tools, _inferred = execute_program(
+        source,
+        language=language,
+        include_instructions=include_instructions,
+        autodetect_arc_type=language == "fanuc_mill",
+    )
+    if language == "fanuc_turn":
+        result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
+    return result
+
+
+def analysis_status(result: ExecutionResult) -> str:
+    if not result.ok or not result.complete or any(item.severity == "error" for item in result.diagnostics):
+        return STATUS_ERRORS
+    return STATUS_WARNINGS if result.diagnostics else STATUS_CLEAN
+
+
+def analysis_diagnostic_summary(result: ExecutionResult) -> dict[str, object]:
+    diagnostics = result.diagnostics
+    return {
+        "diagnostic_count": len(diagnostics),
+        "error_count": sum(item.severity == "error" for item in diagnostics),
+        "warning_count": sum(item.severity != "error" for item in diagnostics),
+        "unsupported_g_codes": list(_unsupported_codes(diagnostics, "UNSUPPORTED_G_CODE")),
+        "unsupported_m_codes": list(_unsupported_codes(diagnostics, "UNSUPPORTED_M_CODE")),
+    }
+
+
 def _file_report(
     path: Path,
     root: Path,
@@ -148,22 +207,9 @@ def _file_report(
             "elapsed_ms": round((perf_counter() - started) * 1000.0, 3),
         }
 
-    result, _tools, _inferred = execute_program(
-        source,
-        language=language,
-        include_instructions=False,
-        autodetect_arc_type=language == "fanuc_mill",
-    )
+    result = execute_analysis_program(source, language=language, include_instructions=False)
     diagnostics = result.diagnostics
-    if language == "fanuc_turn":
-        diagnostics += _turning_unmodeled_m_diagnostics(result)
-    status = (
-        STATUS_ERRORS
-        if not result.ok or not result.complete or any(item.severity == "error" for item in diagnostics)
-        else STATUS_WARNINGS
-        if diagnostics
-        else STATUS_CLEAN
-    )
+    status = analysis_status(result)
     report = {
         "path": path.relative_to(root).as_posix(),
         "status": status,
@@ -173,11 +219,7 @@ def _file_report(
         "line_count": len(source.splitlines()),
         "motion_count": len(result.motions),
         "executed_block_count": len(result.executed_blocks),
-        "diagnostic_count": len(diagnostics),
-        "error_count": sum(item.severity == "error" for item in diagnostics),
-        "warning_count": sum(item.severity != "error" for item in diagnostics),
-        "unsupported_g_codes": list(_unsupported_codes(diagnostics, "UNSUPPORTED_G_CODE")),
-        "unsupported_m_codes": list(_unsupported_codes(diagnostics, "UNSUPPORTED_M_CODE")),
+        **analysis_diagnostic_summary(result),
         "diagnostics": [asdict(item) for item in diagnostics],
     }
     report["elapsed_ms"] = round((perf_counter() - started) * 1000.0, 3)

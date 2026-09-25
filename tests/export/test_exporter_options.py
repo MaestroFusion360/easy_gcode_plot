@@ -72,7 +72,7 @@ def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence
 
     assert text.splitlines() == [
         "O1200",
-        "N10 G00 G17 G40 G49 G80 G90",
+        "N10 G0 G18 G40 G80",
         "N20 G0 U10 W5",
         "N30 G1 U10 W-5 F100",
         "",

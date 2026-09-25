@@ -105,7 +105,7 @@ def _program_number(result: ExecutionResult, options: ExportOptions) -> str:
     match = re.search(r"\bO(\d+)\b", options.start_program.upper())
     if match:
         return f"O{match.group(1)}"
-    return "O0001"
+    return "O0001" if options.synthesize_program_number else ""
 
 
 def _event_kinds(step) -> set[str]:

@@ -174,6 +174,7 @@ The CLI uses the same execution kernel as the GUI. In PowerShell, run the Window
 .\easy_gcode_plot_cli.exe analyze program.nc --lang fanuc_turn
 .\easy_gcode_plot_cli.exe batch .\programs --lang fanuc_mill -o batch-report
 .\easy_gcode_plot_cli.exe export program.nc --lang fanuc_turn -o expanded.nc
+.\easy_gcode_plot_cli.exe batch-export .\programs --lang fanuc_mill --mode expanded -o normalized
 ```
 
 From the repository root, use `.\dist\easy_gcode_plot_cli.exe` instead. When running from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.
@@ -190,8 +191,22 @@ bash scripts/sh/batch/batch_mill.sh
 bash scripts/sh/batch/batch_turn.sh
 ```
 
-The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They run the executable in `dist/` directly without building or running tests. For milling batch files, Arc Type is detected separately for each program from IJK arcs. When no arc identifies the type unambiguously, relative IJK is used.
-The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory.
+`export` writes one NC or DXF file; `batch-export` reads a directory and writes a separate mirrored tree plus `batch_export_report.json` and `batch_export_report.csv`. Both commands use the same execution and export path, so identical inputs and options produce identical files. `--mode full` preserves controller structure; `--mode expanded` serializes resolved execution geometry and supports `--units auto|mm|inch`, milling `--arc-type auto|ijk-relative|ijk-absolute|radius|linearized`, `--coordinates absolute|incremental`, and `--force-addresses`. NC formatting supports sequence numbers and their start/increment/spacing, spaces, leading zeroes, comments and a safety line. `--format dxf` exports resolved geometry and supports output units. Incompatible options fail with a CLI error.
+
+Batch export scans recursively by default; `--top-level-only` and `--extensions` control discovery. With default extensions, batch analysis and export also recognize FANUC programs named without an NC extension or with a part-number suffix by inspecting their first blocks; binary files and unrelated documents are skipped. An explicit `--extensions` list limits the scan to those suffixes. The output directory must be outside the input tree. Files with invalid or incomplete execution are not exported; other files continue. The manifest records each file's diagnostics and output path. Source files are never modified. With an existing packaged CLI, run the four presets using the two scripts above and:
+
+```powershell
+.\scripts\ps1\batch\batch_export_mill.ps1
+.\scripts\ps1\batch\batch_export_turn.ps1
+```
+
+```bash
+bash scripts/sh/batch/batch_export_mill.sh
+bash scripts/sh/batch/batch_export_turn.sh
+```
+
+The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They run the executable in `dist/` directly without building or running tests. Both `analyze` and `batch` detect milling Arc Type per program from IJK arcs. When no arc identifies the type unambiguously, relative IJK is used.
+The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory. For the same program and language, `analyze` and `batch` use the same execution settings and report matching status, diagnostics, motion and executed-block counts, and unsupported G/M codes. Their JSON layouts differ because `analyze` also includes detailed trace statistics while `batch` aggregates files.
 
 Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input. The `batch` command scans `.nc`, `.cnc`, `.ptp`, `.tap` and `.txt` recursively by default and writes `batch_report.json` plus an Excel-friendly `batch_report.csv`. File status is `CLEAN` (no diagnostics), `WARNINGS` (review needed) or `ERRORS` (analysis or input failed); an empty scan has overall status `NO_FILES`. `CLEAN` is not machine validation. The summary includes diagnostic frequencies and unknown/unsupported G/M codes. Use `--extensions .nc,.mpf` to override the file set or `--top-level-only` to disable recursive scanning.
 

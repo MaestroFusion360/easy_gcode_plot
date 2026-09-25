@@ -260,7 +260,7 @@ def test_cli_allows_program_mode_for_milling(tmp_path, fixture_text):
                 "--lang",
                 "fanuc_mill",
                 "--mode",
-                "program",
+                "full",
                 "-o",
                 str(output),
             ]

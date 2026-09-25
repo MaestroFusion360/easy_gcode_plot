@@ -33,6 +33,10 @@ class ExportOptions:
     linearization_tolerance: float = 0.0005
     include_execution_events: bool = True
     comment_style: str = DEFAULT_COMMENT_STYLE
+    include_comments: bool = True
+    output_unit_scale: float = 1.0
+    output_unit_code: str = ""
+    synthesize_program_number: bool = True
 
 
 def _turn_program_options(options: ExportOptions | None) -> ExportOptions:

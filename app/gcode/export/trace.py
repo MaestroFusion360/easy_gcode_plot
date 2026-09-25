@@ -25,6 +25,7 @@ from .formatting import (
     motion_line,
 )
 from .options import ExportOptions
+from .units import scale_motion
 
 _EXPANDED_STATE_G_CODES = {17, 18, 19, 50, 54, 55, 56, 57, 58, 59, 94, 95, 96, 97}
 _EXPANDED_MACHINE_M_CODES = {3, 4, 5, 8, 9}
@@ -82,13 +83,15 @@ def _append_expanded_event(
         occurrence = call_counts[label]
         active_calls[event.call_depth] = (label, occurrence)
         _append_blank_line(lines)
-        lines.append(_format_comment(f"SUBPROGRAM {label} START - CALL {occurrence}", options.comment_style))
+        if options.include_comments:
+            lines.append(_format_comment(f"SUBPROGRAM {label} START - CALL {occurrence}", options.comment_style))
         return
 
     if event.kind == SUBPROGRAM_END:
         label = _subprogram_label(event)
         active_label, occurrence = active_calls.pop(event.call_depth, (label, call_counts.get(label, 1)))
-        lines.append(_format_comment(f"SUBPROGRAM {active_label} END - CALL {occurrence}", options.comment_style))
+        if options.include_comments:
+            lines.append(_format_comment(f"SUBPROGRAM {active_label} END - CALL {occurrence}", options.comment_style))
         lines.append("")
         return
 
@@ -102,6 +105,8 @@ def _append_expanded_motion(
     override_move: int | None = None,
     turning: bool = False,
 ) -> None:
+    motion = scale_motion(motion, options.output_unit_scale)
+
     def append_line(line: str) -> None:
         if turning and options.incremental:
             line = line.replace("X", "U").replace("Z", "W")
@@ -146,10 +151,7 @@ def _append_expanded_motion(
         append_line(motion_line(motion, options, override_move=override_move))
 
 
-def export_result(result: ExecutionResult, options: ExportOptions | None = None, *, cancelled=None) -> str:
-    _check_cancelled(cancelled)
-    _require_valid_trace_export(result)
-    options = options or ExportOptions()
+def _initial_lines(result: ExecutionResult, options: ExportOptions) -> list[str]:
     lines: list[str] = []
     if options.start_program.strip():
         lines.extend(line for line in options.start_program.strip().splitlines() if line.strip())
@@ -157,13 +159,30 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None,
         start_event = next((event for event in result.events if event.kind == PROGRAM_START), None)
         if start_event is not None and start_event.code:
             lines.append(start_event.code.upper())
-    if options.analysis_banner:
+    if options.analysis_banner and options.include_comments:
         lines.append(_format_comment("EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY", options.comment_style))
     if options.safety_line:
-        lines.append("G00 G17 G40 G49 G80 G90" if options.delimiter else "G00G17G40G49G80G90")
+        rapid = "G00" if options.leading_zero else "G0"
+        codes = (
+            (rapid, "G18", "G40", "G80")
+            if result.language == "fanuc_turn"
+            else (rapid, "G17", "G40", "G49", "G80", "G90")
+        )
+        lines.append((" " if options.delimiter else "").join(codes))
+    if options.output_unit_code:
+        lines.append(options.output_unit_code)
     turning = result.language == "fanuc_turn"
     if options.incremental and not turning:
         lines.append("G91")
+    return lines
+
+
+def export_result(result: ExecutionResult, options: ExportOptions | None = None, *, cancelled=None) -> str:
+    _check_cancelled(cancelled)
+    _require_valid_trace_export(result)
+    options = options or ExportOptions()
+    lines = _initial_lines(result, options)
+    turning = result.language == "fanuc_turn"
 
     motion_index = 0
     if options.include_execution_events and result.program is not None and result.execution_steps:
@@ -180,6 +199,8 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None,
             step_gcodes = {
                 code for letter, value in step.words if letter == "G" and (code := _integer_code(value)) is not None
             }
+            if replaces_motions and step_gcodes & {90, 91} and not turning:
+                lines.append("G91" if options.incremental else "G90")
             threading_code = next((code for code in (32, 33) if code in step_gcodes), None)
             for motion in motions:
                 _check_cancelled(cancelled)

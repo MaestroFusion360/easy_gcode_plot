@@ -89,8 +89,9 @@ def _prepare_mill_block(
 ) -> str | None:
     raw = block.raw
 
-    for comment in _extract_comments(raw):
-        lines.append(_format_comment(comment, options.comment_style))
+    if options.include_comments:
+        for comment in _extract_comments(raw):
+            lines.append(_format_comment(comment, options.comment_style))
 
     clean = _without_sequence_number(_normalize_words_line(raw))
     clean = _strip_flow_event_words(clean, step)
@@ -177,7 +178,7 @@ def _append_mill_motion_block(
     if controls:
         lines.append(controls)
 
-    if any(motion.cycle_generated for motion in motions):
+    if options.include_comments and any(motion.cycle_generated for motion in motions):
         source = clean or block.raw.strip()
         lines.append(
             _format_comment(
@@ -231,12 +232,8 @@ def export_full_mill_program(
         _program_number(result, options),
         " ".join(safety),
     ]
-    lines.append(
-        _format_comment(
-            "EXPANDED MILL PROGRAM",
-            options.comment_style,
-        )
-    )
+    if options.include_comments:
+        lines.append(_format_comment("EXPANDED MILL PROGRAM", options.comment_style))
 
     program_start_blocks = event_blocks(result.events, PROGRAM_START)
     subprogram_target_blocks = {

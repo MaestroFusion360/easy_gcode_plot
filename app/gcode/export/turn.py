@@ -69,6 +69,26 @@ def _turn_motion_line(motion: TraceMotion, options: ExportOptions) -> str:
     return motion_line(motion, options)
 
 
+def _append_comment(lines: list[str], text: str, options: ExportOptions) -> None:
+    if options.include_comments:
+        lines.append(_format_comment(text, options.comment_style))
+
+
+def _append_source_comments(lines: list[str], raw: str, options: ExportOptions) -> None:
+    if options.include_comments:
+        for comment in _extract_comments(raw):
+            lines.append(_format_comment(comment, options.comment_style))
+
+
+def _append_cycle_annotation(
+    lines: list[str], clean: str, block, motions, gcodes: set[int], options: ExportOptions
+) -> None:
+    if not options.include_comments or not any(motion.cycle_generated for motion in motions):
+        return
+    label = "FINISH CONTOUR" if 70 in gcodes else "EXPANDED TURN CYCLE"
+    _append_comment(lines, f"{label}: {clean or block.raw.strip()}", options)
+
+
 def _append_motion_chunk(
     lines: list[str],
     motions: tuple[TraceMotion, ...],
@@ -131,7 +151,7 @@ def export_full_program(
         safety.append("G40")
 
     lines: list[str] = ["%", _program_number(result, options), " ".join(safety)]
-    lines.append(_format_comment("EXPANDED TURN PROGRAM", options.comment_style))
+    _append_comment(lines, "EXPANDED TURN PROGRAM", options)
     previous_end_mm: tuple[float, float] | None = None
     program_start_blocks = event_blocks(result.events, PROGRAM_START)
     subprogram_target_blocks = {
@@ -151,8 +171,7 @@ def export_full_program(
         if step.contour_definition:
             continue
 
-        for comment in _extract_comments(raw):
-            lines.append(_format_comment(comment, options.comment_style))
+        _append_source_comments(lines, raw, options)
 
         if block.index in program_start_blocks or block.index in subprogram_target_blocks:
             clean = re.sub(r"\bO\d+\b", "", clean, count=1, flags=re.IGNORECASE).strip()
@@ -188,10 +207,7 @@ def export_full_program(
         if controls:
             lines.append(controls)
 
-        if any(motion.cycle_generated for motion in motions):
-            label = "FINISH CONTOUR" if 70 in gcodes else "EXPANDED TURN CYCLE"
-            source = clean or block.raw.strip()
-            lines.append(_format_comment(f"{label}: {source}", options.comment_style))
+        _append_cycle_annotation(lines, clean, block, motions, gcodes, options)
 
         previous_end_mm = _append_motion_chunk(
             lines,
@@ -222,7 +238,10 @@ def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None =
         clean = _without_sequence_number(_normalize_words_line(block.raw))
         gcodes = _g_codes(clean)
         prefix = "FINISH CONTOUR" if 70 in gcodes else "EXPANDED TURN CYCLE"
-        lines.append(_format_comment(f"{prefix} {group_index}: {clean or block.raw.strip()}", options.comment_style))
+        if options.include_comments:
+            lines.append(
+                _format_comment(f"{prefix} {group_index}: {clean or block.raw.strip()}", options.comment_style)
+            )
 
         unit_key = (step.unit_scale, step.x_is_diameter)
         if unit_key != previous_unit:
