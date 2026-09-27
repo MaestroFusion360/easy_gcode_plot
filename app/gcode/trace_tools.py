@@ -8,7 +8,7 @@ interpretation after execution.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 
@@ -50,6 +50,39 @@ class RenderPoint:
     i: float | None = None
     j: float | None = None
     k: float | None = None
+
+
+def _local_oriented_arc(motion: TraceMotion) -> TraceMotion:
+    """Project an indexed arc back into its programmed plane for sampling."""
+    matrix = motion.orientation
+    origin = motion.orientation_offset
+
+    def inverse(point):
+        shifted = tuple(point[i] - origin[i] for i in range(3))
+        return tuple(sum(matrix[j][i] * shifted[j] for j in range(3)) for i in range(3))
+
+    start = inverse((motion.start_x, motion.start_y, motion.start_z))
+    end = inverse((motion.end_x, motion.end_y, motion.end_z))
+    arc = replace(motion.arc, center=inverse(motion.arc.center))
+    return replace(
+        motion,
+        start_x=start[0],
+        start_y=start[1],
+        start_z=start[2],
+        end_x=end[0],
+        end_y=end[1],
+        end_z=end[2],
+        arc=arc,
+        orientation=None,
+    )
+
+
+def _forward_oriented_point(motion: TraceMotion, point: RenderPoint) -> RenderPoint:
+    matrix = motion.orientation
+    origin = motion.orientation_offset
+    xyz = (point.x, point.y, point.z)
+    transformed = tuple(sum(matrix[i][j] * xyz[j] for j in range(3)) + origin[i] for i in range(3))
+    return replace(point, x=transformed[0], y=transformed[1], z=transformed[2])
 
 
 def _motion_z_min(motion: TraceMotion) -> float:
@@ -171,6 +204,20 @@ def sample_motion(
     cancelled=None,
 ) -> list[RenderPoint]:
     _check_cancelled(cancelled)
+    if m.orientation is not None and m.move in (2, 3) and m.arc is not None:
+        local_points = sample_motion(
+            _local_oriented_arc(m),
+            motion_index,
+            arc_points_per_circle=arc_points_per_circle,
+            chord_error=chord_error,
+            maximum_circular_radius=maximum_circular_radius,
+            minimum_circular_radius=minimum_circular_radius,
+            minimum_chord_length=minimum_chord_length,
+            lathe_radius_view=lathe_radius_view,
+            max_points=max_points,
+            cancelled=cancelled,
+        )
+        return [_forward_oriented_point(m, point) for point in local_points]
     scale_x = 0.5 if lathe_radius_view else 1.0
     if m.move not in (2, 3):
         if max_points is not None and max_points < 1:
@@ -280,6 +327,8 @@ def motion_length(
     sx = m.start_x * m.x_scale
     ex = m.end_x * m.x_scale
     if m.move in (2, 3):
+        if m.orientation is not None and m.arc is not None:
+            return motion_length(_local_oriented_arc(m))
         geom = arc_geometry(m)
         if geom:
             _, _, orth0, orth1, _, _, sweep, radius = geom

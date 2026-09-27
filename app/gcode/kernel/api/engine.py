@@ -18,6 +18,7 @@ from ..geometry.coordinates import published_wcs_offsets as _result_wcs_offsets
 from ..geometry.coordinates import turning_extended_wcs_offsets as _turn_extended_wcs_offsets
 from ..geometry.coordinates import turning_wcs_offsets as _turn_wcs_offsets
 from ..milling import execute_milling
+from ..milling.kinematics import InvalidKinematicsProfile, load_catalog, transform_vector
 from ..runtime.diagnostics import SUPPORTED_TURNING_G_CODES as SUPPORTED_G_CODES  # noqa: F401
 from ..runtime.diagnostics import (
     diagnostic_from_exception as _diagnostic_from_exception,
@@ -54,6 +55,51 @@ __all__ = (
 )
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
+
+
+def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
+    """Move resolved geometry between fixed WCS display and the local cutter plane."""
+    matrix = motion.orientation
+    if matrix is None:
+        return motion
+    offset = motion.orientation_offset
+    rotation = tuple(tuple(matrix[column][row] for column in range(3)) for row in range(3)) if local else matrix
+
+    def point(value):
+        source = tuple(value[i] - offset[i] for i in range(3)) if local else value
+        transformed = transform_vector(rotation, source)
+        return transformed if local else tuple(transformed[i] + offset[i] for i in range(3))
+
+    def vector(value):
+        return transform_vector(rotation, value)
+
+    start = point((motion.start_x, motion.start_y, motion.start_z))
+    end = point((motion.end_x, motion.end_y, motion.end_z))
+    delta = vector((motion.i or 0.0, motion.j or 0.0, motion.k or 0.0))
+    has_ijk = any(value is not None for value in (motion.i, motion.j, motion.k))
+    arc = motion.arc
+    if arc is not None:
+        normal = arc.normal
+        if normal is None and not local:
+            normal = {17: (0.0, 0.0, 1.0), 18: (0.0, 1.0, 0.0), 19: (1.0, 0.0, 0.0)}[arc.plane]
+        arc = replace(
+            arc,
+            center=point(arc.center),
+            normal=vector(normal) if normal is not None else None,
+        )
+    return replace(
+        motion,
+        start_x=start[0],
+        start_y=start[1],
+        start_z=start[2],
+        end_x=end[0],
+        end_y=end[1],
+        end_z=end[2],
+        i=delta[0] if has_ijk else None,
+        j=delta[1] if has_ijk else None,
+        k=delta[2] if has_ijk else None,
+        arc=arc,
+    )
 
 
 def _ijk_radius_mismatch(motion: TraceMotion, source_arc_type: int) -> float | None:
@@ -181,6 +227,7 @@ def _execute_impl(
     milling_g73_retract_distance: float = 1.0,
     emulate_g28_home: bool = False,
     include_instructions: bool = True,
+    kinematics=None,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
@@ -204,6 +251,27 @@ def _execute_impl(
         )
 
     if language == "fanuc_mill":
+        if isinstance(kinematics, str):
+            try:
+                kinematics = load_catalog()[kinematics]
+            except (InvalidKinematicsProfile, KeyError) as exc:
+                return ExecutionResult(
+                    False,
+                    None,
+                    (),
+                    (),
+                    (
+                        Diagnostic(
+                            "INVALID_KINEMATICS_PROFILE",
+                            f"Invalid kinematics profile: {kinematics}: {exc}",
+                            "error",
+                            "malformed",
+                        ),
+                    ),
+                    (),
+                    complete=False,
+                    language=language,
+                )
         mill_offsets = _mill_wcs_offsets(wcs_offsets)
         mill_offsets.update(_mill_extended_wcs_offsets(extended_wcs_offsets))
         return replace(
@@ -215,6 +283,7 @@ def _execute_impl(
                 wcs_offsets=mill_offsets,
                 g73_retract_distance=milling_g73_retract_distance,
                 include_instructions=include_instructions,
+                kinematics=kinematics,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
             extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
@@ -281,6 +350,48 @@ def _execute_impl(
         wcs_offsets=_result_wcs_offsets(turn_offsets),
         extended_wcs_offsets=_result_extended_wcs_offsets(turn_offsets),
     )
+
+
+def _resolve_milling_compensation(result, motions, motion_step_owners, milling_tools, kinematics):
+    """Apply verified local-plane offsets or retain the unverified C-table trace."""
+    selected = getattr(kinematics, "id", kinematics)
+    table_c = selected == "4ax_table_c"
+    diagnostics = ()
+    if table_c:
+        if any(m.compensation_mode in (41, 42) for m in motions):
+            diagnostics = (
+                Diagnostic(
+                    "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION",
+                    "G41/G42 cutter compensation is not supported for 4ax_table_c; "
+                    "the plotted path is the programmed, uncompensated tool-tip path",
+                    "warning",
+                    "unverified",
+                ),
+            )
+    else:
+        local_motions = [_compensation_frame(motion, local=True) for motion in motions]
+        motions, motion_step_owners = apply_milling_cutter_compensation_with_owners(
+            local_motions,
+            milling_tools or {},
+            motion_step_owners,
+        )
+        motions = [_compensation_frame(motion, local=False) for motion in motions]
+        if any(m.compensation_mode in (41, 42) and not m.compensation_applied for m in motions):
+            diagnostics = (
+                Diagnostic(
+                    "UNVERIFIED_CUTTER_COMPENSATION",
+                    "G41/G42 requires a configured T1-T99 milling cutter and supported "
+                    "resolved line/arc/helix geometry",
+                    "warning",
+                    "unverified",
+                ),
+            )
+
+    emitted_counts = [0] * len(result.execution_steps)
+    for owner in motion_step_owners:
+        emitted_counts[owner] += 1
+    result = replace(result, execution_steps=_steps_with_emitted_counts(result.execution_steps, emitted_counts))
+    return result, motions, diagnostics
 
 
 def execute(
@@ -371,28 +482,10 @@ def execute(
             )
         diagnostics = result.diagnostics + tuple(geometry_diagnostics)
         if language == "fanuc_mill":
-            motions, motion_step_owners = apply_milling_cutter_compensation_with_owners(
-                motions,
-                milling_tools or {},
-                motion_step_owners,
+            result, motions, compensation_diagnostics = _resolve_milling_compensation(
+                result, motions, motion_step_owners, milling_tools, options.get("kinematics")
             )
-            emitted_counts = [0] * len(result.execution_steps)
-            for owner in motion_step_owners:
-                emitted_counts[owner] += 1
-            result = replace(
-                result,
-                execution_steps=_steps_with_emitted_counts(result.execution_steps, emitted_counts),
-            )
-            if any(m.compensation_mode in (41, 42) and not m.compensation_applied for m in motions):
-                diagnostics = diagnostics + (
-                    Diagnostic(
-                        "UNVERIFIED_CUTTER_COMPENSATION",
-                        "G41/G42 requires a configured T1-T99 milling cutter and supported "
-                        "resolved line/arc/helix geometry",
-                        "warning",
-                        "unverified",
-                    ),
-                )
+            diagnostics += compensation_diagnostics
         return replace(
             result,
             motions=tuple(motions),

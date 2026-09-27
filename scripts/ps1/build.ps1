@@ -56,7 +56,8 @@ try {
         '--workpath', (Join-Path $projectRoot 'build\pyinstaller\work'),
         '--distpath', $distPath,
         '--collect-submodules', 'app.gcode.export',
-        '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}."
+        '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}.",
+        '--add-data', "$(Join-Path $projectRoot 'app\gcode\kernel\milling\rotary_profiles.json')${separator}app/gcode/kernel/milling"
     )
 
     if ($Console) {

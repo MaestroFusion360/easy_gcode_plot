@@ -91,6 +91,7 @@ class MotionNode:
     y_expr: str | None = None
     v_expr: str | None = None
     j_expr: str | None = None
+    b_expr: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

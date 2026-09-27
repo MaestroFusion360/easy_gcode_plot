@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+# pylint: disable=protected-access  # Search matches are inspected to verify wraparound.
 import pytest
-from PyQt6.QtCore import QFile, Qt, QUrl
-from PyQt6.QtGui import QTextFormat
+from PyQt6.QtCore import QFile, QSize, Qt, QUrl
+from PyQt6.QtGui import QColor, QIcon, QTextFormat
 from PyQt6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
@@ -28,6 +29,7 @@ def test_faq_is_packaged_and_listed_below_about_without_changing_f1(qt_app):
 
     assert window.helpDlg.isVisible()
     assert "Easy G-Code Plot FAQ" in window.helpDlg.browser.toPlainText()
+    assert window.helpDlg.browser.toPlainText().count("Project scope and execution model") == 2
     assert "Turning Stock Removal" in window.helpDlg.browser.toPlainText()
     window.close()
     window.deleteLater()
@@ -38,10 +40,10 @@ def test_faq_table_of_contents_anchors_navigate_to_headings(qt_app):
     browser = window.helpDlg.browser
 
     for anchor, heading in (
-        ("development", "Development"),
+        ("development-and-architecture", "Development and architecture"),
         ("turning-stock-removal", "Turning Stock Removal"),
-        ("statistics-diagnostics-and-export", "Statistics, diagnostics and export"),
-        ("why-do-ik-appear-for-an-arc-programmed-with-r", "Why do I/K appear for an arc programmed with R?"),
+        ("statistics-and-tokensmacro-variables", "Statistics and Tokens/Macro Variables"),
+        ("how-are-milling-arcs-programmed", "How are milling arcs programmed?"),
     ):
         window.helpDlg.navigate_to_anchor(QUrl(f"#{anchor}"))
         block = browser.textCursor().block()
@@ -58,7 +60,7 @@ def test_faq_is_resizable_and_formats_heading_spacing(qt_app):
     document = dialog.browser.document()
 
     assert dialog.windowFlags() & Qt.WindowType.WindowMaximizeButtonHint
-    assert document.documentMargin() == pytest.approx(14.0)
+    assert document.documentMargin() == pytest.approx(24.0)
     assert document.begin().blockFormat().topMargin() == pytest.approx(0.0)
 
     margins = {}
@@ -91,7 +93,103 @@ def test_faq_command_blocks_have_distinct_background_and_padding(qt_app):
     assert block_format.hasProperty(QTextFormat.Property.BlockCodeFence)
     assert block_format.background().color() != dialog.browser.palette().base().color()
     assert block_format.leftMargin() >= 12.0
+    assert block_format.topMargin() == block_format.bottomMargin() == 0.0
+    adjacent_code = dialog.browser.document().begin()
+    while adjacent_code.isValid() and adjacent_code.next().isValid():
+        if adjacent_code.blockFormat().hasProperty(QTextFormat.Property.BlockCodeFence) and (
+            adjacent_code.next().blockFormat().hasProperty(QTextFormat.Property.BlockCodeFence)
+        ):
+            break
+        adjacent_code = adjacent_code.next()
+    assert adjacent_code.isValid()
+    assert adjacent_code.blockFormat().background().color() == adjacent_code.next().blockFormat().background().color()
 
+    first_link = None
+    block = dialog.browser.document().begin()
+    while block.isValid() and first_link is None:
+        iterator = block.begin()
+        while not iterator.atEnd():
+            fragment = iterator.fragment()
+            if fragment.charFormat().isAnchor():
+                first_link = fragment.charFormat().foreground().color()
+                break
+            iterator += 1
+        block = block.next()
+    assert first_link is not None
+    assert first_link != QColor("#70dfff")
+
+    window.close()
+    window.deleteLater()
+
+
+def test_faq_dark_theme_keeps_readable_links_and_source_text(qt_app):
+    window = MainWindow()
+    dialog = window.helpDlg
+    original = dialog.browser.toPlainText()
+    dialog.apply_theme("dark")
+
+    assert dialog.browser.toPlainText() == original
+    assert dialog.browser.palette().base().color() == QColor("#252526")
+    block = dialog.browser.document().begin()
+    link_color = None
+    code_color = None
+    while block.isValid():
+        if code_color is None and block.blockFormat().hasProperty(QTextFormat.Property.BlockCodeFence):
+            code_color = block.blockFormat().background().color()
+        iterator = block.begin()
+        while not iterator.atEnd():
+            fragment = iterator.fragment()
+            if fragment.charFormat().isAnchor():
+                link_color = fragment.charFormat().foreground().color()
+                break
+            iterator += 1
+        if link_color is not None and code_color is not None:
+            break
+        block = block.next()
+    assert link_color == QColor("#9cc9ee")
+    assert code_color == QColor("#3a424c")
+
+    dialog.apply_theme("light")
+    assert dialog.browser.toPlainText() == original
+    window.close()
+    window.deleteLater()
+
+
+def test_faq_search_counts_wraps_and_survives_theme_change(qt_app):
+    window = MainWindow()
+    dialog = window.helpDlg
+    assert dialog.ui.verticalLayout.itemAt(0).widget() is dialog.browser
+    assert dialog.ui.verticalLayout.itemAt(1).layout() is not None
+    assert not dialog.search_previous_button.icon().isNull()
+    assert not dialog.search_next_button.icon().isNull()
+    assert (
+        dialog.search_previous_button.icon().pixmap(QSize(18, 18)).toImage()
+        == QIcon(":/resource/icons/up.png").pixmap(QSize(18, 18)).toImage()
+    )
+    assert (
+        dialog.search_next_button.icon().pixmap(QSize(18, 18)).toImage()
+        == QIcon(":/resource/icons/down.png").pixmap(QSize(18, 18)).toImage()
+    )
+    dialog.search_edit.setText("deterministic")
+    assert len(dialog._search_matches) > 1
+    assert dialog.search_count.text() == f"1 / {len(dialog._search_matches)}"
+    assert dialog.browser.textCursor().selectedText().casefold() == "deterministic"
+
+    dialog.search_previous()
+    assert dialog.search_count.text() == f"{len(dialog._search_matches)} / {len(dialog._search_matches)}"
+    dialog.search_next()
+    assert dialog.search_count.text() == f"1 / {len(dialog._search_matches)}"
+
+    dialog.apply_theme("dark")
+    assert dialog.browser.textCursor().selectedText().casefold() == "deterministic"
+    assert dialog.search_count.text() == f"1 / {len(dialog._search_matches)}"
+
+    dialog.search_edit.setText("no-such-faq-term-123")
+    assert dialog.search_count.text() == "0 / 0"
+    dialog.search_edit.clear()
+    assert dialog.search_count.text() == ""
+    dialog.navigate_to_anchor(QUrl("#turning-stock-removal"))
+    assert dialog.browser.textCursor().block().text() == "Turning Stock Removal"
     window.close()
     window.deleteLater()
 
@@ -108,8 +206,8 @@ def test_faq_license_link_opens_packaged_license_dialog(qt_app):
     assert "MIT License" in dialog.license_dialog.browser.toPlainText()
     assert "Permission is hereby granted" in dialog.license_dialog.browser.toPlainText()
 
-    dialog.navigate_to_anchor(QUrl("#development"))
-    assert dialog.browser.textCursor().block().text() == "Development"
+    dialog.navigate_to_anchor(QUrl("#development-and-architecture"))
+    assert dialog.browser.textCursor().block().text() == "Development and architecture"
 
     window.close()
     window.deleteLater()

@@ -4,10 +4,11 @@ import logging
 from time import perf_counter
 
 from PyQt6.QtCore import QBasicTimer, QCoreApplication, QSize, Qt, QTimer
-from PyQt6.QtGui import QAction, QActionGroup, QIcon, QQuaternion
+from PyQt6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap, QQuaternion
 from PyQt6.QtWidgets import QComboBox, QMainWindow, QMenu, QMessageBox, QSlider, QToolBar, QToolButton
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
+from app.gcode.kernel.milling.kinematics import load_catalog
 from app.settings import (
     DEFAULT_TOOLBAR_ICON_SIZE,
     normalized_milling_tools,
@@ -88,6 +89,7 @@ class MainWindow(
         self.setWindowIcon(icon)
 
         self.loadSettings()
+        self._configure_rotary_kinematics_menu()
         self.restoreToolbarState()
         self._initialize_runtime_helpers()
         self.connectActions()
@@ -95,8 +97,71 @@ class MainWindow(
         self.clearPlot()
         self.changeLathe()
 
+    def _configure_rotary_kinematics_menu(self):
+        """Expose indexed milling kinematics at the top of the Settings menu."""
+        catalog = load_catalog()
+        saved = self.settings.value("CNC/ROTARY_KINEMATICS", "", type=str)
+        self.rotaryKinematics = saved if saved in catalog and catalog[saved].enabled else None
+
+        menu = QMenu(QCoreApplication.translate("MainWindow", "Rotary kinematics"), self.ui.menuSettings)
+        menu.setObjectName("menuRotaryKinematics")
+        menu.setIcon(QIcon(":/resource/icons/cnc.png"))
+        first_action = self.ui.menuSettings.actions()[0] if self.ui.menuSettings.actions() else None
+        if first_action is None:
+            self.ui.menuSettings.addMenu(menu)
+            self.ui.menuSettings.addSeparator()
+        else:
+            self.ui.menuSettings.insertMenu(first_action, menu)
+            self.ui.menuSettings.insertSeparator(first_action)
+
+        group = QActionGroup(self)
+        group.setExclusive(True)
+        actions = {}
+        for profile_id, profile in ((None, None), *((key, value) for key, value in catalog.items() if value.enabled)):
+            text = (
+                QCoreApplication.translate("MainWindow", "None")
+                if profile_id is None
+                else f"{profile.name} [{profile_id}]"
+            )
+            action = menu.addAction(text)
+            action.setCheckable(True)
+            action.setChecked(profile_id == self.rotaryKinematics)
+            group.addAction(action)
+            action.triggered.connect(
+                lambda _checked=False, selected=profile_id: self._select_rotary_kinematics(selected)
+            )
+            actions[profile_id] = action
+
+        self._rotary_kinematics_menu = menu
+        self._rotary_kinematics_group = group
+        self._rotary_kinematics_actions = actions
+
+    def _select_rotary_kinematics(self, profile_id, *, force_refresh=False):
+        if profile_id is not None and not load_catalog()[profile_id].enabled:
+            profile_id = None
+        changed = profile_id != getattr(self, "rotaryKinematics", None)
+        self.rotaryKinematics = profile_id
+        self.settings.setValue("CNC/ROTARY_KINEMATICS", profile_id or "")
+
+        action = getattr(self, "_rotary_kinematics_actions", {}).get(profile_id)
+        if action is not None and not action.isChecked():
+            action.setChecked(True)
+        options = getattr(self, "optionsDlg", None)
+        if options is not None:
+            options.sync_rotary_kinematics(profile_id)
+
+        if not (changed or force_refresh):
+            return
+        if changed and not getattr(self, "latheMode", False) and getattr(self, "_view_mode", "3d") == "3d":
+            self.view3d()
+        self._deferred_execution_result = None
+        self._deferred_execution_source = None
+        if self.ui.editor.text():
+            self.updateData()
+
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
+        self._configure_wcs_icon()
         self.ui.actionStock = QAction(
             QIcon(":/resource/icons/stock.png"), QCoreApplication.translate("MainWindow", "Stock"), self
         )
@@ -137,6 +202,20 @@ class MainWindow(
         ):
             self.ui.actionGroupArcType.addAction(action)
 
+        self._configure_file_type_button()
+
+        self._toolbar_action_icons = {
+            action: action.icon()
+            for toolbar in self._toolbars()
+            for action in toolbar.actions()
+            if not action.icon().isNull()
+        }
+        self.applyToolbarIconSize(DEFAULT_TOOLBAR_ICON_SIZE)
+
+        self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+
+    def _configure_file_type_button(self):
+        """Create the CNC toolbar's source-type chooser."""
         self.ui.fileTypeCombo = QComboBox(self)
         self.ui.fileTypeCombo.setObjectName("fileTypeCombo")
         self.ui.fileTypeCombo.addItems(
@@ -181,15 +260,15 @@ class MainWindow(
         else:
             self.ui.cncToolBar.addWidget(self.ui.fileTypeButton)
 
-        self._toolbar_action_icons = {
-            action: action.icon()
-            for toolbar in self._toolbars()
-            for action in toolbar.actions()
-            if not action.icon().isNull()
-        }
-        self.applyToolbarIconSize(DEFAULT_TOOLBAR_ICON_SIZE)
-
-        self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
+    def _configure_wcs_icon(self):
+        """Tint the existing WCS glyph for visibility in both themes."""
+        wcs_pixmap = QPixmap(":/resource/icons/wcs.png")
+        if not wcs_pixmap.isNull():
+            painter = QPainter(wcs_pixmap)
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+            painter.fillRect(wcs_pixmap.rect(), QColor("#2f77c7"))
+            painter.end()
+            self.ui.actionWCS.setIcon(QIcon(wcs_pixmap))
 
     def _configure_playback_speed_slider(self):
         self.ui.playbackSpeedSlider = QSlider(Qt.Orientation.Horizontal, self.ui.playbackToolBar)

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
 import pytest
 from gcode_samples import (
     ARC_ABSOLUTE,
@@ -14,7 +15,7 @@ from gcode_samples import (
 
 from app.gcode.kernel import execute
 from app.gcode.kernel.api import engine as kernel_engine
-from app.gcode.trace_tools import render_trace, trace_statistics
+from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
 
 
 def _motion_endpoints(result, source_blocks):
@@ -23,6 +24,177 @@ def _motion_endpoints(result, source_blocks):
         for motion in result.motions
         if motion.source_block in source_blocks and motion.source_kind == "motion"
     ]
+
+
+def test_indexed_table_b_maps_tool_tip_z_moves_into_fixed_wcs_x():
+    result = execute(
+        "G90 G0 B90\nG0 Z50\nG91 B180\nG90 G0 Z100\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_b",
+    )
+    assert result.ok and result.complete, result.diagnostics
+    for motion, expected in zip(result.motions, ((50, 0, 0), (-100, 0, 0)), strict=True):
+        assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx(expected, abs=1e-8)
+    assert result.motions[0].tool_orientation[0][2] == pytest.approx(1)
+    assert result.motions[1].tool_orientation[0][2] == pytest.approx(-1)
+
+
+def test_indexed_table_a_fixture_preserves_both_sides_and_restores_a_zero(fixture_text):
+    result = execute(fixture_text("milling/indexed_table_a.nc"), language="fanuc_mill", kinematics="4ax_table_a")
+    assert result.ok and result.complete, result.diagnostics
+    indices = [event for event in result.events if event.kind == "ROTARY_INDEX"]
+    assert [(event.old_abc[0], event.new_abc[0]) for event in indices] == [
+        (0.0, -180.0),
+        (-180.0, 0.0),
+    ]
+    z45 = [motion for motion in result.motions if motion.source_raw == "Z45.911"]
+    assert len(z45) >= 2
+    assert (z45[0].end_x, z45[0].end_y, z45[0].end_z) == pytest.approx((506.0, 86.909, 45.911), abs=1e-6)
+    assert (z45[-1].end_x, z45[-1].end_y, z45[-1].end_z) == pytest.approx((486.0, -86.909, -45.911), abs=1e-6)
+    restored = next(motion for motion in result.motions if motion.source_block > indices[-1].source_block)
+    assert restored.tool_orientation[2][2] == pytest.approx(1.0)
+
+
+def test_table_c_fixture_xc_contour_overlays_first_xy_contour(fixture_text):
+    result = execute(fixture_text("milling/indexed_table_c.nc"), language="fanuc_mill", kinematics="4ax_table_c")
+    assert result.ok and result.complete, result.diagnostics
+    assert not result.diagnostics
+
+    first = [
+        motion
+        for motion in result.motions
+        if 10 <= motion.source_block <= 33 and motion.move in (1, 2, 3) and abs(motion.end_z + 40) < 1e-8
+    ]
+    second = [
+        motion
+        for motion in result.motions
+        if 45 <= motion.source_block <= 808 and motion.move == 1 and abs(motion.end_z + 40) < 1e-8
+    ]
+    assert len(first) == 22
+    assert len(second) == 764
+    first_xy = [(first[0].start_x, first[0].start_y)]
+    for index, motion in enumerate(first):
+        first_xy.extend((point.x, point.y) for point in sample_motion(motion, index, arc_points_per_circle=2000))
+    polyline = np.asarray(first_xy)
+    start, direction = polyline[:-1], np.diff(polyline, axis=0)
+    squared_length = np.maximum(np.sum(direction * direction, axis=1), 1e-20)
+    maximum_distance = 0.0
+    for motion in second:
+        endpoint = np.asarray((motion.end_x, motion.end_y))
+        fraction = np.clip(np.sum((endpoint - start) * direction, axis=1) / squared_length, 0, 1)
+        distance = np.linalg.norm(endpoint - (start + fraction[:, None] * direction), axis=1).min()
+        maximum_distance = max(maximum_distance, distance)
+    assert maximum_distance < 0.05
+    assert (second[0].start_x, second[0].start_y) == pytest.approx(first_xy[0], abs=0.002)
+    assert (second[-1].end_x, second[-1].end_y) == pytest.approx(first_xy[-1], abs=0.002)
+
+    c_only = next(motion for motion in result.motions if motion.source_raw == "C-112.836")
+    assert (c_only.start_x, c_only.start_y) != (c_only.end_x, c_only.end_y)
+    assert any(event.kind == "ROTARY_MOTION" for event in result.events)
+
+
+def test_table_c_absolute_and_incremental_c_only_moves_follow_positive_z_rotation():
+    result = execute(
+        "G90 G0 X10 Y0\nG1 C90 F100\nG91 C-180\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_c",
+    )
+    assert result.ok and result.complete, result.diagnostics
+    for motion, expected in zip(result.motions[-2:], ((0.0, 10.0), (0.0, -10.0)), strict=True):
+        assert (motion.end_x, motion.end_y) == pytest.approx(expected, abs=1e-8)
+    assert [event.kind for event in result.events if event.kind.startswith("ROTARY_")] == [
+        "ROTARY_MOTION",
+        "ROTARY_MOTION",
+    ]
+
+
+def test_table_c_cutter_compensation_keeps_uncompensated_xc_path():
+    source = "G17 G90 G0 X10 Y0 C0\nG41 G1 X10 C90 D1 F100\nG1 X10 C180\nG40 G1 X10 C270\nM30"
+    tools = {"T1": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}}
+    nominal = execute(source.replace("G41 ", "").replace("G40 ", ""), language="fanuc_mill", kinematics="4ax_table_c")
+    result = execute(source, language="fanuc_mill", kinematics="4ax_table_c", milling_tools=tools)
+
+    assert result.ok and result.complete, result.diagnostics
+    assert [(m.start_x, m.start_y, m.end_x, m.end_y) for m in result.motions] == pytest.approx(
+        [(m.start_x, m.start_y, m.end_x, m.end_y) for m in nominal.motions]
+    )
+    assert not any(m.compensation_applied for m in result.motions)
+    assert {d.code for d in result.diagnostics} == {"UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION"}
+    assert result.diagnostics[0].severity == "warning"
+
+
+@pytest.mark.parametrize(("profile", "axis"), [("4ax_table_a", "A"), ("4ax_table_b", "B")])
+def test_table_a_b_still_reject_simultaneous_rotary_linear_motion(profile, axis):
+    result = execute(f"G90 G1 X10 {axis}90 F100\nM30", language="fanuc_mill", kinematics=profile)
+    assert not result.complete
+    assert result.diagnostics[0].code == "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"
+
+
+@pytest.mark.parametrize(
+    ("angle", "expected_y", "expected_z"),
+    [(90, -20.0, 10.0), (270, 20.0, -10.0)],
+)
+def test_table_a_quarter_turn_signs(angle, expected_y, expected_z):
+    result = execute(
+        f"G90 G0 A{angle}\nG0 Y10 Z20\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_a",
+    )
+    assert result.ok and result.complete, result.diagnostics
+    assert (result.motions[-1].end_y, result.motions[-1].end_z) == pytest.approx((expected_y, expected_z), abs=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("reference", "source_kind"),
+    [("G91 G28 Z0", "g28"), ("G53 G0 Z100", "g53")],
+)
+def test_repeated_reference_return_after_b_index_uses_machine_axes(reference, source_kind):
+    source = f"G90 G0 X10 Z20\nB90\n{reference}\nG90 G0 Z10\n{reference}\nM30"
+    result = execute(source, language="fanuc_mill", kinematics="4ax_table_b", home_z=100)
+    assert result.ok and result.complete, result.diagnostics
+    returns = [motion for motion in result.motions if motion.source_kind == source_kind]
+    assert len(returns) == 2
+    for motion in returns:
+        assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx((100, 0, -10), abs=1e-8)
+    assert returns[1].start_x == pytest.approx(10)
+
+
+def test_incremental_g53_z_after_b_index_uses_machine_z():
+    result = execute(
+        "G90 G0 X10 Z20\nB90\nG53 G0 Z100\nG91 G53 G0 Z10\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_b",
+        home_z=100,
+    )
+    assert result.ok and result.complete, result.diagnostics
+    assert result.motions[-1].end_x == pytest.approx(110)
+    assert result.motions[-1].end_z == pytest.approx(-10)
+
+
+def test_b_index_obeys_g90_g91_on_same_block_and_modal_blocks():
+    result = execute(
+        "G90 G0 B90\nG91 B90\nG90 B180\nG91 B-90\nG90 G0 Z20\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_b",
+    )
+    assert result.ok and result.complete, result.diagnostics
+    indices = [event for event in result.events if event.kind == "ROTARY_INDEX"]
+    assert [event.new_abc[1] for event in indices] == pytest.approx([90, 180, 90])
+    assert result.motions[-1].end_x == pytest.approx(20)
+
+
+@pytest.mark.parametrize(
+    ("angle", "expected_x", "expected_z"),
+    [(40, 64.27876097, 76.60444431), (320, -64.27876097, 76.60444431)],
+)
+def test_non_right_angle_b_index_preserves_signed_side(angle, expected_x, expected_z):
+    result = execute(
+        f"G90 G0 B{angle}\nG0 Z100\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_b",
+    )
+    assert result.ok and result.complete, result.diagnostics
+    assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((expected_x, expected_z), abs=1e-6)
 
 
 def test_milling_polar_drilling_fixture_matches_absolute_and_incremental_manual_examples(fixture_text):
@@ -770,3 +942,52 @@ M30
     assert (result.motions[-1].end_x, result.motions[-1].end_y, result.motions[-1].end_z) == pytest.approx(
         (10.0, 0.0, 5.0)
     )
+
+
+def test_indexed_compensation_and_unknown_extended_m_do_not_stop_execution():
+    result = execute(
+        "G90 G0 X0 Y0 Z0\nB90\nG41 G1 X10 F100 M250\nG40 G1 X20\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_b",
+    )
+    codes = {diagnostic.code: diagnostic for diagnostic in result.diagnostics}
+    assert codes["UNVERIFIED_CUTTER_COMPENSATION"].severity == "warning"
+    assert codes["UNSUPPORTED_M_CODE"].severity == "warning"
+    assert result.executed_blocks[-1] == 4
+    assert any(motion.source_block == 3 for motion in result.motions)
+
+
+@pytest.mark.parametrize(
+    ("profile", "axis", "expected"),
+    [
+        ("4ax_table_a", "A", (7.0, 0.0, 10.0)),
+        ("4ax_table_b", "B", (0.0, 10.0, -7.0)),
+    ],
+)
+def test_indexed_cutter_compensation_is_solved_in_local_g17_plane(profile, axis, expected):
+    result = execute(
+        f"G21 G17 G90\nT1 M6\nG0 X0 Y0 Z0\n{axis}90\nG41 G1 X10 Y0 F100\nG1 X10 Y10\nG40 G1 X20 Y10\nM30",
+        language="fanuc_mill",
+        kinematics=profile,
+        milling_tools={"T1": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}},
+    )
+    assert result.ok and result.complete, result.diagnostics
+    steady = next(motion for motion in result.motions if motion.source_block == 5)
+    assert steady.compensation_applied
+    assert (steady.end_x, steady.end_y, steady.end_z) == pytest.approx(expected)
+    assert not any("UNVERIFIED" in diagnostic.code for diagnostic in result.diagnostics)
+
+
+def test_table_b_compensated_g17_arc_has_rotated_center_and_normal():
+    result = execute(
+        "G21 G17 G90 G40\nT1 M6\nG0 X0 Y0\nB90\nG1 Z-1 F300\nG41 G1 X5 F100\nG3 X0 Y5 I-5 J0\nG40 G1 X0 Y0\nM30",
+        language="fanuc_mill",
+        kinematics="4ax_table_b",
+        milling_tools={"T1": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}},
+    )
+    assert result.ok and result.complete, result.diagnostics
+    arc_motion = next(motion for motion in result.motions if motion.move == 3)
+    assert arc_motion.compensation_applied
+    assert arc_motion.arc.radius == pytest.approx(2.0)
+    assert arc_motion.arc.center == pytest.approx((-1.0, 0.0, 0.0), abs=1e-8)
+    assert arc_motion.arc.normal == pytest.approx((1.0, 0.0, 0.0), abs=1e-8)

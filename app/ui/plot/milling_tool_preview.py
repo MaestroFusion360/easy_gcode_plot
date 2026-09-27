@@ -6,7 +6,7 @@ import math
 
 import numpy as np
 from OpenGL import GL
-from PyQt6.QtGui import QColor
+from PyQt6.QtGui import QColor, QMatrix4x4
 from pyqtgraph.opengl import GLMeshItem, MeshData
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
@@ -67,7 +67,7 @@ class MillingToolPreviewItem(GLGraphicsItem):
             mesh.setColor(color)
         self.update()
 
-    def show_tool(self, spec: dict[str, object] | None, position) -> bool:
+    def show_tool(self, spec: dict[str, object] | None, position, orientation=None) -> bool:
         """Show a configured cutter with its tip at the resolved motion endpoint."""
         geometry = self._validated_geometry(spec)
         if geometry is None:
@@ -76,6 +76,27 @@ class MillingToolPreviewItem(GLGraphicsItem):
         if geometry != self._geometry_key:
             self._rebuild(*geometry)
         self.resetTransform()
+        if orientation is not None:
+            self.setTransform(
+                QMatrix4x4(
+                    orientation[0][0],
+                    orientation[0][1],
+                    orientation[0][2],
+                    0.0,
+                    orientation[1][0],
+                    orientation[1][1],
+                    orientation[1][2],
+                    0.0,
+                    orientation[2][0],
+                    orientation[2][1],
+                    orientation[2][2],
+                    0.0,
+                    0.0,
+                    0.0,
+                    0.0,
+                    1.0,
+                )
+            )
         self.translate(*(float(value) for value in position))
         self.setVisible(True)
         self.update()

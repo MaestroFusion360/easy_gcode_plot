@@ -9,11 +9,14 @@ from ..geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, r
 from ..geometry.transform import CoordinateTransform, TransformState
 from ..runtime.execution import apply_unit_mode
 from ..runtime.state import MachineRuntimeState
+from .kinematics import MachineKinematics, point_orientation, transform_point, transform_vector
 from .polar import activate_polar, cancel_polar, resolve_polar_endpoint, select_polar_plane
 
 
 @dataclass
 class MillState(MachineRuntimeState):
+    kinematics: MachineKinematics | None = None
+    rotary_angles: dict[str, float] = field(default_factory=lambda: {"A": 0.0, "B": 0.0, "C": 0.0})
     x: float = 0.0
     y: float = 0.0
     z: float = 0.0
@@ -72,10 +75,31 @@ def _machine(point: tuple[float, float, float], state: MillState, wcs_offsets) -
         and not transform_state.scaling_active
     ):
         ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
-        return point[0] + ox, point[1] + oy, point[2] + oz
+        oriented = _orient_point(point, state)
+        return oriented[0] + ox, oriented[1] + oy, oriented[2] + oz
     work = _coordinate_transform(state).apply(point)
+    work = _orient_point(work, state)
     ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
     return work[0] + ox, work[1] + oy, work[2] + oz
+
+
+def _orient_point(point: tuple[float, float, float], state: MillState) -> tuple[float, float, float]:
+    if state.kinematics is None:
+        return point
+    return transform_point(point_orientation(state.kinematics, state.rotary_angles), point)
+
+
+def _orient_vector(vector: tuple[float, float, float], state: MillState) -> tuple[float, float, float]:
+    if state.kinematics is None:
+        return vector
+    return transform_vector(point_orientation(state.kinematics, state.rotary_angles), vector)
+
+
+def _unorient_point(point: tuple[float, float, float], state: MillState) -> tuple[float, float, float]:
+    if state.kinematics is None:
+        return point
+    orientation = point_orientation(state.kinematics, state.rotary_angles)
+    return tuple(sum(orientation[j][i] * point[j] for j in range(3)) for i in range(3))
 
 
 def _preserve_work_position(state: MillState, work_position: tuple[float, float, float]) -> None:
@@ -221,14 +245,14 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) ->
     elif (extended_wcs := extended_wcs_from_gcode(g, words)) is not None or (isinstance(g, int) and 54 <= g <= 59):
         selected_wcs = extended_wcs if extended_wcs is not None else g
         transform = _coordinate_transform(state)
-        work_position = transform.apply((state.x, state.y, state.z))
+        work_position = _orient_point(transform.apply((state.x, state.y, state.z)), state)
         rebased = rebase_work_position(
             work_position,
             _wcs_offset(wcs_offsets, state.active_wcs),
             _wcs_offset(wcs_offsets, selected_wcs),
         )
         state.active_wcs = selected_wcs
-        state.x, state.y, state.z = transform.inverse(rebased)
+        state.x, state.y, state.z = transform.inverse(_unorient_point(rebased, state))
     else:
         return False
     return True

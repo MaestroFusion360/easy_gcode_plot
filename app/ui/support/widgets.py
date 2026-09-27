@@ -206,7 +206,5 @@ class PlotView(GLViewWidget):
         elif ev.buttons() == Qt.MouseButton.MiddleButton:
             if ev.modifiers() & Qt.KeyboardModifier.ControlModifier:
                 self.pan(diff.x(), diff.y(), 0, relative="view")
-            elif self.opts["rotationMethod"] == "euler":
-                self.orbit(-diff.x(), diff.y())
             else:
-                self.pan(diff.x(), diff.y(), 0, relative="view")
+                self.orbit(-diff.x(), diff.y())

@@ -1,17 +1,38 @@
 """Options dialog and persisted runtime settings."""
 
+# pylint: disable=protected-access  # Inspect the runtime menu's configured profile actions.
+
 from __future__ import annotations
 
 import pytest
 from PyQt6.QtGui import QColor, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
+from app.gcode.kernel.milling.kinematics import load_catalog
 from app.main_window import MainWindow
 from app.settings import get_settings
 from app.ui.dialogs.hotkey_assignment import HotkeyAssignmentDialog
 from app.ui.dialogs.options import OptionsDialog
 from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
+
+
+def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
+    catalog = load_catalog()
+    assert len(catalog) > 2
+    assert {key for key, profile in catalog.items() if profile.enabled} == {
+        "4ax_table_a",
+        "4ax_table_b",
+        "4ax_table_c",
+    }
+    window = MainWindow()
+    try:
+        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c"}
+        assert set(window._rotary_kinematics_actions) == expected
+        combo = window.optionsDlg.ui.rotaryKinematicsCombo
+        assert {combo.itemData(index) for index in range(combo.count())} == expected
+    finally:
+        window.deleteLater()
 
 
 def test_view_hotkeys_can_be_changed_and_restored(qt_app):

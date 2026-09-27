@@ -141,13 +141,16 @@ def _turning_unmodeled_m_diagnostics(result: ExecutionResult) -> tuple[Diagnosti
     return tuple(diagnostics)
 
 
-def execute_analysis_program(source: str, *, language: str, include_instructions: bool = True) -> ExecutionResult:
+def execute_analysis_program(
+    source: str, *, language: str, include_instructions: bool = True, kinematics: str | None = None
+) -> ExecutionResult:
     """Use the same execution options and diagnostics for single and batch analysis."""
     result, _tools, _inferred = execute_program(
         source,
         language=language,
         include_instructions=include_instructions,
         autodetect_arc_type=language == "fanuc_mill",
+        kinematics=kinematics,
     )
     if language == "fanuc_turn":
         result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
@@ -177,6 +180,7 @@ def _file_report(
     *,
     language: str,
     encoding: str,
+    kinematics: str | None = None,
 ) -> dict[str, object]:
     started = perf_counter()
     try:
@@ -207,7 +211,7 @@ def _file_report(
             "elapsed_ms": round((perf_counter() - started) * 1000.0, 3),
         }
 
-    result = execute_analysis_program(source, language=language, include_instructions=False)
+    result = execute_analysis_program(source, language=language, include_instructions=False, kinematics=kinematics)
     diagnostics = result.diagnostics
     status = analysis_status(result)
     report = {
@@ -221,6 +225,8 @@ def _file_report(
         "executed_block_count": len(result.executed_blocks),
         **analysis_diagnostic_summary(result),
         "diagnostics": [asdict(item) for item in diagnostics],
+        "kinematics_profile": result.kinematics_profile,
+        "rotary_axes": list(result.rotary_axes),
     }
     report["elapsed_ms"] = round((perf_counter() - started) * 1000.0, 3)
     return report
@@ -257,6 +263,7 @@ def analyze_directory(
     recursive: bool = True,
     extensions: Iterable[str] = DEFAULT_BATCH_EXTENSIONS,
     on_file: Callable[[dict[str, object]], None] | None = None,
+    kinematics: str | None = None,
 ) -> dict[str, object]:
     """Execute every matching NC file and return a batch analysis report."""
     started = perf_counter()
@@ -265,7 +272,7 @@ def analyze_directory(
     paths = discover_nc_files(directory, recursive=recursive, extensions=normalized_extensions)
     files = []
     for path in paths:
-        file_report = _file_report(path, directory, language=language, encoding=encoding)
+        file_report = _file_report(path, directory, language=language, encoding=encoding, kinematics=kinematics)
         files.append(file_report)
         if on_file is not None:
             on_file(file_report)
@@ -292,6 +299,7 @@ def analyze_directory(
         "root": str(directory),
         "language": language,
         "encoding": encoding,
+        "kinematics_profile": kinematics,
         "recursive": recursive,
         "extensions": list(normalized_extensions),
         "scan_warnings": ["No matching NC files found"] if not files else [],

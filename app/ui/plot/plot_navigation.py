@@ -1,6 +1,7 @@
 """Mouse navigation and picking helpers for the OpenGL plot."""
 
 from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
+from PyQt6.QtGui import QVector4D
 
 
 def point_segment_distance(px, py, ax, ay, bx, by):
@@ -25,6 +26,30 @@ class PlotNavigation(QObject):
         self.on_view_changed = on_view_changed or (lambda: None)
         self.on_pick = on_pick or (lambda _pos: None)
         self._drag_pos = None
+        self._orbit_pivot = None
+
+    def _pivot_at(self, position):
+        """Intersect the cursor ray with the view plane through the current center."""
+        view = self.view
+        center = view.opts["center"]
+        pixel = view.pixelSize(center)
+        camera_to_world = view.viewMatrix().inverted()[0]
+        right = camera_to_world * QVector4D(1, 0, 0, 0)
+        up = camera_to_world * QVector4D(0, 1, 0, 0)
+        dx = (position.x() - view.width() / 2.0) * pixel
+        dy = (view.height() / 2.0 - position.y()) * pixel
+        return center + right.toVector3D() * dx + up.toVector3D() * dy
+
+    def _orbit_at_pivot(self, dx, dy):
+        view = self.view
+        pivot = self._orbit_pivot
+        before = view.viewMatrix() * QVector4D(pivot, 1)
+        view.orbit(-dx, dy)
+        after_matrix = view.viewMatrix()
+        after = after_matrix * QVector4D(pivot, 1)
+        delta = QVector4D(after.x() - before.x(), after.y() - before.y(), after.z() - before.z(), 0)
+        view.opts["center"] += (after_matrix.inverted()[0] * delta).toVector3D()
+        view.update()
 
     def eventFilter(self, watched, event):
         if watched is not self.view:
@@ -39,10 +64,14 @@ class PlotNavigation(QObject):
                 handled = True
             elif event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
                 self._drag_pos = event.position()
+                self._orbit_pivot = (
+                    self._pivot_at(self._drag_pos) if event.button() == Qt.MouseButton.MiddleButton else None
+                )
                 handled = True
         elif event_type == QEvent.Type.MouseButtonRelease:
             if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
                 self._drag_pos = None
+                self._orbit_pivot = None
                 handled = True
         elif event_type == QEvent.Type.MouseMove and self._drag_pos is not None:
             pos = event.position()
@@ -54,11 +83,7 @@ class PlotNavigation(QObject):
                 QTimer.singleShot(0, self.on_view_changed)
                 handled = True
             elif event.buttons() & Qt.MouseButton.MiddleButton:
-                if self.view.opts["rotationMethod"] == "euler":
-                    self.view.orbit(-diff.x(), diff.y())
-                else:
-                    self.view.pan(diff.x(), diff.y(), 0, relative="view")
-                    QTimer.singleShot(0, self.on_view_changed)
+                self._orbit_at_pivot(diff.x(), diff.y())
                 handled = True
         elif event_type == QEvent.Type.Wheel:
             QTimer.singleShot(0, self.on_view_changed)

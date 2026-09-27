@@ -22,20 +22,32 @@ class ToolpathSegment:
     move: int
 
 
-def segments_from_render_points(render_points, motions, motion_to_playback=None) -> tuple[ToolpathSegment, ...]:
+def segments_from_render_points(
+    render_points, motions, motion_to_playback=None, *, lathe_radius_view=False
+) -> tuple[ToolpathSegment, ...]:
     """Convert the sampled trace to ordered ``GL_LINES`` segment pairs."""
     segments: list[ToolpathSegment] = []
     for previous, current in zip(render_points, render_points[1:]):
         motion_index = current.motion_index
         if not 0 <= motion_index < len(motions):
             continue
+        motion = motions[motion_index]
+        if previous.motion_index != motion_index:
+            # Indexing can move the tool tip between two linear trace motions.
+            # Start the new segment at its own resolved start, not at the old end.
+            start = (motion.start_x * (0.5 if lathe_radius_view else 1.0), motion.start_y, motion.start_z)
+        else:
+            start = (previous.x, previous.y, previous.z)
+        end = (current.x, current.y, current.z)
+        if start == end:
+            continue
         logical_index = motion_index if motion_to_playback is None else motion_to_playback[motion_index]
         segments.append(
             ToolpathSegment(
-                (previous.x, previous.y, previous.z),
-                (current.x, current.y, current.z),
+                start,
+                end,
                 logical_index,
-                motions[motion_index].move,
+                motion.move,
             )
         )
     return tuple(segments)

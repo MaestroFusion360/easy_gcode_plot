@@ -9,7 +9,7 @@ from pathlib import Path
 from time import perf_counter
 
 from app.gcode.batch import _turning_unmodeled_m_diagnostics
-from app.gcode.kernel import ExecutionResult
+from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.api.engine import _autodetect_milling_arc_type
 from app.gcode.kernel.io import read_nc_text
 from app.gcode.program_execution import execute_program
@@ -26,6 +26,7 @@ ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
 @dataclass(frozen=True)
 class ExportRequest:
     language: str
+    kinematics: str | None = None
     encoding: str = "utf-8"
     format: str = "nc"
     mode: str = "expanded"
@@ -171,10 +172,62 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         source,
         language=request.language,
         autodetect_arc_type=request.language == "fanuc_mill",
+        kinematics=request.kinematics,
     )
     if request.language == "fanuc_turn":
         result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
     if not result.ok or not result.complete:
+        return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
+    if (
+        request.mode == "expanded"
+        and result.kinematics_profile
+        and any(e.kind == "ROTARY_INDEX" for e in result.events)
+    ):
+        result = replace(
+            result,
+            ok=False,
+            complete=False,
+            diagnostics=result.diagnostics
+            + (
+                Diagnostic(
+                    "UNSUPPORTED_INDEXED_MULTIAXIS_EXPORT",
+                    "Expanded NC cannot preserve indexed rotary commands",
+                    "error",
+                    "unsupported",
+                ),
+            ),
+        )
+        return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
+    if (
+        request.format == "dxf"
+        and result.kinematics_profile
+        and any(
+            motion.arc is not None
+            and motion.arc.normal is not None
+            and any(
+                abs(a - b) > 1e-9
+                for a, b in zip(
+                    motion.arc.normal,
+                    {17: (0.0, 0.0, 1.0), 18: (0.0, 1.0, 0.0), 19: (1.0, 0.0, 0.0)}[motion.plane],
+                )
+            )
+            for motion in result.motions
+        )
+    ):
+        result = replace(
+            result,
+            ok=False,
+            complete=False,
+            diagnostics=result.diagnostics
+            + (
+                Diagnostic(
+                    "UNSUPPORTED_INDEXED_MULTIAXIS_EXPORT",
+                    "DXF cannot represent tilted indexed arcs safely",
+                    "error",
+                    "unsupported",
+                ),
+            ),
+        )
         return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
     _check_unit_conversion(result, request)
     arc_type = _arc_type(result, request)
@@ -195,7 +248,11 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         )
         options = _options(request, arc_type)
         text = (
-            export_cycle_groups(result, options)
+            source
+            if request.mode == "full"
+            and result.kinematics_profile
+            and any(e.kind == "ROTARY_INDEX" for e in result.events)
+            else export_cycle_groups(result, options)
             if request.mode == "cycles"
             else export_program(
                 result,

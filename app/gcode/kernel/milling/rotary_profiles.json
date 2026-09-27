@@ -1,0 +1,488 @@
+{
+  "schema_version": 1,
+  "profiles": [
+    {
+      "id": "4ax_head_b_negative",
+      "name": "4Ax Head B Negative",
+      "table": [],
+      "head": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            -1.0,
+            0.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "4ax_table_b",
+      "name": "4Ax Table B",
+      "table": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": true
+    },
+    {
+      "id": "4ax_table_a",
+      "name": "4Ax Table A",
+      "table": [
+        {
+          "address": "A",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": true
+    },
+    {
+      "id": "5ax_table_ac_angled",
+      "name": "5Ax Table Ac Angled",
+      "table": [
+        {
+          "address": "A",
+          "axis": [
+            0.7071067811865496,
+            0.0,
+            -0.7071067811865496
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_bc_angled",
+      "name": "5Ax Table Bc Angled",
+      "table": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            0.7071068905932498,
+            -0.7071066717798298
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "5ax_head_ac_angled",
+      "name": "5Ax Head Ac Angled",
+      "table": [],
+      "head": [
+        {
+          "address": "A",
+          "axis": [
+            0.7071067811865496,
+            0.0,
+            0.7071067811865496
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_head_bc_angled",
+      "name": "5Ax Head Bc Angled",
+      "table": [],
+      "head": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            0.7071068905932498,
+            0.7071066717798298
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_ac",
+      "name": "5Ax Table Ac",
+      "table": [
+        {
+          "address": "A",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_bc",
+      "name": "5Ax Table Bc",
+      "table": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_c_head_b_negative",
+      "name": "5Ax Table C Head B Negative",
+      "table": [
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "head": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            -1.0,
+            0.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_head_ac_negative",
+      "name": "5Ax Head Ac Negative",
+      "table": [],
+      "head": [
+        {
+          "address": "A",
+          "axis": [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            -1.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_head_bc_negative",
+      "name": "5Ax Head Bc Negative",
+      "table": [],
+      "head": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            -1.0,
+            0.0
+          ]
+        },
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            -1.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_c_head_a_negative",
+      "name": "5Ax Table C Head A Negative",
+      "table": [
+        {
+          "address": "C",
+          "axis": [
+            0.0,
+            0.0,
+            1.0
+          ]
+        }
+      ],
+      "head": [
+        {
+          "address": "A",
+          "axis": [
+            -1.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_a_head_b",
+      "name": "5Ax Table A Head B",
+      "table": [
+        {
+          "address": "A",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        }
+      ],
+      "head": [
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "5ax_table_ab",
+      "name": "5Ax Table Ab",
+      "table": [
+        {
+          "address": "A",
+          "axis": [
+            1.0,
+            0.0,
+            0.0
+          ]
+        },
+        {
+          "address": "B",
+          "axis": [
+            0.0,
+            1.0,
+            0.0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "4ax_table_c",
+      "name": "4-axis Table C",
+      "table": [
+        {
+          "address": "C",
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": true
+    },
+    {
+      "id": "4ax_head_a",
+      "name": "4-axis Head A",
+      "table": [],
+      "head": [
+        {
+          "address": "A",
+          "axis": [
+            1,
+            0,
+            0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "4ax_head_b",
+      "name": "4-axis Head B",
+      "table": [],
+      "head": [
+        {
+          "address": "B",
+          "axis": [
+            0,
+            1,
+            0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "4ax_head_c",
+      "name": "4-axis Head C",
+      "table": [],
+      "head": [
+        {
+          "address": "C",
+          "axis": [
+            0,
+            0,
+            1
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "4ax_table_a_negative",
+      "name": "4-axis Table A Negative",
+      "table": [
+        {
+          "address": "A",
+          "axis": [
+            -1,
+            0,
+            0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "4ax_table_b_negative",
+      "name": "4-axis Table B Negative",
+      "table": [
+        {
+          "address": "B",
+          "axis": [
+            0,
+            -1,
+            0
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "4ax_table_c_negative",
+      "name": "4-axis Table C Negative",
+      "table": [
+        {
+          "address": "C",
+          "axis": [
+            0,
+            0,
+            -1
+          ]
+        }
+      ],
+      "head": [],
+      "enabled": false
+    },
+    {
+      "id": "4ax_head_a_negative",
+      "name": "4-axis Head A Negative",
+      "table": [],
+      "head": [
+        {
+          "address": "A",
+          "axis": [
+            -1,
+            0,
+            0
+          ]
+        }
+      ],
+      "enabled": false
+    },
+    {
+      "id": "4ax_head_c_negative",
+      "name": "4-axis Head C Negative",
+      "table": [],
+      "head": [
+        {
+          "address": "C",
+          "axis": [
+            0,
+            0,
+            -1
+          ]
+        }
+      ],
+      "enabled": false
+    }
+  ]
+}

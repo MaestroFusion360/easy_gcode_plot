@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum, auto
 
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
@@ -12,6 +12,7 @@ from ..runtime.diagnostics import modal_conflict_diagnostics
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
 from ..runtime.execution import ProgramRuntime, semantic_instructions
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
+from .kinematics import MachineKinematics, effective_orientation
 from .motion import _emit_milling_motions, _g53_home_axes
 from .state import MillState, _apply_pre_flow_modal_state, _execution_step, _wcs_offset
 
@@ -126,7 +127,7 @@ def _report_unknown_g_codes(diagnostics, unknown_g, position_words, block) -> No
 
 def _report_unknown_m_codes(diagnostics, mcodes, recognized_m, block) -> None:
     for m in mcodes:
-        if 0 <= m <= 199 and m not in recognized_m:
+        if m not in recognized_m:
             diagnostics.append(
                 Diagnostic(
                     "UNSUPPORTED_M_CODE",
@@ -263,7 +264,7 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
     words = evaluated_block.words
     codes = evaluated_block.codes
     unknown_g = tuple(g for g in codes.all_g if g not in MILLING_RECOGNIZED_G_CODES)
-    position_words = any(letter in words for letter in ("X", "Y", "Z"))
+    position_words = any(letter in words for letter in ("X", "Y", "Z", "A", "B", "C"))
     _report_unknown_g_codes(block_diagnostics, unknown_g, position_words, block)
     _report_unknown_m_codes(block_diagnostics, codes.all_m, MILLING_RECOGNIZED_M_CODES, block)
     if not (unknown_g and position_words):
@@ -271,6 +272,7 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
     _apply_pre_flow_modal_state(ctx.state, codes.all_g, codes.all_m, words, wcs_offsets=ctx.wcs_offsets)
     ctx.state.unknown_axes.update(letter for letter in ("X", "Y", "Z") if letter in words)
     return _BlockOutcome(
+        action=_BlockAction.STOP if any(axis in words for axis in ("A", "B", "C")) else _BlockAction.ADVANCE,
         events=tuple(occurrence_events),
         signals=evaluated_block.signals,
         diagnostics=tuple(block_diagnostics),
@@ -313,7 +315,7 @@ def _append_milling_reference_events(ctx, block, gcodes, words, occurrence_event
             home_return_event(
                 block,
                 "G28",
-                tuple(axis for axis in ("X", "Y", "Z") if axis in words),
+                tuple(axis for axis in ("X", "Y", "Z", "A", "B", "C") if axis in words),
                 len(ctx.runtime.call_stack),
             )
         )
@@ -347,6 +349,74 @@ def _dispatch_milling_program_flow(ctx, block, evaluated_block, occurrence_event
     )
 
 
+def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _BlockOutcome | None:
+    words = evaluated_block.words
+    codes = evaluated_block.codes
+    gcodes = codes.all_g
+    rotary = tuple(axis for axis in ("A", "B", "C") if axis in words)
+    if not rotary or 65 in gcodes:
+        return None
+    state = ctx.state
+    absolute = next((g == 90 for g in reversed(gcodes) if g in (90, 91)), state.absolute)
+    targets = {
+        axis: 0.0
+        if 28 in gcodes
+        else float(words[axis])
+        if absolute
+        else state.rotary_angles[axis] + float(words[axis])
+        for axis in rotary
+    }
+    changed = tuple(axis for axis in rotary if targets[axis] != state.rotary_angles[axis])
+    if not changed:
+        return None
+    move = next((g for g in reversed(gcodes) if g in (0, 1, 2, 3)), state.move)
+    continuous_c = (
+        state.kinematics is not None
+        and state.kinematics.id == "4ax_table_c"
+        and changed == ("C",)
+        and 28 not in gcodes
+        and 53 not in gcodes
+        and move in (0, 1)
+    )
+    message = ""
+    if state.kinematics is None:
+        code = "ROTARY_KINEMATICS_REQUIRED"
+        message = f"Select a kinematics profile to resolve rotary address {', '.join(changed)}"
+    elif any(axis not in state.kinematics.addresses for axis in changed):
+        code = "UNCONFIGURED_ROTARY_AXIS"
+        message = f"Rotary address {', '.join(changed)} is not configured in profile {state.kinematics.id}"
+    elif any(axis in words for axis in ("X", "Y", "Z")) and not continuous_c:
+        code = "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"
+        message = "Rotary and linear motion in one block is not supported"
+    elif 28 not in gcodes and move != 0 and not (continuous_c and move == 1):
+        code = "UNSUPPORTED_ROTARY_INTERPOLATION"
+        message = "Rotary motion requires rapid G0 indexing"
+    else:
+        code = None
+    if code is not None:
+        return _BlockOutcome(
+            action=_BlockAction.STOP,
+            events=tuple(occurrence_events),
+            diagnostics=(Diagnostic(code, message, "error", "unsupported", block.index + 1, block.raw),),
+            words=evaluated_block.values,
+        )
+    old = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
+    for axis in changed:
+        state.rotary_angles[axis] = targets[axis]
+    new = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
+    occurrence_events.append(
+        ExecutionEvent(
+            "ROTARY_MOTION" if continuous_c else "ROTARY_INDEX",
+            block.index,
+            axes=changed,
+            old_abc=old,
+            new_abc=new,
+            kinematics_profile=state.kinematics.id,
+        )
+    )
+    return None
+
+
 def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcome:
     """Run the named milling phases without committing PC or ExecutionStep."""
     occurrence_events: list[ExecutionEvent] = []
@@ -377,15 +447,16 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     early_outcome = _validate_milling_block(ctx, block, evaluated_block, occurrence_events)
     if early_outcome is not None:
         return early_outcome
-
     occurrence_signals = evaluated_block.signals
     block_diagnostics: list[Diagnostic] = []
     early_outcome = _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
     if early_outcome is not None:
         return early_outcome
-
+    rotary_start_angles = dict(ctx.state.rotary_angles)
+    early_outcome = _apply_rotary_index(ctx, block, evaluated_block, occurrence_events)
     # Phase 4: apply tool and modal state before any program-flow transfer.
-    early_outcome = _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
+    if early_outcome is None:
+        early_outcome = _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
     if early_outcome is not None:
         return early_outcome
     _append_milling_reference_events(ctx, block, gcodes, words, occurrence_events)
@@ -397,7 +468,19 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
 
     # Phase 6: execute geometric semantics and return everything for one commit.
     emitted: list[TraceMotion] = []
-    cycle_signals = _emit_milling_motions(block, ctx.state, words, gcodes, emitted, ctx.home, ctx.wcs_offsets)
+    cycle_signals = _emit_milling_motions(
+        block,
+        ctx.state,
+        words,
+        gcodes,
+        emitted,
+        ctx.home,
+        ctx.wcs_offsets,
+        rotary_start_angles=rotary_start_angles,
+    )
+    if ctx.state.kinematics is not None:
+        tool_orientation = effective_orientation(ctx.state.kinematics, ctx.state.rotary_angles)
+        emitted = [replace(motion, tool_orientation=tool_orientation) for motion in emitted]
     occurrence_signals += cycle_signals
     return _BlockOutcome(
         motions=tuple(emitted),
@@ -417,12 +500,14 @@ def execute_milling(
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
     g73_retract_distance: float = 1.0,
     include_instructions: bool = True,
+    kinematics: MachineKinematics | None = None,
 ):
 
     program = parse_program(source)
     program_start_block, program_number = main_program_location(program)
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
     state = MillState(
+        kinematics=kinematics,
         x=home[0] - ox,
         y=home[1] - oy,
         z=home[2] - oz,
@@ -446,12 +531,19 @@ def execute_milling(
         program_start_block=program_start_block,
         program_number=program_number,
     )
+    contains_rotary = any(
+        any(token.letter in ("A", "B", "C") for token in block.parsed_words) for block in program.blocks
+    )
+    stopped_due_error = False
 
     try:
         _validate_g73_retract_distance(state.g73_retract_distance)
         while 0 <= runtime.pc < len(program.blocks):
-            if _execute_simple_blocks is not None and _execute_simple_blocks(
-                program, runtime, state, motions, executed, steps, wcs_offsets
+            if (
+                not contains_rotary
+                and kinematics is None
+                and _execute_simple_blocks is not None
+                and _execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs_offsets)
             ):
                 continue
             block = runtime.next_block(program.blocks)
@@ -470,6 +562,7 @@ def execute_milling(
                 signals,
                 events,
             ):
+                stopped_due_error = any(d.severity == "error" for d in outcome.diagnostics)
                 break
     except Exception as exc:
         diagnostics.append(_execution_diagnostic(exc, program))
@@ -484,12 +577,16 @@ def execute_milling(
             execution_steps=tuple(steps),
             complete=False,
             events=tuple(events),
+            rotary_angles=tuple(state.rotary_angles.items()),
+            kinematics_profile=kinematics.id if kinematics else None,
+            rotary_axes=tuple(sorted(kinematics.addresses)) if kinematics else (),
         )
 
     signals = tuple(signals)
     event_tuple = tuple(events)
     return ExecutionResult(
         ok=not any(d.severity == "error" for d in diagnostics),
+        complete=not stopped_due_error,
         program=program,
         instructions=instructions,
         motions=tuple(motions),
@@ -499,4 +596,7 @@ def execute_milling(
         program_end=program_end_code(event_tuple),
         execution_steps=tuple(steps),
         events=event_tuple,
+        rotary_angles=tuple(state.rotary_angles.items()),
+        kinematics_profile=kinematics.id if kinematics else None,
+        rotary_axes=tuple(sorted(kinematics.addresses)) if kinematics else (),
     )

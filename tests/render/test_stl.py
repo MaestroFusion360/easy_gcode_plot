@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 from OpenGL import GL
+from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QVector3D, QVector4D
 from PyQt6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
@@ -96,6 +98,27 @@ def test_main_window_imports_persists_and_clears_stl_overlay(qt_app):
     window.deleteLater()
 
 
+def test_new_command_clears_stl_only_after_document_close_is_accepted(qt_app, monkeypatch):
+    window = MainWindow()
+    try:
+        assert window.importStl(str(STL_FIXTURE)) is True
+        item = window._stl_overlay.item
+        assert item in window.ui.graphicsView.items
+
+        monkeypatch.setattr(window, "maybeSave", lambda: False)
+        window.ui.actionNew.trigger()
+        assert window._stl_overlay.item is item
+        assert item in window.ui.graphicsView.items
+
+        monkeypatch.setattr(window, "maybeSave", lambda: True)
+        window.ui.actionNew.trigger()
+        assert window._stl_overlay is None
+        assert item not in window.ui.graphicsView.items
+        assert not window.ui.actionClearSTL.isEnabled()
+    finally:
+        window.deleteLater()
+
+
 def test_grid_is_drawn_after_background_but_keeps_scene_depth(qt_app):
     window = MainWindow()
     window.ui.actionGrid.setChecked(True)
@@ -166,6 +189,47 @@ def test_orbit_from_fixed_view_promotes_camera_to_perspective_3d(qt_app):
     assert window._stl_overlay.item is item
     assert item in window.ui.graphicsView.items
     window.deleteLater()
+
+
+def test_table_b_isometric_view_has_y_up_and_xz_sideways_and_orbits_about_cursor(qt_app):
+    window = MainWindow()
+    previous = window.rotaryKinematics
+    try:
+        window._select_rotary_kinematics("4ax_table_b")
+        window.view3d()
+        view = window.ui.graphicsView
+        assert view.opts["rotationMethod"] == "quaternion"
+        screen_x = view.viewMatrix() * QVector4D(1, 0, 0, 0)
+        screen_y = view.viewMatrix() * QVector4D(0, 1, 0, 0)
+        screen_z = view.viewMatrix() * QVector4D(0, 0, 1, 0)
+        assert screen_y.x() == pytest.approx(0, abs=1e-6)
+        assert screen_y.y() > 0
+        assert screen_x.x() > 0
+        assert screen_x.y() > 0
+        assert screen_z.x() > 0
+        assert screen_z.y() < 0
+        assert abs(screen_x.x()) > abs(screen_x.y())
+        assert abs(screen_z.x()) > abs(screen_z.y())
+
+        navigation = window._plot_navigation
+        navigation._orbit_pivot = navigation._pivot_at(QPointF(view.width() * 0.7, view.height() * 0.4))
+        before = view.viewMatrix() * QVector4D(navigation._orbit_pivot, 1)
+        navigation._orbit_at_pivot(12, -8)
+        after = view.viewMatrix() * QVector4D(navigation._orbit_pivot, 1)
+        assert QVector3D(before.x() - after.x(), before.y() - after.y(), before.z() - after.z()).length() < 1e-4
+
+        window.viewTop()
+        assert view.isOrthographic()
+        assert view.opts["rotationMethod"] == "euler"
+        window.view3d()
+        assert view.opts["rotationMethod"] == "quaternion"
+
+        window._select_rotary_kinematics("4ax_table_a")
+        window.view3d()
+        assert view.opts["rotationMethod"] == "euler"
+    finally:
+        window._select_rotary_kinematics(previous)
+        window.deleteLater()
 
 
 def test_normal_file_open_routes_stl_to_importer_without_decoding_as_nc(qt_app, monkeypatch):

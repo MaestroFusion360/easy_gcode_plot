@@ -322,6 +322,7 @@ class MainWindowExecutionMixin:
         options = deepcopy(
             {
                 "language": language,
+                "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
                 "source_arc_type": 1 if turning else getattr(self, "arc_type", 1),
                 "autodetect_arc_type": False if turning else getattr(self, "autodetectArcType", True),
                 "skip_optional_blocks": getattr(self, "ignoreBlockSkip", False),

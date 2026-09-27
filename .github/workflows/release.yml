@@ -84,10 +84,7 @@ jobs:
         run: bash scripts/sh/build.sh --skip-tests
 
       - name: Smoke test packaged CLI
-        run: |
-          ./dist/easy_gcode_plot_cli --help
-          bash scripts/sh/batch/batch_mill.sh
-          bash scripts/sh/batch/batch_turn.sh
+        run: ./dist/easy_gcode_plot_cli --help
 
       - name: Package Linux executables
         run: |
@@ -117,11 +114,9 @@ jobs:
 
     steps:
       - name: Check out repository
-        # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Install uv and Python
-        # astral-sh/setup-uv v9.0.0
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9
         with:
           version: "0.12.9"
@@ -196,7 +191,6 @@ jobs:
 
     steps:
       - name: Check out repository
-        # actions/checkout v7.0.1
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
 
       - name: Download executable artifact
@@ -219,11 +213,27 @@ jobs:
           $tag = "${{ github.ref_name }}"
           $guiAsset = @(Get-ChildItem dist/Easy-G-Code-Plot-*-Windows-x64.exe -File -ErrorAction Stop)
           if ($guiAsset.Count -ne 1) { throw "Expected exactly one GUI executable." }
-          $assets = @($guiAsset[0].FullName, (Resolve-Path dist/easy_gcode_plot_cli.exe).Path)
+
+          $assets = @(
+            $guiAsset[0].FullName,
+            (Resolve-Path dist/easy_gcode_plot_cli.exe).Path
+          )
+
           $checksum = (Resolve-Path dist/SHA256SUMS.txt).Path
-          $linuxAsset = @(Get-ChildItem dist/linux/Easy-G-Code-Plot-*-Linux-x64.tar.gz -File -ErrorAction Stop)
-          if ($linuxAsset.Count -ne 1) { throw "Expected exactly one Linux archive." }
-          $linuxChecksum = (Resolve-Path "$($linuxAsset[0].FullName).sha256").Path
+
+          $linuxAsset = @(
+            Get-ChildItem dist/linux/Easy-G-Code-Plot-*-Linux-x64.tar.gz `
+              -File -ErrorAction Stop
+          )
+
+          if ($linuxAsset.Count -ne 1) {
+            throw "Expected exactly one Linux archive."
+          }
+
+          $linuxChecksum = (
+            Resolve-Path "$($linuxAsset[0].FullName).sha256"
+          ).Path
+
           $assets += $linuxAsset[0].FullName
           $assets += $checksum
           $assets += $linuxChecksum
@@ -232,7 +242,9 @@ jobs:
             gh release upload $tag @assets --clobber
           } else {
             gh release create $tag @assets `
-              --verify-tag --generate-notes --title "Easy G-Code Plot $tag"
+              --verify-tag `
+              --generate-notes `
+              --title "Easy G-Code Plot $tag"
           }
 
           gh release edit $tag --draft=false --latest

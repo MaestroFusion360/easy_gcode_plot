@@ -39,15 +39,23 @@
   </p>
 </details>
 
+<details>
+  <summary><h2>Indexed B milling</h2></summary>
+  <p align="center">
+    <img src="assets/img6.png" alt="Lathe Stock Removal Simulation">
+  </p>
+</details>
+
 ---
 
-Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for FANUC-style turning and milling programs. Rendering, playback, Stock Removal, statistics, CLI analysis and export consume one resolved trace produced by the shared CNC kernel.
+Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter for FANUC-style turning and milling programs. Rendering, playback, Stock Removal, statistics, CLI analysis and export consume one resolved trace produced by the shared CNC kernel. It models supported program semantics and toolpath geometry, not a complete physical CNC machine.
 
 ## Highlights
 
 - FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, `G15/G16` polar-coordinate programming, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
+- Indexed A/B milling and planar X/C contour mapping with selected rotary profiles; `4ax_table_a`, `4ax_table_b` and `4ax_table_c` have fixture checks.
 - G-code editor with highlighting, line numbers, search, replace and cleanup tools.
 - CNC editing assistants for circular/grid hole patterns, circular/rectangular pockets and reusable persistent snippets.
 - Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.
@@ -60,6 +68,18 @@ Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for
 - Native Cython acceleration with a compatible Python fallback.
 
 Detailed controller behavior, limitations, configuration and troubleshooting are documented in [FAQ.md](FAQ.md), also available through **Help → FAQ**.
+
+## 1.6.7 development changes
+
+- Added selectable milling rotary profiles in **Settings → Rotary kinematics** and the CLI `--kinematics PROFILE_ID` option for `fanuc_mill`.
+- Added indexed A/B/C state with G90/G91 angle handling. For the checked A-table and B-table profiles, subsequent tool-tip motions, arcs and drilling cycles are plotted in a fixed WCS; playback rotates the tool preview. G28 and G53 use machine-axis coordinates before the indexed display transform.
+- G40/G41/G42 is solved in the local working plane before indexed A/B geometry is mapped into fixed WCS. Missing tool or unsupported contour data still produces a compensation warning without stopping execution; unknown M-codes remain warnings.
+- Fixed false plot connectors across an indexed position change. The index itself has no sampled rotary sweep in the logical trace.
+- Enabled `4ax_table_c` for the checked planar X/C program. Concurrent X and C, including C-only blocks, map tool-tip points into the fixed XY WCS plane and overlay the program's equivalent XY contour.
+- G41/G42 cutter compensation is unsupported for `4ax_table_c`: the X/C plot remains the programmed, uncompensated tool-tip path and reports a warning without stopping execution. G40 cancels the modal request.
+- Matched CAD mouse navigation to CNCEditor: left drag pans and middle drag orbits around the cursor. The 3D/ISO camera for `4ax_table_b` shows +Y vertically upward, with +X and +Z extending along the upper-right and lower-right diagonals; `4ax_table_a` retains the vertical mill view.
+
+Only `4ax_table_a`, `4ax_table_b` and `4ax_table_c` are enabled in the GUI; the default is **None**. Other catalog profiles remain in JSON with `enabled: false` until reference scenarios can verify them. The confirmed 1.6.7 scope covers indexed 3+1 for vertical mills with table A and horizontal mills with table B, plus the checked planar X/C table C contour. See the [rotary milling limits](FAQ.md#how-is-indexed-rotary-milling-handled-in-167).
 
 ## Quick start
 
@@ -77,7 +97,7 @@ Download the GUI executable and `easy_gcode_plot_cli.exe` from [GitHub Releases]
 Download `Easy-G-Code-Plot-<version>-Linux-x64.tar.gz` and its `.sha256` file from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). The archive contains separate GUI and CLI executables and preserves their executable permissions. Verify and unpack it with the downloaded version number:
 
 ```bash
-version=1.6.5
+version=1.6.7
 sha256sum -c "Easy-G-Code-Plot-$version-Linux-x64.tar.gz.sha256"
 tar -xzf "Easy-G-Code-Plot-$version-Linux-x64.tar.gz"
 ./easy_gcode_plot
@@ -106,6 +126,7 @@ uv run --no-dev python main.py
 1. Open or drag a `.nc`, `.cnc` or `.txt` program into the application.
 2. Enable `Lathe Mode` for turning or leave it disabled for milling.
 3. Configure WCS, machine home and tools when required.
+   For indexed milling, select the matching **Settings → Rotary kinematics** profile before refreshing.
 4. Refresh and inspect the resolved toolpath.
 5. Use playback, Tokens/Macro Variables and Statistics to inspect execution. The Macro Variables tab shows the actual Macro B state captured at the current logical playback step.
 6. Use **CNC Functions → Hole Calculator**, **Pocket Calculator** or **Snippets** to generate and insert frequently used code at the editor caret.
@@ -175,6 +196,7 @@ The CLI uses the same execution kernel as the GUI. In PowerShell, run the Window
 .\easy_gcode_plot_cli.exe batch .\programs --lang fanuc_mill -o batch-report
 .\easy_gcode_plot_cli.exe export program.nc --lang fanuc_turn -o expanded.nc
 .\easy_gcode_plot_cli.exe batch-export .\programs --lang fanuc_mill --mode expanded -o normalized
+.\easy_gcode_plot_cli.exe analyze indexed.nc --lang fanuc_mill --kinematics 4ax_table_b
 ```
 
 From the repository root, use `.\dist\easy_gcode_plot_cli.exe` instead. When running from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.

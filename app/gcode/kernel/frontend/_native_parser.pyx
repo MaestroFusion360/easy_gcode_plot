@@ -138,6 +138,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef object r_expr = None
     cdef object f_expr = None
     cdef object a_expr = None
+    cdef object b_expr = None
     cdef object c_expr = None
     cdef bint g65_call = False
     cdef object nlabel = None
@@ -240,6 +241,8 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             f_expr = expr
         elif letter == "A":
             a_expr = expr
+        elif letter == "B":
+            b_expr = expr
         elif letter == "C":
             c_expr = expr
 
@@ -254,12 +257,13 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     if not g65_call and (
         motion_expr is not None or x_expr is not None or y_expr is not None or z_expr is not None
         or u_expr is not None or v_expr is not None or w_expr is not None
+        or a_expr is not None or b_expr is not None or c_expr is not None
     ):
         motion = MotionNode(
             motion_expr,
             x_expr, z_expr, u_expr, w_expr,
             i_expr, k_expr, r_expr, f_expr, a_expr, c_expr,
-            y_expr, v_expr, j_expr,
+            y_expr, v_expr, j_expr, b_expr,
         )
     token_tuple = tuple(tokens)
     ast_tuple = tuple(ast_words)
@@ -275,7 +279,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             motion_code,
             x_expr, z_expr, u_expr, w_expr,
             i_expr, k_expr, r_expr, f_expr, a_expr, c_expr,
-            y_expr, v_expr, j_expr,
+            y_expr, v_expr, j_expr, b_expr,
         )
     elif g_codes or m_codes:
         node = ControlAstNode(

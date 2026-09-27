@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.7 - 2026-09-27
+
+- Added deterministic indexed 3+1 milling for the verified `4ax_table_a` (vertical mill) and `4ax_table_b` (horizontal mill) profiles. Programmed G90/G91 A/B indexing transforms subsequent tool-tip trajectories, arcs and milling cycles while WCS axes remain fixed; playback rotates the tool preview.
+- Corrected A/B rotation signs and repeated G28/G53 machine-axis returns after indexing. Removed false plot segments joining positions across a rotary index.
+- G40/G41/G42 now calculate cutter compensation in the local working plane before the completed geometry is transformed by A/B, including arc centers and normals. Missing tools or unsupported contours produce warnings without stopping execution; unknown M-codes also remain non-blocking warnings.
+- Added an `enabled` flag to every rotary profile. Only the verified table A/B/C profiles appear in the GUI; **None** is the default. Other profiles remain in the JSON catalog, disabled pending reference programs. G68.2 and 5-axis behavior are outside the verified 1.6.7 scope.
+- Enabled `4ax_table_c` for the checked planar X/C program: concurrent X/C and C-only blocks map tool-tip points into fixed XY WCS. The resulting contour overlays the equivalent XY contour in `indexed_table_c.nc` within 0.05 mm at sampled endpoints.
+- Disabled G41/G42 cutter compensation for `4ax_table_c`. Programs continue with the programmed, uncompensated X/C tool-tip path and an explicit warning; G40 still cancels the modal request. The correction approach in `tmp/indexed_table_c_correction.nc` is not treated as verified compensation.
+- Matched CAD-style mouse navigation to CNCEditor: left drag pans, middle drag orbits around the cursor. Corrected the table B 3D/ISO camera so +Y points vertically up, +X runs upward-right and +Z downward-right; table A retains the vertical mill view.
+- Fixed **New** so an accepted new-document action removes the imported STL model and disables **Clear STL**. Canceling the action preserves the model.
+- Refreshed the FAQ and License dialogs with larger, resizable reading windows, clearer heading and paragraph spacing, padded code blocks, and theme-aware syntax colors for fenced examples. Preserved FAQ anchor and License links.
+- Refined FAQ/License contrast: muted light-theme links, clearer headings, and continuous code-block backgrounds in both themes with a lighter dark-theme code surface. Added the CNC icon to Rotary kinematics and a blue WCS action icon for visibility in light and dark themes.
+- Fixed the embedded FAQ table of contents: Qt cannot parse Markdown links nested inside the source file's HTML `<details>` block, so the dialog displays that block as a regular heading and list while the source FAQ keeps its collapsible form. Restored readable links in both themes and pale blue section headings in the dark theme.
+- Refactored only the dark FAQ styling to follow the selected application theme instead of guessing from the native widget palette. Dark headings, links, and code blocks now use explicit contrasting colors, including after a live theme switch; the light FAQ styling stays unchanged.
+- Added FAQ search below the document with a result count, icon buttons for Previous/Next, wraparound, Enter for the next match, and Ctrl+F focus. Search remains usable after switching the application theme.
+- Updated README and FAQ and added regression checks for the A/B/C fixtures, rotation direction, G90/G91, G28/G53, local-plane compensation, camera behavior and STL cleanup. The reference NC fixtures were not changed.
+
 ## 1.6.6 - 2026-09-26
 
 - Refactored single-file CLI export and added `batch-export` around one shared execution, validation and NC/DXF export pipeline.

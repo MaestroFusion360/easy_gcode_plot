@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from PyQt6.QtGui import QVector3D
 from PyQt6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
@@ -29,6 +30,16 @@ def test_flat_mill_geometry_is_reused_when_only_playback_position_changes(qt_app
     assert item.meshes == meshes
     translation = item.transform().column(3)
     assert (translation.x(), translation.y(), translation.z()) == pytest.approx((10.0, 20.0, 30.0))
+
+
+def test_indexed_tool_rotates_about_tip_in_fixed_wcs(qt_app):
+    item = MillingToolPreviewItem()
+    orientation = ((0.0, 0.0, 1.0), (0.0, 1.0, 0.0), (-1.0, 0.0, 0.0))
+    assert item.show_tool({"type": "drill", "diameter": 6.0, "length": 40.0}, (50, 0, 0), orientation)
+    tip = item.transform().map(QVector3D(0, 0, 0))
+    axis = item.transform().map(QVector3D(0, 0, 1))
+    assert (tip.x(), tip.y(), tip.z()) == pytest.approx((50, 0, 0))
+    assert (axis.x(), axis.y(), axis.z()) == pytest.approx((51, 0, 0))
 
 
 def test_drill_has_conical_point_and_cylindrical_body(qt_app):

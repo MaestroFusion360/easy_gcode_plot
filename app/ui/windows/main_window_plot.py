@@ -6,7 +6,7 @@ from time import perf_counter
 
 from OpenGL import GL
 from PyQt6.QtCore import QCoreApplication, QSignalBlocker
-from PyQt6.QtGui import QColor, QVector3D, QVector4D
+from PyQt6.QtGui import QColor, QMatrix4x4, QQuaternion, QVector3D, QVector4D
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
 from pyqtgraph.opengl import GLGridItem, GLScatterPlotItem
 
@@ -347,6 +347,7 @@ class MainWindowPlotMixin:
                     self.render_points,
                     execution_result.motions,
                     getattr(self, "_motion_to_playback", None),
+                    lathe_radius_view=getattr(self, "latheMode", False),
                 ),
                 len(getattr(self, "_playback_movements", execution_result.motions)),
             )
@@ -388,7 +389,9 @@ class MainWindowPlotMixin:
         result = self.execution_result
         motions = result.motions if result is not None else ()
         self._toolpath_item.set_segments(
-            segments := segments_from_render_points(self.render_points, motions),
+            segments := segments_from_render_points(
+                self.render_points, motions, lathe_radius_view=getattr(self, "latheMode", False)
+            ),
             len(motions),
         )
         LOGGER.debug(
@@ -610,6 +613,7 @@ class MainWindowPlotMixin:
                 tool_item.show_tool(
                     getattr(self, "millingTools", {}).get(motion.tool, DEFAULT_MILLING_TOOL),
                     (motion.end_x, motion.end_y, motion.end_z),
+                    motion.tool_orientation,
                 )
         if sync_editor:
             self._sync_editor_to_motion(idx)
@@ -818,8 +822,20 @@ class MainWindowPlotMixin:
         """Set the standard perspective 3D camera angle."""
         self._view_mode = "3d"
         self.ui.actionGrid.setEnabled(True)
-        self.ui.graphicsView.setProjectionMode("perspective")
-        self.setView(60, 30, -45, use_calc_dist=False, dist_scale=1)
+        view = self.ui.graphicsView
+        view.setProjectionMode("perspective")
+        if getattr(self, "rotaryKinematics", None) == "4ax_table_b":
+            # Horizontal mill: +Y is screen-up; +X and +Z run to the right
+            # on opposite diagonals. Only the camera changes; WCS stays fixed.
+            view.opts["rotationMethod"] = "quaternion"
+            basis = QMatrix4x4()
+            basis.lookAt(QVector3D(-1, 1, 1), QVector3D(0, 0, 0), QVector3D(0, 1, 0))
+            rotation = QQuaternion.fromRotationMatrix(basis.normalMatrix())
+            view.opts["fov"] = 60
+            view.setCameraPosition(distance=1.0, rotation=rotation)
+        else:
+            view.opts["rotationMethod"] = "euler"
+            self.setView(60, 30, -45, use_calc_dist=False, dist_scale=1)
         self._finish_camera_change()
         LOGGER.info("plot_view_changed mode=3d")
 
@@ -827,6 +843,7 @@ class MainWindowPlotMixin:
         """Switch camera to a true top-down orthographic view."""
         self._view_mode = "top"
         self.ui.actionGrid.setEnabled(True)
+        self.ui.graphicsView.opts["rotationMethod"] = "euler"
         self.ui.graphicsView.setProjectionMode("orthographic")
         self.setView(60, 90, -90, use_calc_dist=False)
         self._finish_camera_change()
@@ -836,6 +853,7 @@ class MainWindowPlotMixin:
         """Switch camera to a true front orthographic view."""
         self._view_mode = "front"
         self.ui.actionGrid.setEnabled(True)
+        self.ui.graphicsView.opts["rotationMethod"] = "euler"
         self.ui.graphicsView.setProjectionMode("orthographic")
         self.setView(60, 0, -90, use_calc_dist=False)
         self._finish_camera_change()
@@ -845,6 +863,7 @@ class MainWindowPlotMixin:
         """Switch camera to a true left orthographic view."""
         self._view_mode = "left"
         self.ui.actionGrid.setEnabled(True)
+        self.ui.graphicsView.opts["rotationMethod"] = "euler"
         self.ui.graphicsView.setProjectionMode("orthographic")
         self.setView(60, 0, 180, use_calc_dist=False)
         self._finish_camera_change()

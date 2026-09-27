@@ -270,6 +270,7 @@ class MainWindowFileMixin:
             self.ui.editor.clear()
             self.setCurrentFile("")
             self.clearPlot()
+            self.clearStl()
             if hasattr(self, "resetStockToAuto"):
                 self.resetStockToAuto(refresh=False)
             self.syncGuiCapabilities()

@@ -7,18 +7,66 @@ from ..api.types import TraceMotion
 from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.home import reference_return
 from .cycles import execute_milling_cycle
-from .state import MillState, _coordinate_transform, _machine, _wcs_offset, _xyz
+from .kinematics import effective_orientation, point_orientation, transform_point
+from .state import MillState, _coordinate_transform, _machine, _orient_point, _orient_vector, _wcs_offset, _xyz
 
 
-def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion") -> TraceMotion | None:
+def _raw_machine_position(state: MillState, wcs_offsets) -> tuple[float, float, float]:
+    """Current XYZ before indexed display orientation, in machine coordinates."""
+    work = _coordinate_transform(state).apply((state.x, state.y, state.z))
+    offset = _wcs_offset(wcs_offsets, state.active_wcs)
+    return tuple(work[i] + offset[i] for i in range(3))
+
+
+def _display_machine_position(position, state: MillState, wcs_offsets) -> tuple[float, float, float]:
+    offset = _wcs_offset(wcs_offsets, state.active_wcs)
+    work = tuple(position[i] - offset[i] for i in range(3))
+    oriented = _orient_point(work, state)
+    return tuple(oriented[i] + offset[i] for i in range(3))
+
+
+def _set_raw_machine_position(state: MillState, position, wcs_offsets) -> None:
+    offset = _wcs_offset(wcs_offsets, state.active_wcs)
+    work = tuple(position[i] - offset[i] for i in range(3))
+    state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
+
+
+def _continuous_c_changed(state: MillState, words, rotary_start_angles) -> bool:
+    return (
+        state.kinematics is not None
+        and state.kinematics.id == "4ax_table_c"
+        and "C" in words
+        and rotary_start_angles is not None
+        and rotary_start_angles["C"] != state.rotary_angles["C"]
+    )
+
+
+def _motion(
+    block,
+    state: MillState,
+    words,
+    *,
+    wcs_offsets,
+    source_kind="motion",
+    rotary_start_angles=None,
+) -> TraceMotion | None:
     end = _xyz(words, state)
-    start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    continuous_c = _continuous_c_changed(state, words, rotary_start_angles)
+    if continuous_c:
+        work = _coordinate_transform(state).apply((state.x, state.y, state.z))
+        offset = _wcs_offset(wcs_offsets, state.active_wcs)
+        rotated = transform_point(point_orientation(state.kinematics, rotary_start_angles), work)
+        start_m = tuple(rotated[index] + offset[index] for index in range(3))
+    else:
+        start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
     end_m = _machine(end, state, wcs_offsets)
     arc_vector = (0.0, 0.0, 0.0)
     plane_scales = (1.0, 1.0)
     if state.move in (2, 3):
         transform = _coordinate_transform(state)
-        arc_vector = transform.apply_vector(tuple(words.get(axis, 0.0) * state.unit_scale for axis in ("I", "J", "K")))
+        arc_vector = _orient_vector(
+            transform.apply_vector(tuple(words.get(axis, 0.0) * state.unit_scale for axis in ("I", "J", "K"))), state
+        )
         plane_scales = transform.plane_scale_factors(state.plane)
         if abs(plane_scales[0] - plane_scales[1]) > 1e-12:
             raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
@@ -36,9 +84,21 @@ def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion"
         end_z=end_m[2],
         radius=(words.get("R") * state.unit_scale * abs(plane_scales[0]) if "R" in words else None),
         feed=(None if state.move == 0 else state.feed),
-        i=(arc_vector[0] if "I" in words else None),
-        j=(arc_vector[1] if "J" in words else None),
-        k=(arc_vector[2] if "K" in words else None),
+        i=(
+            arc_vector[0]
+            if (state.kinematics is not None and any(a in words for a in ("I", "J", "K"))) or "I" in words
+            else None
+        ),
+        j=(
+            arc_vector[1]
+            if (state.kinematics is not None and any(a in words for a in ("I", "J", "K"))) or "J" in words
+            else None
+        ),
+        k=(
+            arc_vector[2]
+            if (state.kinematics is not None and any(a in words for a in ("I", "J", "K"))) or "K" in words
+            else None
+        ),
         source_block=block.index,
         source_nlabel=block.nlabel,
         source_raw=block.raw,
@@ -51,24 +111,28 @@ def _motion(block, state: MillState, words, *, wcs_offsets, source_kind="motion"
         feed_mode=state.feed_mode,
         spindle_rpm=state.spindle_rpm,
         compensation_status="UNVERIFIED" if state.cutter_comp in (41, 42) else "NOT_APPLIED",
+        orientation=(
+            point_orientation(state.kinematics, state.rotary_angles) if state.kinematics and not continuous_c else None
+        ),
+        orientation_offset=_wcs_offset(wcs_offsets, state.active_wcs),
+        tool_orientation=(effective_orientation(state.kinematics, state.rotary_angles) if state.kinematics else None),
     )
 
 
 def _machine_coordinate_motion(block, state: MillState, words, *, wcs_offsets) -> TraceMotion | None:
     """Execute a non-modal G53 move directly in machine coordinates."""
-    start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
-    end_m = list(start_m)
+    start_raw = _raw_machine_position(state, wcs_offsets)
+    end_raw = list(start_raw)
     for index, letter in enumerate(("X", "Y", "Z")):
         if letter not in words:
             continue
         value = words[letter] * state.unit_scale
-        end_m[index] = value if state.absolute else start_m[index] + value
+        end_raw[index] = value if state.absolute else start_raw[index] + value
 
-    end = (end_m[0], end_m[1], end_m[2])
-    ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
-    work = (end[0] - ox, end[1] - oy, end[2] - oz)
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
-    if start_m == end:
+    start_m = _display_machine_position(start_raw, state, wcs_offsets)
+    end = _display_machine_position(end_raw, state, wcs_offsets)
+    _set_raw_machine_position(state, end_raw, wcs_offsets)
+    if start_raw == tuple(end_raw):
         return None
     return TraceMotion(
         move=state.move,
@@ -98,7 +162,7 @@ def _g53_home_axes(
     wcs_offsets,
 ) -> tuple[str, ...]:
     """Return addressed G53 axes that deterministically target configured home."""
-    start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    start_m = _raw_machine_position(state, wcs_offsets)
     axes: list[str] = []
     for index, letter in enumerate(("X", "Y", "Z")):
         if letter not in words:
@@ -113,10 +177,10 @@ def _g53_home_axes(
     return tuple(axes)
 
 
-def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets):
+def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets, rotary_start_angles):
     if not gcodes and state.cycle == 80:
-        if "X" in words or "Y" in words or "Z" in words:
-            m = _motion(block, state, words, wcs_offsets=wcs_offsets)
+        if any(axis in words for axis in ("X", "Y", "Z")) or _continuous_c_changed(state, words, rotary_start_angles):
+            m = _motion(block, state, words, wcs_offsets=wcs_offsets, rotary_start_angles=rotary_start_angles)
             if m:
                 checkpoint("generated_motions")
                 motions.append(m)
@@ -124,8 +188,8 @@ def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets)
     return False
 
 
-def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets):
-    if _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets):
+def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets, *, rotary_start_angles=None):
+    if _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets, rotary_start_angles):
         return ()
 
     action_g = None
@@ -167,8 +231,10 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
             motions.append(m)
     elif 28 in gcodes:
         mid = _xyz(words, state)
-        start_machine = _machine((state.x, state.y, state.z), state, wcs_offsets)
-        intermediate_machine = _machine(mid, state, wcs_offsets)
+        start_machine = _raw_machine_position(state, wcs_offsets)
+        offset = _wcs_offset(wcs_offsets, state.active_wcs)
+        mid_work = _coordinate_transform(state).apply(mid)
+        intermediate_machine = tuple(mid_work[i] + offset[i] for i in range(3))
         path = reference_return(
             start_machine,
             intermediate_machine,
@@ -176,16 +242,18 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
             tuple(axis in words for axis in ("X", "Y", "Z")),
         )
         for segment_start, segment_end in path.segments:
+            display_start = _display_machine_position(segment_start, state, wcs_offsets)
+            display_end = _display_machine_position(segment_end, state, wcs_offsets)
             checkpoint("generated_motions")
             motions.append(
                 TraceMotion(
                     0,
-                    segment_start[0],
-                    segment_start[2],
-                    segment_end[0],
-                    segment_end[2],
-                    start_y=segment_start[1],
-                    end_y=segment_end[1],
+                    display_start[0],
+                    display_start[2],
+                    display_end[0],
+                    display_end[2],
+                    start_y=display_start[1],
+                    end_y=display_end[1],
                     plane=state.plane,
                     source_block=block.index,
                     source_nlabel=block.nlabel,
@@ -194,11 +262,13 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
                     tool=state.active_tool,
                 )
             )
-        ox, oy, oz = _wcs_offset(wcs_offsets, state.active_wcs)
-        work = (path.target[0] - ox, path.target[1] - oy, path.target[2] - oz)
-        state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
-    elif state.cycle == 80 and (any(k in words for k in ("X", "Y", "Z")) or any(g in (0, 1, 2, 3) for g in gcodes)):
-        m = _motion(block, state, words, wcs_offsets=wcs_offsets)
+        _set_raw_machine_position(state, path.target, wcs_offsets)
+    elif state.cycle == 80 and (
+        any(k in words for k in ("X", "Y", "Z"))
+        or any(g in (0, 1, 2, 3) for g in gcodes)
+        or _continuous_c_changed(state, words, rotary_start_angles)
+    ):
+        m = _motion(block, state, words, wcs_offsets=wcs_offsets, rotary_start_angles=rotary_start_angles)
         if m:
             checkpoint("generated_motions")
             motions.append(m)

@@ -24,6 +24,10 @@ from app.gcode.program_execution import execute_program
 from app.gcode.trace_tools import format_trace_statistics, trace_statistics
 
 
+def _add_kinematics_option(command: argparse.ArgumentParser) -> None:
+    command.add_argument("--kinematics", metavar="PROFILE_ID", help="Indexed FANUC milling rotary profile")
+
+
 class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
     def _get_help_string(self, action):
         if action.default is None:
@@ -82,6 +86,7 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
     )
     return ExportRequest(
         language=args.lang,
+        kinematics=args.kinematics,
         encoding=args.encoding,
         format=args.format,
         mode=args.mode,
@@ -118,6 +123,8 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
             formatter_class=_HelpFormatter,
         )
         command.add_argument("file", type=Path, help="NC program to process")
+        if name in {"trace", "analyze", "export"}:
+            _add_kinematics_option(command)
         command.add_argument(
             "--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn", help="Controller dialect"
         )
@@ -134,6 +141,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         formatter_class=_HelpFormatter,
     )
     batch.add_argument("directory", type=Path, help="Directory containing NC programs")
+    _add_kinematics_option(batch)
     batch.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn", help="Controller dialect")
     batch.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
     batch.add_argument("-o", "--output-dir", type=Path, default=Path("batch-report"), help="Report directory")
@@ -153,6 +161,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         formatter_class=_HelpFormatter,
     )
     batch_export.add_argument("directory", type=Path, help="Directory containing NC programs")
+    _add_kinematics_option(batch_export)
     batch_export.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn")
     batch_export.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8")
     batch_export.add_argument("-o", "--output-dir", type=Path, required=True, help="Separate output directory")
@@ -162,12 +171,14 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     return parser, tuple(sub.choices.values())
 
 
-def _load(path: Path, language: str, encoding: str, *, for_analysis: bool = False) -> tuple[str, ExecutionResult]:
+def _load(
+    path: Path, language: str, encoding: str, *, for_analysis: bool = False, kinematics: str | None = None
+) -> tuple[str, ExecutionResult]:
     source = read_nc_text(path, encoding=encoding)
     if for_analysis:
-        result = execute_analysis_program(source, language=language)
+        result = execute_analysis_program(source, language=language, kinematics=kinematics)
     else:
-        result, _tools, _inferred = execute_program(source, language=language)
+        result, _tools, _inferred = execute_program(source, language=language, kinematics=kinematics)
     return source, result
 
 
@@ -181,6 +192,8 @@ def _result_document(result: ExecutionResult, *, include_motions: bool) -> dict[
         "signals": [asdict(item) for item in result.signals],
         "events": [asdict(item) for item in result.events],
         "program_end": result.program_end,
+        "kinematics_profile": result.kinematics_profile,
+        "rotary_angles": dict(result.rotary_angles),
     }
     if include_motions:
         doc["motions"] = [asdict(item) for item in result.motions]
@@ -202,6 +215,8 @@ def _analysis_document(result: ExecutionResult) -> dict[str, object]:
         "signals": [asdict(item) for item in result.signals],
         "events": [asdict(item) for item in result.events],
         "program_end": result.program_end,
+        "kinematics_profile": result.kinematics_profile,
+        "rotary_angles": dict(result.rotary_angles),
     }
 
 
@@ -263,6 +278,7 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
             recursive=not args.top_level_only,
             extensions=extensions,
             on_file=_print_batch_file,
+            kinematics=args.kinematics,
         )
         json_path, csv_path = write_batch_reports(report, args.output_dir)
     except (FileNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
@@ -314,7 +330,13 @@ def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: 
 
 
 def _run_single(args: argparse.Namespace) -> int:
-    _source, result = _load(args.file, args.lang, args.encoding, for_analysis=args.command == "analyze")
+    _source, result = _load(
+        args.file,
+        args.lang,
+        args.encoding,
+        for_analysis=args.command == "analyze",
+        kinematics=getattr(args, "kinematics", None),
+    )
     if args.command == "parse":
         _print_program_result("parse", args.file, result)
     elif args.command == "trace":
@@ -340,6 +362,8 @@ def main(argv: list[str] | None = None) -> int:
             command.print_help()
         return 0
     args = parser.parse_args(arguments)
+    if getattr(args, "kinematics", None) and args.lang != "fanuc_mill":
+        parser.error("--kinematics requires --lang fanuc_mill")
     if args.command in {"export", "batch-export"}:
         request, explicit = _export_request(args, arguments)
         try:

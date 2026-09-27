@@ -1,36 +1,344 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It is also available offline from **Help → FAQ** inside the application.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.6.7 development tree and explains the GUI, deterministic FANUC execution kernel, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
 
-## Contents
+The same FAQ can be packaged for offline use in **Help → FAQ**.
 
-- [Getting started](#getting-started)
-- [Interface and playback](#interface-and-playback)
-- [CNC editing assistants](#cnc-editing-assistants)
-- [Lathe mode](#lathe-mode)
-- [Tool libraries](#tool-libraries)
-- [Turning Stock Removal](#turning-stock-removal)
-- [Mill mode](#mill-mode)
-- [Units and arc programming](#units-and-arc-programming)
-- [Supported G-code](#supported-g-code)
-- [STL reference overlay](#stl-reference-overlay)
-- [Statistics, diagnostics and export](#statistics-diagnostics-and-export)
-- [Configuration](#configuration)
-- [Troubleshooting](#troubleshooting)
-- [CLI](#cli)
-- [Development](#development)
+<details>
+  <summary><h2>Contents</h2></summary>
 
-## Getting started
+- [Easy G-Code Plot FAQ](#easy-g-code-plot-faq)
+  - [Project scope and execution model](#project-scope-and-execution-model)
+    - [What is Easy G-Code Plot?](#what-is-easy-g-code-plot)
+    - [What is the authoritative data flow?](#what-is-the-authoritative-data-flow)
+    - [Is the OpenGL plot the CNC model?](#is-the-opengl-plot-the-cnc-model)
+    - [Is the program a machine simulator?](#is-the-program-a-machine-simulator)
+    - [What does deterministic mean in this project?](#what-does-deterministic-mean-in-this-project)
+  - [Getting started](#getting-started)
+    - [How do I install it?](#how-do-i-install-it)
+    - [What is the normal GUI workflow?](#what-is-the-normal-gui-workflow)
+    - [Which input encodings are supported?](#which-input-encodings-are-supported)
+    - [Are compact FANUC blocks accepted?](#are-compact-fanuc-blocks-accepted)
+    - [Which comment forms are understood?](#which-comment-forms-are-understood)
+    - [How do optional `/` Block Skip lines work?](#how-do-optional--block-skip-lines-work)
+  - [Diagnostics and fail-closed behavior](#diagnostics-and-fail-closed-behavior)
+    - [What are `ok` and `complete`?](#what-are-ok-and-complete)
+    - [What diagnostic information is stored?](#what-diagnostic-information-is-stored)
+    - [What happens after unsupported position-changing semantics?](#what-happens-after-unsupported-position-changing-semantics)
+    - [How are unsupported turning G-codes classified?](#how-are-unsupported-turning-g-codes-classified)
+    - [What about unsupported M-codes?](#what-about-unsupported-m-codes)
+    - [Are conflicting modal codes detected?](#are-conflicting-modal-codes-detected)
+    - [Are there execution resource limits?](#are-there-execution-resource-limits)
+  - [FANUC Macro B and program flow](#fanuc-macro-b-and-program-flow)
+    - [How complete is Macro B support?](#how-complete-is-macro-b-support)
+    - [Which variable forms are supported?](#which-variable-forms-are-supported)
+    - [What is special about `#0`?](#what-is-special-about-0)
+    - [What happens when an undefined variable is used numerically?](#what-happens-when-an-undefined-variable-is-used-numerically)
+    - [Which arithmetic and relational operators are supported?](#which-arithmetic-and-relational-operators-are-supported)
+    - [Which Macro B functions are implemented?](#which-macro-b-functions-are-implemented)
+    - [Are assignments supported on labeled blocks?](#are-assignments-supported-on-labeled-blocks)
+    - [Is unconditional `GOTO` supported?](#is-unconditional-goto-supported)
+    - [Is `IF [...] GOTO` supported?](#is-if--goto-supported)
+    - [Are `WHILE / DO / END` loops supported?](#are-while--do--end-loops-supported)
+    - [Are real Macro B milling programs exercised by the tests?](#are-real-macro-b-milling-programs-exercised-by-the-tests)
+    - [Is `G65` supported?](#is-g65-supported)
+    - [How are G65 Type I arguments mapped?](#how-are-g65-type-i-arguments-mapped)
+    - [How are repeated I/J/K G65 arguments handled?](#how-are-repeated-ijk-g65-arguments-handled)
+    - [Do G65 argument words also perform machine actions?](#do-g65-argument-words-also-perform-machine-actions)
+    - [What happens to `#1..#33` when a G65 macro returns?](#what-happens-to-133-when-a-g65-macro-returns)
+    - [What does `G65 ... L...` do?](#what-does-g65--l-do)
+    - [How deeply can G65 macros nest?](#how-deeply-can-g65-macros-nest)
+    - [How does M98 behave inside a G65 macro?](#how-does-m98-behave-inside-a-g65-macro)
+    - [Are M98/M99 subprograms supported outside Macro B?](#are-m98m99-subprograms-supported-outside-macro-b)
+    - [Is `M99 P...` supported?](#is-m99-p-supported)
+    - [Are Macro B variable values stored per execution step?](#are-macro-b-variable-values-stored-per-execution-step)
+    - [Does Expanded Execution export keep Macro B statements?](#does-expanded-execution-export-keep-macro-b-statements)
+  - [FANUC turning](#fanuc-turning)
+    - [What is the turning coordinate model?](#what-is-the-turning-coordinate-model)
+    - [What do G190 and G191 do?](#what-do-g190-and-g191-do)
+    - [How do X/U and Z/W behave?](#how-do-xu-and-zw-behave)
+    - [How are G20 and G21 handled?](#how-are-g20-and-g21-handled)
+    - [Which turning arc formats are supported?](#which-turning-arc-formats-are-supported)
+    - [Why can G2/G3 direction look inverted in an XZ plot?](#why-can-g2g3-direction-look-inverted-in-an-xz-plot)
+    - [Is direct A-angle turning programming supported?](#is-direct-a-angle-turning-programming-supported)
+    - [Are C chamfers and corner R fillets supported?](#are-c-chamfers-and-corner-r-fillets-supported)
+    - [Are G32 and G33 threading motions supported?](#are-g32-and-g33-threading-motions-supported)
+    - [What are the turning feed modes?](#what-are-the-turning-feed-modes)
+    - [Are G96 and G97 modeled?](#are-g96-and-g97-modeled)
+    - [What does G50 S do in turning?](#what-does-g50-s-do-in-turning)
+    - [Are spindle start/stop signals tracked?](#are-spindle-startstop-signals-tracked)
+    - [Which WCS features work in turning?](#which-wcs-features-work-in-turning)
+    - [Is G53 supported in turning?](#is-g53-supported-in-turning)
+    - [How does G28 work?](#how-does-g28-work)
+    - [Is G30 the same as G28?](#is-g30-the-same-as-g28)
+    - [How does tool-nose compensation work?](#how-does-tool-nose-compensation-work)
+  - [Turning cycles](#turning-cycles)
+    - [Which turning cycles are modeled?](#which-turning-cycles-are-modeled)
+    - [Do cycle motions remember where they came from?](#do-cycle-motions-remember-where-they-came-from)
+    - [How are cycle profiles selected by P and Q?](#how-are-cycle-profiles-selected-by-p-and-q)
+    - [Do G71/G72/G73 profile blocks support lines and arcs?](#do-g71g72g73-profile-blocks-support-lines-and-arcs)
+    - [How does G70 work?](#how-does-g70-work)
+    - [What form of G71 is supported?](#what-form-of-g71-is-supported)
+    - [How is G71 depth interpreted?](#how-is-g71-depth-interpreted)
+    - [How are G71 U/W finish allowances handled?](#how-are-g71-uw-finish-allowances-handled)
+    - [How does G71 distinguish OD and ID roughing?](#how-does-g71-distinguish-od-and-id-roughing)
+    - [What is G71 Type I behavior?](#what-is-g71-type-i-behavior)
+    - [Is G71 Type II supported?](#is-g71-type-ii-supported)
+    - [How does G72 work?](#how-does-g72-work)
+    - [Is G72 Type II fully generic?](#is-g72-type-ii-fully-generic)
+    - [How does G73 work?](#how-does-g73-work)
+    - [How does G74 work?](#how-does-g74-work)
+    - [How does G75 work?](#how-does-g75-work)
+    - [How is turning peck motion represented?](#how-is-turning-peck-motion-represented)
+    - [How does two-line G76 work?](#how-does-two-line-g76-work)
+    - [How are G76 P/Q integer increments interpreted?](#how-are-g76-pq-integer-increments-interpreted)
+    - [How is G76 pass depth generated?](#how-is-g76-pass-depth-generated)
+    - [What do the packed G76 P digits mean here?](#what-do-the-packed-g76-p-digits-mean-here)
+    - [Which G76 tool angles are modeled?](#which-g76-tool-angles-are-modeled)
+    - [How is G76 chamfer modeled?](#how-is-g76-chamfer-modeled)
+    - [Is G92 a modal threading cycle?](#is-g92-a-modal-threading-cycle)
+    - [Is G90 a modal turning cycle?](#is-g90-a-modal-turning-cycle)
+    - [Is G94 a modal facing cycle?](#is-g94-a-modal-facing-cycle)
+    - [What cancels G90/G92/G94?](#what-cancels-g90g92g94)
+    - [Are turning G83 and G84 modal?](#are-turning-g83-and-g84-modal)
+    - [How does turning G83 behave?](#how-does-turning-g83-behave)
+    - [How does turning G84 behave?](#how-does-turning-g84-behave)
+    - [Does P dwell in turning G83/G84 create geometry?](#does-p-dwell-in-turning-g83g84-create-geometry)
+    - [What happens if a modal drilling/tapping cycle is left in an invalid state?](#what-happens-if-a-modal-drillingtapping-cycle-is-left-in-an-invalid-state)
+  - [FANUC milling](#fanuc-milling)
+    - [What basic milling motion is modeled?](#what-basic-milling-motion-is-modeled)
+    - [How is indexed rotary milling handled in 1.6.7?](#how-is-indexed-rotary-milling-handled-in-167)
+    - [Which rotary profiles have been checked?](#which-rotary-profiles-have-been-checked)
+    - [What happens when indexed geometry cannot be resolved?](#what-happens-when-indexed-geometry-cannot-be-resolved)
+    - [Which milling canned cycles are modeled?](#which-milling-canned-cycles-are-modeled)
+    - [What is the difference between G73 and G83 milling peck cycles?](#what-is-the-difference-between-g73-and-g83-milling-peck-cycles)
+    - [How is G82 dwell represented?](#how-is-g82-dwell-represented)
+    - [How is milling G84 represented?](#how-is-milling-g84-represented)
+    - [How is milling G86 represented?](#how-is-milling-g86-represented)
+    - [What do milling G98/G99 mean?](#what-do-milling-g98g99-mean)
+    - [What are milling feed modes?](#what-are-milling-feed-modes)
+    - [Which work coordinate systems are supported?](#which-work-coordinate-systems-are-supported)
+    - [How does G10 behave under G91 in milling?](#how-does-g10-behave-under-g91-in-milling)
+    - [How does G52 work?](#how-does-g52-work)
+    - [How do G68 and G69 work?](#how-do-g68-and-g69-work)
+    - [How does G51/G50 scaling work?](#how-does-g51g50-scaling-work)
+    - [Is G53 supported in milling?](#is-g53-supported-in-milling)
+    - [Is G28 supported in milling?](#is-g28-supported-in-milling)
+    - [How are milling arcs programmed?](#how-are-milling-arcs-programmed)
+    - [What does Arc Type autodetection do?](#what-does-arc-type-autodetection-do)
+    - [Can one program mix R arcs with IJK arcs?](#can-one-program-mix-r-arcs-with-ijk-arcs)
+    - [Are full circles supported?](#are-full-circles-supported)
+    - [Is helical interpolation supported?](#is-helical-interpolation-supported)
+    - [What does G16/G15 polar programming do?](#what-does-g16g15-polar-programming-do)
+    - [How does polar G90 work?](#how-does-polar-g90-work)
+    - [How does polar G91 work?](#how-does-polar-g91-work)
+    - [Do G20/G21 scale the polar angle?](#do-g20g21-scale-the-polar-angle)
+    - [Are polar G2/G3 arcs supported?](#are-polar-g2g3-arcs-supported)
+    - [Is G12.1/G13.1 polar interpolation supported?](#is-g121g131-polar-interpolation-supported)
+    - [How does milling cutter compensation work?](#how-does-milling-cutter-compensation-work)
+    - [What does `UNVERIFIED_CUTTER_COMPENSATION` mean?](#what-does-unverified_cutter_compensation-mean)
+    - [Is G43 tool-length geometry applied?](#is-g43-tool-length-geometry-applied)
+  - [Tool libraries and tool discovery](#tool-libraries-and-tool-discovery)
+    - [Where are persistent tools stored?](#where-are-persistent-tools-stored)
+    - [What is the difference between Current Program and Saved Library?](#what-is-the-difference-between-current-program-and-saved-library)
+    - [Does opening a program write discovered tools to the database?](#does-opening-a-program-write-discovered-tools-to-the-database)
+    - [How are turning tool numbers represented?](#how-are-turning-tool-numbers-represented)
+    - [Can comments describe tool geometry?](#can-comments-describe-tool-geometry)
+    - [What happens when no explicit type hint is present?](#what-happens-when-no-explicit-type-hint-is-present)
+    - [Are macro T expressions discovered as literal tools?](#are-macro-t-expressions-discovered-as-literal-tools)
+    - [Which turning tool geometries are stored?](#which-turning-tool-geometries-are-stored)
+    - [Which milling tools can be previewed?](#which-milling-tools-can-be-previewed)
+    - [Does CLI execution load the GUI Saved Library?](#does-cli-execution-load-the-gui-saved-library)
+  - [Interface, editor and playback](#interface-editor-and-playback)
+    - [What are the two main GUI panels?](#what-are-the-two-main-gui-panels)
+    - [Which fixed views are available?](#which-fixed-views-are-available)
+    - [How does playback relate to the kernel?](#how-does-playback-relate-to-the-kernel)
+    - [What do Step Backward and Step Forward do?](#what-do-step-backward-and-step-forward-do)
+    - [Why can many playback motions map to one source line?](#why-can-many-playback-motions-map-to-one-source-line)
+    - [How do I locate a plotted move in the editor?](#how-do-i-locate-a-plotted-move-in-the-editor)
+    - [Does automatic refresh move the editor caret?](#does-automatic-refresh-move-the-editor-caret)
+    - [What happens when Auto Update is too expensive?](#what-happens-when-auto-update-is-too-expensive)
+    - [What does Cancel stop?](#what-does-cancel-stop)
+    - [What CNC editing assistants are included?](#what-cnc-editing-assistants-are-included)
+    - [What does Hole Calculator generate?](#what-does-hole-calculator-generate)
+    - [What does Pocket Calculator generate?](#what-does-pocket-calculator-generate)
+    - [Where are snippets stored?](#where-are-snippets-stored)
+  - [Turning Stock Removal](#turning-stock-removal)
+    - [What is Turning Stock Removal?](#what-is-turning-stock-removal)
+    - [How is automatic stock estimated?](#how-is-automatic-stock-estimated)
+    - [Can stock dimensions be overridden manually?](#can-stock-dimensions-be-overridden-manually)
+    - [Which tools remove material?](#which-tools-remove-material)
+    - [How are threads represented in Stock Removal?](#how-are-threads-represented-in-stock-removal)
+    - [Does Stock Removal detect machine collisions?](#does-stock-removal-detect-machine-collisions)
+  - [Statistics and Tokens/Macro Variables](#statistics-and-tokensmacro-variables)
+    - [What does Toolpath Statistics contain?](#what-does-toolpath-statistics-contain)
+    - [Why can machining time be UNKNOWN?](#why-can-machining-time-be-unknown)
+    - [What is the Tokens tab?](#what-is-the-tokens-tab)
+    - [What is the Macro Variables tab?](#what-is-the-macro-variables-tab)
+    - [Why can Macro Variables be unavailable?](#why-can-macro-variables-be-unavailable)
+  - [Export](#export)
+    - [Which GUI export families exist?](#which-gui-export-families-exist)
+    - [Are exporters separate G-code interpreters?](#are-exporters-separate-g-code-interpreters)
+    - [What does Full Program mean?](#what-does-full-program-mean)
+    - [What does Expanded Execution mean?](#what-does-expanded-execution-mean)
+    - [What is the analysis banner?](#what-is-the-analysis-banner)
+    - [What is turning cycle-group export?](#what-is-turning-cycle-group-export)
+    - [What is Plot Data export?](#what-is-plot-data-export)
+    - [What does DXF contain?](#what-does-dxf-contain)
+    - [Does DXF parse the G-code again?](#does-dxf-parse-the-g-code-again)
+    - [Which NC formatting options exist?](#which-nc-formatting-options-exist)
+    - [Which milling Expanded arc output modes exist?](#which-milling-expanded-arc-output-modes-exist)
+    - [What happens when a full circle is exported in R mode?](#what-happens-when-a-full-circle-is-exported-in-r-mode)
+    - [Can Expanded NC be converted between millimetres and inches?](#can-expanded-nc-be-converted-between-millimetres-and-inches)
+    - [Why can explicit unit conversion be rejected?](#why-can-explicit-unit-conversion-be-rejected)
+    - [Can Full Program be forced to mm or inch?](#can-full-program-be-forced-to-mm-or-inch)
+    - [What units does DXF use?](#what-units-does-dxf-use)
+    - [Can comments be removed from export?](#can-comments-be-removed-from-export)
+    - [Are exports written atomically by the CLI service?](#are-exports-written-atomically-by-the-cli-service)
+    - [Can CLI export overwrite the source file?](#can-cli-export-overwrite-the-source-file)
+  - [CLI](#cli)
+    - [Does the CLI use the same kernel as the GUI?](#does-the-cli-use-the-same-kernel-as-the-gui)
+    - [Which commands exist?](#which-commands-exist)
+    - [What does `parse` do?](#what-does-parse-do)
+    - [What does `trace` do?](#what-does-trace-do)
+    - [What does `analyze` do?](#what-does-analyze-do)
+    - [What does `batch` do?](#what-does-batch-do)
+    - [What does `export` do?](#what-does-export-do)
+    - [What does `batch-export` do?](#what-does-batch-export-do)
+    - [Are single export and batch export different exporters?](#are-single-export-and-batch-export-different-exporters)
+    - [Which dialect names are used?](#which-dialect-names-are-used)
+    - [What are the exit codes?](#what-are-the-exit-codes)
+    - [How do I see every option and default?](#how-do-i-see-every-option-and-default)
+  - [Batch analysis](#batch-analysis)
+    - [What does batch analysis validate?](#what-does-batch-analysis-validate)
+    - [Which batch statuses exist?](#which-batch-statuses-exist)
+    - [Which extensions are scanned by default?](#which-extensions-are-scanned-by-default)
+    - [Can files without a normal NC extension be discovered?](#can-files-without-a-normal-nc-extension-be-discovered)
+    - [Is discovery deterministic?](#is-discovery-deterministic)
+    - [Can I restrict extensions?](#can-i-restrict-extensions)
+    - [What is aggregated in the batch summary?](#what-is-aggregated-in-the-batch-summary)
+    - [What files are written?](#what-files-are-written)
+    - [Does a bad input file stop the whole batch?](#does-a-bad-input-file-stop-the-whole-batch)
+    - [Are there preset batch scripts?](#are-there-preset-batch-scripts)
+  - [Batch export](#batch-export)
+    - [What problem does batch export solve?](#what-problem-does-batch-export-solve)
+    - [Does batch export modify the input files?](#does-batch-export-modify-the-input-files)
+    - [Is the source directory hierarchy preserved?](#is-the-source-directory-hierarchy-preserved)
+    - [What happens if two source names map to one output name?](#what-happens-if-two-source-names-map-to-one-output-name)
+    - [Does one export error stop every file?](#does-one-export-error-stop-every-file)
+    - [What files describe the batch export?](#what-files-describe-the-batch-export)
+    - [What are batch-export statuses?](#what-are-batch-export-statuses)
+    - [Which export modes are available from the CLI?](#which-export-modes-are-available-from-the-cli)
+    - [Which options are intentionally rejected in Full Program mode?](#which-options-are-intentionally-rejected-in-full-program-mode)
+    - [Which options are rejected for turning cycle export?](#which-options-are-rejected-for-turning-cycle-export)
+    - [Can sequence start/increment be supplied without sequence numbers?](#can-sequence-startincrement-be-supplied-without-sequence-numbers)
+    - [Are there preset batch-export scripts?](#are-there-preset-batch-export-scripts)
+  - [Configuration](#configuration)
+    - [Where is application configuration stored on Windows?](#where-is-application-configuration-stored-on-windows)
+    - [What is stored in `config.ini`?](#what-is-stored-in-configini)
+    - [Is `tools.db` replaceable by old JSON values in config.ini?](#is-toolsdb-replaceable-by-old-json-values-in-configini)
+    - [Where is the log file?](#where-is-the-log-file)
+    - [What does DEBUG logging add?](#what-does-debug-logging-add)
+  - [Troubleshooting](#troubleshooting)
+    - [The plot is empty](#the-plot-is-empty)
+    - [Macro B motion is missing](#macro-b-motion-is-missing)
+    - [My G65 M/S/T words did not start spindle/coolant/change tool](#my-g65-mst-words-did-not-start-spindlecoolantchange-tool)
+    - [Cutter compensation is not visible](#cutter-compensation-is-not-visible)
+    - [G43 appears in the source but the plotted Z does not include tool length](#g43-appears-in-the-source-but-the-plotted-z-does-not-include-tool-length)
+    - [G71 leaves material on the wrong side](#g71-leaves-material-on-the-wrong-side)
+    - [G72 Type II reports an error](#g72-type-ii-reports-an-error)
+    - [G76 reports `UNSUPPORTED_G76_TOOL_ANGLE`](#g76-reports-unsupported_g76_tool_angle)
+    - [Batch shows `UNSUPPORTED_M_CODE` but the geometry looks correct](#batch-shows-unsupported_m_code-but-the-geometry-looks-correct)
+    - [Export unit conversion is refused](#export-unit-conversion-is-refused)
+    - [Batch-export says the output directory is invalid](#batch-export-says-the-output-directory-is-invalid)
+    - [A large program does not update while typing](#a-large-program-does-not-update-while-typing)
+    - [The GUI says the current execution is stale](#the-gui-says-the-current-execution-is-stale)
+  - [Development and architecture](#development-and-architecture)
+    - [How is the CNC kernel organized?](#how-is-the-cnc-kernel-organized)
+    - [What belongs in `frontend/`?](#what-belongs-in-frontend)
+    - [What belongs in `runtime/`?](#what-belongs-in-runtime)
+    - [Why are turning cycles separate files?](#why-are-turning-cycles-separate-files)
+    - [What belongs in `milling/`?](#what-belongs-in-milling)
+    - [What belongs in `compensation/`?](#what-belongs-in-compensation)
+    - [What belongs in `app/gcode/export/`?](#what-belongs-in-appgcodeexport)
+    - [What does `program_execution.py` do?](#what-does-program_executionpy-do)
+    - [What does `batch.py` do?](#what-does-batchpy-do)
+    - [What does `batch_export.py` do?](#what-does-batch_exportpy-do)
+    - [Which native components exist?](#which-native-components-exist)
+    - [How are execution results represented publicly?](#how-are-execution-results-represented-publicly)
+    - [What is an `ExecutionStep`?](#what-is-an-executionstep)
+    - [What is an `ExecutionEvent`?](#what-is-an-executionevent)
+    - [How are tests organized?](#how-are-tests-organized)
+    - [How do I run the main checks?](#how-do-i-run-the-main-checks)
+    - [Are generated Qt Python files edited manually?](#are-generated-qt-python-files-edited-manually)
+  - [Build and release](#build-and-release)
+    - [How do I build on Windows?](#how-do-i-build-on-windows)
+    - [How do I build on Linux?](#how-do-i-build-on-linux)
+    - [Does the project use a separate build environment?](#does-the-project-use-a-separate-build-environment)
+    - [How are releases validated in CI?](#how-are-releases-validated-in-ci)
+    - [Does a Linux executable run as a Windows `.exe`?](#does-a-linux-executable-run-as-a-windows-exe)
+  - [License](#license)
+
+</details>
+
+---
+
+## Project scope and execution model
 
 ### What is Easy G-Code Plot?
 
-Easy G-Code Plot is a desktop editor, analyzer, simulator and trace exporter for FANUC-style turning and milling programs. The GUI and CLI use the same CNC kernel and the same resolved `ExecutionResult`.
+Easy G-Code Plot is a FANUC-style CNC editor, deterministic program executor, analyzer, backplotter and exporter for turning and milling programs.
+
+The project has two user-facing entry points:
+
+- a PyQt6 desktop GUI;
+- a standalone CLI executable.
+
+Both use the same CNC kernel and the same resolved `ExecutionResult`. The GUI is not a second interpreter, and the CLI does not contain a simplified parser of its own.
+
+### What is the authoritative data flow?
+
+The core data flow is:
+
+```text
+source NC
+  -> lexer / parser / AST
+  -> Macro B and program-flow runtime
+  -> machine-specific execution
+  -> cycle expansion / compensation / geometry resolution
+  -> ExecutionResult
+  -> CLI / export / statistics / rendering / playback
+```
+
+`ExecutionResult` contains the resolved logical motion trace plus diagnostics, execution steps, signals, structural events, WCS state and execution completeness.
+
+### Is the OpenGL plot the CNC model?
+
+No. Rendering consumes the resolved trace produced by the kernel. The renderer does not independently reinterpret G-code.
+
+This separation is intentional: the same resolved geometry is used by playback, statistics, export and analysis.
+
+### Is the program a machine simulator?
+
+No. Easy G-Code Plot models supported FANUC program semantics and toolpath geometry. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
+
+A clean result means the modeled program was executed without a known error inside the supported contract. It is not a substitute for machine verification.
+
+### What does deterministic mean in this project?
+
+For supported input, execution is intended to produce the same logical trace and diagnostics from the same source and configuration. The kernel avoids guessing controller-dependent behavior when the required semantics are not known.
+
+Where the program cannot be resolved safely, the preferred behavior is an explicit diagnostic or incomplete result rather than invented geometry.
+
+---
+
+## Getting started
 
 ### How do I install it?
 
-Download the Windows GUI and CLI executables or the Linux x64 archive containing both from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). Neither requires a Python installation. Verify the Linux archive with its `.sha256` file before extracting it.
+Release builds provide separate GUI and CLI executables for Windows and a Linux x64 archive containing both executables. A Python installation is not required for packaged builds.
 
-To run from source, install Python 3.13+, [uv](https://docs.astral.sh/uv/) and a C compiler (Visual Studio Build Tools with **Desktop development with C++** on Windows, or a platform compiler and Python development headers on Linux), then run:
+For a source checkout, the project requires Python 3.13+, `uv` and a compiler for the native extensions.
 
 ```bash
 git clone https://github.com/MaestroFusion360/easy_gcode_plot.git
@@ -39,371 +347,1837 @@ uv sync --no-dev
 uv run --no-dev python main.py
 ```
 
-### What is the normal workflow?
+### What is the normal GUI workflow?
 
-1. Open or drag a G-code file into the application.
-2. Select `Lathe Mode` for turning or leave it disabled for milling.
-3. Configure WCS, machine home and tools when the program requires them.
-4. Press `Refresh` after editing if Auto Update is disabled or deferred.
-5. Inspect the plot, playback, Tokens diagnostics and Statistics.
-6. Export the source structure, expanded execution, plot data or DXF when required.
+1. Open or drag a CNC program into the application.
+2. Select **Lathe Mode** for turning or leave it disabled for milling.
+3. Configure WCS, home and tools when the program requires them.
+4. Refresh the execution result.
+5. Inspect the trajectory, playback, diagnostics and statistics.
+6. Export the full program, expanded execution, cycle groups, plot data or DXF when required.
 
-## Interface and playback
+### Which input encodings are supported?
 
-### What is shown in the two main panels?
+The normal document encodings are UTF-8 and Windows-1251. The CLI exposes the supported encodings through `--encoding`.
 
-The left panel is a QScintilla editor with syntax highlighting, line numbers, search/replace and cleanup commands. The right panel is the OpenGL toolpath view with grid, axes, zoom, fixed views, trajectory picking and playback.
+### Are compact FANUC blocks accepted?
 
-### What do the playback controls do?
-
-- `Step Backward` and `Step Forward` move by one resolved logical motion.
-- `Play` advances through the same trace used by rendering, statistics and export.
-- `Stop` returns ordinary playback to the zero-motion state.
-- When Lathe Stock Removal playback is active, `Stop` completes the preview, restores the normal plot and leaves the slider at 100%.
-
-Playback speed levels 1–5 correspond to 1000, 250, 100, 40 and 10 ms per logical motion.
-Use the spin box on the Playback toolbar or the slider in Options to change the same saved speed setting.
-
-### How do I locate a plotted move in the editor?
-
-Use Shift+Click near the trajectory. The application selects the owning source block and moves the logical-motion slider to that move. A canned-cycle source block can own multiple generated motions.
-
-### Why does Auto Update sometimes ask me to press Refresh?
-
-Auto Update has a configurable sampled-segment limit. Normal edit-triggered Auto Update is non-modal. If the source changes while a refresh is running, the stale run is cancelled, another refresh is queued and the stale result is not published. Large programs are left unchanged until an explicit Refresh so that typing remains responsive. Manual refresh displays staged progress for a large trace.
-
-### What does Cancel stop during Refresh?
-
-The execution dialog covers tool discovery, source parsing, CNC execution, trace sampling and final plot publication. **Cancel** remains active until the complete operation ends and cooperatively stops whichever stage is running. Very large sources are read incrementally so cancellation does not wait for a complete `splitlines()` copy or a full parser pass.
-
-### Can the built-in FAQ be resized?
-
-Yes. **Help → FAQ** opens a normal resizable window with Minimize, Maximize and Close controls. Contents links navigate within the document; the License link opens the packaged `LICENSE.md` document.
-
-## CNC editing assistants
-
-### Where are Hole Calculator, Pocket Calculator and Snippets?
-
-All three tools are available from **CNC Functions** and from their toolbar icons. Hole Calculator and Pocket Calculator are milling-only, so they are disabled in Lathe mode; Snippets remains available. Generated text is inserted at the current editor caret, replacing the current selection when one exists. Since the calculators already show a live preview, their final action is simply **Insert**. The source remains editable, and the toolpath is updated through the normal Auto Update or Refresh workflow.
-
-### What does Hole Calculator generate?
-
-The **Circular** tab distributes the requested number of XY coordinates evenly around a diameter, starting at the specified angle and moving clockwise or counterclockwise. The **Grid** tab creates an XY rectangular pattern and alternates the X direction on each row to produce a serpentine traversal.
-
-Only coordinate blocks are inserted. Add the required drilling cycle, safe moves, feeds and controller-specific commands around them in the CNC program.
-
-### What does Pocket Calculator generate?
-
-Pocket Calculator inserts a milling fragment for either a circular or rectangular pocket. Tool and pocket dimensions, center, stepover, safe/reference Z, start/end depth, depth step, stock and feed are configurable. Optional controls select clockwise/counterclockwise cutting, spiral clearing, helical entry and a finish pass on the calculated tool-center contour. The finish pass removes the configured XY stock without emitting G41/G42. A live XY preview updates while parameters change; rectangular Spiral clears continuously from the interior and then runs the final outer contour. The calculator rejects unsafe Z ordering and paths above 20,000 estimated points.
-
-The calculator uses a compact resizable multi-column layout rather than enforcing a tall fixed minimum height. The generated fragment is a starting point for the active program, not a complete safety-validated machine program. Verify tool data, compensation register, work offset, spindle/coolant state, clearances and controller compatibility before machining.
-
-### Where are snippets stored?
-
-Snippets are stored in a SQLite database beside the per-user application configuration. On Windows this is normally:
+Yes. Words do not need spaces. Blocks such as:
 
 ```text
-%LOCALAPPDATA%\easy-gcode-plot\snippets.db
+G18G21G40G54G80G99
+G0X100Z5
 ```
 
-When upgrading from the earlier text-file implementation, existing UTF-8 files from the adjacent `snippets` directory are imported once. The original `.txt` files are retained as a backup and are no longer used for subsequent edits.
+are parsed as address words rather than relying on whitespace splitting.
 
-Use **Add** to create a fragment, edit its text and press **Save**. If the current text has unsaved changes, changing the selected snippet or closing the dialog asks whether to Save, Discard or Cancel instead of replacing the editor contents silently. **Rename**, **Delete**, **Up** and **Down** manage the list; manual Up/Down order is persisted across launches. **Insert** places the selected fragment into the CNC editor.
+### Which comment forms are understood?
 
-## Lathe mode
+Both common forms are recognized:
 
-### Where are the Lathe controls?
+```text
+(COMMENT)
+; COMMENT
+```
 
-`Lathe Mode` is on the view toolbar immediately before `Refresh`. `Show Stock` is not a toolbar button; it is a checkbox in **Settings → Options → Plot**, immediately after `Show canvas grid`.
+A persistent comment-style option controls generated text exports. Reading source programs is not limited to the selected output style.
 
-### How is X displayed in Lathe Mode?
+### How do optional `/` Block Skip lines work?
 
-Programmed X and I values are shown using turning diameter conventions. The OpenGL scene and analytical geometry retain their physical radial representation internally.
+A source block beginning with `/` is marked as optional.
 
-The WCS dialog follows the same boundary: Lathe X is entered and displayed as a diameter, while the internal physical offset remains radial. Y controls are disabled in Lathe Mode.
+With **Ignore Block Skip** enabled, the complete block is excluded from execution, including:
 
-### Does the indicator follow G20 and G21?
+- motion;
+- Macro B assignments;
+- signals;
+- subprogram or macro calls.
 
-Yes. X, Y, Z, I, J, K and F are displayed in the active units of the selected executed block:
+With the option disabled, it executes normally.
 
-- `G20` displays inches and inch-based feed values;
-- `G21` displays millimetres and millimetre-based feed values.
+---
 
-The kernel continues to normalize physical geometry to millimetres; conversion occurs only at the UI boundary.
+## Diagnostics and fail-closed behavior
 
-### Why do I/K appear for an arc programmed with R?
+### What are `ok` and `complete`?
 
-For resolved G18 turning arcs, the UI derives relative I/K from the analytical center. This also covers generated arcs from cycles and simplified contour programming. Turning always uses FANUC-style I/K offsets relative to the arc start.
+`ExecutionResult.ok` describes whether execution avoided a fatal modeled error. `ExecutionResult.complete` indicates whether the kernel considers the resulting execution trace complete enough for consumers such as export.
 
-### Why is Settings → Arc Type disabled in Lathe Mode?
+A program can therefore retain trustworthy motions before an unsupported or invalid block while still being marked incomplete.
 
-Arc Type controls milling source interpretation. Turning I/K semantics are fixed to relative offsets, while R remains radius programming. Disabling the milling-only choice avoids presenting a setting that does not apply to Lathe execution.
+### What diagnostic information is stored?
 
-### What simplified turning programming is supported?
+A diagnostic can contain:
 
-Ordinary G1 source blocks support:
+- a stable code such as `UNSUPPORTED_G_CODE` or `UNDEFINED_MACRO`;
+- a human-readable message;
+- severity;
+- status such as verified, unverified, unsupported, malformed or resource-limited;
+- source line;
+- offending raw block.
 
-- `A` angle programming with one missing X or Z coordinate;
+### What happens after unsupported position-changing semantics?
+
+The kernel does not assume that the old position remains trustworthy. For turning, an unsupported position-changing command can create an unknown-axis gap. Trace publication resumes only after later absolute coordinates establish a known position again.
+
+This prevents a misleading connector line from being drawn through an unknown region.
+
+### How are unsupported turning G-codes classified?
+
+An unsupported G-code that can affect geometry is treated more seriously than a non-geometric control code. For example, an unsupported code on a block containing X/Z/U/W can make the block unsupported rather than merely unverified.
+
+Y-axis motion is not modeled in `fanuc_turn` and produces `UNSUPPORTED_AXIS`.
+
+### What about unsupported M-codes?
+
+The core tracks modeled program-control and machine signals. Batch/analyze mode additionally reports literal turning M-codes that are not modeled as `UNSUPPORTED_M_CODE` warnings instead of pretending that their machine effect is known.
+
+### Are conflicting modal codes detected?
+
+Yes. Supported modal groups are checked for conflicts within one block. A conflict such as two mutually exclusive motion, plane, unit, compensation, feed, spindle or transform modes produces `MODAL_GROUP_CONFLICT` and the block is not silently interpreted using source-order luck.
+
+### Are there execution resource limits?
+
+Yes. The default execution budget protects against runaway macros, recursive calls and pathological cycles:
+
+| Resource | Default limit |
+| --- | ---: |
+| Executed blocks | 500,000 |
+| Subprogram/macro calls | 10,000 |
+| Generated motions | 200,000 |
+| Cycle iterations | 100,000 |
+| Macro loop iterations | 100,000 |
+| General call depth | 64 |
+
+Cancellation is checked through the same budget mechanism. Resource exhaustion produces a structured `RESOURCE_LIMIT`-style result instead of an unbounded run.
+
+---
+
+## FANUC Macro B and program flow
+
+### How complete is Macro B support?
+
+Macro B is part of the execution runtime, not a text substitution preprocessor. Expressions are evaluated while the program executes, so loops, branches, subprogram calls and variable state affect the real logical motion trace.
+
+The same Macro B runtime is used by turning and milling.
+
+### Which variable forms are supported?
+
+Numeric variables:
+
+```text
+#1
+#100
+#500
+#13001
+```
+
+Named variables:
+
+```text
+#<NAME>
+#<TOOL_RADIUS>
+```
+
+Indirect references:
+
+```text
+#[#1]
+#[100+#2]
+#[FUP[#[ROUND[#3]]]]
+```
+
+Indirect assignment is also supported:
+
+```text
+#1=100
+#[#1]=5
+#[#1+1]=#100+2
+```
+
+The indirect destination must resolve to an integer variable number.
+
+### What is special about `#0`?
+
+`#0` is permanently vacant.
+
+It cannot be assigned:
+
+```text
+#0=123
+```
+
+produces `INVALID_MACRO_ASSIGNMENT`.
+
+Vacant values are distinct from numeric zero for equality tests:
+
+```text
+IF[#1 EQ #0] GOTO10
+```
+
+is the normal way to detect an omitted/vacant local argument.
+
+In arithmetic, a vacant value behaves as numeric zero. Assigning a vacant value clears the destination variable:
+
+```text
+#100=#0
+```
+
+After that assignment, `#100` is vacant rather than stored as numeric `0`.
+
+### What happens when an undefined variable is used numerically?
+
+A normal numeric reference to an undefined variable fails closed with `UNDEFINED_MACRO`.
+
+The special null-aware comparison behavior is used where FANUC vacant semantics are required, such as comparisons to `#0`.
+
+### Which arithmetic and relational operators are supported?
+
+The expression evaluator supports ordinary arithmetic and FANUC-style relational/logical tokens used by the project fixtures, including:
+
+```text
++  -  *  /  **
+MOD
+EQ  NE  GT  GE  LT  LE
+AND  OR  XOR
+```
+
+Brackets may be nested:
+
+```text
+X[#100+5]
+#10=[[#1+#2]*#3]
+```
+
+Compact expressions such as `#1LT#3` are accepted.
+
+### Which Macro B functions are implemented?
+
+The current evaluator includes:
+
+```text
+ABS
+SQRT
+SIN
+COS
+TAN
+ATAN
+FIX
+FUP
+ROUND
+MIN
+MAX
+```
+
+Trigonometric arguments and results follow FANUC-style degree semantics.
+
+Two-argument FANUC arctangent syntax is supported:
+
+```text
+ATAN[y]/[x]
+```
+
+For example:
+
+```text
+#119=ATAN[0.75]/[1.625]
+```
+
+`ROUND` uses FANUC-style nearest-integer rounding with `.5` away from zero.
+
+### Are assignments supported on labeled blocks?
+
+Yes. An `N` block label may precede a Macro B flow statement or assignment:
+
+```text
+N900 #151=7
+```
+
+Labels are indexed once for flow execution.
+
+### Is unconditional `GOTO` supported?
+
+Yes:
+
+```text
+GOTO100
+...
+N100 ...
+```
+
+A missing target produces `FLOW_TARGET_MISSING`.
+
+### Is `IF [...] GOTO` supported?
+
+Yes:
+
+```text
+IF[#1 EQ 2] GOTO900
+IF[[#2*#11] GT 360] GOTO16
+```
+
+Conditions are evaluated at runtime using the current variable state.
+
+### Are `WHILE / DO / END` loops supported?
+
+Yes:
+
+```text
+#1=0
+WHILE[#1 LT 3] DO1
+#1=#1+1
+G1 X#1 F100
+END1
+```
+
+Nested loop IDs are indexed before execution. Missing `END`, unmatched `END`, runaway loops or an exhausted macro-iteration budget produce diagnostics rather than hanging the application.
+
+### Are real Macro B milling programs exercised by the tests?
+
+Yes. The regression corpus includes Macro B programs that generate:
+
+- repeated boss milling;
+- face milling;
+- hole milling;
+- thread milling;
+- nested loops;
+- large deterministic arc counts;
+- indirect variable access.
+
+These execute through the normal milling kernel rather than a separate test interpreter.
+
+### Is `G65` supported?
+
+Yes. `G65 P...` calls an `O` macro program and creates a proper macro-local scope.
+
+Example:
+
+```text
+G65 P7700 X0 Y0 M48 S5. D1 R50. Z-70. Q4. V8. I860. A7.5 B15. H24. K1. E100. F200.
+```
+
+The called macro can then use the mapped local variables `#1..#33`.
+
+### How are G65 Type I arguments mapped?
+
+The current Type I mapping is:
+
+| Address | Local variable |
+| --- | ---: |
+| A | #1 |
+| B | #2 |
+| C | #3 |
+| I | #4 on first occurrence |
+| J | #5 on first occurrence |
+| K | #6 on first occurrence |
+| D | #7 |
+| E | #8 |
+| F | #9 |
+| H | #11 |
+| M | #13 |
+| Q | #17 |
+| R | #18 |
+| S | #19 |
+| T | #20 |
+| U | #21 |
+| V | #22 |
+| W | #23 |
+| X | #24 |
+| Y | #25 |
+| Z | #26 |
+
+`G`, `L`, `N`, `O` and `P` are control words and are not bound as ordinary local arguments.
+
+### How are repeated I/J/K G65 arguments handled?
+
+Repeated I/J/K words use FANUC Type II-style sequential local slots. Each occurrence advances by three:
+
+```text
+I -> #4,  #7,  #10, ...
+J -> #5,  #8,  #11, ...
+K -> #6,  #9,  #12, ...
+```
+
+Up to 10 occurrences of each I/J/K address are accepted in one G65 call.
+
+### Do G65 argument words also perform machine actions?
+
+No. On a G65 call, words such as `M`, `S`, `T`, `X`, `Y`, `Z` and `F` are macro arguments, not simultaneous spindle, tool, motion or feed commands.
+
+For example, `T7` or `M8` inside a G65 argument list does not create a tool-change or coolant signal.
+
+### What happens to `#1..#33` when a G65 macro returns?
+
+Local variables are scoped.
+
+On macro entry, the caller's local variables are saved and replaced by the call arguments. On `M99`, the caller's local values are restored. Common and named variables remain shared.
+
+The Macro Variables inspector reflects the active local scope while playback is inside the macro and shows the restored caller values after return.
+
+### What does `G65 ... L...` do?
+
+`L` repeats the macro call. The accepted range is `1..9999`.
+
+Each repetition starts again with the original G65 local arguments. Changes made by the previous repetition to `#1..#33` do not leak into the next repetition.
+
+### How deeply can G65 macros nest?
+
+The current implementation allows four nested G65 local-variable levels. A deeper macro nesting request produces `CALL_DEPTH_EXCEEDED` rather than silently sharing a damaged local scope.
+
+The wider M98/G65 call-stack budget is separately limited by the general call-depth setting.
+
+### How does M98 behave inside a G65 macro?
+
+An M98 subprogram call inside a G65 macro shares the current macro-local level. It does not create another G65 local scope by itself.
+
+### Are M98/M99 subprograms supported outside Macro B?
+
+Yes.
+
+Typical form:
+
+```text
+M98 P2000
+M98 P2000 L3
+...
+O2000
+...
+M99
+```
+
+`P` must identify an existing positive integer O-program number. `L` must be a positive integer. Missing targets and invalid values produce structured subprogram diagnostics.
+
+### Is `M99 P...` supported?
+
+No. `M99 P` is controller-profile dependent and currently produces `UNSUPPORTED_M99_P` rather than guessing its jump semantics.
+
+### Are Macro B variable values stored per execution step?
+
+Yes. `ExecutionStep.variables` contains an immutable snapshot of the variable state for that occurrence of a source block. Unchanged snapshots are internally reused rather than copied for every motion.
+
+This is what allows the GUI Macro Variables inspector to follow logical playback without re-running the CNC program.
+
+### Does Expanded Execution export keep Macro B statements?
+
+Expanded Execution follows the actual executed occurrence order. Macro flow and G65 calls are resolved into their resulting execution rather than exported as a second unevaluated macro program.
+
+Subprogram/macro boundaries are preserved as execution events/comments where appropriate, while generated motion comes from the authoritative trace.
+
+---
+
+## FANUC turning
+
+### What is the turning coordinate model?
+
+Turning uses X/Z geometry. Internally, physical X geometry is radial, while programmed X can follow diameter or radius programming.
+
+The default turning state is diameter programming.
+
+### What do G190 and G191 do?
+
+The project uses:
+
+```text
+G190 -> diameter X programming
+G191 -> radius X programming
+```
+
+The physical resolved geometry remains consistent across these source conventions.
+
+### How do X/U and Z/W behave?
+
+- `X` and `Z` are absolute-axis words where the active mode requires absolute programming.
+- `U` and `W` are incremental turning-axis words.
+- X/U conversion respects diameter versus radius mode.
+
+Cycle expansion uses the same conversion helpers rather than treating cycle X values differently from ordinary motion.
+
+### How are G20 and G21 handled?
+
+The kernel normalizes physical geometry to millimetres internally.
+
+- `G20` sets inch input scaling;
+- `G21` sets millimetre input scaling.
+
+The selected unit mode is captured per execution step so playback, statistics and export can reconstruct the executed unit context.
+
+### Which turning arc formats are supported?
+
+Turning uses G18 XZ circular interpolation with:
+
+- relative I/K center offsets;
+- R radius programming.
+
+Resolved arcs store analytical center, radius, sweep and direction in physical geometry.
+
+### Why can G2/G3 direction look inverted in an XZ plot?
+
+The physical G18 orientation and the visual X/Z plot orientation are not the same coordinate view. The kernel resolves the physical arc direction and the plotting layer uses the correct XZ convention rather than treating it as XY geometry.
+
+### Is direct A-angle turning programming supported?
+
+Yes. On ordinary G1 turning blocks, A-angle programming can resolve a missing X or Z endpoint using the previous contour direction and programmed angle.
+
+### Are C chamfers and corner R fillets supported?
+
+Yes. Ordinary G1 contour blocks can include:
+
 - `C` corner chamfers;
 - corner `R` fillets.
 
-Compact blocks without spaces are accepted. `G2/G3 R` remains circular radius programming and is not treated as a corner fillet.
+This is distinct from `G2/G3 R`, where R is the circular interpolation radius.
 
-### How are G71 finishing allowances handled?
+### Are G32 and G33 threading motions supported?
 
-The second G71 block uses signed X allowance U and axial allowance W. For outside turning, positive U leaves outside material. For inside boring, negative U leaves material toward the bore interior. The sign and contour direction distinguish OD from ID behavior.
+Yes. G32/G33 are represented as synchronized threading motions in the resolved trace. Threading state is preserved into export and Stock Removal where applicable.
 
-Type I roughing ends with one full pass along the roughing profile that already includes U/W allowance. It does not reuse the nominal finishing contour, so the roughing pass does not overlap the later finish-tool path.
+### What are the turning feed modes?
 
-## Tool libraries
+For turning:
 
-### Where are tools stored?
+```text
+G98 -> feed per minute
+G99 -> feed per revolution
+```
 
-Turning and milling tool definitions are stored in the per-user SQLite database:
+The default turning feed mode is per revolution.
+
+Per-revolution machining time is only known when a trustworthy spindle speed is also available. Otherwise statistics report unknown time rather than inventing a feed rate.
+
+### Are G96 and G97 modeled?
+
+Yes.
+
+```text
+G96 -> constant surface speed (CSS)
+G97 -> direct RPM mode
+```
+
+In CSS mode, the S value is stored as surface speed. In inch mode the source surface-speed value is converted to metres per minute internally.
+
+### What does G50 S do in turning?
+
+`G50 S...` is tracked as the spindle-speed limit used with the turning spindle model. It is not treated as the milling G50 scaling cancel operation.
+
+### Are spindle start/stop signals tracked?
+
+Yes. M3/M4 mark the spindle running and M5 marks it stopped. Machine signals such as spindle, coolant, dwell and program end are also published in `ExecutionResult.signals`.
+
+### Which WCS features work in turning?
+
+The kernel supports:
+
+- `G54-G59`;
+- `G54.1 P1-P99` extended offsets;
+- `G10 L2` programming of G54-G59;
+- `G10 L20` programming of G54.1 offsets.
+
+Runtime G10 changes are returned in the execution result and do not silently write application settings.
+
+### Is G53 supported in turning?
+
+Yes, for non-modal machine-coordinate G0/G1 motion.
+
+A turning `G53 G2/G3` cannot be modeled by the current contract and produces `UNSUPPORTED_G53_MOTION` instead of being executed as a WCS-relative arc.
+
+### How does G28 work?
+
+When configured reference-return emulation is enabled, G28 resolves the intermediate programmed point and then emits the configured machine-home motion. Reference-return events are also recorded structurally.
+
+### Is G30 the same as G28?
+
+No. The project does not silently reuse the configured G28 home as a second reference point for G30. A controller-specific G30 reference must not be invented from G28 configuration.
+
+### How does tool-nose compensation work?
+
+G40/G41/G42 state is tracked in turning. When a valid configured turning tool with usable nose geometry is available, the resolved trace can be compensated deterministically.
+
+The compensation layer works from executed motions and tool geometry rather than rewriting source text.
+
+If the required geometry cannot be established safely, the result is not presented as verified compensated motion.
+
+---
+
+## Turning cycles
+
+### Which turning cycles are modeled?
+
+The current turning cycle layer includes:
+
+| Cycle | Purpose in the kernel |
+| --- | --- |
+| G70 | P-Q finishing contour |
+| G71 | Longitudinal roughing |
+| G72 | Facing roughing |
+| G73 | Pattern-repeat roughing |
+| G74 | Z peck / face grooving |
+| G75 | X peck / radial grooving |
+| G76 | Two-line multipass threading |
+| G83 | Axial peck drilling |
+| G84 | Axial tapping |
+| G90 | Modal longitudinal turning cycle |
+| G92 | Modal threading cycle |
+| G94 | Modal facing cycle |
+
+Cycle geometry is expanded into ordinary logical motions. Those motions are then consumed by playback, statistics, Stock Removal and export.
+
+### Do cycle motions remember where they came from?
+
+Yes. Generated motions are marked as cycle-generated and retain source ownership such as the invoking block, source text and playback group where applicable.
+
+This is why one source cycle block can own many logical playback motions without losing editor navigation.
+
+### How are cycle profiles selected by P and Q?
+
+P/Q contour cycles resolve N labels in the parsed program. The resolver handles repeated labels relative to the cycle call site rather than assuming every N label is globally unique.
+
+For finishing, a preceding P-Q profile can be preferred where appropriate.
+
+### Do G71/G72/G73 profile blocks support lines and arcs?
+
+Yes. The P-Q contour is built as profile segments and can include supported linear and circular geometry. Analytical arc data is preserved where possible rather than converting every profile arc into a staircase.
+
+### How does G70 work?
+
+`G70 P... Q...` builds the referenced finish contour and approaches it from the actual G70 call position.
+
+The finish path is based on the nominal P-Q profile, not the roughing-offset profile used by G71/G72/G73.
+
+If tool-nose compensation is active and can be verified, the finishing contour uses the compensated profile.
+
+After the finish group, the cycle returns to the saved call position using the project's deterministic turning return order.
+
+### What form of G71 is supported?
+
+The common two-line FANUC form is modeled:
+
+```text
+G71 U... R...
+G71 P... Q... U... W... F...
+```
+
+The first line captures rough depth and retract. The second line supplies the P-Q profile, finishing allowances and feed.
+
+### How is G71 depth interpreted?
+
+The first-line U depth is treated as a radial depth and converted consistently into programmed diameter motion when diameter programming is active.
+
+### How are G71 U/W finish allowances handled?
+
+The second-line U and W are applied to the roughing profile before rough passes are generated.
+
+U is signed. This matters for OD versus ID work:
+
+- positive U leaves outside material on an OD contour;
+- negative U can leave material toward the bore interior on an ID contour.
+
+The sign is not discarded by taking an unconditional absolute value.
+
+### How does G71 distinguish OD and ID roughing?
+
+The cycle compares the stock-side approach and profile geometry and selects boring versus outside behavior. The same P-Q contour engine is used, but pass direction and retract direction follow the selected material side.
+
+### What is G71 Type I behavior?
+
+Type I is treated as monotonic longitudinal roughing. Each rough pass is parallel to Z and terminates at the P-Q roughing profile.
+
+After the roughing passes, the implementation adds one complete pass along the already allowance-offset roughing profile. It does not incorrectly reuse the nominal finishing contour at this stage.
+
+### Is G71 Type II supported?
+
+A Type II profile is detected when the first P block contains both an X/U component and a Z/W component.
+
+The implementation can follow non-monotonic/pocketed profile geometry using clipped profile segments. Controller-dependent cases are handled conservatively; unsupported geometry is not silently simplified.
+
+### How does G72 work?
+
+G72 uses the same P-Q profile infrastructure as G71 but performs facing roughing in Z planes.
+
+Typical two-line form:
+
+```text
+G72 W... R...
+G72 P... Q... U... W... F...
+```
+
+The first line captures axial depth and retract. The second line references the profile and finishing allowances.
+
+### Is G72 Type II fully generic?
+
+No. Type II is supported where the facing plane resolves to a deterministic profile span. If one facing plane produces multiple disjoint material spans that require controller-specific interpretation, execution fails explicitly with:
+
+```text
+UNSUPPORTED_G72_TYPE_II_SPANS
+```
+
+instead of choosing an arbitrary span.
+
+### How does G73 work?
+
+G73 is implemented as repeated shifted copies of the roughing profile.
+
+The first line captures the total U/W pattern displacement and the R pass count. The second line provides P/Q, finish allowances and feed.
+
+The signs of programmed U/W are preserved. The cycle does not infer displacement direction from where the tool happened to approach the contour.
+
+### How does G74 work?
+
+G74 supports Z-direction peck behavior and face-grooving style repetition.
+
+A first block containing R alone can establish the retract distance. The executing block can use X/U and Z/W plus P/Q/R/F parameters.
+
+If no X target is supplied, G74 can operate as a drilling-style Z peck at the current X.
+
+When X repetition is requested, P controls the X step and Q controls Z peck depth. The cycle returns to its saved start using an explicit Z-first return order.
+
+### How does G75 work?
+
+G75 performs X-direction peck/radial grooving.
+
+P controls the radial peck step. Q can repeat grooves along Z. If Q is omitted, a programmed Z/W selects one groove location rather than being treated as an invalid zero-step repetition.
+
+The R value from the setup block controls retract distance, and the executing-block R value is handled as the bottom allowance where applicable.
+
+### How is turning peck motion represented?
+
+The kernel emits actual feed and rapid primitives for each peck/retract sequence. It does not store G74/G75 as an opaque cycle that the renderer has to understand separately.
+
+### How does two-line G76 work?
+
+The modeled form is FANUC-style two-line G76:
+
+```text
+G76 P...... Q... R...
+G76 X... Z... P... Q... R... F...
+```
+
+The first block stores:
+
+- packed P control digits;
+- minimum radial increment Q;
+- optional finish allowance R.
+
+The second block supplies:
+
+- final thread X;
+- final Z;
+- thread height P;
+- first cut Q;
+- optional taper R;
+- lead F.
+
+### How are G76 P/Q integer increments interpreted?
+
+The first-block Q and second-block P/Q are treated as integer least-input increments rather than ordinary floating length words.
+
+For metric turning they are converted in thousandths of a millimetre. Inch mode uses the corresponding 0.0001-inch increment converted to physical millimetres.
+
+### How is G76 pass depth generated?
+
+The thread passes use a decreasing-depth / approximately constant-chip-area progression based on the first-cut depth and square-root pass relationship, while respecting the minimum radial increment and finish allowance.
+
+The final commanded X is authoritative for the final thread diameter.
+
+### What do the packed G76 P digits mean here?
+
+The packed first-line P is decoded as:
+
+```text
+P(m)(r)(a)
+```
+
+where the fields represent:
+
+- final/spring-pass count;
+- chamfer amount in tenths of pitch;
+- tool/thread angle.
+
+### Which G76 tool angles are modeled?
+
+The supported set is:
+
+```text
+0, 29, 30, 55, 60, 80 degrees
+```
+
+Other packed angles fail explicitly with:
+
+```text
+UNSUPPORTED_G76_TOOL_ANGLE
+```
+
+For supported nonzero angles, pass start/end Z is shifted to model FANUC-style single-edge flank infeed rather than ignoring the angle digits.
+
+### How is G76 chamfer modeled?
+
+The packed chamfer digits are converted into an axial chamfer length based on thread lead. The final part of each thread pass is split when necessary to represent the chamfer section.
+
+### Is G92 a modal threading cycle?
+
+Yes.
+
+Example:
+
+```text
+G92 X18 Z-10 F1.5
+X17.5
+X17.0
+```
+
+The initial G92 establishes the thread end and lead. Subsequent X/U-only blocks continue the active G92 cycle with new depths until another explicit motion/cycle mode cancels it.
+
+Each pass expands to approach, synchronized longitudinal cutting, retract and return primitives.
+
+### Is G90 a modal turning cycle?
+
+Yes. G90 establishes a longitudinal rectangular turning cycle. Subsequent X/U-only blocks can continue the active cycle at new diameters until cancellation by another explicit motion/cycle code.
+
+### Is G94 a modal facing cycle?
+
+Yes. G94 establishes a facing rectangular cycle. Subsequent Z/W-only blocks can continue the active cycle at new face positions until cancellation.
+
+### What cancels G90/G92/G94?
+
+A non-motion modal code such as G96/G97 does not cancel the active cycle.
+
+Another explicit motion or cycle code cancels the old modal turning cycle unless that same cycle is explicitly present in the block.
+
+### Are turning G83 and G84 modal?
+
+Yes. G83 and G84 remain active for subsequent eligible coordinate blocks until G80, another cycle state, or a tool change cancels them.
+
+### How does turning G83 behave?
+
+G83 is an axial Z drilling cycle.
+
+- If Q is supplied, Z pecks are generated.
+- If Q is absent, the kernel does not invent peck depth; it emits one feed stroke to depth and a rapid return.
+- Optional X positioning is handled before the axial stroke and restored afterward.
+
+### How does turning G84 behave?
+
+G84 is an axial tapping cycle. The downstroke and return are synchronized feed motions; the return is not represented as a rapid move.
+
+### Does P dwell in turning G83/G84 create geometry?
+
+No. Dwell is a time/control event, not a spatial segment. The backplot geometry therefore does not invent a motion for the dwell itself.
+
+### What happens if a modal drilling/tapping cycle is left in an invalid state?
+
+The runtime can report an `UNCLOSED_CYCLE`-class execution error rather than silently carrying an impossible modal cycle to program end.
+
+---
+
+## FANUC milling
+
+### What basic milling motion is modeled?
+
+The milling kernel supports XYZ rapid, linear and circular/helical motion in the active G17/G18/G19 plane.
+
+Resolved `TraceMotion` is full 3D geometry even though many CNC constructs are planar.
+
+### How is indexed rotary milling handled in 1.6.7?
+
+Select a profile in **Settings → Rotary kinematics** or pass `--kinematics PROFILE_ID` with `--lang fanuc_mill` in the CLI. The GUI selection is stored as `CNC/ROTARY_KINEMATICS`. The profile maps programmed A/B/C addresses to signed rotary axes. G90 assigns an absolute rotary angle; G91 adds an increment. For the checked table profiles, later XYZ motions, resolved arcs and milling cycles are transformed into the fixed WCS display frame, and playback orients the tool preview at the resolved tool-tip point. WCS axes themselves do not rotate.
+
+G28 reference return and non-modal G53 use machine-axis coordinates first, including repeated returns and G91 increments, then map their trace points into the indexed display frame. The active WCS remains selected after G53. An A/B index records an event and changes subsequent geometry; the kernel does not currently generate a sampled tool-tip sweep during the rotary movement. The plot omits a connector across that position change.
+
+For the checked `4ax_table_c` profile, concurrent X/C feed blocks and C-only blocks map their endpoints into the fixed XY plane. Here X is the programmed radius and C is the angle about Z; the source program provides the contour sampling. These blocks record `ROTARY_MOTION` rather than an index event.
+
+### Which rotary profiles have been checked?
+
+The `4ax_table_a` and `4ax_table_b` profiles have been compared with the programs in `tests/fixtures/milling/indexed_table_a.nc` and `tests/fixtures/milling/indexed_table_b.nc`. The `4ax_table_c` profile is checked against `tests/fixtures/milling/indexed_table_c.nc`: its X/C contour overlays the program's first XY contour within 0.05 mm at the sampled endpoints. The fixture files are reference inputs, not definitions of a machine. Automated checks also cover A/B angle signs, G90/G91, and repeated G28/G53 behavior.
+
+The catalog also contains head, mixed head/table, angled-axis and two-rotary-axis profiles. They remain in JSON with `enabled: false` and are hidden from the GUI because their geometry has not been checked against equivalent reference programs. Only `4ax_table_a`, `4ax_table_b` and `4ax_table_c` have `enabled: true`; **None** is the default selection. The confirmed scope is indexed 3+1 for vertical mill/table A and horizontal mill/table B, plus the checked planar X/C contour for table C. The schema does not specify rotary pivot locations, tool-center-point behavior or controller-specific offsets.
+
+### What happens when indexed geometry cannot be resolved?
+
+A changed A/B/C address without a selected profile or an address absent from the selected profile stops milling execution with an explicit diagnostic. Simultaneous rotary/XYZ movement and non-rapid rotary interpolation also stop for the indexed A/B profiles; the checked `4ax_table_c` planar X/C feed contour is the exception. This is the present 1.6.7 implementation, not a general FANUC restriction. A/B/C with an unsupported position-changing G-code also stops execution. Unknown M-codes and G41/G42 that cannot be verified because of missing tool or unsupported contour data produce warnings and let execution continue. G30 is not modeled as G28: its controller-specific second reference point is not inferred from the configured G28 home.
+
+For `4ax_table_c`, G41/G42 cutter compensation is unsupported. Execution continues, but the X/C plot shows the programmed tool-tip path without cutter-radius offset and reports `UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION`. G40 cancels the modal request. Do not treat this plot as a verified compensated contour.
+
+A selected profile makes the calculation repeatable; it does not by itself prove that the profile matches a physical machine. Inspect diagnostics and the supported contract before using `ok` or `complete` as an export decision.
+
+### Which milling canned cycles are modeled?
+
+The current set includes:
+
+```text
+G73
+G80
+G81
+G82
+G83
+G84
+G85
+G86
+```
+
+The common cycle runtime returns generated geometry, modal updates, signals and final position as one outcome.
+
+### What is the difference between G73 and G83 milling peck cycles?
+
+G73 is high-speed peck drilling with short intermediate retract behavior. G83 uses the full-retract drilling behavior modeled by the common drilling layer.
+
+### How is G82 dwell represented?
+
+G82 includes its dwell semantics, but dwell itself does not create spatial geometry.
+
+### How is milling G84 represented?
+
+G84 tapping returns from depth as synchronized feed motion rather than rapid motion.
+
+### How is milling G86 represented?
+
+The cycle models spindle-stop semantics together with its drilling motion/return behavior.
+
+### What do milling G98/G99 mean?
+
+For milling canned cycles, G98/G99 select cycle return behavior. They are not the turning feed-mode meanings of G98/G99.
+
+### What are milling feed modes?
+
+For milling:
+
+```text
+G94 -> feed per minute
+G95 -> feed per revolution
+```
+
+Statistics only compute trustworthy machining time where the required feed/spindle information is known.
+
+### Which work coordinate systems are supported?
+
+The kernel supports:
+
+- `G54-G59`;
+- `G54.1 P1-P99`;
+- runtime `G10 L2`;
+- runtime `G10 L20`.
+
+### How does G10 behave under G91 in milling?
+
+For runtime work-offset programming, incremental mode updates the existing selected offset instead of silently replacing it with the raw incremental value.
+
+### How does G52 work?
+
+`G52 X/Y/Z` sets a local coordinate-system shift for subsequent motion. The G52 control block itself does not move the tool.
+
+### How do G68 and G69 work?
+
+G68 enables coordinate rotation around the programmed center in the active plane. G69 cancels the rotation.
+
+The active transform applies to later endpoints and I/J/K arc vectors. Enabling or cancelling the transform does not itself create a motion segment.
+
+### How does G51/G50 scaling work?
+
+Milling G51 supports:
+
+- uniform scaling with P, where `P1000` means factor 1.0;
+- per-axis factors through I/J/K.
+
+G50 cancels milling scaling.
+
+The scaling center is interpreted as absolute coordinates even under G91, and omitted center axes use the current position.
+
+Axis-specific scaling of an arc can turn a circle into non-circular geometry. The kernel reports that unsupported case instead of approximating it as a circle.
+
+### Is G53 supported in milling?
+
+Yes. G53 is non-modal machine-coordinate motion. It does not overwrite the active WCS for later ordinary work-coordinate blocks. With a selected table profile, the machine-axis target is mapped into the fixed WCS display frame after the indexed orientation is applied.
+
+### Is G28 supported in milling?
+
+Yes. The configured reference-return path is resolved through the execution kernel rather than handled only by the GUI. For indexed milling, the intermediate and home targets are resolved on machine axes before their trace points are transformed for display.
+
+### How are milling arcs programmed?
+
+Milling supports:
+
+- relative IJK center offsets;
+- absolute IJK center coordinates;
+- R radius programming.
+
+The selected source interpretation is resolved into one analytical arc center/radius/sweep representation.
+
+### What does Arc Type autodetection do?
+
+When enabled, the milling executor examines IJK arcs in source occurrence order before final geometry resolution.
+
+For each IJK arc it compares relative and absolute-center interpretations using the configured arc tolerance. The first unambiguous candidate fixes the IJK mode for that execution.
+
+R-only arcs are ignored during detection because they do not distinguish IJK conventions.
+
+If every candidate is ambiguous, the selected fallback mode is used. CLI analysis/batch currently use relative IJK as the fallback.
+
+### Can one program mix R arcs with IJK arcs?
+
+Yes. Arc-type detection determines the IJK interpretation. An R-only block remains an R arc regardless of that decision.
+
+### Are full circles supported?
+
+Yes. Analytical full circles are represented directly by the kernel.
+
+When Expanded Execution is asked to emit R-format arcs, a full circle is exported as two exact R semicircles because one R block cannot uniquely represent a full circle.
+
+### Is helical interpolation supported?
+
+Yes. Circular interpolation can include motion along the axis normal to the active plane where the supported geometry contract permits it.
+
+### What does G16/G15 polar programming do?
+
+`G16` enables milling polar-coordinate endpoint programming and `G15` returns to ordinary Cartesian programming.
+
+The active G17/G18/G19 plane determines the polar plane:
+
+- first in-plane axis = radius;
+- second in-plane axis = angle in degrees.
+
+### How does polar G90 work?
+
+In absolute mode, the active work/local origin is used as the pole. Programmed polar radius and angle are absolute polar values.
+
+### How does polar G91 work?
+
+When entering `G91 G16`, the current position becomes the pole. Later G91 polar words increment modal radius or angle, and omitted components retain their previous polar value.
+
+### Do G20/G21 scale the polar angle?
+
+No. The radius is a length and follows units. The angle remains degrees.
+
+### Are polar G2/G3 arcs supported?
+
+The implemented polar circular contract requires R radius programming. I/J/K center programming while G16 polar mode is active is rejected with an explicit diagnostic rather than guessed.
+
+### Is G12.1/G13.1 polar interpolation supported?
+
+No.
+
+### How does milling cutter compensation work?
+
+G40/G41/G42 uses configured milling tool diameter and works on supported line, arc and compatible helical contours.
+
+For indexed table A/B milling, the offset is calculated in the local programmed working plane before the completed geometry is transformed into the fixed WCS plot. Execution continues when the tool or contour cannot be verified, with `UNVERIFIED_CUTTER_COMPENSATION` reported. The 3D view uses left drag to pan and middle drag to orbit around the cursor, as in CNCEditor; the table B 3D/ISO preset shows +Y vertically upward, +X upward-right and +Z downward-right while table A keeps the vertical mill preset.
+
+For `4ax_table_c`, G41/G42 is not resolved. The trace retains the programmed X/C tool-tip coordinates and emits `UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION`; G40 ends the modal request. This limit is specific to the current C-table implementation.
+
+The compensation engine resolves:
+
+- entry transitions;
+- steady offset geometry;
+- line/arc and arc/line joins;
+- corners;
+- G40 exit transitions.
+
+Inserted transition motions preserve execution-step ownership so editor navigation and export remain coherent.
+
+### What does `UNVERIFIED_CUTTER_COMPENSATION` mean?
+
+The source requested G41/G42, but the kernel could not prove a valid compensated path with the available tool/configuration/geometry.
+
+The system marks that state explicitly rather than presenting uncompensated geometry as verified compensation.
+
+### Is G43 tool-length geometry applied?
+
+No. G43/G49 and H values are tracked for execution/export context, but H-offset geometry is not currently applied to the resolved toolpath.
+
+That limitation is intentional and should not be interpreted as a simulated tool-length-compensated machine position.
+
+---
+
+## Tool libraries and tool discovery
+
+### Where are persistent tools stored?
+
+Turning and milling tools are stored in:
 
 ```text
 %APPDATA%\easy-gcode-plot\tools.db
 ```
 
-`tools.db` is authoritative. `config.ini` stores UI, editor, plot, WCS, Stock and other application preferences; legacy `CNC/TOOLS_JSON` and `CNC/MILLING_TOOLS_JSON` values are not imported into a current database and are not used as a fallback write target.
+This SQLite database is authoritative for Saved Library tools.
 
-### What can Tool Library do?
+### What is the difference between Current Program and Saved Library?
 
-`Settings → Tool Library` is one resizable window with Milling and Turning tabs. Each tab shows **Current Program** and **Saved Library** side by side with a viewport-fitted live preview. Current Program supports editing geometry, assigning geometry from a saved tool and staging a program tool for the library. Saved Library supports staged Add/Edit/Remove, first-free-number Duplicate and complete-library JSON/CSV export for the active tab. **OK** commits the final working copy to `tools.db`; **Cancel** discards all Saved Library changes made since the window opened. Export never includes temporary Current Program assignments. Turning tools use category-oriented editing and persist canonical geometry types independently from the OD, ID and Face application checkboxes.
+**Current Program** is temporary state for the open CNC program. Literal T selections can be discovered from source and assigned geometry without modifying the persistent library.
 
-### How are tools from the current program added?
+**Saved Library** is persistent and is committed to `tools.db` only when the Tool Library window is accepted.
 
-Before execution and when Tool Library is opened, Update/Auto Update discover literal T selections into the temporary Current Program setup. They do **not** write discovered tools into `tools.db`. Turning keys retain the packed tool/offset number (`T0909`); milling keys use the tool number (`T03` becomes `T3`). New/Open starts a fresh temporary setup while Saved Library remains unchanged.
+### Does opening a program write discovered tools to the database?
 
-Inline tool comments, named headers such as `(T3 D=6. CR=0. - FLAT END MILL)`, and nearby preceding operation comments supply descriptions and recognized geometry. Examples include `OD ROUGH R0.8`, `ID ROUGH R0.8`, `GROOVE H4`, `DRILL`, `TAP`, `THREAD`, `BALL`, `FACE MILL`, and `CHAMFER`. Recognized dimensions follow the units active at the T selection. When no explicit type hint is present, operation context selects D10 Drill for G81-G83, D10 Tap for G84 and OD Thread for turning G32/G33/G76/G92; other selections use Diamond 80 OD or D10 Flat Mill. Explicit comment hints take priority, and retained Current Program geometry can be edited or staged for Saved Library.
+No. Tool discovery is temporary.
 
-Comment-only T references do not create tools. Macro expressions such as `T#1` are not evaluated by discovery. Current Program changes remain temporary. Persistent Saved Library changes happen only when Tool Library is accepted with **OK**.
+### How are turning tool numbers represented?
 
-### Which turning tool geometries are available?
+Turning selections retain the packed tool/offset form such as:
 
-The library supports exactly nine canonical types: Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face are application flags rather than tool types. Triangle uses a true three-sided footprint; Round uses `Length/Diameter` as its physical diameter.
+```text
+T0909
+```
 
-## Turning Stock Removal
+Milling selections use the tool number, for example `T03` becomes tool key `T3`.
 
-### How are initial Stock dimensions selected?
+### Can comments describe tool geometry?
 
-The resolved G1/G2/G3 cutting trace supplies an automatic minimum outside diameter and length. Rapid G0 outliers are ignored, cycle-generated cutting motions are included, and G18 arc extrema are evaluated analytically. The suggested inside diameter is zero.
+Yes. Tool discovery recognizes useful inline and nearby comments, for example:
 
-The normal Lathe plot displays this stock as a lightweight outline when `Show Stock` is enabled. **Settings → Stock** is prefilled from the current suggestion, but persistent settings change only after pressing OK. If Lathe Mode is already active when the application starts, Fit to View is scheduled after the window is shown so the inferred stock is visible immediately.
+```text
+(T3 D=6. CR=0. - FLAT END MILL)
+(OD ROUGH R0.8)
+(ID ROUGH R0.8)
+(GROOVE H4)
+(DRILL)
+(TAP)
+(THREAD)
+(BALL)
+(FACE MILL)
+(CHAMFER)
+```
 
-### What can I configure in Settings → Stock?
+Dimensions are interpreted using the units active at the tool selection.
 
-- Enable or disable Stock Removal on Play.
-- Outside diameter.
-- Existing inside diameter.
-- Stock length.
-- Front Z stock allowance.
-- Accuracy, which selects the axial profile resolution.
+### What happens when no explicit type hint is present?
 
-### Does Play use the same bounds as the visible outline?
+Operation context supplies a practical temporary default where possible:
 
-Yes. In Auto mode, Refresh and program changes update the suggestion, and both the outline and Stock Timeline use the same effective stock specification. After the user accepts explicit Stock dimensions, those values become a manual override and survive Refresh and tool-library edits. **Reset to Auto**, **New** and opening another program return Stock to program-derived sizing.
+- milling G81-G83 -> drill;
+- milling G84 -> tap;
+- turning G32/G33/G76/G92 -> thread tool;
+- otherwise standard milling or turning fallback geometry.
 
-### Which turning tools remove material?
+### Are macro T expressions discovered as literal tools?
 
-Supported geometry includes Diamond 80, Diamond 35, Square, Round, Triangle, Groove, Thread, Drill and Tap. OD, ID and Face applicability selects the machining context. Preview and Stock Removal share the turning cutter geometry where the operation is footprint-based.
+No. Discovery intentionally does not evaluate `T#1` or `T[expr]`. Literal tool discovery and full CNC execution are separate concerns.
 
-Threading is a deliberate Stock Removal exception: synchronized G32/G33, modal G92 and G76 cutting moves generate a deterministic longitudinal thread section. Programmed X sets the root depth, F sets the pitch, and the configured thread angle and RC shape the flanks and rounded root. Repeated passes deepen the same phase-aligned profile, while radial infeed/retract moves do not sweep the full insert body into false angled end faces. The axisymmetric stock model renders this section rather than a 3D helix. G94 remains a facing cycle.
+### Which turning tool geometries are stored?
 
-Missing tool selections use the standard Diamond 80 OD geometry for Stock Removal and its preview. Literal T selections are normally added to the temporary Current Program setup before execution, so their recognized or edited geometry is already available for playback without writing to Saved Library.
+The turning library uses nine canonical geometry types:
 
-### Is Stock Removal a machine simulation?
+- Diamond 80;
+- Diamond 35;
+- Square;
+- Round;
+- Triangle;
+- Groove;
+- Thread;
+- Drill;
+- Tap.
 
-No. It is a geometric material-removal preview driven by resolved motions and configured cutter geometry. It does not model acceleration, collision, workholding, spindle dynamics or machine safety.
-
-## Mill mode
-
-### Which views are available?
-
-The normal 3D view uses perspective projection. Top, Front and Left are true orthographic views. Starting free orbit from a fixed view returns the scene to perspective.
+OD, ID and Face are application flags rather than different geometry classes.
 
 ### Which milling tools can be previewed?
 
-- Flat, bull-nose and ball end mills.
-- Face, slot and chamfer mills.
-- Drill and tap.
+The milling tool model includes common flat, bull-nose, ball, face, slot, chamfer, drill and tap geometry.
 
-The translucent preview follows the active motion endpoint and uses the tool configured in **Settings → Tool Library → Milling**.
+### Does CLI execution load the GUI Saved Library?
 
-### How does milling cutter compensation work?
+No. CLI runs use the same temporary source-based tool discovery used for a newly opened program. GUI manual Current Program assignments and the Saved Library are not silently loaded into the CLI execution.
 
-G40/G41/G42 uses the configured tool diameter for supported G17 line, arc and compatible helical contours. Entry, steady contour, corner stitching and exit transitions are resolved against the executed trace. Unsupported cases remain marked `UNVERIFIED` rather than being presented as corrected geometry.
+This matters for G41/G42 verification: inferred tool dimensions should be reviewed before treating a compensated CLI trace as authoritative.
 
-### Is G43 tool-length geometry applied?
+---
 
-G43/G49 and H values are tracked for execution/export context, but H-offset geometry is not currently applied to the trace.
+## Interface, editor and playback
 
-### How do milling coordinate transforms work?
+### What are the two main GUI panels?
 
-- `G52 X/Y/Z` sets a local coordinate-system shift for subsequent motion. The block itself does not move the tool.
-- `G68 X/Y R` enables coordinate rotation around the programmed center in the active plane. `G69` cancels it. The rotation applies to subsequent endpoints and I/J/K arc vectors; neither control block creates a motion segment.
-- `G51 X/Y/Z P` enables uniform scaling around the programmed center, with `P1000` equal to a factor of `1.0`. `G51 X/Y/Z I/J/K` selects per-axis factors. Center coordinates are interpreted as absolute coordinates even in `G91`; omitted center axes use the current position.
-- `G50` cancels `G51` scaling without moving the tool. Enabling or cancelling a transform preserves the current physical tool position.
+The left side is a QScintilla editor with syntax highlighting, line numbers, search/replace and cleanup functions. The right side is an OpenGL trajectory view with axes, grid, camera controls, trajectory picking and playback.
 
-Axis-specific scaling of a circular arc would require non-circular/spiral interpolation and is currently reported as unsupported instead of being approximated. A `G51` block without `P` or `I/J/K` also produces a diagnostic because no controller parameter supplies a default factor.
+### Which fixed views are available?
 
-### How do extended work offsets and G10 work?
+Top, Front and Left are orthographic views. The ordinary 3D view is perspective. Starting free orbit from a fixed view returns to perspective.
 
-The kernel supports `G54.1 P1` through `G54.1 P99` for both milling and turning. API callers supply these offsets through the `extended_wcs_offsets` mapping, keyed by the P number. The WCS dialog continues to configure only `G54-G59`; extended offsets intentionally have no UI dependency.
+### How does playback relate to the kernel?
 
-`G10 L2 P1-P6` programs `G54-G59`, and `G10 L20 P1-P99` programs extended `G54.1` offsets for the current execution. X/Y/Z values follow the active G20/G21 units. A G10 block never creates motion, and changing the active offset preserves the physical tool position. Runtime G10 changes are returned in `ExecutionResult.wcs_offsets` and `ExecutionResult.extended_wcs_offsets` but are not written to application settings.
+Playback advances through resolved logical motions from the current `ExecutionResult`. It does not re-parse each source line as the slider moves.
 
-## Units and arc programming
+### What do Step Backward and Step Forward do?
 
-### What does the default unit option do?
+They move by one logical motion, including generated motions from cycles and Macro B-expanded execution.
 
-The default millimetre/inch option initializes execution only until the program explicitly selects G20 or G21. Explicit program codes always take precedence.
+### Why can many playback motions map to one source line?
 
-### What does Arc Type control in Mill Mode?
+One source block can emit many motions. Examples include:
 
-- IJK relative to the arc start.
-- IJK absolute center coordinates.
-- Prefer R when both center words and a radius are present.
+- turning cycles;
+- milling canned cycles;
+- Macro B loops that execute the same source line repeatedly;
+- compensated transition geometry.
 
-Analytical arc center, radius, sweep, plane and direction are resolved once by the kernel. Rendering only samples the resulting geometry.
+Playback tracks execution occurrence and source ownership separately.
 
-When **Autodetect Arc Type** is enabled under **Settings → Options → CNC / Execution**, the milling executor examines IJK arcs in occurrence order before geometry resolution. R-only arcs are ignored for detection. Relative and absolute-center interpretations are compared using Arc tolerance; the first unambiguous IJK arc fixes the mode for the whole execution. If all candidate arcs are ambiguous, the manually selected Arc Type is used as the fallback. Mixed R and IJK programs remain valid because each R block is still resolved from R. Turning is unaffected and always uses relative I/K.
+### How do I locate a plotted move in the editor?
 
-### How do leading slash blocks work?
+Use Shift+Click near the trajectory. The application selects the owning source block and moves the logical-motion slider to the corresponding motion.
 
-A source block beginning with `/` is an optional Block Skip block. With **Ignore Block Skip** enabled under **Settings → Options → CNC / Execution**, the complete block is excluded, including motion, Macro B assignments, signals and subprogram calls. With the option disabled, it executes normally. The setting applies to turning and milling, persists between launches and is also reflected in Expanded Execution export without rewriting the source file.
+### Does automatic refresh move the editor caret?
 
-### Are full circles supported?
+Normal execution/plot refresh is intended to update the result without using editor caret movement as a side effect. Playback/navigation can intentionally select source locations.
 
-Yes. When exporting an R-format full circle, Expanded Execution emits two exact R semicircles because one R block cannot uniquely represent a full circle.
+### What happens when Auto Update is too expensive?
 
-## Supported G-code
+Auto Update has a sampled-segment limit. Large edits may be left pending until explicit Refresh so typing remains responsive.
 
-### Common execution
+If source changes while a refresh is running, the stale calculation is cancelled/ignored and a new refresh is queued.
 
-- `G00/G01/G02/G03` motion.
-- `G17/G18/G19` planes where applicable.
-- `G20/G21` units.
-- `G28` configured reference return.
-- `G53` non-modal machine-coordinate motion.
-- `G54-G59` and `G54.1 P1-P99` work coordinate systems.
-- `G10 L2/L20` runtime work-offset programming.
-- `G90/G91` absolute/incremental programming where applicable.
-- Macro B expressions and assignments.
-- `IF/GOTO` and `WHILE/END`.
-- `M98/M99` subprogram execution.
-- `M00/M01/M02/M03/M04/M05/M08/M09/M30` signals and program control.
+### What does Cancel stop?
 
-### FANUC milling
+The execution dialog covers the expensive source-to-result pipeline, including reading, parsing, execution, tool discovery, trace sampling and final plot publication. Cancellation is cooperative and checked throughout the execution budget.
 
-- XYZ motion and helical interpolation.
-- G80/G81/G82/G83/G84/G85/G86 canned cycles.
-- G82 dwell, G84 feed-return/spindle synchronization and G86 spindle-stop semantics.
-- G98/G99 canned-cycle return modes.
-- G94/G95 feed modes.
-- Configured milling tools and cutter-radius compensation.
-- G52 local coordinate shifts, G68/G69 coordinate rotation and G51/G50 coordinate scaling.
+### What CNC editing assistants are included?
 
-### How does FANUC milling polar-coordinate programming work?
+The GUI contains:
 
-`G16` enables radius/angle endpoint programming and `G15` returns to ordinary Cartesian coordinates. `G17`, `G18` and `G19` select the polar plane; its first axis is the radius and its second axis is the angle in degrees. `G90` uses the active work/local origin as the pole and absolute radius/angle values, while `G91 G16` captures the current position as the pole and later `G91` words increment the modal radius or angle. Omitted polar components retain their previous values.
+- Hole Calculator;
+- Pocket Calculator;
+- Snippets.
 
-Polar programming is milling-only. Polar `G2/G3` follows the supported FANUC contract and requires an `R` arc radius; I/J/K center programming in `G16` mode is rejected instead of guessed. `G12.1/G13.1` polar interpolation is not implemented.
+Hole and Pocket Calculator are milling-only. Snippets is available in both machine modes.
 
-### FANUC turning
+### What does Hole Calculator generate?
 
-- X/Z and U/W motion with diameter/radius handling.
-- I/K/R circular interpolation.
-- Direct A/C/corner-R programming.
-- G32/G33 threading motion.
-- G70–G76 cycles.
-- Modal G90/G92/G94 turning cycles.
-- Turning G83/G84.
-- G96/G97 spindle modes and G98/G99 feed modes.
-- Configured tool-nose compensation.
+It generates coordinate blocks for circular or rectangular/grid hole patterns. It does not invent the complete surrounding drilling-cycle safety logic.
 
-Controller-dependent semantics that cannot be resolved safely produce diagnostics instead of guessed geometry.
+### What does Pocket Calculator generate?
 
-## STL reference overlay
+It can generate circular or rectangular milling fragments with configurable stepover, depths, safe/reference Z, feed, direction, clearing strategy, helical entry and finishing pass.
 
-### How do I load or clear an STL?
+The generated fragment is a starting point, not a machine-safety certification.
 
-Use **File → Import STL** or the STL toolbar action next to Export Data. In the File menu, Import STL is directly above Clear STL. Opening an `.stl` file directly also replaces the active reference overlay.
+### Where are snippets stored?
 
-### Does STL affect G-code execution?
+On Windows, snippets are normally stored in:
 
-No. ASCII and binary STL are parsed through a visualization-only path. The model is not part of `ExecutionResult`, does not change CNC interpretation and is not included in G-code exports.
+```text
+%LOCALAPPDATA%\easy-gcode-plot\snippets.db
+```
 
-### What display options are available?
+Older text snippets can be imported once while the original files are retained as backup.
 
-Plot options provide STL color and solid or feature-edge rendering. Fit to View includes both toolpath and STL bounds. The imported mesh remains a persistent OpenGL item across camera changes.
+---
 
-## Statistics, diagnostics and export
+## Turning Stock Removal
+
+### What is Turning Stock Removal?
+
+It is an axisymmetric material-removal preview based on the resolved turning trace and configured cutter geometry.
+
+It is not a machine simulation.
+
+### How is automatic stock estimated?
+
+The resolved G1/G2/G3 cutting trace provides the minimum outside diameter and length. Rapid G0 outliers are ignored, cycle-generated cutting motions are included, and G18 arc extrema are evaluated analytically.
+
+### Can stock dimensions be overridden manually?
+
+Yes. **Settings → Stock** allows explicit outside diameter, inside diameter, stock length, front allowance and accuracy/resolution.
+
+Manual values persist until Reset to Auto, New or opening another program returns the stock model to program-derived sizing.
+
+### Which tools remove material?
+
+The supported turning tool geometries include the nine canonical tool-library types. OD/ID/Face applicability selects the machining context.
+
+### How are threads represented in Stock Removal?
+
+Synchronized G32/G33, modal G92 and G76 cutting motions use a deterministic longitudinal thread-section model rather than sweeping the complete insert body as a generic solid.
+
+The programmed X defines root depth, F defines pitch/lead, and configured thread geometry shapes the section.
+
+### Does Stock Removal detect machine collisions?
+
+No. It does not model chuck, turret, fixtures, acceleration or full machine geometry.
+
+---
+
+## Statistics and Tokens/Macro Variables
 
 ### What does Toolpath Statistics contain?
 
-The resizable Statistics window shows logical motion counts, length breakdown, known/unknown time, average feed, assumed rapid speed, XYZ bounds and per-tool sections.
+Statistics are derived from the resolved trace and include:
 
-Select `Inches` at the bottom-left of the window to convert every displayed length, speed and bound from millimetres to inches. Timing and counts are unchanged.
+- logical motion counts;
+- length breakdown;
+- known and unknown machining time;
+- average feed;
+- assumed rapid speed;
+- XYZ bounds;
+- per-tool sections.
 
-### Why is machining time UNKNOWN?
+The Inches display switch converts displayed values without changing stored physical geometry.
 
-One or more motions lack a trustworthy physical feed rate. A common cause is feed-per-revolution execution without a known spindle RPM. The application reports unknown time instead of treating that feed as millimetres per minute.
+### Why can machining time be UNKNOWN?
 
-### What is the Tokens/Macro Variables window for?
+The kernel avoids fabricating a physical feed rate. A common case is feed-per-revolution motion without a known spindle RPM.
 
-**Settings → Tokens/Macro Variables** has two read-only diagnostic tabs. **Tokens** shows parser words, evaluated values, source position, execution status and diagnostics. Suspicious or unsupported rows are highlighted and can be copied or exported as CSV.
+### What is the Tokens tab?
 
-**Macro Variables** shows the Macro B variable state captured at the current logical playback position. Only variables that exist at that execution point are shown. G65 local variables follow the active macro-call scope and are restored after M99. Moving Play, Step or the slider updates the inspector from the existing execution snapshots without re-executing the CNC program. If the current source is stale relative to the displayed execution result, Macro Variables are not shown until the toolpath is updated.
+Tokens displays parsed/evaluated words, source position, execution status and diagnostics. Suspicious or unsupported rows are highlighted and can be exported to CSV.
 
-Macro variable `#0` is permanently vacant and cannot be assigned. Omitted G65 local arguments are also vacant, so standard tests such as `IF[#1 EQ #0]` work. Assigning `#0` to another variable clears that variable, while indirect assignment such as `#[#1]=5` resolves the destination variable number at runtime.
+### What is the Macro Variables tab?
 
-### Which export types are available?
+Macro Variables shows the variable snapshot at the current logical playback position.
 
-- Turning Full Program.
-- Milling Full Program.
-- Expanded Execution.
-- Plot Data.
-- DXF trajectory.
-- Tool List text report from **CNC Functions → Tool List**.
+It follows:
 
-Expanded Execution follows actual occurrence order, including subprogram calls and generated cycle motions. It preserves relevant WCS, home returns, threading, dwell, spindle and coolant events.
+- assignments;
+- loops;
+- G65 local scopes;
+- M98 execution inside a macro;
+- restored caller locals after M99.
 
-When **Ignore Block Skip** is enabled, Expanded Execution consumes the already filtered execution result, so skipped `/` blocks are not emitted and the source is not executed a second time for export.
+It uses existing execution snapshots and does not re-run the CNC program while the playback slider moves.
 
-In Lathe mode, generated arcs use relative I/K and incremental coordinates use U/W. In Mill mode, coordinate and arc output representations are configurable.
+### Why can Macro Variables be unavailable?
 
-DXF uses separate rapid and cutting layers. Turning uses plot-aligned Z/X entities; milling exports 3D line/arc/circle geometry where representable.
+If no execution result exists, there is no variable history to show. If the source editor has changed since the displayed execution result, the result is stale and the variable inspector waits for Refresh rather than mixing new source with old runtime state.
+
+---
+
+## Export
+
+### Which GUI export families exist?
+
+The project contains exporters for:
+
+- Turning Full Program;
+- Milling Full Program;
+- Expanded Execution;
+- turning cycle groups;
+- Plot Data;
+- DXF trajectory;
+- Tool List text report.
+
+### Are exporters separate G-code interpreters?
+
+No. Exporters consume `ExecutionResult`, resolved motions and execution-step/event metadata.
+
+They do not execute a second independent CNC model.
+
+### What does Full Program mean?
+
+Full Program is a flattened executable-style export that preserves controller/context blocks and comments where appropriate while replacing geometry with authoritative executed geometry.
+
+Subprogram calls are flattened in actual execution order rather than copied as an untouched source tree.
+
+The turning and milling Full Program exporters deliberately retain more controller structure than Expanded Execution, but they are still built from the executed result rather than being simple source-file copies.
+
+### What does Expanded Execution mean?
+
+Expanded Execution serializes the resolved logical execution trace.
+
+That means it can flatten:
+
+- subprogram calls;
+- Macro B loops and branches;
+- generated canned-cycle motions;
+- cycle expansions;
+- resolved compensation where verified.
+
+It can also emit structural execution events as comments/control records where appropriate.
+
+### What is the analysis banner?
+
+Expanded text output can include:
+
+```text
+(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)
+```
+
+The banner exists to distinguish generated resolved execution from original controller source.
+
+### What is turning cycle-group export?
+
+CLI mode `cycles` exports only executed turning-cycle groups. Each generated group is annotated and emitted using the execution-step unit/X-programming state.
+
+It is only available for `fanuc_turn` and is not a generic milling export mode.
+
+### What is Plot Data export?
+
+Plot Data serializes the resolved logical trace as point-to-point output intended for geometry consumption rather than controller-structure preservation.
+
+### What does DXF contain?
+
+DXF is generated from resolved geometry. Rapid and cutting motion use separate layers.
+
+Turning is exported in the plot-aligned Z/X representation. Milling exports 3D line/arc/circle geometry where representable.
+
+### Does DXF parse the G-code again?
+
+No. It consumes resolved trace geometry.
+
+### Which NC formatting options exist?
+
+Shared export options include:
+
+- absolute/incremental coordinates where supported;
+- force addresses;
+- sequence numbers;
+- sequence start and increment;
+- sequence-number spacing;
+- spaces/no spaces between words;
+- leading zeroes (`G01` versus `G1`);
+- comments/no comments;
+- safety line;
+- milling arc representation.
+
+### Which milling Expanded arc output modes exist?
+
+The CLI contract exposes:
+
+```text
+auto
+ijk-relative
+ijk-absolute
+radius
+linearized
+```
+
+`auto` detects the source IJK convention per program and chooses a compatible resolved export representation.
+
+### What happens when a full circle is exported in R mode?
+
+It is emitted as two exact semicircular R arcs.
+
+### Can Expanded NC be converted between millimetres and inches?
+
+Yes, for source programs whose non-motion controller operands can be preserved safely.
+
+The conversion scales resolved geometry at the export boundary, including coordinates, arc geometry, I/J/K, radius and feed values represented in the motion trace.
+
+### Why can explicit unit conversion be rejected?
+
+Some control blocks contain dimensioned operands that are not represented solely by resolved `TraceMotion`. Current export therefore refuses explicit NC unit conversion when execution contains source operands for:
+
+```text
+G4
+G10
+G28
+G30
+G50
+G51
+G52
+G53
+G68
+G69
+G92
+G96
+```
+
+This is a conservative safety rule. The exporter does not rewrite such operands by heuristic text scaling.
+
+### Can Full Program be forced to mm or inch?
+
+No. CLI Full Program export currently accepts only `--units auto`.
+
+Semantic unit normalization is an Expanded Execution feature.
+
+### What units does DXF use?
+
+DXF can be emitted in millimetres or inches. `auto` keeps the current default DXF behavior, which is millimetres.
+
+### Can comments be removed from export?
+
+Yes. The shared `include_comments`/`--no-comments` option applies to source comments retained by Full Program and generated comments/annotations in expanded output.
+
+### Are exports written atomically by the CLI service?
+
+Yes. The CLI export service writes to a temporary file in the output directory and then replaces the final output path. A failed write does not intentionally leave a partially written final file.
+
+### Can CLI export overwrite the source file?
+
+No. Source and output must be different paths.
+
+---
+
+## CLI
+
+### Does the CLI use the same kernel as the GUI?
+
+Yes.
+
+The standalone CLI is an interface over the same parser, Macro B runtime, machine execution, cycles, compensation and export modules.
+
+### Which commands exist?
+
+Current commands are:
+
+```text
+parse
+trace
+analyze
+batch
+export
+batch-export
+```
+
+### What does `parse` do?
+
+`parse` executes one program through the normal kernel and prints a readable summary of instructions, motions and diagnostics.
+
+Example:
+
+```powershell
+.\easy_gcode_plot_cli.exe parse program.nc --lang fanuc_turn
+```
+
+### What does `trace` do?
+
+`trace` executes one program and can write detailed JSON including resolved motions.
+
+```powershell
+.\easy_gcode_plot_cli.exe trace program.nc --lang fanuc_turn -o trace.json
+```
+
+### What does `analyze` do?
+
+`analyze` executes one program and prints trace statistics plus diagnostics. With `-o`, it writes analysis JSON.
+
+```powershell
+.\easy_gcode_plot_cli.exe analyze program.nc --lang fanuc_mill -o analysis.json
+```
+
+### What does `batch` do?
+
+`batch` analyzes every discovered NC file under a directory and writes JSON/CSV reports.
+
+```powershell
+.\easy_gcode_plot_cli.exe batch C:\Programs --lang fanuc_mill -o C:\Reports
+```
+
+### What does `export` do?
+
+`export` executes one file and sends it through the shared NC/DXF export service.
+
+```powershell
+.\easy_gcode_plot_cli.exe export program.nc --lang fanuc_turn -o expanded.nc
+```
+
+### What does `batch-export` do?
+
+`batch-export` discovers a directory tree and calls the same single-file export service for every input program.
+
+```powershell
+.\easy_gcode_plot_cli.exe batch-export C:\Programs --lang fanuc_mill -o C:\Normalized
+```
+
+### Are single export and batch export different exporters?
+
+No. They use the same `ExportRequest`, validation and `export_file()` pipeline.
+
+Directory export is orchestration around the single-file service.
+
+### Which dialect names are used?
+
+```text
+fanuc_turn
+fanuc_mill
+```
+
+### What are the exit codes?
+
+Normal successful/acceptable CLI execution returns zero. Failed/incomplete single execution, batch `ERRORS`, batch `NO_FILES` and export failures return a nonzero code (currently 2 for the command-level error states).
+
+### How do I see every option and default?
+
+Use:
+
+```powershell
+.\easy_gcode_plot_cli.exe --help
+```
+
+or command-specific help, for example:
+
+```powershell
+.\easy_gcode_plot_cli.exe batch-export --help
+```
+
+Top-level help also prints the subcommand help sections.
+
+---
+
+## Batch analysis
+
+### What does batch analysis validate?
+
+Each discovered file is executed through the same authoritative analysis setup as single `analyze`.
+
+Per-file reports include:
+
+- status;
+- `ok` / `complete`;
+- file size and line count;
+- motion count;
+- executed-block count;
+- diagnostic counts;
+- unsupported G-codes;
+- unsupported M-codes;
+- full diagnostic records;
+- elapsed time.
+
+### Which batch statuses exist?
+
+```text
+CLEAN
+WARNINGS
+ERRORS
+NO_FILES
+```
+
+`CLEAN` means no diagnostics were emitted.
+
+`WARNINGS` means execution is valid/complete but diagnostics remain.
+
+`ERRORS` means at least one file is invalid/incomplete or contains an error-level diagnostic.
+
+`NO_FILES` means discovery found no matching programs.
+
+### Which extensions are scanned by default?
+
+```text
+.nc
+.cnc
+.ptp
+.tap
+.txt
+```
+
+Scanning is recursive unless `--top-level-only` is supplied.
+
+### Can files without a normal NC extension be discovered?
+
+Yes, when the default extension set is used. The scanner also recognizes likely text CNC programs whose first data contains an O-program header or multiple G/M blocks.
+
+Binary-looking files are not treated as NC text.
+
+### Is discovery deterministic?
+
+Yes. Paths are sorted by normalized relative path so the report order does not depend on filesystem enumeration order.
+
+### Can I restrict extensions?
+
+Yes:
+
+```powershell
+--extensions .nc,.tap
+```
+
+When a custom extension set is supplied, content-based discovery of arbitrary filenames is intentionally not used.
+
+### What is aggregated in the batch summary?
+
+The report aggregates:
+
+- file status counts;
+- total diagnostics;
+- error and warning totals;
+- diagnostic-code frequencies;
+- unsupported G-code occurrence/file counts;
+- unsupported M-code occurrence/file counts;
+- total elapsed time.
+
+### What files are written?
+
+The default report names are:
+
+```text
+batch_report.json
+batch_report.csv
+```
+
+CSV is UTF-8 with BOM for convenient spreadsheet opening.
+
+### Does a bad input file stop the whole batch?
+
+A read/decode failure becomes a per-file `FILE_PROCESSING_ERROR`, and processing continues.
+
+Unexpected internal analyzer failures are not intentionally swallowed as fake user diagnostics. Programming regressions should remain visible.
+
+### Are there preset batch scripts?
+
+Yes.
+
+Windows:
+
+```powershell
+.\scripts\ps1\batch\batch_mill.ps1
+.\scripts\ps1\batch\batch_turn.ps1
+```
+
+Linux:
+
+```bash
+bash scripts/sh/batch/batch_mill.sh
+bash scripts/sh/batch/batch_turn.sh
+```
+
+They run the already-built CLI executable and write reports below the system temporary directory. They do not build or run the test suite.
+
+---
+
+## Batch export
+
+### What problem does batch export solve?
+
+`batch-export` applies one validated export contract to a complete directory tree.
+
+Typical uses include:
+
+- expanding execution;
+- normalizing sequence numbers;
+- adding/removing spaces;
+- removing comments;
+- converting supported resolved programs between mm and inch;
+- changing milling arc representation;
+- generating a directory of DXF trajectories.
+
+### Does batch export modify the input files?
+
+No. Output must be a separate directory.
+
+The output directory may not be the input directory or a child of it, preventing recursive self-processing.
+
+### Is the source directory hierarchy preserved?
+
+Yes.
+
+Example:
+
+```text
+input/
+  part1.nc
+  machine_a/
+    part2.tap
+```
+
+NC output becomes:
+
+```text
+output/
+  part1.nc
+  machine_a/
+    part2.nc
+```
+
+DXF output uses `.dxf`.
+
+### What happens if two source names map to one output name?
+
+The batch is rejected before writing ambiguous outputs. For example, two sibling inputs whose different source extensions would both become the same `.nc` destination are detected as a collision.
+
+### Does one export error stop every file?
+
+Normal per-file read/export/value failures become an `ERRORS` file entry and processing continues.
+
+A successfully executed file with diagnostics is exported and marked `WARNINGS` under the current policy.
+
+An execution that is not `ok` or not `complete` does not produce an output file.
+
+### What files describe the batch export?
+
+The output root contains:
+
+```text
+batch_export_report.json
+batch_export_report.csv
+```
+
+The manifest includes source/output relative paths, status, motion counts, execution counts, diagnostics, effective output units, effective milling arc type and elapsed time.
+
+### What are batch-export statuses?
+
+Per file:
+
+```text
+EXPORTED
+WARNINGS
+ERRORS
+```
+
+Overall:
+
+```text
+CLEAN
+WARNINGS
+ERRORS
+NO_FILES
+```
+
+### Which export modes are available from the CLI?
+
+NC mode:
+
+```text
+expanded
+full
+cycles
+```
+
+`cycles` is turning-only.
+
+DXF ignores NC-only mode/formatting controls and rejects them if explicitly supplied.
+
+### Which options are intentionally rejected in Full Program mode?
+
+Full Program does not accept explicit:
+
+- unit conversion other than `auto`;
+- arc-type selection;
+- coordinate-mode conversion;
+- force-addresses;
+- safety-line control through the CLI contract.
+
+The goal is to avoid pretending those transformations are semantically equivalent to Expanded Execution.
+
+### Which options are rejected for turning cycle export?
+
+Cycle export is turning-only, accepts `--units auto`, and rejects Expanded-only semantic controls such as arc-type, coordinate-mode conversion and force addresses.
+
+### Can sequence start/increment be supplied without sequence numbers?
+
+No. Explicit sequence start, increment or spacing requires `--sequence-numbers`.
+
+### Are there preset batch-export scripts?
+
+The 1.6.7 development tree includes Windows/Linux batch-export presets for milling and turning under the same `scripts/ps1/batch` and `scripts/sh/batch` areas as batch analysis.
+
+They are intended to run the built CLI, not to rebuild the application.
+
+---
 
 ## Configuration
 
-### Where is configuration stored?
-
-On Windows:
+### Where is application configuration stored on Windows?
 
 ```text
 %APPDATA%\easy-gcode-plot\config.ini
 %APPDATA%\easy-gcode-plot\tools.db
 ```
 
-`config.ini` contains application preferences; `tools.db` contains the authoritative turning/milling tool library. Files beside the launcher are not used as configuration sources.
+Snippets use their own SQLite store under Local AppData.
 
-### What is available in Settings → Options?
+### What is stored in `config.ini`?
 
-- UTF-8 or Windows-1251 document encoding.
-- Default Text/ISO editor mode and default units.
-- Application logging.
-- Auto Update, its sampled-segment limit and the kernel-wide Maximum generated motions limit.
-- G41/G42 correction, arc tolerance and milling Arc Type autodetection.
-- Arc-sampling presets plus maximum radius, minimum radius and minimum chord length controls for GUI trace generation.
-- Persistent optional-block control through `Ignore Block Skip`.
-- Editor font and visual settings.
-- Plot colors, line thickness, axes and grid.
-- `Show Stock` immediately after `Show canvas grid`.
-- Canvas gradient and STL appearance.
-- Playback speed and adaptive/fixed grid spacing.
-- Toolbar icon size (32×32, 24×24 or 16×16; default 24×24).
-- Menu-command shortcuts in the Hotkeys tab. Select a command, choose modifiers and a key in the assignment dialog, or choose None to clear it. Duplicate assignments are rejected; Restore Defaults restores the built-in keys.
+Application/UI preferences include items such as:
+
+- language;
+- theme;
+- document encoding;
+- editor settings;
+- Auto Update;
+- maximum generated motions;
+- compensation options;
+- arc tolerance and milling arc autodetection;
+- Block Skip behavior;
+- plot colors and geometry display;
+- stock settings;
+- playback speed;
+- hotkeys;
+- comment style.
+
+### Is `tools.db` replaceable by old JSON values in config.ini?
+
+No. `tools.db` is authoritative. Legacy tool JSON in configuration is not used as a fallback write target for a current database.
 
 ### Where is the log file?
 
@@ -413,95 +2187,246 @@ When logging is enabled:
 %APPDATA%\easy-gcode-plot\main.log
 ```
 
-The application logger records startup, file operations, execution summaries, export completion and related errors.
+### What does DEBUG logging add?
 
-With DEBUG logging enabled it also records applied/cancelled Options changes, machine and camera-view switches, playback state, execution/render/geometry-pack timing, Stock Timeline dimensions and sampled Stock Removal frame performance. A `stock_frame` entry separates `timeline_ms` from `mesh_ms` and includes profile-point, vertex and face counts. Frames taking at least 100 ms are logged as warnings, rate-limited to avoid making an existing slowdown worse.
+DEBUG logging includes additional execution, rendering, camera, option and Stock Removal timing information. Slow stock frames are rate-limited so logging does not create an even larger performance problem.
+
+---
 
 ## Troubleshooting
 
 ### The plot is empty
 
-Check the selected machine mode, execution diagnostics, WCS/home values and whether the program contains supported motion. Unsupported position-changing commands can create an unknown-axis gap; the trace resumes only after absolute coordinates re-establish the affected axes.
+Check:
+
+- selected machine mode;
+- execution diagnostics;
+- WCS/home configuration;
+- whether the program contains supported motion;
+- whether a previous unsupported position-changing block left position unknown.
+
+### Macro B motion is missing
+
+Inspect the first diagnostic. Common causes include:
+
+- undefined variable;
+- missing GOTO label;
+- missing O-program target;
+- unmatched WHILE/END;
+- G65 argument error;
+- call-depth/resource limit.
+
+Use Tokens/Macro Variables to inspect the execution state at the relevant logical occurrence.
+
+### My G65 M/S/T words did not start spindle/coolant/change tool
+
+That is intentional. On a G65 block those words are macro arguments, not machine side effects.
 
 ### Cutter compensation is not visible
 
-Verify that G41/G42 is active, the selected tool is configured and its geometry is valid. Inspect Tokens for `UNVERIFIED` compensation. Milling compensation requires a supported contour; turning compensation requires a valid nose radius and orientation.
+Confirm that:
 
-### Stock outline changes after Refresh but Play shows old stock
+- G41/G42 is active;
+- the selected tool was discovered or configured;
+- its geometry is valid;
+- the contour type is supported.
 
-Current versions rebuild Stock Timeline from the same effective auto/configured bounds used by the outline. If this still occurs, confirm that the editor was refreshed successfully and that Stock Removal is enabled.
+Inspect diagnostics for an `UNVERIFIED` compensation state.
 
-### Export fails
+### G43 appears in the source but the plotted Z does not include tool length
 
-Check the selected machine profile and output mode, execution diagnostics, custom header/footer content and filesystem permissions. Export intentionally refuses to invent missing geometry.
+G43/G49 and H are tracked, but tool-length offset geometry is not currently applied to the trace.
+
+### G71 leaves material on the wrong side
+
+Check the sign of the second-line U allowance and whether the contour is OD or ID. The project intentionally preserves signed U semantics.
+
+### G72 Type II reports an error
+
+A facing plane can contain multiple disjoint profile spans whose exact selection is controller-dependent. Such a case is rejected as `UNSUPPORTED_G72_TYPE_II_SPANS` rather than guessed.
+
+### G76 reports `UNSUPPORTED_G76_TOOL_ANGLE`
+
+The packed P angle must currently be one of:
+
+```text
+0, 29, 30, 55, 60, 80
+```
+
+### Batch shows `UNSUPPORTED_M_CODE` but the geometry looks correct
+
+The M-code is not modeled as a machine effect. Batch keeps the geometric trace while warning that the complete real-machine behavior is not verified.
+
+### Export unit conversion is refused
+
+Expanded NC unit conversion is conservative. If the program contains a source control block with dimensioned operands that cannot be safely reconstructed from the resolved trace, export refuses the conversion instead of scaling source text heuristically.
+
+### Batch-export says the output directory is invalid
+
+The output root must be outside the input directory tree. This prevents exported files from being discovered and exported again during the same run.
 
 ### A large program does not update while typing
 
-Press Refresh. The automatic sampled-segment limit is intended to prevent expensive continuous rebuilding while editing.
+Use Refresh. Auto Update intentionally avoids continuously rebuilding a trace above the configured automatic sampled-segment threshold.
 
-## CLI
+### The GUI says the current execution is stale
 
-The GUI and CLI share the same kernel. Run the Windows release CLI from its folder in PowerShell:
+The editor text changed after the displayed `ExecutionResult` was created. Refresh before using execution-dependent information such as Macro Variables or export.
 
-```powershell
-.\easy_gcode_plot_cli.exe parse program.nc --lang fanuc_turn
-.\easy_gcode_plot_cli.exe trace program.nc --lang fanuc_turn -o trace.json
-.\easy_gcode_plot_cli.exe analyze program.nc --lang fanuc_turn
-.\easy_gcode_plot_cli.exe batch .\programs --lang fanuc_mill -o batch-report
-.\easy_gcode_plot_cli.exe export program.nc --lang fanuc_turn -o expanded.nc
-```
+---
 
-From the repository root, use `.\dist\easy_gcode_plot_cli.exe`. To run from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.
+## Development and architecture
 
-To analyze the bundled fixtures with the already built executable, run a preset script without arguments:
+### How is the CNC kernel organized?
 
-```powershell
-.\scripts\ps1\batch\batch_mill.ps1
-.\scripts\ps1\batch\batch_turn.ps1
-```
-
-```bash
-bash scripts/sh/batch/batch_mill.sh
-bash scripts/sh/batch/batch_turn.sh
-```
-
-The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They do not build or run tests. Both `analyze` and `batch` detect milling Arc Type per program from IJK arcs. If the file has no unambiguous arc, the kernel uses relative IJK.
-The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory. For the same program and language, `analyze` and `batch` report matching status, diagnostics, motion and executed-block counts, and unsupported G/M codes; their JSON layouts differ because `analyze` includes detailed trace statistics and `batch` aggregates files.
-
-Use `--encoding cp1251` for Windows-1251 input. Single `export` and directory `batch-export` share NC/DXF exporters and accept the same options. `full` preserves controller structure; `expanded` exports resolved execution and supports semantic units, milling arc representation, coordinates, sequence numbers, spaces, leading zeroes and comments. `batch-export` writes a mirrored output tree with `batch_export_report.json` and CSV manifest. The existing `batch` command remains analysis-only and writes diagnostic reports with `CLEAN` / `WARNINGS` / `ERRORS` status. An empty scan has overall status `NO_FILES` and a nonzero exit code. Both directory commands scan `.nc`, `.cnc`, `.ptp`, `.tap` and `.txt` recursively by default and recognize FANUC programs with nonstandard names from their contents; use `--extensions` to restrict suffixes or `--top-level-only` to disable recursion.
-
-CLI runs use the same temporary tool discovery as the GUI for a newly opened program: literal `T` words and nearby comments determine geometry for G41/G42. The GUI's manually assigned Current Program tools and Saved Library are separate from that discovery and are not loaded by the CLI. Check inferred tool dimensions before using a compensated trace.
-
-Download `easy_gcode_plot_cli.exe` from the Windows release. For example, run `.\easy_gcode_plot_cli.exe batch C:\Programs --lang fanuc_mill -o C:\Reports` in PowerShell. Run `.\easy_gcode_plot_cli.exe --help` for all commands and their parameters, or `.\easy_gcode_plot_cli.exe batch --help` for batch alone.
-
-## Development
-
-### How is the project organized?
-
-- `app/gcode/kernel/` owns deterministic CNC parsing and execution. Its implementation is split into `api/` (public execution facade and result types), `frontend/` (lexing, parsing, AST/model and NC input), `geometry/` (analytical/profile geometry and coordinate systems), `turning/cycles/` and `milling/cycles/` (machine-specific cycle implementations behind the shared runtime cycle contract), `compensation/` (turning and milling compensation), `runtime/` (control flow, cycle contracts/expansion, interpreter, events/signals and trace construction) and `milling/` (milling state and motion execution). Historical `lathe_cycles` and `milling.drilling` import paths remain compatibility aliases.
-- `app/gcode/export/` owns Full Program, Expanded Execution, Plot Data and DXF serialization. Exporters consume the authoritative kernel result/resolved trace and do not implement a second G-code interpreter.
-- `app/gcode/trace_tools.py` owns render sampling and statistics derived from the resolved trace.
-- `app/ui/` owns PyQt GUI behavior, grouped into `dialogs/` (dialogs and tool editors), `plot/` (OpenGL items, STL, overlays and playback), `windows/` (main-window mixins and the execution worker) and `support/` (editor lexer, units, numeric input and shared widgets).
-- `app/tools/` owns tool definitions, SQLite persistence and validation/normalization.
-- `app/ui/generated/` contains Qt Designer sources and generated PyQt-compatible modules, grouped into `main/` (main window), `dialogs/` and `editors/`.
-- `app/resources/files_res.qrc` is the resource manifest.
-- `tests/` mirrors the domains under `core/`, `dialects/`, `stock/`, `tooling/`, `export/`, `gui/`, `render/` and `meta/`, with shared fixtures in `conftest.py` and compact program samples in `gcode_samples.py`.
-
-The primary data flow is:
+The important packages are:
 
 ```text
-source NC
-  -> frontend parser / AST
-  -> runtime + cycle/compensation/geometry logic
-  -> ExecutionResult / resolved logical trace
-  -> CLI, export, statistics, rendering and playback
+app/gcode/kernel/api/
+app/gcode/kernel/frontend/
+app/gcode/kernel/geometry/
+app/gcode/kernel/runtime/
+app/gcode/kernel/turning/cycles/
+app/gcode/kernel/milling/
+app/gcode/kernel/milling/cycles/
+app/gcode/kernel/compensation/
 ```
 
-CNC semantics belong in the kernel. GUI rendering, statistics and export must not independently reinterpret source commands. New execution and analysis capabilities should be implemented and regression-tested in the core and CLI before the UI consumes them.
+### What belongs in `frontend/`?
 
-Historical module-level imports that existed before the package split are intentionally re-exported/aliased where required so the structural refactor does not change the public Python surface. New code should import from the canonical subject packages.
+The frontend owns:
 
-### How do I run checks?
+- comment stripping;
+- word lexing;
+- Macro B-aware expressions;
+- flow-node parsing;
+- source blocks;
+- AST/model construction;
+- native parser acceleration.
+
+The lexer is bracket-aware so Macro B function names and `GOTO` are not misread as CNC address words.
+
+### What belongs in `runtime/`?
+
+Runtime owns shared execution mechanics such as:
+
+- Macro flow;
+- G65 local scope;
+- M98/M99 dispatch;
+- modal-group validation;
+- signals and structural events;
+- cycle contracts;
+- resource limits;
+- turning trace construction;
+- cycle expansion orchestration.
+
+### Why are turning cycles separate files?
+
+Each major cycle has a focused implementation under `turning/cycles/`, while common dispatch/expansion machinery lives under runtime. This keeps G70-G76 geometry testable without building one monolithic interpreter function.
+
+### What belongs in `milling/`?
+
+Milling state, motion execution, polar programming and canned-cycle execution live under the milling package. Native milling execution accelerates selected motion paths without creating different semantics.
+
+### What belongs in `compensation/`?
+
+Turning tool-nose and milling cutter-radius compensation are deterministic geometry layers applied to resolved source motions.
+
+They do not belong to the OpenGL renderer.
+
+### What belongs in `app/gcode/export/`?
+
+The export package owns:
+
+- shared options;
+- formatting;
+- turning full export;
+- milling full export;
+- expanded trace export;
+- DXF;
+- unit scaling;
+- single-file CLI export service.
+
+Export consumes the execution result rather than reinterpreting G-code.
+
+### What does `program_execution.py` do?
+
+It is the shared application setup path used to execute a program with the same tool-discovery and kernel configuration used by GUI/CLI workflows.
+
+### What does `batch.py` do?
+
+It performs deterministic file discovery and repeatedly invokes authoritative execution to construct analysis reports. It does not contain a second G-code analyzer.
+
+### What does `batch_export.py` do?
+
+It is directory orchestration around the same `export_file()` service used by single-file CLI export.
+
+### Which native components exist?
+
+The project builds native extensions for:
+
+- frontend parsing;
+- selected milling execution paths;
+- tool discovery.
+
+The Python contract remains authoritative. Native and Python paths are regression-tested for parity where applicable.
+
+### How are execution results represented publicly?
+
+The core immutable public types include:
+
+- `Diagnostic`;
+- `SemanticInstruction`;
+- `TraceMotion`;
+- `ArcGeometry`;
+- `MachineSignal`;
+- `ExecutionEvent`;
+- `ExecutionStep`;
+- `ExecutionResult`.
+
+### What is an `ExecutionStep`?
+
+It records one executed occurrence of a source block and includes information such as:
+
+- source block index;
+- number of emitted motions;
+- unit scale;
+- diameter/radius mode;
+- absolute/incremental state;
+- evaluated words;
+- signals;
+- position;
+- active WCS;
+- feed/spindle state;
+- Macro B variable snapshot;
+- execution events.
+
+This occurrence-level model is essential for loops and subprograms where one source line executes multiple times.
+
+### What is an `ExecutionEvent`?
+
+Events describe structural facts that are not ordinary geometry, including program/subprogram boundaries, tool changes and reference returns.
+
+Export can therefore preserve structural execution order without reconstructing it from motion geometry.
+
+### How are tests organized?
+
+Tests are grouped by domain, including:
+
+```text
+tests/core/
+tests/dialects/
+tests/stock/
+tests/tooling/
+tests/export/
+tests/gui/
+tests/render/
+tests/meta/
+```
+
+The fixture corpus contains representative turning, milling, Macro B, cycle, compensation, WCS and export programs.
+
+### How do I run the main checks?
 
 ```bash
 uv sync --group dev
@@ -510,31 +2435,39 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-PowerShell entry points are available under `scripts/ps1/`, and matching shell scripts are under `scripts/sh/`.
+Project scripts add resource/generated-file and complexity checks around the standard lint commands.
 
-### How are Qt files regenerated?
+### Are generated Qt Python files edited manually?
 
-Edit canonical `.ui` and `.qrc` sources, then regenerate once:
+No. `.ui` and `.qrc` sources are authoritative. Regenerate through the project scripts.
+
+Windows:
 
 ```powershell
 .\scripts\ps1\generate-qt.ps1
 ```
 
-Generated Python modules must not be edited manually. PySide6 supplies maintained code-generation tools in the development dependency group; the application runtime remains PyQt6. The generation scripts recurse through `app/ui/generated/` and mirror its category subdirectories.
+Generated modules are build artifacts.
 
-### How do I build or release?
+---
 
-On Windows:
+## Build and release
+
+### How do I build on Windows?
 
 ```powershell
 .\scripts\ps1\build.ps1
-$version = "X.Y.Z"
-.\scripts\ps1\release.ps1 -Version $version -Message "Release $version"
 ```
 
-On Linux, use `bash scripts/sh/build.sh` and `bash scripts/sh/release.sh X.Y.Z "Release X.Y.Z"`. The build scripts run tests by default, produce separate GUI and CLI executables, and write SHA-256 `.sha256` files next to them in `dist/`. Use `-Console` / `--console` for only the CLI, or `-SkipTests` / `--skip-tests` if tests have already run. Both release scripts format and lint with resource verification before tests and creating a release commit and tag.
+The build produces separate GUI and CLI executables plus SHA-256 checksum files.
 
-For an Ubuntu or WSL console-only build after tests have passed:
+### How do I build on Linux?
+
+```bash
+bash scripts/sh/build.sh
+```
+
+For console-only packaging after tests have already passed:
 
 ```bash
 bash scripts/sh/build.sh --console --skip-tests
@@ -542,18 +2475,22 @@ bash scripts/sh/build.sh --console --skip-tests
 (cd dist && sha256sum -c easy_gcode_plot_cli.sha256)
 ```
 
-The Linux executable runs in Linux, including WSL; it cannot be started as a Windows `.exe`. The release script needs a Git checkout, including `.git`. An exported source ZIP can build the CLI but cannot create a release commit or tag.
+### Does the project use a separate build environment?
 
-Native/release tooling uses a separate persistent `.venv-build`; it does not
-replace or prune the developer `.venv`. `build-native.ps1`/`build-native.sh`
-synchronize locked build dependencies when `pyproject.toml` or `uv.lock`
-changes, rebuild the project when the tracked `.pyx` sources change, verify both
-native extension imports and otherwise reuse the existing build environment.
-Use `-Refresh`/`--refresh` for an explicit native-build refresh, or
-`-RefreshBuildEnvironment`/`--refresh-build-environment` with the full build.
-PyInstaller is invoked from that build environment rather than through the
-developer environment.
+Yes. Native/release tooling uses a persistent `.venv-build` rather than replacing or pruning the developer `.venv`.
+
+The native build checks tracked `.pyx` and dependency state and can reuse the build environment when nothing relevant changed.
+
+### How are releases validated in CI?
+
+The release workflow builds/tests Windows and Linux artifacts before publication. Linux release validation includes starting the packaged CLI and exercising the batch fixture presets before the final release artifact is published.
+
+### Does a Linux executable run as a Windows `.exe`?
+
+No. Windows and Linux artifacts are platform-specific builds even though they share the same Python/kernel implementation and CLI contract.
+
+---
 
 ## License
 
-MIT License — see [LICENSE.md](LICENSE.md).
+Easy G-Code Plot is distributed under the MIT License. See `LICENSE.md` for the full text.

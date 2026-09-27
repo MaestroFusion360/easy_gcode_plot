@@ -132,7 +132,9 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
         )
 
         motion_node: MotionNode | None = None
-        if not g65_call and (any(k in word_map for k in ("X", "Y", "Z", "U", "V", "W")) or motion_g_word is not None):
+        if not g65_call and (
+            any(k in word_map for k in ("X", "Y", "Z", "U", "V", "W", "A", "B", "C")) or motion_g_word is not None
+        ):
             motion_node = MotionNode(
                 g_expr=motion_g_word.expr if motion_g_word is not None else None,
                 x_expr=word_map.get("X"),
@@ -148,6 +150,7 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
                 y_expr=word_map.get("Y"),
                 v_expr=word_map.get("V"),
                 j_expr=word_map.get("J"),
+                b_expr=word_map.get("B"),
             )
 
         cycle_node: CycleNode | None = None

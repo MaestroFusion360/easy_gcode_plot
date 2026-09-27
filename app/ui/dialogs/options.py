@@ -1,14 +1,29 @@
 """Application options dialog backed by the existing MainWindow settings."""
 
+# pylint: disable=protected-access  # The dialog calls its owning window's rotary selector.
+
+import json
 import logging
 
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import QCoreApplication, QRegularExpression
 from PyQt6.QtGui import QColor, QFont, QRegularExpressionValidator
-from PyQt6.QtWidgets import QColorDialog, QDialog, QDialogButtonBox, QMessageBox
+from PyQt6.QtWidgets import (
+    QColorDialog,
+    QComboBox,
+    QDialog,
+    QDialogButtonBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QPlainTextEdit,
+    QPushButton,
+    QVBoxLayout,
+)
 
 from app import theme
 from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, comment_markers, normalize_comment_style
+from app.gcode.kernel.milling.kinematics import CATALOG_PATH, load_catalog, parse_catalog
 from app.settings import (
     ARC_SAMPLING_PRESET_DEFAULT,
     ARC_SAMPLING_PRESETS,
@@ -67,6 +82,7 @@ def _option_snapshot(window):
         "background_color": getattr(window, "plotBackground", "#ffffff"),
         "stl_color": getattr(window, "stlColor", "#b0b0b0"),
         "stl_wireframe": getattr(window, "stlWireframe", False),
+        "rotary_kinematics": getattr(window, "rotaryKinematics", None),
         "playback_speed": getattr(window, "playbackSpeed", 3),
         "toolbar_icon_size": getattr(window, "toolbarIconSize", DEFAULT_TOOLBAR_ICON_SIZE),
     }
@@ -137,11 +153,72 @@ def _refresh_after_option_changes(window, *, execution_changed, sampling_changed
         window.refreshPlotView()
 
 
+class RotaryKinematicsJsonDialog(QDialog):
+    """Edit one profile from the current rotary catalog as JSON."""
+
+    def __init__(self, profile_id: str, parent=None):
+        super().__init__(parent)
+        self.profile_id = profile_id
+        self.setWindowTitle(QCoreApplication.translate("OptionsDlg", "Rotary kinematics JSON") + f" — {profile_id}")
+        self.resize(640, 520)
+
+        layout = QVBoxLayout(self)
+        self.editor = QPlainTextEdit(self)
+        self.editor.setObjectName("rotaryKinematicsJsonEditor")
+        layout.addWidget(self.editor)
+        self.buttonBox = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel,
+            parent=self,
+        )
+        self.buttonBox.accepted.connect(self.accept)
+        self.buttonBox.rejected.connect(self.reject)
+        layout.addWidget(self.buttonBox)
+        self._load_profile()
+
+    def _load_profile(self):
+        document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        profile = next((item for item in document.get("profiles", []) if item.get("id") == self.profile_id), None)
+        if profile is None:
+            raise ValueError(f"Rotary kinematics profile not found: {self.profile_id}")
+        self.editor.setPlainText(json.dumps(profile, ensure_ascii=False, indent=2))
+
+    def accept(self):
+        try:
+            edited = json.loads(self.editor.toPlainText())
+            if not isinstance(edited, dict):
+                raise ValueError("Profile JSON must be an object")
+            if edited.get("id") != self.profile_id:
+                raise ValueError("Profile id cannot be changed in this editor")
+
+            document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+            profiles = document.get("profiles")
+            if not isinstance(profiles, list):
+                raise ValueError("Catalog profiles must be an array")
+            for index, profile in enumerate(profiles):
+                if isinstance(profile, dict) and profile.get("id") == self.profile_id:
+                    profiles[index] = edited
+                    break
+            else:
+                raise ValueError(f"Rotary kinematics profile not found: {self.profile_id}")
+
+            parse_catalog(document)
+            CATALOG_PATH.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("OptionsDlg", "Rotary kinematics JSON"),
+                str(exc),
+            )
+            return
+        super().accept()
+
+
 class OptionsDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.ui = Ui_OptionsDlg()
         self.ui.setupUi(self)
+        self._configure_rotary_kinematics_controls()
         self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (
             (self.ui.rapidColorButton, self.ui.rapidColorEdit),
@@ -166,6 +243,57 @@ class OptionsDialog(QDialog):
         self._correction_before_show = None
         self._correction_preview_applied = False
         self._show_stock_before_show = None
+        self._rotary_before_show = None
+
+    def _configure_rotary_kinematics_controls(self):
+        self.ui.rotaryKinematicsLabel = QLabel(
+            QCoreApplication.translate("OptionsDlg", "Rotary kinematics"), self.ui.plotTab
+        )
+        self.ui.rotaryKinematicsLabel.setObjectName("rotaryKinematicsLabel")
+        self.ui.rotaryKinematicsCombo = QComboBox(self.ui.plotTab)
+        self.ui.rotaryKinematicsCombo.setObjectName("rotaryKinematicsCombo")
+        self.ui.rotaryKinematicsEditButton = QPushButton(
+            QCoreApplication.translate("OptionsDlg", "Edit JSON..."), self.ui.plotTab
+        )
+        self.ui.rotaryKinematicsEditButton.setObjectName("rotaryKinematicsEditButton")
+
+        row = QHBoxLayout()
+        row.setObjectName("rotaryKinematicsLayout")
+        row.addWidget(self.ui.rotaryKinematicsCombo, 1)
+        row.addWidget(self.ui.rotaryKinematicsEditButton)
+        self.ui.plotForm.insertRow(0, self.ui.rotaryKinematicsLabel, row)
+
+        self.ui.rotaryKinematicsCombo.currentIndexChanged.connect(self._preview_rotary_kinematics)
+        self.ui.rotaryKinematicsEditButton.clicked.connect(self._edit_rotary_kinematics)
+        self._reload_rotary_kinematics_combo(None)
+
+    def _reload_rotary_kinematics_combo(self, selected):
+        combo = self.ui.rotaryKinematicsCombo
+        blocked = combo.blockSignals(True)
+        try:
+            combo.clear()
+            combo.addItem(QCoreApplication.translate("OptionsDlg", "None"), None)
+            for profile_id, profile in load_catalog().items():
+                if profile.enabled:
+                    combo.addItem(f"{profile.name} [{profile_id}]", profile_id)
+            index = combo.findData(selected)
+            combo.setCurrentIndex(index if index >= 0 else 0)
+        finally:
+            combo.blockSignals(blocked)
+        self.ui.rotaryKinematicsEditButton.setEnabled(combo.currentData() is not None)
+
+    def sync_rotary_kinematics(self, profile_id):
+        combo = self.ui.rotaryKinematicsCombo
+        index = combo.findData(profile_id)
+        if index < 0:
+            self._reload_rotary_kinematics_combo(profile_id)
+            return
+        blocked = combo.blockSignals(True)
+        try:
+            combo.setCurrentIndex(index)
+        finally:
+            combo.blockSignals(blocked)
+        self.ui.rotaryKinematicsEditButton.setEnabled(profile_id is not None)
 
     @staticmethod
     def _update_swatch(button, edit):
@@ -176,6 +304,7 @@ class OptionsDialog(QDialog):
         self._correction_before_show = getattr(self.parent(), "correctionEnabled", True)
         self._correction_preview_applied = False
         self._show_stock_before_show = getattr(self.parent(), "showStock", True)
+        self._rotary_before_show = getattr(self.parent(), "rotaryKinematics", None)
         self.load_values()
         LOGGER.debug("options_opened values=%s", _option_snapshot(self.parent()))
         super().showEvent(event)
@@ -216,6 +345,7 @@ class OptionsDialog(QDialog):
         self.ui.eolCheck.setChecked(window.eolVisible)
         self.ui.whitespaceCheck.setChecked(window.spaceVisible)
         self.ui.marginCheck.setChecked(window.marginArea)
+        self._reload_rotary_kinematics_combo(getattr(window, "rotaryKinematics", None))
         self.ui.rapidColorEdit.setText(getattr(window, "plotRapidColor", "#d02020"))
         self.ui.linearColorEdit.setText(window.plotLineColor)
         self.ui.arcColorEdit.setText(getattr(window, "plotArcColor", "#008000"))
@@ -430,6 +560,7 @@ class OptionsDialog(QDialog):
         self._correction_before_show = None
         self._correction_preview_applied = False
         self._show_stock_before_show = None
+        self._rotary_before_show = None
         super().accept()
 
     def reject(self):
@@ -442,14 +573,19 @@ class OptionsDialog(QDialog):
         previous_show_stock = self._show_stock_before_show
         if previous_show_stock is not None and window.showStock != previous_show_stock:
             window.showStockChecked(previous_show_stock)
+        previous_rotary = self._rotary_before_show
+        if previous_rotary != getattr(window, "rotaryKinematics", None):
+            window._select_rotary_kinematics(previous_rotary)
         LOGGER.info(
-            "options_cancelled correction_restored=%s show_stock_restored=%s",
+            "options_cancelled correction_restored=%s show_stock_restored=%s rotary_restored=%s",
             previous_correction,
             previous_show_stock,
+            previous_rotary,
         )
         self._correction_before_show = None
         self._correction_preview_applied = False
         self._show_stock_before_show = None
+        self._rotary_before_show = None
         super().reject()
 
     def _preview_correction(self, enabled):
@@ -472,6 +608,32 @@ class OptionsDialog(QDialog):
             return
         LOGGER.debug("option_preview show_stock=%s", enabled)
         self.parent().showStockChecked(enabled)
+
+    def _preview_rotary_kinematics(self, _index):
+        """Apply the selected milling orientation immediately to the current plot."""
+        if self._loading_values:
+            return
+        profile_id = self.ui.rotaryKinematicsCombo.currentData()
+        self.ui.rotaryKinematicsEditButton.setEnabled(profile_id is not None)
+        self.parent()._select_rotary_kinematics(profile_id)
+
+    def _edit_rotary_kinematics(self):
+        profile_id = self.ui.rotaryKinematicsCombo.currentData()
+        if profile_id is None:
+            return
+        try:
+            dialog = RotaryKinematicsJsonDialog(profile_id, self)
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("OptionsDlg", "Rotary kinematics JSON"),
+                str(exc),
+            )
+            return
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+        self._reload_rotary_kinematics_combo(profile_id)
+        self.parent()._select_rotary_kinematics(profile_id, force_refresh=True)
 
     def pick_color(self, target):
         color = QColorDialog.getColor(QColor(target.text()), self, "Select color")
@@ -503,6 +665,7 @@ class OptionsDialog(QDialog):
         self.ui.eolCheck.setChecked(False)
         self.ui.whitespaceCheck.setChecked(False)
         self.ui.marginCheck.setChecked(True)
+        self.ui.rotaryKinematicsCombo.setCurrentIndex(0)
         self.ui.showStockCheck.setChecked(True)
         for edit, value in (
             (self.ui.rapidColorEdit, "#d02020"),

@@ -75,6 +75,7 @@ arguments=(
     --distpath "$dist_path"
     --collect-submodules app.gcode.export
     --add-data "$project_root/pyproject.toml:."
+    --add-data "$project_root/app/gcode/kernel/milling/rotary_profiles.json:app/gcode/kernel/milling"
 )
 
 if [[ "$console" == true ]]; then

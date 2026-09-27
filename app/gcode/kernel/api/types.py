@@ -64,6 +64,9 @@ class TraceMotion:
     compensation_status: str = "NOT_APPLIED"
     threading: bool = False
     playback_group: int | None = None
+    orientation: tuple[tuple[float, float, float], ...] | None = None
+    orientation_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    tool_orientation: tuple[tuple[float, float, float], ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,6 +79,7 @@ class ArcGeometry:
     plane: int
     clockwise: bool
     full_circle: bool
+    normal: tuple[float, float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +104,9 @@ class ExecutionEvent:
     call_depth: int = 0
     target_block: int | None = None
     related_block: int | None = None
+    old_abc: tuple[float, float, float] | None = None
+    new_abc: tuple[float, float, float] | None = None
+    kinematics_profile: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,3 +152,6 @@ class ExecutionResult:
     events: tuple[ExecutionEvent, ...] = ()
     wcs_offsets: tuple[tuple[int, tuple[float, float, float]], ...] = ()
     extended_wcs_offsets: tuple[tuple[int, tuple[float, float, float]], ...] = ()
+    rotary_angles: tuple[tuple[str, float], ...] = ()
+    kinematics_profile: str | None = None
+    rotary_axes: tuple[str, ...] = ()

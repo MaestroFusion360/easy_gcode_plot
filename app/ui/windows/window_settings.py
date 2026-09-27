@@ -360,6 +360,9 @@ class MainWindowSettingsMixin:
         app = QApplication.instance()
         if app is not None:
             theme.apply_application_theme(app, self.uiTheme)
+        help_dialog = getattr(self, "helpDlg", None)
+        if help_dialog is not None:
+            help_dialog.apply_theme(self.uiTheme)
         theme.apply_editor_theme(self.ui.editor, getattr(self, "lexer", None), self.uiTheme)
 
     def applyPlotTheme(self):
