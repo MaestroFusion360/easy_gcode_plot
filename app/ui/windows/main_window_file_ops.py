@@ -265,6 +265,7 @@ class MainWindowFileMixin:
         """Clear editor contents and reset state for a new document."""
         if self.maybeSave():
             reset_program_setup(self)
+            self._manual_arc_type_override = False
             self.curFile = ""
             self._document_disk_signature = None
             self.ui.editor.clear()
@@ -342,6 +343,7 @@ class MainWindowFileMixin:
             return
 
         reset_program_setup(self)
+        self._manual_arc_type_override = False
         LOGGER.info("file_opened path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
         if hasattr(self, "resetStockToAuto"):
             self.resetStockToAuto(refresh=False)

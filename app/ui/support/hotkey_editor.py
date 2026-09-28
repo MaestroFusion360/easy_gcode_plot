@@ -4,7 +4,12 @@ from PyQt6.QtCore import QCoreApplication
 from PyQt6.QtWidgets import QDialog, QHeaderView, QMessageBox, QTableWidgetItem
 
 from app.ui.dialogs.hotkey_assignment import HotkeyAssignmentDialog
-from app.ui.support.hotkeys import menu_commands
+from app.ui.support.hotkeys import (
+    BLOCK_SKIP_SHORTCUT,
+    REMOVE_BLOCK_SKIP_SHORTCUT,
+    is_reserved_shortcut,
+    menu_commands,
+)
 
 
 class HotkeyEditor:
@@ -51,12 +56,23 @@ class HotkeyEditor:
             for other_key, other, _category in self.commands
             if other_key != key and (shortcut := self.values.get(other_key))
         }
+        used[BLOCK_SKIP_SHORTCUT] = QCoreApplication.translate("HotkeyAssignmentDlg", "Block skip")
+        used[REMOVE_BLOCK_SKIP_SHORTCUT] = QCoreApplication.translate("HotkeyAssignmentDlg", "Remove block skip")
         editor = HotkeyAssignmentDialog(action.text().replace("&", ""), self.values[key], used, self.dialog)
         if editor.exec() == QDialog.DialogCode.Accepted:
             self.assign(key, editor.shortcut())
 
     def assign(self, key, shortcut):
         """Change one row after validating that no other command uses its key."""
+        if is_reserved_shortcut(shortcut):
+            QMessageBox.warning(
+                self.dialog,
+                self.dialog.windowTitle(),
+                QCoreApplication.translate(
+                    "HotkeyAssignmentDlg", "Ctrl+/ and Ctrl+Shift+/ are reserved for block skip."
+                ),
+            )
+            return False
         for other_key, action, _category in self.commands:
             if shortcut and other_key != key and self.values.get(other_key) == shortcut:
                 message = QCoreApplication.translate(

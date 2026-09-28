@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import json
 from collections import Counter
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
@@ -48,6 +48,7 @@ def _file_report(
         "elapsed_ms": 0.0,
         "effective_units": None,
         "effective_arc_type": None,
+        "kinematics_profile": request.kinematics,
     }
     try:
         report["size_bytes"] = path.stat().st_size
@@ -84,6 +85,7 @@ def export_directory(
     recursive: bool = True,
     extensions: Iterable[str] = DEFAULT_BATCH_EXTENSIONS,
     on_file: Callable[[dict[str, object]], None] | None = None,
+    kinematics_by_file: dict[str, str] | None = None,
 ) -> dict[str, object]:
     """Export each discovered file to a mirrored tree and return a manifest."""
     started = perf_counter()
@@ -93,6 +95,11 @@ def export_directory(
         raise ValueError("Output directory must be outside the input directory")
     normalized_extensions = _normalize_extensions(extensions)
     paths = discover_nc_files(directory, recursive=recursive, extensions=normalized_extensions)
+    profiles = kinematics_by_file or {}
+    actual = {path.relative_to(directory).as_posix() for path in paths}
+    unknown = set(profiles) - actual
+    if unknown:
+        raise ValueError(f"Kinematics map references an undiscovered file: {sorted(unknown)[0]}")
     destinations = [
         _destination(path, directory, destination_root, request.format, normalized_extensions) for path in paths
     ]
@@ -103,7 +110,10 @@ def export_directory(
         raise ValueError(f"Multiple inputs map to the same output: {duplicates[0]}")
     files = []
     for path, destination in zip(paths, destinations, strict=True):
-        item = _file_report(path, directory, destination, destination_root, request)
+        relative = path.relative_to(directory).as_posix()
+        selected = profiles.get(relative, request.kinematics)
+        file_request = replace(request, kinematics=selected)
+        item = _file_report(path, directory, destination, destination_root, file_request)
         files.append(item)
         if on_file is not None:
             on_file(item)
@@ -126,6 +136,7 @@ def export_directory(
         "units": request.units,
         "arc_type": request.arc_type,
         "export_options": request_document(request),
+        "kinematics_by_file": profiles,
         "summary": {
             "files_total": len(files),
             "exported": counts["EXPORTED"] + counts["WARNINGS"],
@@ -160,6 +171,7 @@ def write_export_reports(report: dict[str, object], output_root: str | Path) -> 
         "elapsed_ms",
         "effective_units",
         "effective_arc_type",
+        "kinematics_profile",
     )
     with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fieldnames)

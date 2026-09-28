@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
 
 from app import theme
 from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, comment_markers, normalize_comment_style
-from app.gcode.kernel.milling.kinematics import CATALOG_PATH, load_catalog, parse_catalog
+from app.gcode.kernel.milling.kinematics import load_catalog, profile_document, save_profile_override
 from app.settings import (
     ARC_SAMPLING_PRESET_DEFAULT,
     ARC_SAMPLING_PRESETS,
@@ -55,6 +55,7 @@ def _option_snapshot(window):
         "generated_motions_limit": getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT),
         "correction": getattr(window, "correctionEnabled", True),
         "autodetect_arc_type": getattr(window, "autodetectArcType", True),
+        "lathe_gcode_system": getattr(window, "latheGcodeSystem", "A"),
         "ignore_block_skip": getattr(window, "ignoreBlockSkip", False),
         "comment_style": getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE),
         "arc_sampling_preset": getattr(window, "arcSamplingPreset", ARC_SAMPLING_PRESET_DEFAULT),
@@ -97,6 +98,7 @@ def _execution_semantics_changed(
     previous_autodetect_arc_type,
     previous_ignore_block_skip,
     previous_generated_motions,
+    previous_lathe_gcode_system,
 ):
     return any(
         (
@@ -106,6 +108,7 @@ def _execution_semantics_changed(
             previous_autodetect_arc_type != window.autodetectArcType,
             previous_ignore_block_skip != window.ignoreBlockSkip,
             previous_generated_motions != window.maxGeneratedMotions,
+            previous_lathe_gcode_system != window.latheGcodeSystem,
         )
     )
 
@@ -176,10 +179,7 @@ class RotaryKinematicsJsonDialog(QDialog):
         self._load_profile()
 
     def _load_profile(self):
-        document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-        profile = next((item for item in document.get("profiles", []) if item.get("id") == self.profile_id), None)
-        if profile is None:
-            raise ValueError(f"Rotary kinematics profile not found: {self.profile_id}")
+        profile = profile_document(self.profile_id)
         self.editor.setPlainText(json.dumps(profile, ensure_ascii=False, indent=2))
 
     def accept(self):
@@ -190,19 +190,7 @@ class RotaryKinematicsJsonDialog(QDialog):
             if edited.get("id") != self.profile_id:
                 raise ValueError("Profile id cannot be changed in this editor")
 
-            document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-            profiles = document.get("profiles")
-            if not isinstance(profiles, list):
-                raise ValueError("Catalog profiles must be an array")
-            for index, profile in enumerate(profiles):
-                if isinstance(profile, dict) and profile.get("id") == self.profile_id:
-                    profiles[index] = edited
-                    break
-            else:
-                raise ValueError(f"Rotary kinematics profile not found: {self.profile_id}")
-
-            parse_catalog(document)
-            CATALOG_PATH.write_text(json.dumps(document, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            save_profile_override(self.profile_id, edited)
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             QMessageBox.warning(
                 self,
@@ -218,6 +206,11 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_OptionsDlg()
         self.ui.setupUi(self)
+        self.ui.latheGcodeSystemCombo = QComboBox(self)
+        self.ui.latheGcodeSystemCombo.setObjectName("latheGcodeSystemCombo")
+        self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type A", "A")
+        self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type B", "B")
+        self.ui.generalForm.addRow(QLabel("Lathe G-code system", self), self.ui.latheGcodeSystemCombo)
         self._configure_rotary_kinematics_controls()
         self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (
@@ -317,6 +310,7 @@ class OptionsDialog(QDialog):
             getattr(window, "defaultFileType", window.ui.fileTypeCombo.currentIndex())
         )
         self.ui.unitsCombo.setCurrentIndex(1 if getattr(window, "defaultUnits", "mm") == "inch" else 0)
+        self.ui.latheGcodeSystemCombo.setCurrentIndex(1 if getattr(window, "latheGcodeSystem", "A") == "B" else 0)
         self.ui.languageCombo.setCurrentIndex(1 if getattr(window, "uiLanguage", "en") == "ru" else 0)
         self.ui.themeCombo.setCurrentIndex(1 if getattr(window, "uiTheme", "light") == "dark" else 0)
         icon_size = getattr(window, "toolbarIconSize", DEFAULT_TOOLBAR_ICON_SIZE)
@@ -444,6 +438,22 @@ class OptionsDialog(QDialog):
         window.setHotkeys(hotkeys)
         return True
 
+    @staticmethod
+    def _apply_plot_colors(window, color_edits, previous_theme):
+        (
+            window.plotRapidColor,
+            window.plotLineColor,
+            window.plotArcColor,
+            window.plotCurrentColor,
+            window.plotToolColor,
+            window.plotBackground,
+            window.stlColor,
+        ) = (edit.text() for edit in color_edits)
+        if previous_theme != window.uiTheme:
+            # The edits hold the previous theme's colours until the new theme is applied.
+            for key, attribute in theme.PLOT_COLOR_ATTRIBUTES.items():
+                setattr(window, attribute, theme.themed_plot_value(getattr(window, attribute), key, window.uiTheme))
+
     def accept(self):
         window = self.parent()
         previous_options = _option_snapshot(window)
@@ -458,6 +468,7 @@ class OptionsDialog(QDialog):
         previous_tolerance = getattr(window, "arcTolerance", ARC_TOLERANCE_DEFAULT)
         previous_sampling = _arc_sampling_snapshot(window)
         previous_autodetect_arc_type = getattr(window, "autodetectArcType", True)
+        previous_lathe_gcode_system = getattr(window, "latheGcodeSystem", "A")
         previous_ignore_block_skip = getattr(window, "ignoreBlockSkip", False)
         previous_generated_motions = getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)
         previous_show_stock = (
@@ -491,26 +502,14 @@ class OptionsDialog(QDialog):
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
         window.maxGeneratedMotions = self.ui.maxGeneratedMotionsSpin.value()
         _apply_cnc_options(window, self.ui)
+        window.latheGcodeSystem = self.ui.latheGcodeSystemCombo.currentData()
         window.fontFamily = self.ui.fontCombo.currentFont().family()
         window.sizeTxt = self.ui.fontSizeSpin.value()
         window.caretLine = self.ui.caretLineCheck.isChecked()
         window.eolVisible = self.ui.eolCheck.isChecked()
         window.spaceVisible = self.ui.whitespaceCheck.isChecked()
         window.marginArea = self.ui.marginCheck.isChecked()
-        (
-            window.plotRapidColor,
-            window.plotLineColor,
-            window.plotArcColor,
-            window.plotCurrentColor,
-            window.plotToolColor,
-            window.plotBackground,
-            window.stlColor,
-        ) = (edit.text() for edit in color_edits)
-        if previous_theme != window.uiTheme:
-            # The colour edits above still hold the previous theme's values, so the
-            # standard colours are moved onto the new theme after they are applied.
-            for key, attribute in theme.PLOT_COLOR_ATTRIBUTES.items():
-                setattr(window, attribute, theme.themed_plot_value(getattr(window, attribute), key, window.uiTheme))
+        self._apply_plot_colors(window, color_edits, previous_theme)
         window.plotBackgroundGradient = self.ui.backgroundGradientCheck.isChecked()
         window.stlWireframe = self.ui.stlWireframeCheck.isChecked()
         window.plotLineWidth = self.ui.lineWidthSpin.value()
@@ -550,6 +549,7 @@ class OptionsDialog(QDialog):
             previous_autodetect_arc_type=previous_autodetect_arc_type,
             previous_ignore_block_skip=previous_ignore_block_skip,
             previous_generated_motions=previous_generated_motions,
+            previous_lathe_gcode_system=previous_lathe_gcode_system,
         )
         _refresh_after_option_changes(
             window,
@@ -632,8 +632,9 @@ class OptionsDialog(QDialog):
             return
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+        self.parent()._refresh_rotary_kinematics_menu()
         self._reload_rotary_kinematics_combo(profile_id)
-        self.parent()._select_rotary_kinematics(profile_id, force_refresh=True)
+        self.parent()._select_rotary_kinematics(self.ui.rotaryKinematicsCombo.currentData(), force_refresh=True)
 
     def pick_color(self, target):
         color = QColorDialog.getColor(QColor(target.text()), self, "Select color")

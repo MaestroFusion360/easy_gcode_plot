@@ -169,6 +169,21 @@ def test_milling_arc_export_preserves_end_geometry(tmp_path, arc_type):
     assert after.motions[-1].end_y == pytest.approx(before.motions[-1].end_y, abs=1e-4)
 
 
+@pytest.mark.parametrize("arc_type", ["ijk-relative", "ijk-absolute", "radius", "linearized"])
+def test_turning_arc_export_preserves_end_geometry(tmp_path, arc_type):
+    source = tmp_path / "turn_arc.nc"
+    output = tmp_path / "converted.nc"
+    source.write_text("G21 G18\nG0 X20 Z0\nG3 X40 Z-10 I0 K-10 F100\nM30\n", encoding="utf-8")
+    assert main(["export", str(source), "--lang", "fanuc_turn", "--arc-type", arc_type, "-o", str(output)]) == 0
+
+    before, *_ = execute_program(source.read_text(encoding="utf-8"), language="fanuc_turn")
+    after, *_ = execute_program(output.read_text(encoding="utf-8"), language="fanuc_turn", autodetect_arc_type=True)
+    assert after.ok and after.complete, after.diagnostics
+    assert (after.motions[-1].end_x, after.motions[-1].end_z) == pytest.approx(
+        (before.motions[-1].end_x, before.motions[-1].end_z), abs=1e-4
+    )
+
+
 @pytest.mark.parametrize("fixture", ["contur_2d.nc", "flange_plate_benchmark.nc"])
 def test_expanded_milling_restores_absolute_mode_after_home_return(tmp_path, fixture):
     source = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / fixture
@@ -203,6 +218,128 @@ def test_batch_report_and_bad_file_isolation(tmp_path):
     with (output / "batch_export_report.csv").open(encoding="utf-8-sig", newline="") as stream:
         rows = list(csv.DictReader(stream))
     assert len(rows) == 2
+
+
+def test_batch_four_axis_export_uses_explicit_profile_for_each_file(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "a.nc").write_text("G21 G90\nG0 A90\nG0 Y10\nM30\n", encoding="utf-8")
+    (root / "b.nc").write_text("G21 G90\nG0 B90\nG0 Z10\nM30\n", encoding="utf-8")
+    mapping = tmp_path / "profiles.json"
+    mapping.write_text(json.dumps({"a.nc": "4ax_table_a", "b.nc": "4ax_table_b"}), encoding="utf-8")
+    output = tmp_path / "output"
+
+    assert (
+        main(
+            [
+                "batch-export",
+                str(root),
+                "--lang",
+                "fanuc_mill",
+                "--mode",
+                "full",
+                "--kinematics-map",
+                str(mapping),
+                "-o",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    report = json.loads((output / "batch_export_report.json").read_text(encoding="utf-8"))
+    assert [item["kinematics_profile"] for item in report["files"]] == ["4ax_table_a", "4ax_table_b"]
+    for name, profile in (("a.nc", "4ax_table_a"), ("b.nc", "4ax_table_b")):
+        exported = (output / name).read_text(encoding="utf-8")
+        assert exported == (root / name).read_text(encoding="utf-8")
+        result, *_ = execute_program(exported, language="fanuc_mill", kinematics=profile)
+        assert result.ok and result.complete, result.diagnostics
+
+    analysis = tmp_path / "analysis"
+    assert (
+        main(
+            [
+                "batch",
+                str(root),
+                "--lang",
+                "fanuc_mill",
+                "--kinematics-map",
+                str(mapping),
+                "-o",
+                str(analysis),
+            ]
+        )
+        == 0
+    )
+    analyzed = json.loads((analysis / "batch_report.json").read_text(encoding="utf-8"))
+    assert [item["kinematics_profile"] for item in analyzed["files"]] == ["4ax_table_a", "4ax_table_b"]
+
+
+def test_batch_four_axis_without_profile_fails_closed(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "part.nc").write_text("G21 G90\nG0 B90\nG0 Z10\nM30\n", encoding="utf-8")
+    output = tmp_path / "output"
+    assert main(["batch-export", str(root), "--lang", "fanuc_mill", "--mode", "full", "-o", str(output)]) == 2
+    assert not (output / "part.nc").exists()
+    report = json.loads((output / "batch_export_report.json").read_text(encoding="utf-8"))
+    assert report["files"][0]["diagnostics"][0]["code"] == "ROTARY_KINEMATICS_REQUIRED"
+
+
+def test_indexed_full_export_rejects_formatting_it_cannot_apply(tmp_path):
+    source = tmp_path / "source.nc"
+    source.write_text("G21 G90\nG0 B90\nG0 Z10\nM30\n", encoding="utf-8")
+    output = tmp_path / "output.nc"
+    assert (
+        main(
+            [
+                "export",
+                str(source),
+                "--lang",
+                "fanuc_mill",
+                "--kinematics",
+                "4ax_table_b",
+                "--mode",
+                "full",
+                "--no-comments",
+                "-o",
+                str(output),
+            ]
+        )
+        == 2
+    )
+    assert not output.exists()
+
+
+def test_batch_indexed_dxf_uses_profile_and_wcs_geometry(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "part.nc").write_text("G21 G90 G54\nG10 L2 P1 X100 Z5\nG0 B90\nG0 Z10\nM30\n", encoding="utf-8")
+    output = tmp_path / "output"
+    assert (
+        main(
+            [
+                "batch-export",
+                str(root),
+                "--lang",
+                "fanuc_mill",
+                "--format",
+                "dxf",
+                "--kinematics",
+                "4ax_table_b",
+                "-o",
+                str(output),
+            ]
+        )
+        == 0
+    )
+    document = ezdxf.readfile(output / "part.dxf")
+    line = list(document.modelspace().query("LINE"))[-1]
+    result, *_ = execute_program(
+        (root / "part.nc").read_text(encoding="utf-8"), language="fanuc_mill", kinematics="4ax_table_b"
+    )
+    assert (line.dxf.end.x, line.dxf.end.y, line.dxf.end.z) == pytest.approx(
+        (result.motions[-1].end_x, result.motions[-1].end_y, result.motions[-1].end_z)
+    )
 
 
 def test_batch_dxf_preserves_tree_and_honors_discovery_options(tmp_path):
@@ -320,7 +457,6 @@ def test_batch_detects_output_name_collisions(tmp_path):
         ["--format", "dxf", "--no-comments"],
         ["--mode", "full", "--units", "inch"],
         ["--mode", "full", "--arc-type", "radius"],
-        ["--lang", "fanuc_turn", "--arc-type", "radius"],
         ["--sequence-increment", "10"],
     ],
 )

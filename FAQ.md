@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.6.7 development tree and explains the GUI, deterministic FANUC execution kernel, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.6.8 development tree and explains the GUI, deterministic FANUC execution kernel, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -55,7 +55,6 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Does Expanded Execution export keep Macro B statements?](#does-expanded-execution-export-keep-macro-b-statements)
   - [FANUC turning](#fanuc-turning)
     - [What is the turning coordinate model?](#what-is-the-turning-coordinate-model)
-    - [What do G190 and G191 do?](#what-do-g190-and-g191-do)
     - [How do X/U and Z/W behave?](#how-do-xu-and-zw-behave)
     - [How are G20 and G21 handled?](#how-are-g20-and-g21-handled)
     - [Which turning arc formats are supported?](#which-turning-arc-formats-are-supported)
@@ -151,6 +150,8 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Does CLI execution load the GUI Saved Library?](#does-cli-execution-load-the-gui-saved-library)
   - [Interface, editor and playback](#interface-editor-and-playback)
     - [What are the two main GUI panels?](#what-are-the-two-main-gui-panels)
+    - [How do I change letter case or mark optional blocks?](#how-do-i-change-letter-case-or-mark-optional-blocks)
+    - [How do I print the plot?](#how-do-i-print-the-plot)
     - [Which fixed views are available?](#which-fixed-views-are-available)
     - [How does playback relate to the kernel?](#how-does-playback-relate-to-the-kernel)
     - [What do Step Backward and Step Forward do?](#what-do-step-backward-and-step-forward-do)
@@ -767,22 +768,39 @@ Subprogram/macro boundaries are preserved as execution events/comments where app
 
 ## FANUC turning
 
+The turning interpreter supports FANUC Type A (default) and Type B. Select Type B in Options under **Lathe G-code system**, or pass `--lathe-gcode-system B` to a CLI command. Type B uses G90/G91 for absolute/incremental X/Z, G33 for threading, G77/G78/G79 for simple cycles, and G94/G95 for feed per minute/revolution. Type C, G66/G67 modal macro calls and G68.2/G53.1 indexed-plane operations are outside the current turning language.
+
+### Main differences between Type A and Type B
+
+| Operation | Type A | Type B |
+| --- | --- | --- |
+| Rapid | G00 | G00 |
+| Linear | G01 | G01 |
+| Arc CW | G02 | G02 |
+| Arc CCW | G03 | G03 |
+| Dwell | G04 | G04 |
+| Thread cutting | G32 | G33 |
+| Coordinate system / spindle clamp | G50 | G92 |
+| Finish cycle | G70 | G70 |
+| Rough turning | G71 | G71 |
+| Rough facing | G72 | G72 |
+| Pattern repeating | G73 | G73 |
+| Face peck drilling | G74 | G74 |
+| OD/ID grooving | G75 | G75 |
+| Multiple threading | G76 | G76 |
+| Turning canned cycle | G90 | G77 |
+| Threading canned cycle | G92 | G78 |
+| Facing canned cycle | G94 | G79 |
+| Feed per minute | G98 | G94 |
+| Feed per revolution | G99 | G95 |
+
+Type A uses absolute X/Z and incremental U/W. Type B uses G90/G91 to switch X/Z between absolute and incremental; U/W remain incremental.
+
 ### What is the turning coordinate model?
 
 Turning uses X/Z geometry. Internally, physical X geometry is radial, while programmed X can follow diameter or radius programming.
 
 The default turning state is diameter programming.
-
-### What do G190 and G191 do?
-
-The project uses:
-
-```text
-G190 -> diameter X programming
-G191 -> radius X programming
-```
-
-The physical resolved geometry remains consistent across these source conventions.
 
 ### How do X/U and Z/W behave?
 
@@ -805,10 +823,12 @@ The selected unit mode is captured per execution step so playback, statistics an
 
 Turning uses G18 XZ circular interpolation with:
 
-- relative I/K center offsets;
+- relative or absolute I/K center coordinates, selected by Arc Type or auto detection;
 - R radius programming.
 
 Resolved arcs store analytical center, radius, sweep and direction in physical geometry.
+
+R-programmed profile arcs remain R arcs during G71/G72/G73 roughing and G70 finishing, regardless of the selected I/K interpretation. If an I/K arc in a P/Q profile is invalid in the manually selected mode, the associated cycle emits no partial trajectory and reports the source line.
 
 ### Why can G2/G3 direction look inverted in an XZ plot?
 
@@ -1012,6 +1032,8 @@ UNSUPPORTED_G72_TYPE_II_SPANS
 
 instead of choosing an arbitrary span.
 
+An empty profile, zero pass depth, or a lone interior crossing after a closed Type II span also produces an explicit diagnostic. No cuttable Type II facing span is reported as an error rather than an empty expansion.
+
 ### How does G73 work?
 
 G73 is implemented as repeated shifted copies of the roughing profile.
@@ -1190,6 +1212,8 @@ The `4ax_table_a` and `4ax_table_b` profiles have been compared with the program
 
 The catalog also contains head, mixed head/table, angled-axis and two-rotary-axis profiles. They remain in JSON with `enabled: false` and are hidden from the GUI because their geometry has not been checked against equivalent reference programs. Only `4ax_table_a`, `4ax_table_b` and `4ax_table_c` have `enabled: true`; **None** is the default selection. The confirmed scope is indexed 3+1 for vertical mill/table A and horizontal mill/table B, plus the checked planar X/C contour for table C. The schema does not specify rotary pivot locations, tool-center-point behavior or controller-specific offsets.
 
+The JSON editor validates a profile and saves it to `rotary_profiles.json` beside the user's `config.ini`. It does not change the installed catalog. A selected profile defines the table/head axis and sign explicitly; the software cannot infer those properties from an A, B or C word. Execution steps retain the selected WCS and the configured rotary angles. G10 L2 and WCS changes preserve the current machine position after a table index.
+
 ### What happens when indexed geometry cannot be resolved?
 
 A changed A/B/C address without a selected profile or an address absent from the selected profile stops milling execution with an explicit diagnostic. Simultaneous rotary/XYZ movement and non-rapid rotary interpolation also stop for the indexed A/B profiles; the checked `4ax_table_c` planar X/C feed contour is the exception. This is the present 1.6.7 implementation, not a general FANUC restriction. A/B/C with an unsupported position-changing G-code also stops execution. Unknown M-codes and G41/G42 that cannot be verified because of missing tool or unsupported contour data produce warnings and let execution continue. G30 is not modeled as G28: its controller-specific second reference point is not inferred from the configured G28 home.
@@ -1302,13 +1326,15 @@ The selected source interpretation is resolved into one analytical arc center/ra
 
 ### What does Arc Type autodetection do?
 
-When enabled, the milling executor examines IJK arcs in source occurrence order before final geometry resolution.
+When enabled, the kernel examines milling or turning IJK arcs in source occurrence order before final geometry resolution. Turning X and I values are converted from diameter coordinates to physical radial coordinates for this comparison.
 
 For each IJK arc it compares relative and absolute-center interpretations using the configured arc tolerance. The first unambiguous candidate fixes the IJK mode for that execution.
 
 R-only arcs are ignored during detection because they do not distinguish IJK conventions.
 
 If every candidate is ambiguous, the selected fallback mode is used. CLI analysis/batch currently use relative IJK as the fallback.
+
+Selecting an Arc Type in the GUI manually overrides auto detection for the current document. The Auto Detect setting remains enabled for the next opened document. In turning, an I/K arc interpreted with the wrong center mode reports `INVALID_TURNING_ARC_CENTER`; selecting Radius mode for an arc without an R word reports `TURNING_ARC_REQUIRES_R`.
 
 ### Can one program mix R arcs with IJK arcs?
 
@@ -1482,6 +1508,16 @@ This matters for G41/G42 verification: inferred tool dimensions should be review
 ### What are the two main GUI panels?
 
 The left side is a QScintilla editor with syntax highlighting, line numbers, search/replace and cleanup functions. The right side is an OpenGL trajectory view with axes, grid, camera controls, trajectory picking and playback.
+
+### How do I change letter case or mark optional blocks?
+
+Use **Edit → Uppercase** (`Ctrl+Shift+U`) or **Edit → Lowercase** (`Ctrl+U`), or their toolbar buttons, to convert selected text. With no selection, they convert the entire editor document. Their shortcuts can be changed in Options.
+
+Select one or more blocks and press **Ctrl+/** to add `/` at the start of each selected nonempty block. Press **Ctrl+Shift+/** to remove one leading `/` from each selected block. Without a selection, these commands do nothing. Both shortcuts are fixed and cannot be assigned to another command. The slash is the FANUC optional block skip marker; whether such blocks execute depends on the Block Skip setting.
+
+### How do I print the plot?
+
+Use **File → Print** (`Ctrl+P`) or the Print button in the File toolbar. The app captures the current plot view with a white background, faint grid and black toolpath, then restores the on-screen theme. The landscape print preview centers and scales the image to fit the printable area. **FAQ** opens with `F3`, and **Grid** toggles with `F4` by default.
 
 ### Which fixed views are available?
 
@@ -1856,6 +1892,8 @@ Example:
 ### What does `batch-export` do?
 
 `batch-export` discovers a directory tree and calls the same single-file export service for every input program.
+
+For indexed A/B programs, choose a profile with `--kinematics PROFILE_ID` when all files use one machine, or pass `--kinematics-map profiles.json` for different machines. Both `batch` and `batch-export` accept the map. It is a JSON object from input-relative paths to profile IDs, for example `{"a.nc":"4ax_table_a","sub/b.nc":"4ax_table_b"}`. Use `--mode full` to preserve the rotary NC words. Without a profile, affected files fail with `ROTARY_KINEMATICS_REQUIRED`; indexed expanded NC export is also rejected. Full indexed NC is preserved verbatim, so formatting options that would otherwise be ignored are rejected. DXF uses resolved geometry and the selected profile.
 
 ```powershell
 .\easy_gcode_plot_cli.exe batch-export C:\Programs --lang fanuc_mill -o C:\Normalized

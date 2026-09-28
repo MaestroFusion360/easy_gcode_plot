@@ -49,7 +49,7 @@ from app.settings import (
 from app.settings import (
     normalized_recent_files as _normalized_recent_files,
 )
-from app.ui.support.hotkeys import LEGACY_KEYS, menu_commands, portable_shortcut
+from app.ui.support.hotkeys import LEGACY_KEYS, is_reserved_shortcut, menu_commands, portable_shortcut
 from app.ui.support.lexer import GcodeLexer
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
@@ -142,6 +142,9 @@ class MainWindowSettingsMixin:
         self.fileEncoding = self.settings.value("EDITOR/ENCODING", "utf-8")
         self.defaultFileType = self.settings.value("EDITOR/DEFAULT_FILE_TYPE", 0, type=int)
         self.defaultUnits = self.settings.value("CNC/DEFAULT_UNITS", "mm")
+        self.latheGcodeSystem = self.settings.value("CNC/LATHE_GCODE_SYSTEM", "A")
+        if self.latheGcodeSystem not in {"A", "B"}:
+            self.latheGcodeSystem = "A"
         self.correctionEnabled = self.settings.value("CNC/CORRECTION_ENABLED", True, type=bool)
         self.autodetectArcType = self.settings.value("CNC/AUTODETECT_ARC_TYPE", True, type=bool)
         self.ignoreBlockSkip = self.settings.value("CNC/IGNORE_BLOCK_SKIP", False, type=bool)
@@ -411,22 +414,48 @@ class MainWindowSettingsMixin:
     def _load_hotkeys(self):
         self.hotkeyActions = {key: action for key, action, _category in menu_commands(self)}
         self.defaultHotkeys = {key: portable_shortcut(action.shortcut()) for key, action in self.hotkeyActions.items()}
+        migration_key = "HOTKEYS/F3_F4_DEFAULTS_MIGRATED"
+        migrate_defaults = not self.settings.value(migration_key, False, type=bool)
         shortcuts = {}
         for key, default in self.defaultHotkeys.items():
             legacy_key = LEGACY_KEYS.get(key)
             fallback = self.settings.value(f"HOTKEYS/{legacy_key}", default) if legacy_key else default
             shortcuts[key] = self.settings.value(f"HOTKEYS/{key}", fallback)
+            if migrate_defaults and key in ("actionFAQ", "actionGrid") and not str(shortcuts[key]).strip():
+                shortcuts[key] = default
+                self.settings.setValue(f"HOTKEYS/{key}", default)
+        if migrate_defaults:
+            self.settings.setValue(migration_key, True)
         self.setHotkeys(shortcuts)
+        for key, shortcut in self.hotkeys.items():
+            if shortcut != str(shortcuts[key]):
+                self.settings.setValue(f"HOTKEYS/{key}", shortcut)
 
     def setHotkeys(self, shortcuts):
         """Apply menu-command shortcuts and retain their portable text."""
-        self.hotkeys = {}
+        normalized = {}
         for key, action in self.hotkeyActions.items():
             sequence = QKeySequence(
                 str(shortcuts.get(key, self.defaultHotkeys[key])), QKeySequence.SequenceFormat.PortableText
             )
-            self.hotkeys[key] = portable_shortcut(sequence)
-            action.setShortcut(sequence)
+            if is_reserved_shortcut(portable_shortcut(sequence)):
+                sequence = QKeySequence()
+            normalized[key] = portable_shortcut(sequence)
+        owners = {}
+        for key, shortcut in normalized.items():
+            if not shortcut:
+                continue
+            previous = owners.get(shortcut)
+            if previous is None:
+                owners[shortcut] = key
+            elif self.defaultHotkeys[key] == shortcut and self.defaultHotkeys[previous] != shortcut:
+                normalized[previous] = ""
+                owners[shortcut] = key
+            else:
+                normalized[key] = ""
+        self.hotkeys = normalized
+        for key, action in self.hotkeyActions.items():
+            action.setShortcut(QKeySequence(normalized[key], QKeySequence.SequenceFormat.PortableText))
 
     def _save_hotkeys(self):
         for key in self.hotkeyActions:
@@ -474,6 +503,7 @@ class MainWindowSettingsMixin:
         self.settings.beginGroup("CNC")
         self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
         self.settings.setValue("DEFAULT_UNITS", self.defaultUnits)
+        self.settings.setValue("LATHE_GCODE_SYSTEM", self.latheGcodeSystem)
         for key, value in (
             ("CORRECTION_ENABLED", self.correctionEnabled),
             ("AUTODETECT_ARC_TYPE", self.autodetectArcType),

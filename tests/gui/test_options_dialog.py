@@ -4,15 +4,17 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 from PyQt6.QtGui import QColor, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
-from app.gcode.kernel.milling.kinematics import load_catalog
+from app.gcode.kernel.milling.kinematics import CATALOG_PATH, load_catalog, user_catalog_path
 from app.main_window import MainWindow
 from app.settings import get_settings
 from app.ui.dialogs.hotkey_assignment import HotkeyAssignmentDialog
-from app.ui.dialogs.options import OptionsDialog
+from app.ui.dialogs.options import OptionsDialog, RotaryKinematicsJsonDialog
 from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
@@ -31,6 +33,24 @@ def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
         assert set(window._rotary_kinematics_actions) == expected
         combo = window.optionsDlg.ui.rotaryKinematicsCombo
         assert {combo.itemData(index) for index in range(combo.count())} == expected
+    finally:
+        window.deleteLater()
+
+
+def test_rotary_profile_editor_saves_user_override_and_refreshes_menu(qt_app):
+    installed = CATALOG_PATH.read_bytes()
+    window = MainWindow()
+    try:
+        editor = RotaryKinematicsJsonDialog("4ax_table_b", window.optionsDlg)
+        document = json.loads(editor.editor.toPlainText())
+        document["name"] = "My B table"
+        editor.editor.setPlainText(json.dumps(document))
+        editor.accept()
+        assert editor.result() == editor.DialogCode.Accepted
+        assert user_catalog_path().exists()
+        assert CATALOG_PATH.read_bytes() == installed
+        window._refresh_rotary_kinematics_menu()
+        assert "My B table" in window._rotary_kinematics_actions["4ax_table_b"].text()
     finally:
         window.deleteLater()
 
@@ -94,6 +114,54 @@ def test_hotkey_assignment_dialog_builds_shortcut_from_controls(qt_app, monkeypa
     occupied.accept()
     assert len(warnings) == 2
     assert occupied.result() == 0
+
+
+def test_block_skip_shortcut_cannot_be_reassigned(qt_app, monkeypatch):
+    window = MainWindow()
+    warnings = []
+    monkeypatch.setattr("app.ui.support.hotkey_editor.QMessageBox.warning", lambda *args: warnings.append(args))
+    window.optionsDlg.hotkeyEditor.load(window)
+    assert not window.optionsDlg.hotkeyEditor.assign("actionRefresh", "Ctrl+/")
+    assert not window.optionsDlg.hotkeyEditor.assign("actionRefresh", "Ctrl+Shift+/")
+    assert warnings
+    window.setHotkeys({"actionRefresh": "Ctrl+/"})
+    assert window.ui.actionRefresh.shortcut().isEmpty()
+    assert window.blockSkipShortcut.key() == QKeySequence("Ctrl+/")
+    window.setHotkeys({"actionRefresh": "Ctrl+Shift+/"})
+    assert window.ui.actionRefresh.shortcut().isEmpty()
+    assert window.removeBlockSkipShortcut.key() == QKeySequence("Ctrl+Shift+/")
+    window.deleteLater()
+
+
+@pytest.mark.parametrize("migration_done", [False, True])
+def test_grid_f4_resolves_legacy_fit_to_view_conflict(qt_app, migration_done, monkeypatch):
+    settings = get_settings()
+    settings.setValue("HOTKEYS/actionFitToView", "F4")
+    settings.setValue("HOTKEYS/actionGrid", "F4" if migration_done else "")
+    if migration_done:
+        settings.setValue("HOTKEYS/F3_F4_DEFAULTS_MIGRATED", True)
+    settings.sync()
+
+    window = MainWindow()
+    assert window.ui.actionGrid.shortcut() == QKeySequence("F4")
+    assert window.ui.actionFitToView.shortcut().isEmpty()
+    assert settings.value("HOTKEYS/actionFitToView") == ""
+    window.optionsDlg.hotkeyEditor.load(window)
+    assigned = [value for value in window.optionsDlg.hotkeyEditor.values.values() if value]
+    assert len(assigned) == len(set(assigned))
+    warnings = []
+    monkeypatch.setattr("app.ui.support.hotkey_editor.QMessageBox.warning", lambda *args: warnings.append(args))
+    assert not window.optionsDlg.hotkeyEditor.assign("actionFitToView", "F4")
+    assert warnings
+    window.deleteLater()
+
+
+def test_programmatic_hotkeys_cannot_create_duplicate_shortcuts(qt_app):
+    window = MainWindow()
+    window.setHotkeys({"actionFitToView": "f4", "actionGrid": "F4"})
+    assert window.ui.actionGrid.shortcut() == QKeySequence("F4")
+    assert window.ui.actionFitToView.shortcut().isEmpty()
+    window.deleteLater()
 
 
 @pytest.fixture(scope="module")

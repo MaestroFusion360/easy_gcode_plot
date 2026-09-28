@@ -20,7 +20,7 @@ def test_faq_is_packaged_and_listed_below_about_without_changing_f1(qt_app):
 
     assert help_actions == [window.ui.actionAbout, window.ui.actionFAQ]
     assert window.ui.actionAbout.shortcut().toString() == "F1"
-    assert window.ui.actionFAQ.shortcut().isEmpty()
+    assert window.ui.actionFAQ.shortcut().toString() == "F3"
     assert QFile(":/resource/FAQ.md").exists()
     assert QFile(":/resource/LICENSE.md").exists()
 

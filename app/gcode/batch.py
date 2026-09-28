@@ -142,7 +142,12 @@ def _turning_unmodeled_m_diagnostics(result: ExecutionResult) -> tuple[Diagnosti
 
 
 def execute_analysis_program(
-    source: str, *, language: str, include_instructions: bool = True, kinematics: str | None = None
+    source: str,
+    *,
+    language: str,
+    include_instructions: bool = True,
+    kinematics: str | None = None,
+    lathe_gcode_system: str = "A",
 ) -> ExecutionResult:
     """Use the same execution options and diagnostics for single and batch analysis."""
     result, _tools, _inferred = execute_program(
@@ -151,6 +156,7 @@ def execute_analysis_program(
         include_instructions=include_instructions,
         autodetect_arc_type=language == "fanuc_mill",
         kinematics=kinematics,
+        lathe_gcode_system=lathe_gcode_system,
     )
     if language == "fanuc_turn":
         result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
@@ -181,6 +187,7 @@ def _file_report(
     language: str,
     encoding: str,
     kinematics: str | None = None,
+    lathe_gcode_system: str = "A",
 ) -> dict[str, object]:
     started = perf_counter()
     try:
@@ -208,10 +215,17 @@ def _file_report(
             "unsupported_g_codes": [],
             "unsupported_m_codes": [],
             "diagnostics": [asdict(diagnostic)],
+            "kinematics_profile": kinematics,
             "elapsed_ms": round((perf_counter() - started) * 1000.0, 3),
         }
 
-    result = execute_analysis_program(source, language=language, include_instructions=False, kinematics=kinematics)
+    result = execute_analysis_program(
+        source,
+        language=language,
+        include_instructions=False,
+        kinematics=kinematics,
+        lathe_gcode_system=lathe_gcode_system,
+    )
     diagnostics = result.diagnostics
     status = analysis_status(result)
     report = {
@@ -264,15 +278,30 @@ def analyze_directory(
     extensions: Iterable[str] = DEFAULT_BATCH_EXTENSIONS,
     on_file: Callable[[dict[str, object]], None] | None = None,
     kinematics: str | None = None,
+    kinematics_by_file: dict[str, str] | None = None,
+    lathe_gcode_system: str = "A",
 ) -> dict[str, object]:
     """Execute every matching NC file and return a batch analysis report."""
     started = perf_counter()
     directory = Path(root).resolve()
     normalized_extensions = _normalize_extensions(extensions)
     paths = discover_nc_files(directory, recursive=recursive, extensions=normalized_extensions)
+    profiles = kinematics_by_file or {}
+    actual = {path.relative_to(directory).as_posix() for path in paths}
+    unknown = set(profiles) - actual
+    if unknown:
+        raise ValueError(f"Kinematics map references an undiscovered file: {sorted(unknown)[0]}")
     files = []
     for path in paths:
-        file_report = _file_report(path, directory, language=language, encoding=encoding, kinematics=kinematics)
+        selected = profiles.get(path.relative_to(directory).as_posix(), kinematics)
+        file_report = _file_report(
+            path,
+            directory,
+            language=language,
+            encoding=encoding,
+            kinematics=selected,
+            lathe_gcode_system=lathe_gcode_system,
+        )
         files.append(file_report)
         if on_file is not None:
             on_file(file_report)
@@ -300,6 +329,7 @@ def analyze_directory(
         "language": language,
         "encoding": encoding,
         "kinematics_profile": kinematics,
+        "kinematics_by_file": profiles,
         "recursive": recursive,
         "extensions": list(normalized_extensions),
         "scan_warnings": ["No matching NC files found"] if not files else [],
@@ -362,6 +392,7 @@ def write_batch_reports(
         "unsupported_m_codes",
         "diagnostic_codes",
         "diagnostics",
+        "kinematics_profile",
         "elapsed_ms",
     )
     with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:

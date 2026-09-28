@@ -16,11 +16,13 @@ from ..api.resources import SemanticError, active_budget, checkpoint, checkpoint
 from ..api.types import ExecutionEvent, SemanticInstruction
 from ..frontend.lang import MACRO_NULL, eval_condition, evaluate_expression
 from ..frontend.program import EvaluatedWords, eval_words
+from ..turning.dialect import canonical_words
+from ..turning.type_a import TYPE_A_CYCLES, TYPE_A_MOTION
 from .events import g65_call_event, program_flow_events
 from .signals import signals_for_words
 
-MOTION_CODES = frozenset({0, 1, 2, 3, 32, 33})
-CYCLE_CODES = frozenset({70, 71, 72, 73, 74, 75, 76, 80, 83, 84, 90, 92, 94})
+MOTION_CODES = frozenset(TYPE_A_MOTION)
+CYCLE_CODES = frozenset(TYPE_A_CYCLES)
 POSITION_NEUTRAL_GCODES = frozenset(
     {
         4,
@@ -43,8 +45,6 @@ POSITION_NEUTRAL_GCODES = frozenset(
         97,
         98,
         99,
-        190,
-        191,
     }
 )
 
@@ -67,7 +67,7 @@ _MILLING_MODAL_GROUPS = {
 }
 _TURNING_MODAL_GROUPS = {
     **_COMMON_MODAL_GROUPS,
-    "motion": frozenset({0, 1, 2, 3, 32, 33, 80, 83, 84, 90, 92, 94}),
+    "motion": MOTION_CODES | frozenset({80, 83, 84, 90, 92, 94}),
     "feed_mode": frozenset({98, 99}),
     "spindle_mode": frozenset({96, 97}),
 }
@@ -133,6 +133,7 @@ class EvaluatedBlock:
     codes: BlockCodes
     values: tuple[tuple[str, float], ...]
     signals: tuple[object, ...]
+    source_gcodes: tuple[int | float, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -145,6 +146,20 @@ class ProgramFlowDispatch:
 class G65LocalFrame:
     caller_locals: dict[str, float]
     call_locals: dict[str, float]
+
+
+@dataclass
+class CallFrame:
+    """One active M98 or G65 invocation, including its optional macro scope."""
+
+    return_pc: int
+    target_pc: int
+    remaining: int
+    kind: str
+    locals: G65LocalFrame | None = None
+
+    def legacy_tuple(self) -> tuple[int, int, int]:
+        return self.return_pc, self.target_pc, self.remaining
 
 
 _NO_FLOW = FlowDispatch(False, -1)
@@ -170,13 +185,19 @@ class ProgramRuntime:
 
     index: ProgramExecutionIndex
     variables: dict[str, float]
-    call_stack: list[tuple[int, int, int]]
-    call_local_scopes: list[G65LocalFrame | None] = field(default_factory=list)
+    frames: list[CallFrame]
     max_call_depth: int = 64
     max_macro_call_depth: int = 4
     pc: int = 0
     guard: int = 0
+    gcode_system: str = "A"
+    distance_absolute: bool = True
     _cached_variable_snapshot: tuple[tuple[str, float], ...] = field(default=(), init=False, repr=False)
+
+    @property
+    def call_stack(self) -> list[tuple[int, int, int]]:
+        """Compatibility view for event builders and existing machine executors."""
+        return [frame.legacy_tuple() for frame in self.frames]
 
     @classmethod
     def create(cls, program: object, *, variables: dict[str, float] | None = None) -> ProgramRuntime:
@@ -226,21 +247,17 @@ class ProgramRuntime:
         return eval_words(block.parsed_words, self.variables)
 
     def evaluate_block(self, block: object) -> EvaluatedBlock:
-        words = self.evaluate(block)
+        words, self.distance_absolute, source_gcodes = canonical_words(
+            self.evaluate(block), self.gcode_system, self.distance_absolute
+        )
         return EvaluatedBlock(
             words,
             classify_block_codes(words),
             # pylint: disable-next=protected-access
             tuple((key, value) for key, values in words._all.items() for value in values),
             signals_for_words(block.index, words),
+            source_gcodes,
         )
-
-    def _sync_call_scopes(self) -> None:
-        """Keep per-call local-scope metadata aligned with the legacy tuple call stack."""
-        if len(self.call_local_scopes) < len(self.call_stack):
-            self.call_local_scopes.extend([None] * (len(self.call_stack) - len(self.call_local_scopes)))
-        elif len(self.call_local_scopes) > len(self.call_stack):
-            del self.call_local_scopes[len(self.call_stack) :]
 
     def dispatch_g65(
         self,
@@ -270,12 +287,11 @@ class ProgramRuntime:
         if target_idx is None:
             raise ValueError(f"G65 targets missing O{target_o} at line {line}: {raw}")
 
-        self._sync_call_scopes()
         budget = active_budget.get()
         max_call_depth = self.max_call_depth if budget is None else budget.limits.call_depth
-        if len(self.call_stack) >= max_call_depth:
+        if len(self.frames) >= max_call_depth:
             raise ValueError(f"G65 call depth exceeds limit {max_call_depth} at line {line}: {raw}")
-        macro_depth = sum(scope is not None for scope in self.call_local_scopes)
+        macro_depth = sum(frame.locals is not None for frame in self.frames)
         if macro_depth >= self.max_macro_call_depth:
             raise ValueError(
                 f"G65 macro nesting exceeds {self.max_macro_call_depth} local levels at line {line}: {raw}"
@@ -288,46 +304,58 @@ class ProgramRuntime:
         )
         checkpoint("subprogram_calls")
         replace_g65_locals(self.variables, local_frame.call_locals)
-        self.call_stack.append((pc + 1, target_idx, int(repeat_value)))
-        self.call_local_scopes.append(local_frame)
-        dispatch = SubprogramDispatch(True, target_idx, False, list(self.call_stack))
+        self.frames.append(CallFrame(pc + 1, target_idx, int(repeat_value), "G65", local_frame))
+        dispatch = SubprogramDispatch(True, target_idx, False, self.call_stack)
         return ProgramFlowDispatch(
             dispatch,
             (g65_call_event(block, program, target_idx, len(self.call_stack)),),
         )
 
+    def _dispatch_m98(self, words: dict[str, float], pc: int) -> SubprogramDispatch:
+        if "P" not in words:
+            raise ValueError("M98 requires a P subprogram target")
+        budget = active_budget.get()
+        max_depth = self.max_call_depth if budget is None else budget.limits.call_depth
+        if not float(words["P"]).is_integer() or words["P"] <= 0:
+            raise ValueError("M98 P must be a positive integer")
+        if not float(words.get("L", 1)).is_integer() or words.get("L", 1) <= 0:
+            raise ValueError("M98 L must be a positive integer")
+        target = self.index.olabel_to_index.get(int(words["P"]))
+        if target is None:
+            raise ValueError(f"M98 targets missing O{int(words['P'])}")
+        if len(self.frames) >= max_depth:
+            raise ValueError(f"M98 call depth exceeds limit {max_depth}")
+        checkpoint("subprogram_calls")
+        self.frames.append(CallFrame(pc + 1, target, int(words.get("L", 1)), "M98"))
+        return SubprogramDispatch(True, target, False, self.call_stack)
+
+    def _dispatch_m99(self, words: dict[str, float], pc: int) -> SubprogramDispatch:
+        if "P" in words:
+            raise SemanticError(
+                "UNSUPPORTED_M99_P", "M99 P requires an explicit controller profile", "controller_dependent"
+            )
+        if not self.frames:
+            return SubprogramDispatch(True, pc, True, [])
+        frame = self.frames[-1]
+        if frame.remaining > 1:
+            checkpoint("subprogram_calls")
+            frame.remaining -= 1
+            if frame.locals is not None:
+                replace_g65_locals(self.variables, frame.locals.call_locals)
+            return SubprogramDispatch(True, frame.target_pc, False, self.call_stack)
+        self.frames.pop()
+        if frame.locals is not None:
+            replace_g65_locals(self.variables, frame.locals.caller_locals)
+        return SubprogramDispatch(True, frame.return_pc, False, self.call_stack)
+
     def dispatch_subprogram(self, mcode: int | float | None, words: dict[str, float], pc: int) -> SubprogramDispatch:
-        self._sync_call_scopes()
-        previous_depth = len(self.call_stack)
-        result = dispatch_subprogram_flow(
-            mcode=mcode,
-            words=words,
-            pc=pc,
-            olabel_to_index=self.index.olabel_to_index,
-            call_stack=self.call_stack,
-            max_call_depth=self.max_call_depth,
-        )
-        new_depth = len(result.call_stack)
-        if new_depth > previous_depth:
-            self.call_local_scopes.extend([None] * (new_depth - previous_depth))
-        elif new_depth < previous_depth:
-            removed = self.call_local_scopes[new_depth:previous_depth]
-            del self.call_local_scopes[new_depth:previous_depth]
-            for local_frame in reversed(removed):
-                if local_frame is not None:
-                    replace_g65_locals(self.variables, local_frame.caller_locals)
-        elif (
-            mcode == 99
-            and result.handled
-            and not result.stop
-            and new_depth > 0
-            and self.call_local_scopes[-1] is not None
-        ):
-            # FANUC repeats a G65 call with the original argument values on each
-            # L iteration rather than carrying modified #1..#33 into the next pass.
-            replace_g65_locals(self.variables, self.call_local_scopes[-1].call_locals)
-        self.call_stack = result.call_stack
-        return result
+        if mcode == 98:
+            return self._dispatch_m98(words, pc)
+        if mcode == 99:
+            return self._dispatch_m99(words, pc)
+        if mcode in (2, 30):
+            return SubprogramDispatch(True, pc, True, self.call_stack)
+        return SubprogramDispatch(False, pc, False, self.call_stack)
 
     def dispatch_program_flow(
         self,

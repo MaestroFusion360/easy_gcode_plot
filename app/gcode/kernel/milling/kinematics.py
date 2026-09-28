@@ -8,15 +8,24 @@ from __future__ import annotations
 
 import json
 import math
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
+from app import settings as app_settings
+
 Vector = tuple[float, float, float]
 Matrix = tuple[Vector, Vector, Vector]
 IDENTITY: Matrix = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
 CATALOG_PATH = Path(__file__).with_name("rotary_profiles.json")
+
+
+def user_catalog_path() -> Path:
+    """Keep edited profiles beside per-user settings, outside the installation."""
+    return Path(app_settings.config_path()).with_name("rotary_profiles.json")
 
 
 class InvalidKinematicsProfile(ValueError):
@@ -151,6 +160,62 @@ def parse_catalog(document: object) -> Mapping[str, MachineKinematics]:
 
 def load_catalog() -> Mapping[str, MachineKinematics]:
     try:
-        return parse_catalog(json.loads(CATALOG_PATH.read_text(encoding="utf-8")))
+        document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+        overrides_path = user_catalog_path()
+        if overrides_path.exists():
+            overrides = json.loads(overrides_path.read_text(encoding="utf-8"))
+            parse_catalog(overrides)
+            replacements = {item["id"]: item for item in overrides["profiles"]}
+            known = {item["id"] for item in document["profiles"]}
+            document["profiles"] = [replacements.pop(item["id"], item) for item in document["profiles"]]
+            if replacements:
+                raise InvalidKinematicsProfile(f"Unknown profile override: {', '.join(sorted(replacements))}")
+            if known != {item["id"] for item in document["profiles"]}:
+                raise InvalidKinematicsProfile("Profile overrides must retain the built-in ids")
+        return parse_catalog(document)
     except (OSError, json.JSONDecodeError) as exc:
         raise InvalidKinematicsProfile(str(exc)) from exc
+
+
+def profile_document(profile_id: str) -> dict:
+    """Return the editable JSON entry currently effective for a profile."""
+    load_catalog()
+    path = user_catalog_path()
+    if path.exists():
+        overrides = json.loads(path.read_text(encoding="utf-8"))
+        for item in overrides["profiles"]:
+            if item["id"] == profile_id:
+                return item
+    document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
+    return next(item for item in document["profiles"] if item["id"] == profile_id)
+
+
+def save_profile_override(profile_id: str, edited: dict) -> None:
+    """Validate and atomically persist one user profile override."""
+    if edited.get("id") != profile_id:
+        raise InvalidKinematicsProfile("Profile id cannot be changed")
+    current = load_catalog()
+    if profile_id not in current:
+        raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
+    path = user_catalog_path()
+    overrides = (
+        json.loads(path.read_text(encoding="utf-8"))
+        if path.exists()
+        else {
+            "schema_version": 1,
+            "profiles": [],
+        }
+    )
+    entries = [item for item in overrides["profiles"] if item["id"] != profile_id]
+    entries.append(edited)
+    document = {"schema_version": 1, "profiles": entries}
+    parse_catalog(document)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary_name = tempfile.mkstemp(prefix="rotary-profiles-", suffix=".tmp", dir=path.parent)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
+            json.dump(document, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary_name, path)
+    finally:
+        Path(temporary_name).unlink(missing_ok=True)

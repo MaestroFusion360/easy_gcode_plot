@@ -128,6 +128,10 @@ jobs:
         shell: pwsh
         run: uv sync --locked --group dev
 
+      - name: Verify generated Qt sources
+        shell: pwsh
+        run: ./scripts/ps1/generate-translations.ps1
+
       - name: Run tests
         shell: pwsh
         run: ./scripts/ps1/test.ps1

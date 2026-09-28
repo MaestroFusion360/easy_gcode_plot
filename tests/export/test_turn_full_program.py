@@ -19,6 +19,19 @@ def test_turn_full_program_rejects_unverified_trace_gap():
         export_full_program(broken, source.splitlines())
 
 
+def test_turn_exports_radius_input_as_standard_diameter_coordinates():
+    source = "G21 G18\nG0 X10 Z0\nG1 X15 Z-5 F100\nM30"
+    result = execute(source, language="fanuc_turn", x_is_diameter=False)
+    assert result.ok, result.diagnostics
+    full = export_full_program(result, source.splitlines())
+    assert "G190" not in full and "G191" not in full
+    round_trip = execute(full, language="fanuc_turn")
+    assert round_trip.ok, round_trip.diagnostics
+    assert [(motion.end_x, motion.end_z) for motion in round_trip.motions] == [
+        (motion.end_x, motion.end_z) for motion in result.motions
+    ]
+
+
 @pytest.mark.parametrize(
     "cycle_source",
     [

@@ -197,6 +197,7 @@
     <addaction name="actionSaveAs"/>
     <addaction name="actionExportData"/>
     <addaction name="separator"/>
+    <addaction name="actionPrint"/>
     <addaction name="actionExit"/>
    </widget>
    <widget class="QMenu" name="menu_Edit">
@@ -210,6 +211,8 @@
     <addaction name="actionCopy"/>
     <addaction name="actionPaste"/>
     <addaction name="actionSelectAll"/>
+    <addaction name="actionUppercase"/>
+    <addaction name="actionLowercase"/>
     <addaction name="separator"/>
     <addaction name="actionFindReplace"/>
    </widget>
@@ -316,6 +319,7 @@
    <addaction name="actionSaveAs"/>
    <addaction name="actionExportData"/>
    <addaction name="actionImportSTL"/>
+   <addaction name="actionPrint"/>
   </widget>
   <widget class="QToolBar" name="editToolBar">
    <property name="windowTitle">
@@ -342,6 +346,9 @@
    <addaction name="separator"/>
    <addaction name="actionSelectAll"/>
    <addaction name="actionFindReplace"/>
+   <addaction name="separator"/>
+   <addaction name="actionUppercase"/>
+   <addaction name="actionLowercase"/>
   </widget>
   <widget class="QToolBar" name="viewToolBar">
    <property name="windowTitle"><string>View</string></property>
@@ -444,6 +451,15 @@
     <string>Alt+X</string>
    </property>
   </action>
+  <action name="actionPrint">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/print.png</normaloff>:/resource/icons/print.png</iconset>
+   </property>
+   <property name="text"><string>Print</string></property>
+   <property name="toolTip"><string>Print the current plot view</string></property>
+   <property name="shortcut"><string>Ctrl+P</string></property>
+  </action>
   <action name="actionUndo">
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
@@ -515,6 +531,24 @@
    <property name="shortcut">
     <string>Ctrl+A</string>
    </property>
+  </action>
+  <action name="actionUppercase">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/uppercase.png</normaloff>:/resource/icons/uppercase.png</iconset>
+   </property>
+   <property name="text"><string>Uppercase</string></property>
+   <property name="toolTip"><string>Convert selection or all text to uppercase</string></property>
+   <property name="shortcut"><string>Ctrl+Shift+U</string></property>
+  </action>
+  <action name="actionLowercase">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/lowercase.png</normaloff>:/resource/icons/lowercase.png</iconset>
+   </property>
+   <property name="text"><string>Lowercase</string></property>
+   <property name="toolTip"><string>Convert selection or all text to lowercase</string></property>
+   <property name="shortcut"><string>Ctrl+U</string></property>
   </action>
   <action name="actionAbout">
    <property name="icon">
@@ -620,6 +654,7 @@
    <property name="toolTip">
     <string>Open application help and frequently asked questions</string>
    </property>
+   <property name="shortcut"><string>F3</string></property>
   </action>
   <action name="action3D">
    <property name="shortcut"><string>Ctrl+1</string></property>
@@ -828,6 +863,7 @@
    <property name="toolTip">
     <string>Grid</string>
    </property>
+   <property name="shortcut"><string>F4</string></property>
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>
    </property>

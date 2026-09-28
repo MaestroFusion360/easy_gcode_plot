@@ -23,6 +23,8 @@ def expand_cycle_block(
     pq_mm_for_g74758384=False,
     tools=None,
     variables=None,
+    gcode_system="A",
+    distance_absolute=True,
 ):
     """Expand one already evaluated occurrence; never execute Macro B or flow."""
 
@@ -101,10 +103,6 @@ def expand_cycle_block(
     # Apply every modal G word in the block, not only the last one.
     # This is required for normal safety blocks such as G18G21G40G54G80G99.
     apply_unit_mode(state, all_g)
-    if 190 in all_g:
-        state.x_is_diameter = True
-    if 191 in all_g:
-        state.x_is_diameter = False
 
     (
         state.active_g90_cycle,
@@ -150,6 +148,8 @@ def expand_cycle_block(
         supplementary_angles,
         words,
         variables,
+        gcode_system,
+        distance_absolute,
     )
 
     _expand_g72(
@@ -163,6 +163,8 @@ def expand_cycle_block(
         supplementary_angles,
         words,
         variables,
+        gcode_system,
+        distance_absolute,
     )
 
     _expand_g73(
@@ -176,6 +178,8 @@ def expand_cycle_block(
         supplementary_angles,
         words,
         variables,
+        gcode_system,
+        distance_absolute,
     )
 
     _expand_g74(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
@@ -195,6 +199,8 @@ def expand_cycle_block(
         supplementary_angles,
         words,
         variables,
+        gcode_system,
+        distance_absolute,
     )
 
     return rough_cycles, finish_cycles

@@ -17,6 +17,50 @@ def _unsupported_type_ii_spans() -> list[Motion]:
     )
 
 
+def _facing_span(cand, stock_x, boring_mode, saw_closed_span, pass_z, limit_z, type_ii):
+    if not type_ii:
+        return stock_x, min(cand) if boring_mode else max(cand), stock_x, saw_closed_span
+    if saw_closed_span and len(cand) == 1:
+        if abs(pass_z - limit_z) <= 1e-9:
+            return None
+        raise SemanticError(
+            "AMBIGUOUS_G72_TYPE_II_PROFILE",
+            "G72 Type II closed span has a lone interior crossing",
+            "unsupported",
+        )
+    if len(cand) == 1:
+        return stock_x, cand[0], stock_x, saw_closed_span
+    if len(cand) == 2:
+        return cand[0], cand[1], cand[0], True
+    _unsupported_type_ii_spans()
+
+
+def _emit_facing_pass(
+    motions, tool, cut_start_x, cut_end_x, return_x, pass_z, retract_z, retract_dia, feed, type_ii, crossings
+):
+    safe_pt = Point2(cut_start_x, pass_z + retract_z)
+    cut_start = Point2(cut_start_x, pass_z)
+    cut_end = Point2(cut_end_x, pass_z)
+    if type_ii:
+        add_rapid_orthogonal(motions, tool, safe_pt, first_axis="z")
+    else:
+        add_motion(motions, 0, tool, safe_pt)
+    add_motion(motions, 0, safe_pt, cut_start)
+    add_motion_with_meta(motions, 1, cut_start, cut_end, None, feed if feed > 0 else None)
+    tool = Point2(return_x, pass_z + retract_z)
+    if type_ii and crossings == 2:
+        axial_retract = Point2(cut_end.x, pass_z + retract_z)
+        add_motion(motions, 0, cut_end, axial_retract)
+        add_motion(motions, 0, axial_retract, tool)
+    else:
+        cut_direction = 1.0 if cut_end.x > cut_start.x else -1.0
+        retreat_x = cut_end.x - (cut_direction * retract_dia)
+        retract_pt = Point2(retreat_x, pass_z + retract_z)
+        add_motion(motions, 0, cut_end, retract_pt)
+        add_motion(motions, 0, retract_pt, tool)
+    return tool
+
+
 def build_g72_facing(
     profile: list[ProfileSegment],
     stock_x: float,
@@ -35,12 +79,12 @@ def build_g72_facing(
         cycle_return_z,
     )  # allowances are already applied into the incoming rough profile.
     if not profile:
-        return []
+        raise SemanticError("INVALID_G72_PROFILE", "G72 profile is empty", "invalid_input")
     motions: list[Motion] = []
     z_min = min(min(s.start.z, s.end.z) for s in profile)
     z_max = max(max(s.start.z, s.end.z) for s in profile)
     if abs(depth_w) <= 1e-9:
-        return motions
+        raise SemanticError("INVALID_G72_DEPTH", "G72 pass depth must be nonzero", "invalid_input")
 
     step_z = abs(depth_w)
     pass_dir = -1.0 if stock_z >= 0.5 * (z_min + z_max) else 1.0
@@ -79,64 +123,34 @@ def build_g72_facing(
                 next_z = pass_z + pass_dir * step_z
                 pass_z = max(next_z, limit_z) if pass_dir < 0.0 else min(next_z, limit_z)
                 continue
-        if not type_ii:
-            cut_start_x = stock_x
-            cut_end_x = min(cand) if boring_mode else max(cand)
-            return_x = stock_x
-        elif saw_closed_span and len(cand) == 1:
-            # A closed Type-II span degenerates to one crossing only at a
-            # tangent profile limit; there is no finite-width cut to emit.
-            # A lone crossing inside the scan range is not a valid closed span.
-            if abs(pass_z - limit_z) <= 1e-9:
-                break
-            return []
-        elif len(cand) == 1:
-            cut_start_x = stock_x
-            cut_end_x = cand[0]
-            return_x = stock_x
-        elif len(cand) == 2:
-            # Profile order is authoritative: the first boundary is reached
-            # before the second while traversing P through Q.  This preserves
-            # programmed OD/ID direction without inferring it from coordinates.
-            # The two crossings also define a closed Type-II cutting span, so
-            # its local return plane is the first profile boundary.  Returning
-            # every pass to stock_x would leave the programmed groove.
-            cut_start_x, cut_end_x = cand
-            if type_ii:
-                return_x = cut_start_x
-                saw_closed_span = True
-            else:
-                return_x = stock_x
-        else:
-            # Multiple disjoint spans require controller-specific Type II
-            # material-side semantics.  Do not invent a traversal order.
-            return _unsupported_type_ii_spans()
-        safe_pt = Point2(cut_start_x, pass_z + retract_z_signed)
-        cut_start = Point2(cut_start_x, pass_z)
-        cut_end = Point2(cut_end_x, pass_z)
-        if type_ii:
-            add_rapid_orthogonal(motions, tool, safe_pt, first_axis="z")
-        else:
-            add_motion(motions, 0, tool, safe_pt)
-        add_motion(motions, 0, safe_pt, cut_start)
-        add_motion_with_meta(motions, 1, cut_start, cut_end, None, feed if feed > 0 else None)
-        tool = Point2(return_x, pass_z + retract_z_signed)
-        if type_ii and len(cand) == 2:
-            # G72 Type II must leave the cut axially before traversing back
-            # across a pocket. A diagonal X/Z retract can cross the profile.
-            axial_retract = Point2(cut_end.x, pass_z + retract_z_signed)
-            add_motion(motions, 0, cut_end, axial_retract)
-            add_motion(motions, 0, axial_retract, tool)
-        else:
-            cut_direction = 1.0 if cut_end.x > cut_start.x else -1.0
-            retreat_x = cut_end.x - (cut_direction * retract_dia)
-            retract_pt = Point2(retreat_x, pass_z + retract_z_signed)
-            add_motion(motions, 0, cut_end, retract_pt)
-            add_motion(motions, 0, retract_pt, tool)
+        span = _facing_span(cand, stock_x, boring_mode, saw_closed_span, pass_z, limit_z, type_ii)
+        if span is None:
+            break
+        cut_start_x, cut_end_x, return_x, saw_closed_span = span
+        tool = _emit_facing_pass(
+            motions,
+            tool,
+            cut_start_x,
+            cut_end_x,
+            return_x,
+            pass_z,
+            retract_z_signed,
+            retract_dia,
+            feed,
+            type_ii,
+            len(cand),
+        )
         if abs(pass_z - limit_z) <= 1e-9:
             break
         next_z = pass_z + pass_dir * step_z
         pass_z = max(next_z, limit_z) if pass_dir < 0.0 else min(next_z, limit_z)
+
+    if type_ii and not motions:
+        raise SemanticError(
+            "AMBIGUOUS_G72_TYPE_II_PROFILE",
+            "G72 Type II profile has no cuttable facing span",
+            "unsupported",
+        )
 
     # Add one contour-following pass on the rough profile (with U/W allowances applied),
     # matching the preview style expected from longitudinal roughing behavior.

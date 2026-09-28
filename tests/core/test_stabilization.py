@@ -10,6 +10,13 @@ from app.gcode.kernel.frontend.model import Point2, ProfileSegment
 from app.gcode.kernel.resources import ExecutionLimits, SemanticError
 from app.gcode.kernel.turning.cycles import g72 as g72_module
 from app.gcode.kernel.turning.cycles import g76 as cycle_module
+from app.gcode.kernel.turning.type_a import (
+    TYPE_A_CYCLES,
+    TYPE_A_MOTION,
+    TYPE_A_SUPPORTED_G_CODES,
+    TurningOperation,
+    type_a_operation,
+)
 from app.gcode.trace_tools import (
     RenderLimitExceeded,
     format_trace_statistics,
@@ -298,6 +305,36 @@ def test_g72_type_ii_multiple_disjoint_spans_fail_with_explicit_diagnostic(monke
 
     assert exc_info.value.code == "UNSUPPORTED_G72_TYPE_II_SPANS"
     assert exc_info.value.status == "unsupported"
+
+
+def test_g72_type_ii_lone_interior_crossing_is_diagnostic(monkeypatch):
+    segment = ProfileSegment(0, 1, Point2(10, 0), Point2(20, -5), False, 0, False, Point2(0, 0))
+    crossings = iter(([10, 20], [15]))
+    monkeypatch.setattr(g72_module, "_profile_intersections_at_z", lambda _profile, _z: next(crossings))
+
+    with pytest.raises(SemanticError) as exc_info:
+        g72_module.build_g72_facing([segment], 20, 1, 1, 0.5, 0, 0, 100, type_ii=True)
+
+    assert exc_info.value.code == "AMBIGUOUS_G72_TYPE_II_PROFILE"
+
+
+def test_g72_rejects_empty_profile_and_zero_pass_depth():
+    segment = ProfileSegment(0, 1, Point2(10, 0), Point2(20, -5), False, 0, False, Point2(0, 0))
+
+    with pytest.raises(SemanticError, match="profile is empty"):
+        g72_module.build_g72_facing([], 20, 1, 1, 0.5, 0, 0, 100, type_ii=True)
+    with pytest.raises(SemanticError, match="pass depth must be nonzero"):
+        g72_module.build_g72_facing([segment], 20, 1, 0, 0.5, 0, 0, 100, type_ii=True)
+
+
+def test_type_a_mapping_is_complete_and_does_not_admit_future_codes():
+    assert set(TYPE_A_MOTION).isdisjoint(TYPE_A_CYCLES)
+    assert set(TYPE_A_MOTION) | set(TYPE_A_CYCLES) <= TYPE_A_SUPPORTED_G_CODES
+    assert type_a_operation(72) is TurningOperation.ROUGH_FACE
+    assert type_a_operation(2) is TurningOperation.ARC_CW
+    for unsupported in (66, 67, 68.2, 53.1):
+        assert type_a_operation(unsupported) is None
+        assert unsupported not in TYPE_A_SUPPORTED_G_CODES
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])

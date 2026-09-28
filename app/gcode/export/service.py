@@ -10,7 +10,7 @@ from time import perf_counter
 
 from app.gcode.batch import _turning_unmodeled_m_diagnostics
 from app.gcode.kernel import Diagnostic, ExecutionResult
-from app.gcode.kernel.api.engine import _autodetect_milling_arc_type
+from app.gcode.kernel.api.engine import _autodetect_arc_type
 from app.gcode.kernel.io import read_nc_text
 from app.gcode.program_execution import execute_program
 
@@ -26,6 +26,7 @@ ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
 @dataclass(frozen=True)
 class ExportRequest:
     language: str
+    lathe_gcode_system: str = "A"
     kinematics: str | None = None
     encoding: str = "utf-8"
     format: str = "nc"
@@ -80,8 +81,6 @@ def _validate_export_mode(request: ExportRequest, explicit: frozenset[str]) -> N
         unavailable = explicit & {"arc_type", "coordinates", "force_addresses", "safety_line"}
         if unavailable:
             raise ValueError("Cycle export does not accept: " + ", ".join(sorted(unavailable)))
-    if request.language == "fanuc_turn" and "arc_type" in explicit:
-        raise ValueError("Explicit --arc-type is only available for fanuc_mill expanded NC export")
 
 
 def _validate_dxf_options(explicit: frozenset[str]) -> None:
@@ -125,11 +124,11 @@ def _options(request: ExportRequest, arc_type: str | None) -> ExportOptions:
 
 
 def _arc_type(result: ExecutionResult, request: ExportRequest) -> str | None:
-    if request.language != "fanuc_mill" or request.format != "nc" or request.mode != "expanded":
+    if request.format != "nc" or request.mode != "expanded":
         return None
     if request.arc_type != "auto":
         return request.arc_type
-    detected = _autodetect_milling_arc_type(result.motions, tolerance=0.001, fallback=1)
+    detected = _autodetect_arc_type(result.motions, tolerance=0.001, fallback=1)
     return "ijk-absolute" if detected == 2 else "ijk-relative"
 
 
@@ -160,6 +159,10 @@ def _atomic_export(path: Path, write) -> int:
         temporary.unlink(missing_ok=True)
 
 
+def _indexed_nc_formatting_requested(request: ExportRequest) -> bool:
+    return request.sequence_numbers or not request.comments or not request.spaces or request.leading_zero
+
+
 def export_file(source_path: Path, output_path: Path, request: ExportRequest) -> ExportResult:
     """Execute once and export through the existing NC or DXF exporter."""
     started = perf_counter()
@@ -171,7 +174,8 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
     result, _tools, _inferred = execute_program(
         source,
         language=request.language,
-        autodetect_arc_type=request.language == "fanuc_mill",
+        lathe_gcode_system=request.lathe_gcode_system,
+        autodetect_arc_type=True,
         kinematics=request.kinematics,
     )
     if request.language == "fanuc_turn":
@@ -179,7 +183,8 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
     if not result.ok or not result.complete:
         return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
     if (
-        request.mode == "expanded"
+        request.format == "nc"
+        and request.mode == "expanded"
         and result.kinematics_profile
         and any(e.kind == "ROTARY_INDEX" for e in result.events)
     ):
@@ -192,6 +197,28 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
                 Diagnostic(
                     "UNSUPPORTED_INDEXED_MULTIAXIS_EXPORT",
                     "Expanded NC cannot preserve indexed rotary commands",
+                    "error",
+                    "unsupported",
+                ),
+            ),
+        )
+        return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
+    if (
+        request.format == "nc"
+        and request.mode == "full"
+        and result.kinematics_profile
+        and any(e.kind == "ROTARY_INDEX" for e in result.events)
+        and _indexed_nc_formatting_requested(request)
+    ):
+        result = replace(
+            result,
+            ok=False,
+            complete=False,
+            diagnostics=result.diagnostics
+            + (
+                Diagnostic(
+                    "UNSUPPORTED_INDEXED_MULTIAXIS_EXPORT_OPTIONS",
+                    "Indexed NC is preserved verbatim; formatting options cannot be applied safely",
                     "error",
                     "unsupported",
                 ),

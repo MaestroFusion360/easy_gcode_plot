@@ -320,6 +320,87 @@ class MainWindowEditorMixin:
         if transformed is not None:
             self.ui.editor.replaceSelectedText("".join(transformed))
 
+    def _change_selected_case(self, transform):
+        """Convert the selection, or the entire document when none is selected."""
+        editor = self.ui.editor
+        had_selection = editor.hasSelectedText()
+        cursor = editor.getCursorPosition()
+        if not had_selection:
+            if not editor.text():
+                return
+            editor.selectAll()
+        selection = editor.getSelection()
+        selected = editor.selectedText()
+        changed = transform(selected)
+        if changed != selected:
+            editor.replaceSelectedText(changed)
+            if had_selection:
+                last_before = selected.splitlines()[-1] if selected.splitlines() else selected
+                last_after = changed.splitlines()[-1] if changed.splitlines() else changed
+                editor.setSelection(
+                    selection[0], selection[1], selection[2], selection[3] + len(last_after) - len(last_before)
+                )
+            else:
+                editor.setCursorPosition(*cursor)
+
+    def uppercaseSelection(self):
+        self._change_selected_case(str.upper)
+
+    def lowercaseSelection(self):
+        self._change_selected_case(str.lower)
+
+    def addBlockSkip(self):
+        """Insert one optional-block slash at column zero of selected blocks."""
+        editor = self.ui.editor
+        if not editor.hasSelectedText():
+            return
+        selection = editor.getSelection()
+        first, last = selection[0], selection[2]
+        if selection[3] == 0 and last > first:
+            last -= 1
+        changed_lines = set()
+        editor.beginUndoAction()
+        try:
+            for line in range(first, last + 1):
+                content = editor.text(line).rstrip("\r\n")
+                if content.strip() and not content.startswith(("/", "%")):
+                    editor.insertAt("/", line, 0)
+                    changed_lines.add(line)
+        finally:
+            editor.endUndoAction()
+        editor.setSelection(
+            selection[0],
+            selection[1] + (selection[0] in changed_lines),
+            selection[2],
+            selection[3] + (selection[2] in changed_lines and selection[3] > 0),
+        )
+
+    def removeBlockSkip(self):
+        """Remove one leading optional-block slash from selected blocks."""
+        editor = self.ui.editor
+        if not editor.hasSelectedText():
+            return
+        selection = editor.getSelection()
+        first, last = selection[0], selection[2]
+        if selection[3] == 0 and last > first:
+            last -= 1
+        changed_lines = set()
+        editor.beginUndoAction()
+        try:
+            for line in range(first, last + 1):
+                if editor.text(line).startswith("/"):
+                    editor.setSelection(line, 0, line, 1)
+                    editor.removeSelectedText()
+                    changed_lines.add(line)
+        finally:
+            editor.endUndoAction()
+        editor.setSelection(
+            selection[0],
+            max(0, selection[1] - (selection[0] in changed_lines)),
+            selection[2],
+            max(0, selection[3] - (selection[2] in changed_lines)),
+        )
+
     def renumber(self):
         """Add or update block numbers for the selected or full document."""
         st = self.seqNumStart

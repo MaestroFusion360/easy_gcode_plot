@@ -305,7 +305,7 @@ def test_reentrant_gui_execution_requests_cancellation():
     assert window._kernel_cancel_requested is True
 
 
-def test_lathe_execution_always_uses_relative_arc_offsets(monkeypatch):
+def test_lathe_execution_uses_selected_arc_type(monkeypatch):
     captured = {}
     expected = SimpleNamespace(ok=True, diagnostics=(), motions=())
 
@@ -320,7 +320,28 @@ def test_lathe_execution_always_uses_relative_arc_offsets(monkeypatch):
 
     result, _points, _render_limited = main_window.MainWindow._calculate_editor_source(window, show_errors=False)
     assert result is expected
-    assert captured["source_arc_type"] == 1
+    assert captured["source_arc_type"] == 2
+
+
+def test_manual_lathe_arc_selection_takes_priority_over_autodetection(monkeypatch):
+    captured = {}
+    expected = SimpleNamespace(ok=True, diagnostics=(), motions=())
+
+    def fake_execute(source, **kwargs):
+        del source
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    window = _gui_execution_harness("G18 G3 X40 Z-10 I0 K-10", lathe_mode=True)
+    window.arc_type = 2
+    window.autodetectArcType = True
+    window._manual_arc_type_override = True
+
+    result, _points, _render_limited = main_window.MainWindow._calculate_editor_source(window, show_errors=False)
+    assert result is expected
+    assert captured["source_arc_type"] == 2
+    assert captured["autodetect_arc_type"] is False
 
 
 def test_gui_keeps_partial_turning_trace_renderable_when_kernel_reports_unsupported_cycle():

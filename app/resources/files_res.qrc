@@ -6,6 +6,9 @@
     <file>icons/removeEmptyLines.png</file>
     <file>icons/removeSpaces.png</file>
     <file>icons/number.png</file>
+    <file>icons/print.png</file>
+    <file>icons/lowercase.png</file>
+    <file>icons/uppercase.png</file>
     <file>icons/arc.png</file>
     <file>icons/stat.png</file>
     <file>icons/toollist.png</file>

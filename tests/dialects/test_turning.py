@@ -90,21 +90,21 @@ M30
 
 
 @pytest.mark.parametrize(
-    ("x_mode", "start_x", "end_x", "source_arc_type", "arc_words"),
+    ("x_is_diameter", "start_x", "end_x", "source_arc_type", "arc_words"),
     [
-        ("G190", 20, 40, 1, "I0 K-10"),
-        ("G190", 20, 40, 2, "I10 K-10"),
-        ("G190", 20, 40, 3, "R10"),
-        ("G191", 10, 20, 1, "I0 K-10"),
-        ("G191", 10, 20, 2, "I10 K-10"),
-        ("G191", 10, 20, 3, "R10"),
+        (True, 20, 40, 1, "I0 K-10"),
+        (True, 20, 40, 2, "I10 K-10"),
+        (True, 20, 40, 3, "R10"),
+        (False, 10, 20, 1, "I0 K-10"),
+        (False, 10, 20, 2, "I10 K-10"),
+        (False, 10, 20, 3, "R10"),
     ],
 )
 def test_turning_arcs_share_physical_geometry_across_x_and_arc_programming_modes(
-    x_mode, start_x, end_x, source_arc_type, arc_words
+    x_is_diameter, start_x, end_x, source_arc_type, arc_words
 ):
-    source = f"G21 G18 {x_mode}\nG0 X{start_x} Z0\nG3 X{end_x} Z-10 {arc_words} F100\nM30"
-    result = execute(source, language="fanuc_turn", source_arc_type=source_arc_type)
+    source = f"G21 G18\nG0 X{start_x} Z0\nG3 X{end_x} Z-10 {arc_words} F100\nM30"
+    result = execute(source, language="fanuc_turn", source_arc_type=source_arc_type, x_is_diameter=x_is_diameter)
     assert result.ok, result.diagnostics
 
     motion = next(item for item in result.motions if item.move in (2, 3))
@@ -119,13 +119,46 @@ def test_turning_arcs_share_physical_geometry_across_x_and_arc_programming_modes
 
 @pytest.mark.parametrize(("g_code", "clockwise"), [("G2", False), ("G3", True)])
 def test_turning_g18_arc_direction_is_resolved_in_physical_geometry(g_code, clockwise):
-    source = f"G21 G18 G190\nG0 X20 Z0\n{g_code} X40 Z-10 R10 F100\nM30"
+    source = f"G21 G18\nG0 X20 Z0\n{g_code} X40 Z-10 R10 F100\nM30"
     result = execute(source, language="fanuc_turn", source_arc_type=3)
     assert result.ok, result.diagnostics
 
     motion = next(item for item in result.motions if item.move in (2, 3))
     assert motion.arc is not None
     assert motion.arc.clockwise is clockwise
+
+
+@pytest.mark.parametrize(
+    ("arc_words", "fallback"),
+    [("I0 K-10", 2), ("I10 K-10", 1)],
+)
+def test_turning_arc_type_autodetection_matches_selected_ijk_geometry(arc_words, fallback):
+    source = f"G21 G18\nG0 X20 Z0\nG3 X40 Z-10 {arc_words} F100\nM30"
+    result = execute(
+        source,
+        language="fanuc_turn",
+        source_arc_type=fallback,
+        autodetect_arc_type=True,
+        arc_tolerance=0.001,
+    )
+
+    assert result.ok, result.diagnostics
+    arc = next(motion.arc for motion in result.motions if motion.arc is not None)
+    assert arc.center == pytest.approx((10.0, 0.0, -10.0))
+    assert arc.radius == pytest.approx(10.0)
+
+
+def test_turning_manual_modes_do_not_fall_back_to_incremental_ijk():
+    source = "G21 G18\nG0 X300.636 Z-97.803\nG3 X302.614 Z-115.097 I-150.683 K-17.294\nM30"
+    relative = execute(source, language="fanuc_turn", source_arc_type=1, autodetect_arc_type=False)
+    absolute = execute(source, language="fanuc_turn", source_arc_type=2, autodetect_arc_type=False)
+    radius = execute(source, language="fanuc_turn", source_arc_type=3, autodetect_arc_type=False)
+
+    assert relative.ok and len([motion for motion in relative.motions if motion.arc]) == 1
+    assert not absolute.ok
+    assert any(d.code == "INVALID_TURNING_ARC_CENTER" for d in absolute.diagnostics)
+    assert not radius.ok
+    assert any(d.code == "TURNING_ARC_REQUIRES_R" for d in radius.diagnostics)
 
 
 def test_turning_drill_fixture_executes_g83_and_g84_as_axial_cycles(fixture_text):
@@ -278,10 +311,11 @@ M30
     assert (result.motions[1].end_x, result.motions[1].end_z) == pytest.approx((130.0, 45.0))
 
 
-def test_turning_source_trace_applies_compact_a_c_r_direct_programming():
+@pytest.mark.parametrize("source_arc_type", [1, 2, 3])
+def test_turning_source_trace_applies_compact_a_c_r_direct_programming(source_arc_type):
     source = "\n".join(
         [
-            "G21G18G190",
+            "G21G18",
             "G0X100Z1",
             "G1Z0F100",
             "X110C1",
@@ -291,7 +325,7 @@ def test_turning_source_trace_applies_compact_a_c_r_direct_programming():
             "M30",
         ]
     )
-    result = execute(source, language="fanuc_turn")
+    result = execute(source, language="fanuc_turn", source_arc_type=source_arc_type)
 
     assert result.ok, result.diagnostics
 
@@ -317,7 +351,7 @@ def test_turning_source_trace_applies_compact_a_c_r_direct_programming():
 
 def test_turning_direct_programming_chamfer_can_consume_following_segment_exactly():
     result = execute(
-        "G21G18G190\nG0X10Z0\nG1X20C2F100\nZ-2\nM30",
+        "G21G18\nG0X10Z0\nG1X20C2F100\nZ-2\nM30",
         language="fanuc_turn",
     )
 
@@ -336,7 +370,7 @@ def test_turning_direct_programming_chamfer_can_consume_following_segment_exactl
 
 def test_turning_direct_programming_r_does_not_reinterpret_g2_g3_arc_radius():
     result = execute(
-        "G21G18G190\nG0X20Z0\nG3X40Z-10R10F100\nM30",
+        "G21G18\nG0X20Z0\nG3X40Z-10R10F100\nM30",
         language="fanuc_turn",
         source_arc_type=3,
     )

@@ -13,9 +13,26 @@ from pyqtgraph.opengl import GLViewWidget
 class Editor(QsciScintilla):
     """QScintilla editor used by the main window Designer form."""
 
+    blockSkipRequested = pyqtSignal()
+    removeBlockSkipRequested = pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(False)
+
+    def keyPressEvent(self, event):
+        # QScintilla consumes some Ctrl+/ key events before Qt's shortcut map.
+        if event.key() == Qt.Key.Key_Slash and event.modifiers() == Qt.KeyboardModifier.ControlModifier:
+            self.blockSkipRequested.emit()
+            event.accept()
+            return
+        if event.key() in (Qt.Key.Key_Slash, Qt.Key.Key_Question) and event.modifiers() == (
+            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier
+        ):
+            self.removeBlockSkipRequested.emit()
+            event.accept()
+            return
+        super().keyPressEvent(event)
 
 
 class PlotView(GLViewWidget):

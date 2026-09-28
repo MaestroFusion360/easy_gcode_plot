@@ -86,6 +86,7 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
     )
     return ExportRequest(
         language=args.lang,
+        lathe_gcode_system=args.lathe_gcode_system,
         kinematics=args.kinematics,
         encoding=args.encoding,
         format=args.format,
@@ -128,6 +129,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         command.add_argument(
             "--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn", help="Controller dialect"
         )
+        command.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
         command.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
         if name in {"trace", "analyze"}:
             command.add_argument("-o", "--output", type=Path, help="Write detailed JSON to this file")
@@ -143,6 +145,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     batch.add_argument("directory", type=Path, help="Directory containing NC programs")
     _add_kinematics_option(batch)
     batch.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn", help="Controller dialect")
+    batch.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
     batch.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
     batch.add_argument("-o", "--output-dir", type=Path, default=Path("batch-report"), help="Report directory")
     batch.add_argument(
@@ -155,6 +158,12 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         action="store_true",
         help="Do not scan subdirectories",
     )
+    batch.add_argument(
+        "--kinematics-map",
+        type=Path,
+        metavar="JSON",
+        help="JSON object mapping input-relative NC paths to rotary profile IDs",
+    )
     batch_export = sub.add_parser(
         "batch-export",
         help="Export a directory of NC programs to a mirrored tree",
@@ -163,22 +172,39 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     batch_export.add_argument("directory", type=Path, help="Directory containing NC programs")
     _add_kinematics_option(batch_export)
     batch_export.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn")
+    batch_export.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
     batch_export.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8")
     batch_export.add_argument("-o", "--output-dir", type=Path, required=True, help="Separate output directory")
     batch_export.add_argument("--extensions", default=",".join(DEFAULT_BATCH_EXTENSIONS))
     batch_export.add_argument("--top-level-only", action="store_true")
+    batch_export.add_argument(
+        "--kinematics-map",
+        type=Path,
+        metavar="JSON",
+        help="JSON object mapping input-relative NC paths to rotary profile IDs",
+    )
     _add_export_options(batch_export)
     return parser, tuple(sub.choices.values())
 
 
 def _load(
-    path: Path, language: str, encoding: str, *, for_analysis: bool = False, kinematics: str | None = None
+    path: Path,
+    language: str,
+    encoding: str,
+    *,
+    for_analysis: bool = False,
+    kinematics: str | None = None,
+    lathe_gcode_system: str = "A",
 ) -> tuple[str, ExecutionResult]:
     source = read_nc_text(path, encoding=encoding)
     if for_analysis:
-        result = execute_analysis_program(source, language=language, kinematics=kinematics)
+        result = execute_analysis_program(
+            source, language=language, kinematics=kinematics, lathe_gcode_system=lathe_gcode_system
+        )
     else:
-        result, _tools, _inferred = execute_program(source, language=language, kinematics=kinematics)
+        result, _tools, _inferred = execute_program(
+            source, language=language, kinematics=kinematics, lathe_gcode_system=lathe_gcode_system
+        )
     return source, result
 
 
@@ -271,6 +297,7 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
     extensions = tuple(item.strip() for item in args.extensions.split(",") if item.strip())
     print(f"Analyzing NC programs in {Path(args.directory).resolve()} ({args.lang})", flush=True)
     try:
+        profile_map = _read_kinematics_map(args.kinematics_map)
         report = analyze_directory(
             args.directory,
             language=args.lang,
@@ -279,9 +306,11 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
             extensions=extensions,
             on_file=_print_batch_file,
             kinematics=args.kinematics,
+            kinematics_by_file=profile_map,
+            lathe_gcode_system=args.lathe_gcode_system,
         )
         json_path, csv_path = write_batch_reports(report, args.output_dir)
-    except (FileNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
+    except (FileNotFoundError, NotADirectoryError, ValueError, OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     _print_batch_summary(report, json_path, csv_path)
     return 2 if report["status"] in {"ERRORS", "NO_FILES"} else 0
@@ -297,6 +326,18 @@ def _run_export(args: argparse.Namespace, request: ExportRequest) -> int:
     return 0 if exported.execution.ok and exported.execution.complete else 2
 
 
+def _read_kinematics_map(path: Path | None) -> dict[str, str] | None:
+    if path is None:
+        return None
+    mapping = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(mapping, dict) or any(
+        not isinstance(name, str) or not name or not isinstance(profile, str) or not profile
+        for name, profile in mapping.items()
+    ):
+        raise ValueError("Kinematics map must be a JSON object of relative paths to profile IDs")
+    return mapping
+
+
 def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: argparse.ArgumentParser) -> int:
     extensions = tuple(item.strip() for item in args.extensions.split(",") if item.strip())
     print(f"Exporting NC programs in {Path(args.directory).resolve()} ({args.lang})", flush=True)
@@ -308,6 +349,7 @@ def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: 
             print(f"  {location}{diagnostic['code']}: {diagnostic['message']}", flush=True)
 
     try:
+        profile_map = _read_kinematics_map(args.kinematics_map)
         report = export_directory(
             args.directory,
             args.output_dir,
@@ -315,9 +357,10 @@ def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: 
             recursive=not args.top_level_only,
             extensions=extensions,
             on_file=print_file,
+            kinematics_by_file=profile_map,
         )
         json_path, csv_path = write_export_reports(report, args.output_dir)
-    except (FileNotFoundError, NotADirectoryError, ValueError, OSError) as exc:
+    except (FileNotFoundError, NotADirectoryError, ValueError, OSError, json.JSONDecodeError) as exc:
         parser.error(str(exc))
     summary = report["summary"]
     print(f"\nResult: {report['status']}")
@@ -336,6 +379,7 @@ def _run_single(args: argparse.Namespace) -> int:
         args.encoding,
         for_analysis=args.command == "analyze",
         kinematics=getattr(args, "kinematics", None),
+        lathe_gcode_system=args.lathe_gcode_system,
     )
     if args.command == "parse":
         _print_program_result("parse", args.file, result)
@@ -364,6 +408,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(arguments)
     if getattr(args, "kinematics", None) and args.lang != "fanuc_mill":
         parser.error("--kinematics requires --lang fanuc_mill")
+    if getattr(args, "kinematics_map", None) and args.lang != "fanuc_mill":
+        parser.error("--kinematics-map requires --lang fanuc_mill")
     if args.command in {"export", "batch-export"}:
         request, explicit = _export_request(args, arguments)
         try:

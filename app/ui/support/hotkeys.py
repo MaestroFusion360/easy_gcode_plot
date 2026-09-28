@@ -2,6 +2,9 @@
 
 from PyQt6.QtGui import QKeySequence
 
+BLOCK_SKIP_SHORTCUT = "Ctrl+/"
+REMOVE_BLOCK_SKIP_SHORTCUT = "Ctrl+Shift+/"
+
 LEGACY_KEYS = {
     "actionRefresh": "REFRESH",
     "action3D": "VIEW_3D",
@@ -14,6 +17,15 @@ LEGACY_KEYS = {
 def portable_shortcut(sequence):
     """Return a stable representation for settings and duplicate checks."""
     return sequence.toString(QKeySequence.SequenceFormat.PortableText)
+
+
+def is_reserved_shortcut(sequence: str) -> bool:
+    """Keep the editor's fixed block-skip shortcut out of menu assignments."""
+    parsed = QKeySequence(str(sequence), QKeySequence.SequenceFormat.PortableText)
+    return portable_shortcut(parsed) in {
+        portable_shortcut(QKeySequence(BLOCK_SKIP_SHORTCUT)),
+        portable_shortcut(QKeySequence(REMOVE_BLOCK_SKIP_SHORTCUT)),
+    }
 
 
 def menu_commands(window):

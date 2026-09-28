@@ -111,7 +111,7 @@ def _append_motion_chunk(
         scaled = _scale_turn_motion(
             motion,
             unit_scale=step.unit_scale,
-            x_is_diameter=step.x_is_diameter,
+            x_is_diameter=True,
         )
         lines.append(_turn_motion_line(scaled, options))
         previous_end_mm = (motion.end_x, motion.end_z)
@@ -228,7 +228,7 @@ def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None =
         raise ValueError("Expanded turn cycle export requires a valid and complete turning execution result")
     options = _turn_program_options(options)
     lines: list[str] = ["G18"]
-    previous_unit: tuple[float, bool] | None = None
+    previous_unit: float | None = None
     group_index = 0
 
     for step, block, motions in _execution_slices(result):
@@ -243,10 +243,9 @@ def export_cycle_groups(result: ExecutionResult, options: ExportOptions | None =
                 _format_comment(f"{prefix} {group_index}: {clean or block.raw.strip()}", options.comment_style)
             )
 
-        unit_key = (step.unit_scale, step.x_is_diameter)
+        unit_key = step.unit_scale
         if unit_key != previous_unit:
             lines.append("G20" if abs(step.unit_scale - 25.4) < 1e-9 else "G21")
-            lines.append("G190" if step.x_is_diameter else "G191")
             previous_unit = unit_key
 
         _append_motion_chunk(

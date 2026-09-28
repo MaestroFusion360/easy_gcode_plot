@@ -55,6 +55,7 @@ def add_motion_with_meta(
 ) -> None:
     if s == e and move not in (2, 3):
         return
+    arc_from_radius = move in (2, 3) and i is None and k is None and radius is not None
     arc_i = i
     arc_k = k
     if move in (2, 3) and arc_i is None and arc_k is None and radius is not None:
@@ -79,6 +80,7 @@ def add_motion_with_meta(
             source_raw=source_raw,
             source_kind=source_kind,
             playback_group=playback_group,
+            arc_from_radius=arc_from_radius,
         )
     )
 

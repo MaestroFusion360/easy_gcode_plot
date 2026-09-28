@@ -31,6 +31,7 @@ class Motion:
     tool: str | None = None
     compensation_applied: bool = False
     playback_group: int | None = None
+    arc_from_radius: bool = False
 
 
 @dataclass(frozen=True, slots=True)

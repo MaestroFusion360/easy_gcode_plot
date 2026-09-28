@@ -226,6 +226,13 @@ def apply_corner_direct_programming(
     return [_clear_corner(s) for s in segments]
 
 
+def _profile_center(words, x: float, z: float, unit_scale: float) -> Point2:
+    # FANUC lathe I is radius based even when programmed X is a diameter.
+    i_offset = radius_to_diameter(words.get("I", 0.0) * unit_scale)
+    k_offset = words.get("K", 0.0) * unit_scale
+    return Point2(x + i_offset, z + k_offset)
+
+
 def build_profile_segments(
     blocks: tuple[Block, ...],
     start_idx: int,
@@ -236,7 +243,12 @@ def build_profile_segments(
     x_is_diameter: bool,
     unit_scale: float = 1.0,
     supplementary_angles: bool = False,
+    gcode_system: str = "A",
+    distance_absolute: bool = True,
 ) -> list[ProfileSegment]:
+    # Turning imports geometry at package initialization; defer this import to avoid a cycle.
+    from ..turning.dialect import canonical_words  # pylint: disable=import-outside-toplevel
+
     profile: list[ProfileSegment] = []
     x = start_x
     z = start_z
@@ -247,8 +259,9 @@ def build_profile_segments(
         w = eval_words(blocks[i].parsed_words, variables)
         if w.errors:
             raise ValueError(f"Invalid profile expression at line {i + 1}: {w.errors[0][1]}")
-        if "G" in w:
-            g = int(w["G"])
+        w, distance_absolute, _source_codes = canonical_words(w, gcode_system, distance_absolute)
+        for g_value in w.all("G"):
+            g = int(g_value)
             if g in (0, 1, 2, 3):
                 move = g
 
@@ -329,11 +342,7 @@ def build_profile_segments(
             continue
 
         has_center = "I" in w or "K" in w
-        # Fanuc lathe I center offset is radius-based even in X-diameter programming.
-        i_raw = w.get("I", 0.0) * unit_scale
-        i_off = radius_to_diameter(i_raw)
-        k_off = w.get("K", 0.0) * unit_scale
-        center = Point2(x + i_off, z + k_off)
+        center = _profile_center(w, x, z, unit_scale)
 
         has_radius = move in (2, 3) and "R" in w
         profile.append(

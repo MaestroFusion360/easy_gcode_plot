@@ -322,9 +322,11 @@ class MainWindowExecutionMixin:
         options = deepcopy(
             {
                 "language": language,
+                "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
                 "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
-                "source_arc_type": 1 if turning else getattr(self, "arc_type", 1),
-                "autodetect_arc_type": False if turning else getattr(self, "autodetectArcType", True),
+                "source_arc_type": getattr(self, "arc_type", 1),
+                "autodetect_arc_type": getattr(self, "autodetectArcType", True)
+                and not getattr(self, "_manual_arc_type_override", False),
                 "skip_optional_blocks": getattr(self, "ignoreBlockSkip", False),
                 "arc_tolerance": arc_tolerance,
                 "default_unit_scale": default_unit_scale,

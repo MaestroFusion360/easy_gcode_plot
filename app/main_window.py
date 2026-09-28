@@ -4,7 +4,19 @@ import logging
 from time import perf_counter
 
 from PyQt6.QtCore import QBasicTimer, QCoreApplication, QSize, Qt, QTimer
-from PyQt6.QtGui import QAction, QActionGroup, QColor, QIcon, QPainter, QPixmap, QQuaternion
+from PyQt6.QtGui import (
+    QAction,
+    QActionGroup,
+    QColor,
+    QIcon,
+    QKeySequence,
+    QPageLayout,
+    QPainter,
+    QPixmap,
+    QQuaternion,
+    QShortcut,
+)
+from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
 from PyQt6.QtWidgets import QComboBox, QMainWindow, QMenu, QMessageBox, QSlider, QToolBar, QToolButton
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
@@ -49,6 +61,7 @@ from app.ui.windows.main_window_plot import (
     MainWindowPlotMixin,
 )
 from app.ui.windows.main_window_stock import MainWindowStockMixin
+from app.ui.windows.plot_printing import paint_plot_page
 from app.ui.windows.window_settings import MainWindowSettingsMixin
 
 # Backward-compatible helper names used by existing GUI tests and callers.
@@ -114,6 +127,21 @@ class MainWindow(
             self.ui.menuSettings.insertMenu(first_action, menu)
             self.ui.menuSettings.insertSeparator(first_action)
 
+        self._rotary_kinematics_menu = menu
+        self._refresh_rotary_kinematics_menu(catalog)
+
+    def _refresh_rotary_kinematics_menu(self, catalog=None):
+        catalog = catalog or load_catalog()
+        menu = self._rotary_kinematics_menu
+        menu.clear()
+        previous_group = getattr(self, "_rotary_kinematics_group", None)
+        if previous_group is not None:
+            previous_group.deleteLater()
+        if self.rotaryKinematics is not None and (
+            self.rotaryKinematics not in catalog or not catalog[self.rotaryKinematics].enabled
+        ):
+            self.rotaryKinematics = None
+            self.settings.setValue("CNC/ROTARY_KINEMATICS", "")
         group = QActionGroup(self)
         group.setExclusive(True)
         actions = {}
@@ -132,12 +160,12 @@ class MainWindow(
             )
             actions[profile_id] = action
 
-        self._rotary_kinematics_menu = menu
         self._rotary_kinematics_group = group
         self._rotary_kinematics_actions = actions
 
     def _select_rotary_kinematics(self, profile_id, *, force_refresh=False):
-        if profile_id is not None and not load_catalog()[profile_id].enabled:
+        catalog = load_catalog()
+        if profile_id is not None and (profile_id not in catalog or not catalog[profile_id].enabled):
             profile_id = None
         changed = profile_id != getattr(self, "rotaryKinematics", None)
         self.rotaryKinematics = profile_id
@@ -396,6 +424,29 @@ class MainWindow(
         else:
             event.ignore()
 
+    def _connect_editor_actions(self):
+        self.ui.actionUndo.triggered.connect(lambda: self.ui.editor.undo())
+        self.ui.actionRedo.triggered.connect(lambda: self.ui.editor.redo())
+        self.ui.actionCut.triggered.connect(lambda: self.ui.editor.cut())
+        self.ui.actionCopy.triggered.connect(lambda: self.ui.editor.copy())
+        self.ui.actionPaste.triggered.connect(lambda: self.ui.editor.paste())
+        self.ui.actionSelectAll.triggered.connect(lambda: self.ui.editor.selectAll())
+        self.ui.actionUppercase.triggered.connect(self.uppercaseSelection)
+        self.ui.actionLowercase.triggered.connect(self.lowercaseSelection)
+        self.blockSkipShortcut = QShortcut(QKeySequence("Ctrl+/"), self.ui.editor)
+        self.blockSkipShortcut.activated.connect(self.addBlockSkip)
+        self.ui.editor.blockSkipRequested.connect(self.addBlockSkip)
+        self.removeBlockSkipShortcut = QShortcut(QKeySequence("Ctrl+Shift+/"), self.ui.editor)
+        self.removeBlockSkipShortcut.activated.connect(self.removeBlockSkip)
+        self.ui.editor.removeBlockSkipRequested.connect(self.removeBlockSkip)
+        self.ui.actionFindReplace.triggered.connect(self.runFindDlg)
+        self.ui.actionCopy.setEnabled(False)
+        self.ui.actionCut.setEnabled(False)
+        self.ui.actionUndo.setEnabled(False)
+        self.ui.actionRedo.setEnabled(False)
+        self.ui.editor.copyAvailable.connect(self.ui.actionCopy.setEnabled)
+        self.ui.editor.copyAvailable.connect(self.ui.actionCut.setEnabled)
+
     def connectActions(self):
         """Connect UI actions, menu items, and widgets to their handlers."""
         self.ui.actionNew.triggered.connect(self.newFile)
@@ -407,20 +458,8 @@ class MainWindow(
         self.ui.actionImportSTL.triggered.connect(self.importStl)
         self.ui.actionClearSTL.triggered.connect(self.clearStl)
         self.ui.actionExit.triggered.connect(self.close)
-
-        self.ui.actionUndo.triggered.connect(lambda: self.ui.editor.undo())
-        self.ui.actionRedo.triggered.connect(lambda: self.ui.editor.redo())
-        self.ui.actionCut.triggered.connect(lambda: self.ui.editor.cut())
-        self.ui.actionCopy.triggered.connect(lambda: self.ui.editor.copy())
-        self.ui.actionPaste.triggered.connect(lambda: self.ui.editor.paste())
-        self.ui.actionSelectAll.triggered.connect(lambda: self.ui.editor.selectAll())
-        self.ui.actionFindReplace.triggered.connect(self.runFindDlg)
-        self.ui.actionCopy.setEnabled(False)
-        self.ui.actionCut.setEnabled(False)
-        self.ui.actionUndo.setEnabled(False)
-        self.ui.actionRedo.setEnabled(False)
-        self.ui.editor.copyAvailable.connect(self.ui.actionCopy.setEnabled)
-        self.ui.editor.copyAvailable.connect(self.ui.actionCut.setEnabled)
+        self.ui.actionPrint.triggered.connect(self.printPlot)
+        self._connect_editor_actions()
 
         self.ui.actionRenumber.triggered.connect(lambda: self.blockNumDlg.show())
         self.ui.actionNumbRemove.triggered.connect(self.numbRemove)
@@ -490,14 +529,68 @@ class MainWindow(
                 self.holeCalculatorDlg.hide()
                 self.pocketCalculatorDlg.hide()
 
-        # Fanuc turning always interprets I/K relative to the arc start.  Keep
-        # the configurable Arc Type visible only where it is actually used.
-        self.ui.menuArc_Type.setEnabled(not turning)
-        self.ui.actionRelative_to_start.setEnabled(not turning)
-        self.ui.actionAbsolute.setEnabled(not turning)
-        self.ui.actionRadius_value.setEnabled(not turning)
+        self.ui.menuArc_Type.setEnabled(True)
+        self.ui.actionRelative_to_start.setEnabled(True)
+        self.ui.actionAbsolute.setEnabled(True)
+        self.ui.actionRadius_value.setEnabled(True)
         if hasattr(self, "optionsDlg"):
             self.optionsDlg.ui.arcToleranceSpin.setEnabled(True)
+
+    def printPlot(self):
+        """Preview a snapshot of the visible plot, then print through Qt."""
+        view = self.ui.graphicsView
+        if not view.isVisible() or view.width() <= 0 or view.height() <= 0:
+            QMessageBox.warning(self, "Print", "The plot is not visible for printing.")
+            return
+        image = self._capturePrintPlot()
+        if image.isNull():
+            QMessageBox.warning(self, "Print", "Could not capture the current plot.")
+            return
+        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
+        printer.setPageOrientation(QPageLayout.Orientation.Landscape)
+        preview = QPrintPreviewDialog(printer, self)
+        preview.setWindowTitle("Print plot")
+        preview.paintRequested.connect(lambda target: paint_plot_page(target, image))
+        preview.exec()
+
+    def _capturePrintPlot(self):
+        """Capture a white-page rendering, then restore the visible plot style."""
+        attributes = (
+            "plotBackground",
+            "plotBackgroundGradient",
+            "plotGridColor",
+            "plotRapidColor",
+            "plotLineColor",
+            "plotArcColor",
+            "plotCurrentColor",
+            "plotToolColor",
+        )
+        original = {name: getattr(self, name) for name in attributes}
+        print_style = {
+            "plotBackground": "#ffffff",
+            "plotBackgroundGradient": False,
+            "plotGridColor": "#dddddd",
+            "plotRapidColor": "#000000",
+            "plotLineColor": "#000000",
+            "plotArcColor": "#000000",
+            "plotCurrentColor": "#000000",
+            "plotToolColor": "#000000",
+        }
+        try:
+            for name, value in print_style.items():
+                setattr(self, name, value)
+            self.loadPlot()
+            self._create_trace_items()
+            if self.execution_result is not None and self.execution_result.motions:
+                self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
+            return self.ui.graphicsView.grabFramebuffer()
+        finally:
+            for name, value in original.items():
+                setattr(self, name, value)
+            self.loadPlot()
+            self._create_trace_items()
+            if self.execution_result is not None and self.execution_result.motions:
+                self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
 
     def changeArcType(self):
         """Change arc mode between relative, absolute, or radius modes."""
@@ -507,6 +600,9 @@ class MainWindow(
             self.arc_type = 2
         if self.ui.actionRadius_value.isChecked():
             self.arc_type = 3
+        # Auto detection chooses the initial interpretation. An explicit menu
+        # selection wins for the current document without changing the setting.
+        self._manual_arc_type_override = True
         LOGGER.info("arc_type_changed value=%d lathe=%s", self.arc_type, self.latheMode)
         self.updateData()
 

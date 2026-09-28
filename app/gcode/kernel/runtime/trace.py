@@ -132,6 +132,7 @@ def _build_trace_execution_kwargs(
     finish_cycles,
     *,
     x_is_diameter: bool,
+    gcode_system: str = "A",
     pq_mm_for_g74758384: bool = False,
     supplementary_angles: bool = False,
     default_unit_scale: float = 1.0,
@@ -168,10 +169,12 @@ def _build_trace_execution_kwargs(
         ox, oz = wcs_off(state.active_wcs)
         return px + ox, pz + oz
 
-    ctx = build_trace_execution_context(program=program, initial_state=state)
+    ctx = build_trace_execution_context(program=program, initial_state=state, gcode_system=gcode_system)
     if diagnostics is not None:
         ctx.diagnostics = diagnostics
-    ctx.cycle_options = dict(pq_mm_for_g74758384=pq_mm_for_g74758384, supplementary_angles=supplementary_angles)
+    ctx.cycle_options = dict(
+        pq_mm_for_g74758384=pq_mm_for_g74758384, supplementary_angles=supplementary_angles, gcode_system=gcode_system
+    )
     return dict(
         program=program,
         ctx=ctx,
@@ -200,6 +203,7 @@ def build_source_motion_trace_with_steps(
     finish_cycles,
     *,
     x_is_diameter: bool,
+    gcode_system: str = "A",
     pq_mm_for_g74758384: bool = False,
     supplementary_angles: bool = False,
     default_unit_scale: float = 1.0,
@@ -221,6 +225,7 @@ def build_source_motion_trace_with_steps(
         rough_cycles,
         finish_cycles,
         x_is_diameter=x_is_diameter,
+        gcode_system=gcode_system,
         pq_mm_for_g74758384=pq_mm_for_g74758384,
         supplementary_angles=supplementary_angles,
         default_unit_scale=default_unit_scale,

@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.6.8 - in progress
+
+- Resolved duplicate hotkeys while loading older settings: Grid keeps its F4 default, and a conflicting legacy Fit to View F4 assignment is cleared before the Options hotkey list opens.
+- Brightened the Tool List toolbar icon and simplified the Hole Calculator icon to four blue markers for clearer display at 32×32.
+- Stabilized indexed milling profiles and WCS: profile edits now save atomically in the user configuration, G10 L2 after table rotation preserves machine position, and execution steps record configured A/B/C angles. Batch analysis and export accept a per-file `--kinematics-map` and report the selected profile; indexed DXF export works with a profile, while indexed full NC rejects formatting options it cannot apply.
+- Added editor Uppercase/Lowercase actions with Ctrl+Shift+U/Ctrl+U shortcuts and fixed Ctrl+/ and Ctrl+Shift+/ shortcuts for adding and removing `/` on selected blocks. Added plot print preview on Ctrl+P with a white print background, FAQ on F3 and Grid on F4. Existing empty FAQ/Grid shortcuts are updated once to these defaults.
+- Added FANUC Lathe Type B through a source-code mapping onto the existing turning executor. Type B supports G90/G91 distance modes, its thread and canned-cycle codes, and G94/G95 feed modes. GUI settings and CLI/batch commands now select Type A or Type B; Type A remains the default.
+- Consolidated the turning Type A motion and cycle code mapping and the supported-code diagnostics.
+- Replaced parallel subprogram and G65 local-scope stacks with a single call-frame stack while preserving repeat and local-variable behavior.
+- Split tool handling and canned-cycle dispatch into explicit turning execution stages and reduced the regular-motion call argument list.
+- G72 Type II now reports ambiguous interior crossings instead of silently returning no motion. Empty profiles and zero pass depth also produce explicit errors.
+- Enabled relative I/K, absolute I/K and R arc selection and auto detection for turning in the GUI and kernel. Auto detection compares turning X/I in physical radial coordinates. Expanded turning export accepts the same arc output modes as milling.
+- Fixed P/Q profile motion selection when a block contains both a motion code and G40, such as `G01 G40`; the following G70 no longer fabricates an arc without I/K or R.
+- Added golden trace checks for every checked-in turning fixture and regression coverage for the supplied G71 ID arc case.
+- Manual Arc Type selection now overrides auto detection for the current document without changing the saved Auto Detect setting. Turning arcs report diagnostics when the selected I/K center does not fit the endpoints or Radius mode has no R word.
+- Kept R-programmed P/Q arcs as R arcs through cycle expansion; synthesized internal I/K offsets no longer change with the source Arc Type. A bad I/K arc in a P/Q profile now discards the entire G71/G70 cycle group before publishing any of its motions.
+
 ## 1.6.7 - 2026-09-27
 
 - Added deterministic indexed 3+1 milling for the verified `4ax_table_a` (vertical mill) and `4ax_table_b` (horizontal mill) profiles. Programmed G90/G91 A/B indexing transforms subsequent tool-tip trajectories, arcs and milling cycles while WCS axes remain fixed; playback rotates the tool preview.

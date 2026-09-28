@@ -50,13 +50,13 @@ def test_tokens_support_follows_kernel_diagnostics_and_keeps_fractional_g_distin
 
 
 def test_tokens_groups_macro_flow_and_multiple_g_codes_follow_kernel_program():
-    source = "#1=1\nG21 G18 G90 G190 G97\nIF[#1 EQ 1] GOTO10\nN10 G0 X20 Z0\nM30"
+    source = "#1=1\nG21 G18 G90 G97\nIF[#1 EQ 1] GOTO10\nN10 G0 X20 Z0\nM30"
     rows = rows_from_execution(source, execute(source, language="fanuc_turn"))
 
     assert rows[0].values[14] == "assign"
     assert rows[1].values[8] == "G18"
     assert rows[1].values[9] == "G21"
-    assert rows[1].values[12] == "G90,G190"
+    assert rows[1].values[12] == "G90"
     assert rows[1].values[13] == "G97"
     assert rows[2].values[14] == "if_goto"
     assert all(row.values[15] == "OK" for row in rows)

@@ -78,7 +78,7 @@ def test_dxf_turning_matches_plot_orientation_with_z_horizontal_and_physical_x_v
 
 def test_dxf_turning_arc_endpoints_follow_same_z_x_projection():
     _, document = _document(
-        "G21 G18 G190 G90\nG0 X20 Z0\nG3 X40 Z-10 I0 K-10 F100\nM30",
+        "G21 G18 G90\nG0 X20 Z0\nG3 X40 Z-10 I0 K-10 F100\nM30",
         language="fanuc_turn",
     )
     arc = list(document.modelspace())[1]

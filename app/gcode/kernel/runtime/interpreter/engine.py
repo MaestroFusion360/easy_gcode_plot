@@ -8,6 +8,7 @@ from ...api.types import ExecutionEvent, ExecutionStep
 from ...frontend.program import resolve_cycle_profile_indices
 from ...geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
 from ...turning.cycles import adapt_cycle_emission
+from ...turning.dialect import supported_codes
 from ..cycles import CycleContext, apply_cycle_outcome
 from ..diagnostics import modal_conflict_diagnostics, unsupported_g53_motion_diagnostic
 from ..events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
@@ -36,6 +37,7 @@ def build_trace_execution_context(
     *,
     program,
     initial_state: TraceRuntimeState | None = None,
+    gcode_system: str = "A",
 ) -> TraceExecutionContext:
     state = initial_state or TraceRuntimeState()
     program_start_block, program_number = main_program_location(program)
@@ -45,7 +47,7 @@ def build_trace_execution_context(
 
     return TraceExecutionContext(
         state=state,
-        runtime=ProgramRuntime(execution_index, {}, []),
+        runtime=ProgramRuntime(execution_index, {}, [], gcode_system=gcode_system),
         contour_block_indices=contour_block_indices,
         program_start_block=program_start_block,
         program_number=program_number,
@@ -86,6 +88,7 @@ def execute_trace_context_with_steps(
                 emitted_count=len(step_motions),
                 unit_scale=ctx.state.unit_scale,
                 x_is_diameter=ctx.state.x_is_diameter,
+                absolute=ctx.runtime.distance_absolute,
                 contour_definition=pc_before in (ctx.contour_block_indices or set()),
                 stop=step_stop,
                 words=ctx.words,
@@ -155,9 +158,12 @@ def execute_trace_step(
         details = ", ".join(f"{tok.letter}{tok.expr}: {msg}" for tok, msg in words.errors)
         raise ValueError(f"Cannot evaluate CNC words at line {block.index + 1}: {block.raw}: {details}")
     ctx.words = evaluated_block.values
+    if runtime.gcode_system == "B":
+        if any(code not in supported_codes("B") for code in evaluated_block.source_gcodes):
+            ctx.pc += 1
+            return False, motions
     codes = evaluated_block.codes
     all_g = codes.all_g
-    all_m = codes.all_m
     gcode = codes.gcode
 
     conflict_diagnostics = modal_conflict_diagnostics(all_g, "fanuc_turn", block)
@@ -186,30 +192,6 @@ def execute_trace_step(
         ctx.pc = g65_flow.dispatch.next_pc
         return False, motions
 
-    ctx.signals = evaluated_block.signals
-
-    if 40 in all_g:
-        state.compensation_mode = 40
-    elif 41 in all_g:
-        state.compensation_mode = 41
-    elif 42 in all_g:
-        state.compensation_mode = 42
-    if "T" in words:
-        packed_tool = abs(int(round(words["T"])))
-        previous_tool = state.active_tool
-        state.active_tool = f"T{packed_tool:04d}"
-        event_list.append(
-            ExecutionEvent(
-                TOOL_CHANGE,
-                block.index,
-                code=state.active_tool,
-                tool=state.active_tool,
-                previous_tool=previous_tool,
-                call_depth=len(runtime.call_stack),
-            )
-        )
-        ctx.events = tuple(event_list)
-
     def tagged(items: list[object]) -> list[object]:
         return [
             replace(
@@ -222,10 +204,81 @@ def execute_trace_step(
             for item in items
         ]
 
+    flow_result = _apply_turning_state_and_flow(
+        program, ctx, block, evaluated_block, words, codes, semantics, event_list
+    )
+    if flow_result is not None:
+        return flow_result, motions
+
+    # G10 programs coordinate-system data.  Its X/Z words are values for the
+    # offset table and must never fall through to the current modal motion.
+    # G10 contains offset data and G4 contains dwell data. Consume either
+    # complete block so X/P values cannot fall through to modal motion.
+    if 10 in all_g or 4 in all_g:
+        ctx.pc += 1
+        return False, motions
+
+    if ctx.pc in (ctx.contour_block_indices or set()):
+        ctx.pc += 1
+        return False, motions
+
+    rough_cycles, finish_cycles = expand_cycle_block(
+        program,
+        ctx.pc,
+        words,
+        state,
+        variables=runtime.variables,
+        distance_absolute=runtime.distance_absolute,
+        **ctx.cycle_options,
+    )
+    state.rough_idx = state.finish_idx = 0
+    if any(g in (70, 71, 72, 73) for g in all_g) and "P" in words and "Q" in words:
+        bounds = resolve_cycle_profile_indices(
+            blocks, ctx.pc, int(words["P"]), int(words["Q"]), prefer_preceding=70 in all_g
+        )
+        if bounds is None:
+            raise ValueError(f"Missing cycle P/Q contour at line {block.index + 1}")
+        ctx.contour_block_indices.update(range(bounds[0], bounds[1] + 1))
+
+    cycle_motions = _execute_turning_cycle_stage(
+        program, ctx, ast_node, block, words, gcode, all_g, rough_cycles, finish_cycles, semantics, tagged
+    )
+    if cycle_motions is not None:
+        motions.extend(cycle_motions)
+        ctx.pc += 1
+        return False, motions
+
+    return _execute_turning_motion(
+        ast_node,
+        words,
+        gcode,
+        all_g,
+        ctx,
+        semantics,
+        block,
+        motions,
+        tagged,
+    )
+
+
+def _apply_turning_state_and_flow(
+    program, ctx, block, evaluated_block, words, codes, semantics, event_list
+) -> bool | None:
+    """Apply tool and modal state, then dispatch M98/M99 before motion."""
+    state = ctx.state
+    runtime = ctx.runtime
+    all_g = codes.all_g
+    ctx.signals = evaluated_block.signals
+
+    tool_event = _apply_turning_tool_state(state, all_g, words, block, len(runtime.call_stack))
+    if tool_event is not None:
+        event_list.append(tool_event)
+        ctx.events = tuple(event_list)
+
     _apply_turning_modal_state(
         state,
         all_g,
-        all_m,
+        codes.all_m,
         words,
         semantics.try_wcs_from_gcode,
         semantics.wcs_offset,
@@ -245,38 +298,19 @@ def execute_trace_step(
         program_number=ctx.program_number,
     )
     event_list.extend(program_flow.events)
-
     ctx.events = tuple(event_list)
     if program_flow.dispatch.handled:
-        if program_flow.dispatch.stop:
-            return True, motions
-        ctx.pc = program_flow.dispatch.next_pc
-        return False, motions
+        if not program_flow.dispatch.stop:
+            ctx.pc = program_flow.dispatch.next_pc
+        return program_flow.dispatch.stop
+    return None
 
-    # G10 programs coordinate-system data.  Its X/Z words are values for the
-    # offset table and must never fall through to the current modal motion.
-    # G10 contains offset data and G4 contains dwell data. Consume either
-    # complete block so X/P values cannot fall through to modal motion.
-    if 10 in all_g or 4 in all_g:
-        ctx.pc += 1
-        return False, motions
 
-    if ctx.pc in (ctx.contour_block_indices or set()):
-        ctx.pc += 1
-        return False, motions
-
-    rough_cycles, finish_cycles = expand_cycle_block(
-        program, ctx.pc, words, state, variables=runtime.variables, **ctx.cycle_options
-    )
-    state.rough_idx = state.finish_idx = 0
-    if any(g in (70, 71, 72, 73) for g in all_g) and "P" in words and "Q" in words:
-        bounds = resolve_cycle_profile_indices(
-            blocks, ctx.pc, int(words["P"]), int(words["Q"]), prefer_preceding=70 in all_g
-        )
-        if bounds is None:
-            raise ValueError(f"Missing cycle P/Q contour at line {block.index + 1}")
-        ctx.contour_block_indices.update(range(bounds[0], bounds[1] + 1))
-
+def _execute_turning_cycle_stage(
+    program, ctx, ast_node, block, words, gcode, all_g, rough_cycles, finish_cycles, semantics, tagged
+) -> tuple[object, ...] | None:
+    """Dispatch one expanded canned cycle and apply its result atomically."""
+    state = ctx.state
     cyc = dispatch_cycle_block(
         ast_node,
         words,
@@ -295,56 +329,56 @@ def execute_trace_step(
     state.active_g83_cycle = cyc.active_g83
     state.active_g84_cycle = cyc.active_g84
     state.active_g80 = cyc.active_g80
+    if not cyc.is_cycle_exec:
+        return None
+    ced = dispatch_cycle_emission(
+        is_cycle_exec=cyc.is_cycle_exec,
+        use_finish_cycle=cyc.use_finish_cycle,
+        rough_cycles=rough_cycles,
+        finish_cycles=finish_cycles,
+        rough_idx=state.rough_idx,
+        finish_idx=state.finish_idx,
+        modal_x=state.modal_x,
+        modal_z=state.modal_z,
+        source_block=block.index,
+        blocks=program.blocks,
+        to_machine_fn=semantics.to_machine,
+        motion_ctor=semantics.make_motion,
+        point_ctor=semantics.make_point,
+    )
+    cycle_context = CycleContext(
+        block=block,
+        words=words,
+        codes=tuple(all_g),
+        machine_state=state,
+        runtime_state=ctx,
+        modal_cycle_state=cyc,
+    )
+    cycle_outcome = adapt_cycle_emission(cycle_context, ced, tagged(ced.emitted_motions))
+    apply_cycle_outcome(state, cycle_outcome)
+    return cycle_outcome.motions
 
-    if cyc.is_cycle_exec:
-        ced = dispatch_cycle_emission(
-            is_cycle_exec=cyc.is_cycle_exec,
-            use_finish_cycle=cyc.use_finish_cycle,
-            rough_cycles=rough_cycles,
-            finish_cycles=finish_cycles,
-            rough_idx=state.rough_idx,
-            finish_idx=state.finish_idx,
-            modal_x=state.modal_x,
-            modal_z=state.modal_z,
-            source_block=block.index,
-            blocks=blocks,
-            to_machine_fn=semantics.to_machine,
-            motion_ctor=semantics.make_motion,
-            point_ctor=semantics.make_point,
-        )
-        cycle_context = CycleContext(
-            block=block,
-            words=words,
-            codes=tuple(all_g),
-            machine_state=state,
-            runtime_state=ctx,
-            modal_cycle_state=cyc,
-        )
-        cycle_outcome = adapt_cycle_emission(cycle_context, ced, tagged(ced.emitted_motions))
-        motions.extend(cycle_outcome.motions)
-        apply_cycle_outcome(state, cycle_outcome)
-        ctx.pc += 1
-        return False, motions
 
-    return _execute_turning_motion(
-        ast_node,
-        words,
-        state,
-        gcode,
-        all_g,
-        ctx,
-        semantics.emulate_g28_home,
-        semantics.home_x,
-        semantics.home_z,
-        semantics.to_machine,
-        semantics.wcs_offset,
-        semantics.x_value_to_diameter,
-        semantics.x_delta_to_diameter,
-        semantics.make_motion,
-        semantics.make_point,
-        block,
-        motions,
-        tagged,
+def _apply_turning_tool_state(state, all_g, words, block, call_depth) -> ExecutionEvent | None:
+    """Apply cutter compensation and tool selection before modal machine words."""
+    if 40 in all_g:
+        state.compensation_mode = 40
+    elif 41 in all_g:
+        state.compensation_mode = 41
+    elif 42 in all_g:
+        state.compensation_mode = 42
+    if "T" not in words:
+        return None
+    packed_tool = abs(int(round(words["T"])))
+    previous_tool = state.active_tool
+    state.active_tool = f"T{packed_tool:04d}"
+    return ExecutionEvent(
+        TOOL_CHANGE,
+        block.index,
+        code=state.active_tool,
+        tool=state.active_tool,
+        previous_tool=previous_tool,
+        call_depth=call_depth,
     )
 
 
@@ -359,10 +393,6 @@ def _apply_turning_modal_state(
     x_value_to_diameter_fn,
 ):
     apply_unit_mode(state, all_g)
-    if 190 in all_g:
-        state.x_is_diameter = True
-    if 191 in all_g:
-        state.x_is_diameter = False
 
     _apply_turning_coordinate_state(
         state,
@@ -460,23 +490,24 @@ def _apply_turning_coordinate_state(
 def _execute_turning_motion(
     ast_node,
     words,
-    state,
     gcode,
     all_g,
     ctx,
-    emulate_g28_home,
-    home_x,
-    home_z,
-    to_machine_fn,
-    wcs_off_fn,
-    x_value_to_diameter_fn,
-    x_delta_to_diameter_fn,
-    motion_ctor,
-    point_ctor,
+    semantics: TurningExecutionSemantics,
     block,
     motions,
     tagged,
 ):
+    state = ctx.state
+    emulate_g28_home = semantics.emulate_g28_home
+    home_x = semantics.home_x
+    home_z = semantics.home_z
+    to_machine_fn = semantics.to_machine
+    wcs_off_fn = semantics.wcs_offset
+    x_value_to_diameter_fn = semantics.x_value_to_diameter
+    x_delta_to_diameter_fn = semantics.x_delta_to_diameter
+    motion_ctor = semantics.make_motion
+    point_ctor = semantics.make_point
     has_pos = has_position_words(ast_node, words)
     state.modal_move = resolve_modal_move(ast_node, gcode, state.modal_move)
     non_motion_g = gcode is not None and gcode not in (0, 1, 2, 3, 32, 33) and gcode not in POSITION_NEUTRAL_GCODES

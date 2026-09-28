@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import pytest
-from PyQt6.QtCore import QPoint
+from PyQt6.QtCore import QPoint, Qt
+from PyQt6.QtGui import QKeySequence
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar, QToolBar
 
 from app.gcode.kernel import execute
@@ -63,6 +65,75 @@ def test_cnc_toolbar_places_existing_commands_before_calculators(qt_app):
     window.deleteLater()
 
 
+def test_editor_case_actions_use_icons_and_change_selection_or_current_line(qt_app):
+    window = MainWindow()
+    editor = window.ui.editor
+    assert not window.ui.actionUppercase.icon().isNull()
+    assert not window.ui.actionLowercase.icon().isNull()
+    assert window.ui.actionUppercase in window.ui.editToolBar.actions()
+    assert window.ui.actionLowercase in window.ui.menu_Edit.actions()
+    assert window.ui.actionUppercase.shortcut() == QKeySequence("Ctrl+Shift+U")
+    assert window.ui.actionLowercase.shortcut() == QKeySequence("Ctrl+U")
+
+    editor.setText("g1 x10\nM30")
+    editor.setSelection(0, 0, 0, 2)
+    window.ui.actionUppercase.trigger()
+    assert editor.text() == "G1 x10\nM30"
+    assert editor.selectedText() == "G1"
+    window.ui.actionLowercase.trigger()
+    assert editor.text() == "g1 x10\nM30"
+    editor.setCursorPosition(1, 1)
+    window.ui.actionLowercase.trigger()
+    assert editor.text() == "g1 x10\nm30"
+    window.ui.actionUppercase.trigger()
+    assert editor.text() == "G1 X10\nM30"
+    window.deleteLater()
+
+
+def test_ctrl_slash_adds_one_blockskip_to_each_selected_block(qt_app):
+    window = MainWindow()
+    editor = window.ui.editor
+    assert window.blockSkipShortcut.key() == QKeySequence("Ctrl+/")
+    editor.setText("N10 G1 X1\n/N20 G1 X2\n\nN30 G1 X3\nM30")
+    editor.setSelection(0, 4, 4, 0)
+    window.blockSkipShortcut.activated.emit()
+    assert editor.text() == "/N10 G1 X1\n/N20 G1 X2\n\n/N30 G1 X3\nM30"
+    editor.undo()
+    assert editor.text() == "N10 G1 X1\n/N20 G1 X2\n\nN30 G1 X3\nM30"
+    editor.setCursorPosition(4, 2)
+    window.show()
+    editor.setFocus()
+    qt_app.processEvents()
+    QTest.keyClick(editor, Qt.Key.Key_Slash, Qt.KeyboardModifier.ControlModifier)
+    assert editor.text().endswith("M30")
+    editor.setSelection(4, 0, 4, 3)
+    QTest.keyClick(editor, Qt.Key.Key_Slash, Qt.KeyboardModifier.ControlModifier)
+    assert editor.text().endswith("/M30")
+    window.deleteLater()
+
+
+def test_ctrl_shift_slash_removes_only_selected_block_skips(qt_app):
+    window = MainWindow()
+    editor = window.ui.editor
+    assert window.removeBlockSkipShortcut.key() == QKeySequence("Ctrl+Shift+/")
+    editor.setText("/N10\n//N20\nN30\n/M30")
+    editor.setSelection(0, 2, 3, 0)
+    window.removeBlockSkipShortcut.activated.emit()
+    assert editor.text() == "N10\n/N20\nN30\n/M30"
+    editor.undo()
+    assert editor.text() == "/N10\n//N20\nN30\n/M30"
+    window.show()
+    editor.setFocus()
+    qt_app.processEvents()
+    editor.setCursorPosition(3, 2)
+    QTest.keyClick(editor, Qt.Key.Key_Slash, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+    assert editor.text() == "/N10\n//N20\nN30\n/M30"
+    editor.setSelection(3, 0, 3, 4)
+    QTest.keyClick(editor, Qt.Key.Key_Slash, Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.ShiftModifier)
+    assert editor.text() == "/N10\n//N20\nN30\nM30"
+    window.deleteLater()
+
+
 def test_playback_toolbar_speed_slider_updates_timer_and_persists(qt_app):
     window = MainWindow()
     slider = window.ui.playbackSpeedSlider
@@ -117,10 +188,10 @@ def test_machine_specific_actions_follow_active_profile_without_restart(qt_app):
     window.ui.actionLatheMode.setChecked(True)
     qt_app.processEvents()
     assert window.ui.actionToolLibrary.isEnabled()
-    assert not window.ui.menuArc_Type.isEnabled()
-    assert not window.ui.actionRelative_to_start.isEnabled()
-    assert not window.ui.actionAbsolute.isEnabled()
-    assert not window.ui.actionRadius_value.isEnabled()
+    assert window.ui.menuArc_Type.isEnabled()
+    assert window.ui.actionRelative_to_start.isEnabled()
+    assert window.ui.actionAbsolute.isEnabled()
+    assert window.ui.actionRadius_value.isEnabled()
     assert window.optionsDlg.ui.arcToleranceSpin.isEnabled()
 
     window.ui.actionLatheMode.setChecked(False)
@@ -131,6 +202,21 @@ def test_machine_specific_actions_follow_active_profile_without_restart(qt_app):
     assert window.ui.actionAbsolute.isEnabled()
     assert window.ui.actionRadius_value.isEnabled()
     assert window.optionsDlg.ui.arcToleranceSpin.isEnabled()
+    window.deleteLater()
+
+
+def test_manual_arc_selection_overrides_auto_for_current_document(qt_app):
+    window = MainWindow()
+    window.ui.actionLatheMode.setChecked(True)
+    window.autodetectArcType = True
+
+    window.ui.actionAbsolute.setChecked(True)
+    assert window.arc_type == 2
+    assert window.autodetectArcType is True
+    assert getattr(window, "_manual_arc_type_override") is True
+
+    window.newFile()
+    assert getattr(window, "_manual_arc_type_override") is False
     window.deleteLater()
 
 
@@ -289,3 +375,21 @@ def test_main_window_actions_open_the_reused_dialog_instances(qt_app):
     tokens.close()
     options.close()
     window.deleteLater()
+
+
+def test_lathe_gcode_system_option_is_saved_and_restored(qt_app):
+    window = MainWindow()
+    original = window.latheGcodeSystem
+    try:
+        options = window.optionsDlg
+        options.show()
+        qt_app.processEvents()
+        assert options.ui.latheGcodeSystemCombo.currentData() == original
+        options.ui.latheGcodeSystemCombo.setCurrentIndex(1)
+        options.accept()
+        assert window.latheGcodeSystem == "B"
+        assert window.settings.value("CNC/LATHE_GCODE_SYSTEM") == "B"
+    finally:
+        window.latheGcodeSystem = original
+        window.saveSettings()
+        window.deleteLater()

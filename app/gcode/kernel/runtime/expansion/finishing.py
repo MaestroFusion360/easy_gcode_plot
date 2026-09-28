@@ -19,6 +19,8 @@ def _expand_g70(
     supplementary_angles,
     words,
     variables,
+    gcode_system="A",
+    distance_absolute=True,
 ):
     if gcode == 70 and "P" in words and "Q" in words:
         p = int(words["P"])
@@ -54,6 +56,8 @@ def _expand_g70(
                 x_is_diameter=state.x_is_diameter,
                 unit_scale=state.unit_scale,
                 supplementary_angles=supplementary_angles,
+                gcode_system=gcode_system,
+                distance_absolute=distance_absolute,
             )
             profile, profile_was_compensated = compensated_profile(profile, p_index, q_index)
             fcyc = build_finish_contour(

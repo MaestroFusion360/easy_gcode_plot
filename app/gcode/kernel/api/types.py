@@ -134,6 +134,7 @@ class ExecutionStep:
     modal_move: int = 0
     variables: tuple[tuple[str, float], ...] = ()
     events: tuple[ExecutionEvent, ...] = ()
+    rotary_angles: tuple[tuple[str, float], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

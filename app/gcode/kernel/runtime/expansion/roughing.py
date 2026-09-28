@@ -38,6 +38,8 @@ def _prepare_roughing_profile(
     supplementary_angles,
     words,
     variables,
+    gcode_system="A",
+    distance_absolute=True,
 ) -> _RoughingProfileData | None:
     if "P" not in words or "Q" not in words or first is None or not first.valid:
         return None
@@ -61,6 +63,8 @@ def _prepare_roughing_profile(
         x_is_diameter=state.x_is_diameter,
         unit_scale=state.unit_scale,
         supplementary_angles=supplementary_angles,
+        gcode_system=gcode_system,
+        distance_absolute=distance_absolute,
     )
     profile, was_compensated = compensated_profile(profile, p_index, q_index)
     state.last_finish_stock_x = sx
@@ -88,6 +92,8 @@ def _expand_g71(
     supplementary_angles,
     words,
     variables,
+    gcode_system="A",
+    distance_absolute=True,
 ):
     if gcode != 71:
         return
@@ -102,7 +108,16 @@ def _expand_g71(
         return
 
     data = _prepare_roughing_profile(
-        blocks, compensated_profile, pc, first, state, supplementary_angles, words, variables
+        blocks,
+        compensated_profile,
+        pc,
+        first,
+        state,
+        supplementary_angles,
+        words,
+        variables,
+        gcode_system,
+        distance_absolute,
     )
     if data is None:
         return
@@ -140,6 +155,8 @@ def _expand_g72(
     supplementary_angles,
     words,
     variables,
+    gcode_system="A",
+    distance_absolute=True,
 ):
     if gcode != 72:
         return
@@ -154,7 +171,16 @@ def _expand_g72(
         return
 
     data = _prepare_roughing_profile(
-        blocks, compensated_profile, pc, first, state, supplementary_angles, words, variables
+        blocks,
+        compensated_profile,
+        pc,
+        first,
+        state,
+        supplementary_angles,
+        words,
+        variables,
+        gcode_system,
+        distance_absolute,
     )
     if data is None:
         return
@@ -192,6 +218,8 @@ def _expand_g73(
     supplementary_angles,
     words,
     variables,
+    gcode_system="A",
+    distance_absolute=True,
 ):
     if gcode != 73:
         return
@@ -207,7 +235,16 @@ def _expand_g73(
         return
 
     data = _prepare_roughing_profile(
-        blocks, compensated_profile, pc, first, state, supplementary_angles, words, variables
+        blocks,
+        compensated_profile,
+        pc,
+        first,
+        state,
+        supplementary_angles,
+        words,
+        variables,
+        gcode_system,
+        distance_absolute,
     )
     if data is None:
         return

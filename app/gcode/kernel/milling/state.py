@@ -194,7 +194,7 @@ def _program_wcs_offset(state: MillState, words, *, wcs_offsets) -> None:
             current_machine[1] - offset[1],
             current_machine[2] - offset[2],
         )
-        state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
+        state.x, state.y, state.z = _coordinate_transform(state).inverse(_unorient_point(work, state))
 
 
 def _execution_step(
@@ -226,6 +226,11 @@ def _execution_step(
         feed_mode=state.feed_mode,
         spindle_rpm=state.spindle_rpm,
         variables=variables,
+        rotary_angles=tuple(
+            (axis, state.rotary_angles[axis])
+            for axis in ("A", "B", "C")
+            if (state.kinematics is not None and axis in state.kinematics.addresses)
+        ),
     )
 
 

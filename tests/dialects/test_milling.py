@@ -15,6 +15,14 @@ from gcode_samples import (
 
 from app.gcode.kernel import execute
 from app.gcode.kernel.api import engine as kernel_engine
+from app.gcode.kernel.milling.kinematics import (
+    CATALOG_PATH,
+    InvalidKinematicsProfile,
+    load_catalog,
+    profile_document,
+    save_profile_override,
+    user_catalog_path,
+)
 from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
 
 
@@ -37,6 +45,44 @@ def test_indexed_table_b_maps_tool_tip_z_moves_into_fixed_wcs_x():
         assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx(expected, abs=1e-8)
     assert result.motions[0].tool_orientation[0][2] == pytest.approx(1)
     assert result.motions[1].tool_orientation[0][2] == pytest.approx(-1)
+
+
+def test_rotary_profile_override_is_persistent_and_does_not_edit_installed_catalog(tmp_path):
+    original = CATALOG_PATH.read_bytes()
+    assert user_catalog_path() == tmp_path / "rotary_profiles.json"
+    edited = profile_document("4ax_table_b")
+    edited["table"][0]["axis"] = [0, -1, 0]
+    save_profile_override("4ax_table_b", edited)
+    assert user_catalog_path().exists()
+    assert CATALOG_PATH.read_bytes() == original
+    assert load_catalog()["4ax_table_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
+    result = execute("G90 G0 B90\nG0 Z10\nM30", language="fanuc_mill", kinematics="4ax_table_b")
+    assert result.ok, result.diagnostics
+    assert result.motions[-1].end_x == pytest.approx(-10)
+    invalid = profile_document("4ax_table_b")
+    invalid["table"][0]["axis"] = [0, 0, 0]
+    with pytest.raises(InvalidKinematicsProfile):
+        save_profile_override("4ax_table_b", invalid)
+    assert load_catalog()["4ax_table_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
+
+
+def test_g10_at_rotary_index_preserves_machine_position_and_rebases_next_move():
+    source = "G21 G90 G54\nG0 X10 Z20\nB90\nG10 L2 P1 X100 Z5\nG0 X10 Z20\nM30"
+    result = execute(source, language="fanuc_mill", kinematics="4ax_table_b")
+    assert result.ok, result.diagnostics
+    assert result.execution_steps[3].position == pytest.approx(result.execution_steps[2].position)
+    assert (result.motions[-1].start_x, result.motions[-1].start_z) == pytest.approx((20, -10))
+    assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((120, -5))
+
+
+def test_rotary_angles_and_wcs_are_recorded_per_execution_step():
+    source = "G21 G90 G54\nG10 L2 P1 X100 Z5\nG10 L2 P2 X-20 Z30\nG0 X10 Z20\nB90\nG55\nG0 X10 Z20\nM30"
+    result = execute(source, language="fanuc_mill", kinematics="4ax_table_b")
+    assert result.ok, result.diagnostics
+    assert [dict(step.rotary_angles)["B"] for step in result.execution_steps] == [0, 0, 0, 0, 90, 90, 90, 90]
+    assert result.execution_steps[5].active_wcs == 55
+    assert result.execution_steps[5].position == pytest.approx(result.execution_steps[4].position)
+    assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((0, 20))
 
 
 def test_indexed_table_a_fixture_preserves_both_sides_and_restores_a_zero(fixture_text):

@@ -9,58 +9,12 @@ from ..api.types import Diagnostic
 from ..frontend.lang import UndefinedMacroVariableError
 from ..frontend.model import Program
 from ..geometry.coordinates import is_extended_wcs_gcode
+from ..turning.dialect import supported_codes
+from ..turning.type_a import TYPE_A_SUPPORTED_G_CODES
 from .events import SUBPROGRAM_START
 from .execution import modal_group_conflicts
 
-SUPPORTED_TURNING_G_CODES = frozenset(
-    {
-        0,
-        1,
-        2,
-        3,
-        4,
-        10,
-        18,
-        20,
-        21,
-        28,
-        30,
-        32,
-        33,
-        40,
-        41,
-        42,
-        50,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        65,
-        70,
-        71,
-        72,
-        73,
-        74,
-        75,
-        76,
-        80,
-        83,
-        84,
-        90,
-        91,
-        92,
-        94,
-        96,
-        97,
-        98,
-        99,
-        190,
-        191,
-    }
-)
+SUPPORTED_TURNING_G_CODES = TYPE_A_SUPPORTED_G_CODES
 
 _LINE_RE = re.compile(r"\bline\s+(\d+)\b", re.IGNORECASE)
 
@@ -151,7 +105,7 @@ def diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagno
     return Diagnostic(code=code, message=message, status="malformed", line=line, raw=raw)
 
 
-def unsupported_turning_g_diagnostics(program: Program) -> tuple[Diagnostic, ...]:
+def unsupported_turning_g_diagnostics(program: Program, gcode_system: str = "A") -> tuple[Diagnostic, ...]:
     """Report source words outside the modeled two-axis turning contract."""
     diagnostics: list[Diagnostic] = []
     for block in program.blocks:
@@ -174,7 +128,7 @@ def unsupported_turning_g_diagnostics(program: Program) -> tuple[Diagnostic, ...
             except ValueError:
                 continue
             code = int(value)
-            if value == code and code not in SUPPORTED_TURNING_G_CODES:
+            if value == code and code not in supported_codes(gcode_system):
                 affects_geometry = code in {17, 19} or any(
                     item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words
                 )
