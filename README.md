@@ -61,7 +61,8 @@ Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter f
 - Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.
 - Toolpath statistics and CIMCO-style UTF-8 Tool List export from the resolved trace and configured tools.
 - Cutter-aware turning Stock Removal, including thread profiles.
-- ASCII and binary STL overlays with solid and feature-edge modes.
+- ASCII and binary STL overlays with solid and feature-edge modes; a solid model hides toolpath segments behind its surface.
+- The **Settings → STL Objects** panel supports independent undo/redo, base-point and bounding-box picking, positioning, transforms, circular/rectangular arrays, 3D sections and copyable statistics with millimetre/inch display.
 - SQLite-backed turning and milling tool libraries.
 - Full Program, Expanded Execution, Plot Data and DXF exports.
 - English and Russian UI, Light and Dark themes, UTF-8 and Windows-1251 files.
@@ -132,6 +133,8 @@ uv run --no-dev python main.py
 6. Use **CNC Functions → Hole Calculator**, **Pocket Calculator** or **Snippets** to generate and insert frequently used code at the editor caret.
 7. Optionally import an STL reference model.
 8. Export the required program or trajectory representation.
+
+Use **File → Print** (`Ctrl+P`) for a page-fitted vector drawing in the current camera orientation. Printing ignores playback position. **Options → Plot** controls whether rapid moves are shown, whether they are dashed, and whether all moves use colors assigned by tool; these settings also apply to Print.
 
 ## CNC editing assistants
 

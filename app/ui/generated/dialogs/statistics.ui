@@ -50,13 +50,6 @@
                             </property>
                         </spacer>
                     </item>
-                    <item>
-                        <widget class="QDialogButtonBox" name="buttonBox">
-                            <property name="standardButtons">
-                                <set>QDialogButtonBox::StandardButton::Close</set>
-                            </property>
-                        </widget>
-                    </item>
                 </layout>
             </item>
         </layout>

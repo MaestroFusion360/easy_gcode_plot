@@ -1,13 +1,21 @@
 from __future__ import annotations
 
+# pylint: disable=protected-access,c-extension-no-member  # White-box GL packing checks.
 import numpy as np
 import pytest
+from PyQt6.QtGui import QMatrix4x4
 from pyqtgraph.opengl.items.GLLinePlotItem import DirtyFlag
 
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace
 from app.ui.plot import toolpath_vbo
-from app.ui.plot.toolpath_vbo import ToolpathSegment, ToolpathVboItem, segments_from_render_points
+from app.ui.plot.toolpath_vbo import (
+    ToolpathSegment,
+    ToolpathVboItem,
+    dashed_rapid_segments,
+    segments_from_render_points,
+    tool_color,
+)
 
 
 def _segments():
@@ -56,6 +64,12 @@ def test_indexed_discontinuity_does_not_draw_false_rapid_line():
     assert segments[1].end == pytest.approx((50, 0, 0))
 
 
+def test_sampled_segments_keep_modal_tool_for_coloring():
+    result = execute("T1 M6\nG0 X1\nG1 X2 F100\nT2 M6\nG1 X3\nM30", language="fanuc_mill")
+    segments = segments_from_render_points(render_trace(result), result.motions)
+    assert [(segment.move, segment.tool) for segment in segments] == [(0, "T1"), (1, "T1"), (1, "T2")]
+
+
 def test_playback_changes_only_draw_prefix_without_dirtying_vbos():
     item = ToolpathVboItem()
     item.set_segments(_segments(), logical_count=4)
@@ -89,6 +103,57 @@ def test_style_change_dirties_color_vbo_but_not_geometry_vbo():
     assert DirtyFlag.POSITION not in item.dirty_bits
     assert DirtyFlag.COLOR in item.dirty_bits
     assert item.width == 3.0
+
+
+def test_rapid_visibility_dashes_and_tool_colors_preserve_playback_mapping():
+    assert tool_color("T1") != tool_color("T10")
+    item = ToolpathVboItem()
+    source = (
+        ToolpathSegment((0, 0, 0), (10, 0, 0), 0, 0, "T1"),
+        ToolpathSegment((10, 0, 0), (20, 0, 0), 1, 1, "T1"),
+        ToolpathSegment((20, 0, 0), (30, 0, 0), 2, 1, "T2"),
+    )
+    item.set_segments(source, logical_count=3)
+    item.set_style(
+        rapid_color="#d02020",
+        linear_color="#0000ff",
+        arc_color="#008000",
+        width=1.5,
+        show_rapid=True,
+        dashed_rapid=True,
+        color_by_tool=True,
+    )
+    item._repack(3, QMatrix4x4(), (100, 100))
+    assert len(item.segments) > len(source)
+    assert all(segment.move == 0 for segment in item.segments[: item.segment_range_for_logical(0)[1]])
+    assert item.packed_colors[0].tolist() == pytest.approx(item.packed_colors[-3].tolist())
+    assert item.packed_colors[0].tolist() == pytest.approx(list(toolpath_vbo._rgba(tool_color("T1"))))
+    assert item.packed_colors[-1].tolist() == pytest.approx(list(toolpath_vbo._rgba(tool_color("T2"))))
+    item.set_visible_logical_count(1)
+    visible = item.visible_segment_count
+    item.set_style(
+        rapid_color="#d02020",
+        linear_color="#0000ff",
+        arc_color="#008000",
+        width=1.5,
+        show_rapid=False,
+        dashed_rapid=True,
+        color_by_tool=True,
+    )
+    assert item.source_segments == source
+    assert item.segment_range_for_logical(0) == (0, 0)
+    assert item.visible_segment_count == 0
+    assert visible > 0
+
+
+def test_rapid_dashes_match_print_sized_pixels_even_for_long_moves():
+    segment = ToolpathSegment((0, 0, 0), (2, 0, 0), 0, 0)
+    pieces = dashed_rapid_segments(segment, QMatrix4x4(), (700, 500))
+    assert len(pieces) > 90
+    widths = [(piece.end[0] - piece.start[0]) * 700 / 2 for piece in pieces[:-1]]
+    assert all(width == pytest.approx(3, abs=0.01) for width in widths)
+    gaps = [(later.start[0] - earlier.end[0]) * 700 / 2 for earlier, later in zip(pieces, pieces[1:])]
+    assert all(gap == pytest.approx(2, abs=0.01) for gap in gaps)
 
 
 def test_reloading_and_empty_geometry_reuses_item_and_resets_mapping():
@@ -171,6 +236,28 @@ def test_paint_uploads_each_dirty_buffer_once_across_playback(monkeypatch):
     item.paint()
     assert len(uploads) == 2
     assert item.dirty_bits == DirtyFlag(0)
+
+
+def test_camera_change_does_not_repack_during_paint(monkeypatch):
+    item = ToolpathVboItem()
+    item.set_segments(_segments(), logical_count=4)
+    item.dashed_rapid = True
+    initial_vertices = item.packed_vertices
+
+    class View:
+        def width(self):
+            return 700
+
+        def height(self):
+            return 500
+
+    monkeypatch.setattr(item, "view", lambda: View())
+    monkeypatch.setattr(item, "mvpMatrix", lambda: QMatrix4x4())
+    monkeypatch.setattr(item, "setupGLState", lambda: None)
+    monkeypatch.setattr(toolpath_vbo.QtGui.QOpenGLContext, "currentContext", lambda: None)
+    item.paint()
+    assert item.packed_vertices is initial_vertices
+    assert item._dash_signature is None
 
 
 @pytest.mark.parametrize("logical_count", [-1, 0, 99])

@@ -32,7 +32,7 @@ if [[ -d $generated_ui_dir ]]; then
         find "$generated_ui_dir" -type f -name '*.ui' -print0 | LC_ALL=C sort -z
     )
 fi
-for relative_dir in app/ui/dialogs app/ui/windows app/ui/plot app/ui/support; do
+for relative_dir in app/ui/dialogs app/ui/windows app/ui/plot app/ui/panels app/ui/support; do
     source_dir="$project_root/$relative_dir"
     if [[ -d $source_dir ]]; then
         while IFS= read -r -d '' file; do sources+=("$file"); done < <(

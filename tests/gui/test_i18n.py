@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QCoreApplication, QFile, QLibraryInfo
-from PyQt6.QtWidgets import QApplication, QDialogButtonBox
+from PyQt6.QtWidgets import QApplication, QDialogButtonBox, QSizePolicy
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources.
 from app import i18n
 from app.main_window import MainWindow
 from app.ui.dialogs.stock_dialog import StockDialog
+from app.ui.panels.stl_objects_panel import StlObjectsPanel
 
 QT_RUSSIAN_CATALOG = Path(QLibraryInfo.path(QLibraryInfo.LibraryPath.TranslationsPath)) / "qtbase_ru.qm"
 
@@ -58,6 +59,34 @@ def test_russian_language_translates_main_window(qt_app, translator):
     assert window.ui.menu_Help.title() == "&Справка"
     assert window.ui.actionToolLibrary.text() == "Библиотека инструментов"
     window.deleteLater()
+
+
+def test_russian_stl_panel_localizes_all_operation_controls(qt_app, translator):
+    assert i18n.install_translator(qt_app, "ru") is True
+    panel = StlObjectsPanel()
+    try:
+        assert panel.windowTitle() == "Объекты STL"
+        assert [panel.pivotMode.itemText(index) for index in range(panel.pivotMode.count())] == [
+            "Центр",
+            "Угол габаритов",
+            "Начало координат",
+            "Пользовательская",
+        ]
+        assert [panel.operationCombo.itemText(index) for index in range(panel.operationCombo.count())] == [
+            "Базовая точка",
+            "Положение",
+            "Преобразование",
+            "Круговой массив",
+            "Прямоугольный массив",
+            "Сечение",
+        ]
+        assert panel.moveButton.text() == "Переместить сюда"
+        assert panel.circularButton.text() == panel.rectangularButton.text() == "Создать"
+        assert panel.sectionButton.text() == "Применить"
+        assert panel.clearSectionButton.text() == "Очистить"
+        assert panel.operationStack.sizePolicy().verticalPolicy() == QSizePolicy.Policy.Maximum
+    finally:
+        panel.deleteLater()
 
 
 def test_russian_stock_unit_suffix_is_translated_without_quotes(qt_app, translator):

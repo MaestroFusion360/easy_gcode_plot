@@ -98,6 +98,9 @@ def test_trace_cursor_is_fixed_pixel_size_and_toolpath_uses_one_vbo_item(monkeyp
         def set_style(self, **kwargs):
             self.style = kwargs
 
+        def update_dashes_for_view(self):
+            pass
+
     class _ScatterItem:
         def __init__(self, **kwargs):
             self.kwargs = kwargs
@@ -137,6 +140,9 @@ def test_trace_cursor_is_fixed_pixel_size_and_toolpath_uses_one_vbo_item(monkeyp
         "linear_color": "#001100",
         "arc_color": "#000011",
         "width": 2.5,
+        "show_rapid": True,
+        "dashed_rapid": True,
+        "color_by_tool": False,
     }
     assert created_scatters[0].kwargs["size"] == main_window.CURSOR_SIZE_PX
     assert created_scatters[0].kwargs["pxMode"] is True

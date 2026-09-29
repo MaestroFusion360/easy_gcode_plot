@@ -10,15 +10,15 @@ from time import perf_counter
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from app.gcode.comments import format_comment
-from app.gcode.core import last_index
 from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.program_execution import execute_program
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
+from app.settings import AUTO_UPDATE_SEGMENTS_MAX, GENERATED_MOTIONS_DEFAULT
 from app.tools.setup import refresh_setup
 from app.ui.plot.playback import build_playback_movements
 from app.ui.windows.execution_worker import run_execution
 
-AUTO_REFRESH_MAX_POINTS = 20000
+AUTO_REFRESH_MAX_POINTS = AUTO_UPDATE_SEGMENTS_MAX
 AUTO_REFRESH_DELAY_MS = 500
 LOGGER = logging.getLogger(__name__)
 PLAYBACK_INTERVALS_MS = (1000, 250, 100, 40, 10)
@@ -336,7 +336,9 @@ class MainWindowExecutionMixin:
                 "wcs_offsets": wcs_offsets,
                 "emulate_g28_home": getattr(self, "homeConfigured", True),
                 "cancelled": cancelled,
-                "limits": ExecutionLimits(generated_motions=max(1, int(getattr(self, "maxGeneratedMotions", 200_000)))),
+                "limits": ExecutionLimits(
+                    generated_motions=max(1, int(getattr(self, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)))
+                ),
             }
         )
 
@@ -769,10 +771,6 @@ class MainWindowExecutionMixin:
         """Compatibility wrapper for existing main-window consumers."""
         return self.finishDataUpdate(result, points, playback_value, cancelled, auto_fit_milling=auto_fit_milling)
 
-    def lstExport(self):
-        """Compatibility hook: export data now comes directly from ExecutionResult."""
-        return list(self.execution_result.motions) if self.execution_result is not None else []
-
     def toolPath(self):
         """Return trace-based path length and estimated machining time."""
         if self.execution_result is None or not self.execution_result.motions:
@@ -795,7 +793,7 @@ class MainWindowExecutionMixin:
         return "\n".join(
             (
                 format_comment(f"Toolpath Length: {float(stats['total_length']):.3f}", style),
-                format_comment(f"Machining Time: {time_text}", style),
+                format_comment(f"Estimated motion time: {time_text}", style),
                 "",
             )
         )
@@ -833,7 +831,3 @@ class MainWindowExecutionMixin:
             self.statisticsDlg.show_statistics(stats)
         else:
             self.statisticsDlg.show_report(QCoreApplication.translate("StatisticsReport", "No Data Available"))
-
-    def list_rindex(self, li, x):
-        """Return the last index of x in list li."""
-        return last_index(li, x)

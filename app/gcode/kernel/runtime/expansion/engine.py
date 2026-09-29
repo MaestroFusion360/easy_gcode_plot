@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from functools import partial
 
 from ...compensation.turning import compensate_profile_segments
 from ...frontend.program import eval_words
@@ -11,6 +12,60 @@ from .peck import _expand_g74, _expand_g75
 from .roughing import _expand_g71, _expand_g72, _expand_g73
 from .threading import _expand_g76, _expand_g92
 from .turning import _expand_g90, _expand_g94
+
+
+def _cycle_length_to_mm(value, unit_scale, expr=None, *, pq_mm=False):
+    raw = abs(value * unit_scale)
+    if pq_mm or (expr is not None and ("." in expr or "E" in expr.upper())):
+        return raw
+    increment_mm = 0.001 if abs(unit_scale - 1.0) <= 1e-12 else (0.0001 * 25.4)
+    return abs(value) * increment_mm
+
+
+def _word_expr(block, letter):
+    for token in reversed(block.parsed_words):
+        if token.letter.upper() == letter.upper():
+            return token.expr
+    return None
+
+
+def _profile_compensation_modes(blocks, state, variables, p_index, q_index):
+    mode = state.compensation_mode
+    modes = {}
+    for profile_index in range(p_index, q_index + 1):
+        profile_words = eval_words(blocks[profile_index].parsed_words, dict(variables or {}))
+        profile_codes = classify_block_codes(profile_words)
+        if 40 in profile_codes.all_g:
+            mode = 40
+        elif 41 in profile_codes.all_g:
+            mode = 41
+        elif 42 in profile_codes.all_g:
+            mode = 42
+        modes[profile_index] = mode
+    return modes
+
+
+def _compensated_profile(profile, p_index, q_index, *, blocks, state, tools, variables):
+    if not tools:
+        return profile, False
+    modes = _profile_compensation_modes(blocks, state, variables, p_index, q_index)
+    active = any(mode in (41, 42) for mode in modes.values())
+    return (
+        compensate_profile_segments(
+            profile,
+            compensation_mode=state.compensation_mode,
+            compensation_modes=modes,
+            tool_code=state.active_tool,
+            tools=tools,
+        ),
+        active,
+    )
+
+
+def _mark_compensated(motions, profile_was_compensated, *, tools):
+    if not tools or not profile_was_compensated:
+        return motions
+    return [replace(motion, compensation_applied=True) for motion in motions]
 
 
 def expand_cycle_block(
@@ -27,25 +82,6 @@ def expand_cycle_block(
     distance_absolute=True,
 ):
     """Expand one already evaluated occurrence; never execute Macro B or flow."""
-
-    def _cycle_least_input_or_length_to_mm(value: float, unit_scale: float, expr: str | None = None) -> float:
-        raw = abs(value * unit_scale)
-        if pq_mm_for_g74758384:
-            return raw
-        # FANUC commonly programs P/Q as integer least-input increments.  Some
-        # CAM posts (including the CncKernelCli donor fixtures) intentionally
-        # emit decimal words such as P3. Q3. R1. to mean direct length units.
-        # Use lexical precision rather than a value-magnitude heuristic.
-        if expr is not None and ("." in expr or "E" in expr.upper()):
-            return raw
-        increment_mm = 0.001 if abs(unit_scale - 1.0) <= 1e-12 else (0.0001 * 25.4)
-        return abs(value) * increment_mm
-
-    def _word_expr(block, letter: str) -> str | None:
-        for token in reversed(block.parsed_words):
-            if token.letter.upper() == letter.upper():
-                return token.expr
-        return None
 
     blocks = program.blocks
     block = blocks[pc]
@@ -64,41 +100,9 @@ def expand_cycle_block(
     if "T" in words:
         state.active_tool = f"T{abs(int(round(words['T']))):04d}"
 
-    def profile_compensation_modes(p_index: int, q_index: int) -> dict[int, int]:
-        mode = state.compensation_mode
-        modes: dict[int, int] = {}
-        for profile_index in range(p_index, q_index + 1):
-            profile_words = eval_words(blocks[profile_index].parsed_words, dict(variables or {}))
-            profile_codes = classify_block_codes(profile_words)
-            if 40 in profile_codes.all_g:
-                mode = 40
-            elif 41 in profile_codes.all_g:
-                mode = 41
-            elif 42 in profile_codes.all_g:
-                mode = 42
-            modes[profile_index] = mode
-        return modes
-
-    def compensated_profile(profile, p_index: int, q_index: int):
-        if not tools:
-            return profile, False
-        modes = profile_compensation_modes(p_index, q_index)
-        active = any(mode in (41, 42) for mode in modes.values())
-        return (
-            compensate_profile_segments(
-                profile,
-                compensation_mode=state.compensation_mode,
-                compensation_modes=modes,
-                tool_code=state.active_tool,
-                tools=tools or {},
-            ),
-            active,
-        )
-
-    def mark_compensated(motions, profile_was_compensated: bool):
-        if not tools or not profile_was_compensated:
-            return motions
-        return [replace(motion, compensation_applied=True) for motion in motions]
+    cycle_length_to_mm = partial(_cycle_length_to_mm, pq_mm=pq_mm_for_g74758384)
+    compensated_profile = partial(_compensated_profile, blocks=blocks, state=state, tools=tools, variables=variables)
+    mark_compensated = partial(_mark_compensated, tools=tools)
 
     # Apply every modal G word in the block, not only the last one.
     # This is required for normal safety blocks such as G18G21G40G54G80G99.
@@ -129,13 +133,9 @@ def expand_cycle_block(
 
     cycle_line_consumed |= _expand_g94(gcode, rough_cycles, state, words)
 
-    cycle_line_consumed |= _expand_g83(
-        _cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words
-    )
+    cycle_line_consumed |= _expand_g83(cycle_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
 
-    cycle_line_consumed |= _expand_g84(
-        _cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words
-    )
+    cycle_line_consumed |= _expand_g84(cycle_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
 
     _expand_g71(
         blocks,
@@ -182,9 +182,9 @@ def expand_cycle_block(
         distance_absolute,
     )
 
-    _expand_g74(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
+    _expand_g74(cycle_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
 
-    _expand_g75(_cycle_least_input_or_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
+    _expand_g75(cycle_length_to_mm, _word_expr, block, gcode, rough_cycles, state, words)
 
     _expand_g76(gcode, rough_cycles, state, words)
 

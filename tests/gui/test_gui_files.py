@@ -1,6 +1,7 @@
 # pylint: disable=protected-access
 from __future__ import annotations
 
+import os
 from types import SimpleNamespace
 
 import ezdxf
@@ -46,6 +47,18 @@ def test_recent_files_are_unique_case_insensitively_and_limited():
         ["C:/A.nc", "c:\\a.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc", "C:/F.nc"]
     )
     assert recent == ["C:/A.nc", "C:/B.nc", "C:/C.nc", "C:/D.nc", "C:/E.nc"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX filesystems are case-sensitive")
+def test_recent_files_keep_distinct_posix_paths_that_differ_only_by_case():
+    recent = main_window._normalized_recent_files(["/tmp/A.nc", "/tmp/a.nc"])
+
+    assert recent == ["/tmp/A.nc", "/tmp/a.nc"]
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX filesystems are case-sensitive")
+def test_same_file_path_respects_posix_case():
+    assert not main_window_file_ops._same_file_path("/tmp/A.nc", "/tmp/a.nc")
 
 
 class _DropUrl:

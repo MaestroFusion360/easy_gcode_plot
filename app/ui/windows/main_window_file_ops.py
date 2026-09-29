@@ -9,9 +9,8 @@ from threading import Event
 from PyQt6.QtCore import QCoreApplication, QFileInfo, QIODevice, QSaveFile
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
-from app.gcode.core import format_gcode_number
 from app.gcode.dxf_exporter import export_dxf
-from app.gcode.exporter import DXF_MODE, _window_export_options, export_pgm, export_program
+from app.gcode.exporter import DXF_MODE, _window_export_options, export_program
 from app.gcode.kernel.io import read_nc_text
 from app.gcode.trace_tools import format_tool_list, trace_statistics
 from app.settings import normalized_recent_files as _normalized_recent_files
@@ -29,6 +28,13 @@ def _file_signature(path):
     except OSError:
         return None
     return stat.st_mtime_ns, stat.st_size
+
+
+def _same_file_path(first, second):
+    """Compare local paths using the current platform's case semantics."""
+    left = os.path.normcase(os.path.normpath(QFileInfo(str(first)).absoluteFilePath()))
+    right = os.path.normcase(os.path.normpath(QFileInfo(str(second)).absoluteFilePath()))
+    return left == right
 
 
 def _atomic_write(path, text, *, encoding):
@@ -213,6 +219,68 @@ class MainWindowFileMixin:
             self.ui.menu_File.insertMenu(separator, self.recentFilesMenu)
         self._update_recent_files_menu()
 
+    def _setup_recent_stl_menu(self):
+        """Add File -> Recent STL immediately after Clear STL."""
+        self.recentStlMenu = QMenu(QCoreApplication.translate("MainWindow", "Recent STL"), self.ui.menu_File)
+        actions = self.ui.menu_File.actions()
+        clear_index = next((i for i, action in enumerate(actions) if action is self.ui.actionClearSTL), -1)
+        following_separator = next(
+            (action for action in actions[clear_index + 1 :] if action.isSeparator()),
+            None,
+        )
+        if following_separator is None:
+            self.ui.menu_File.addMenu(self.recentStlMenu)
+        else:
+            self.ui.menu_File.insertMenu(following_separator, self.recentStlMenu)
+        self._update_recent_stl_menu()
+
+    def _update_recent_stl_menu(self):
+        self.recentStlMenu.clear()
+        self.recentStlFiles = _normalized_recent_files(self.recentStlFiles)
+        if not self.recentStlFiles:
+            action = self.recentStlMenu.addAction(QCoreApplication.translate("MainWindow", "(Empty)"))
+            action.setEnabled(False)
+            return
+        for index, path in enumerate(self.recentStlFiles, start=1):
+            action = self.recentStlMenu.addAction(f"{index}. {path}")
+            action.triggered.connect(lambda _checked=False, p=path: self._open_recent_stl(p))
+        self.recentStlMenu.addSeparator()
+        self.recentStlMenu.addAction(
+            QCoreApplication.translate("MainWindow", "Clear Recent STL"), self._clear_recent_stl
+        )
+
+    def _persist_recent_stl_files(self):
+        self.settings.setValue("FILE/RECENT_STL_FILES", self.recentStlFiles)
+        self.settings.sync()
+
+    def _add_recent_stl(self, path):
+        absolute = QFileInfo(str(path)).absoluteFilePath()
+        self.recentStlFiles = _normalized_recent_files([absolute, *self.recentStlFiles])
+        self._update_recent_stl_menu()
+        self._persist_recent_stl_files()
+
+    def _remove_recent_stl(self, path):
+        key = os.path.normcase(str(path))
+        self.recentStlFiles = [item for item in self.recentStlFiles if os.path.normcase(item) != key]
+        self._update_recent_stl_menu()
+        self._persist_recent_stl_files()
+
+    def _clear_recent_stl(self):
+        self.recentStlFiles = []
+        self._update_recent_stl_menu()
+        self._persist_recent_stl_files()
+
+    def _open_recent_stl(self, path):
+        if not QFileInfo(path).exists():
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("MainWindow", "Easy G-code Plot"),
+                QCoreApplication.translate("MainWindow", "File not found:\n{0}").format(path),
+            )
+            self._remove_recent_stl(path)
+            return
+        self.importStl(path)
+
     def _update_recent_files_menu(self):
         self.recentFilesMenu.clear()
         self.recentFiles = _normalized_recent_files(self.recentFiles)
@@ -373,11 +441,7 @@ class MainWindowFileMixin:
 
     def saveFile(self, fileName):
         """Write editor contents to disk."""
-        same_file = (
-            bool(self.curFile)
-            and QFileInfo(fileName).absoluteFilePath().casefold()
-            == QFileInfo(self.curFile).absoluteFilePath().casefold()
-        )
+        same_file = bool(self.curFile) and _same_file_path(fileName, self.curFile)
         if same_file and getattr(self, "_document_disk_signature", None) is not None:
             if _file_signature(fileName) != self._document_disk_signature:
                 answer = QMessageBox.warning(
@@ -522,11 +586,3 @@ class MainWindowFileMixin:
         self.ui.statusbar.showMessage(
             QCoreApplication.translate("MainWindow", "Export Execution time: {0:.3f} ms").format(elapsed_ms), 10000
         )
-
-    def exportPgm(self):
-        """Generate the exportable program text based on parsed toolpath data."""
-        return export_pgm(self)
-
-    def floatToStr(self, val):
-        """Format numeric values to compact strings for G-code output."""
-        return format_gcode_number(val)

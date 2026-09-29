@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 import pytest
+from PyQt6.QtCore import QRect
 from PyQt6.QtWidgets import QApplication, QDialog
 
 from app import main_window
@@ -15,6 +16,7 @@ from app.ui.windows.window_settings import (
     EDITOR_FONT_ITALIC_KEY,
     EDITOR_FONT_SIZE_KEY,
     EDITOR_FONT_WEIGHT_KEY,
+    _visible_window_position,
 )
 
 
@@ -34,6 +36,59 @@ def test_wcs_dialog_can_shrink_below_legacy_fixed_height(qt_app):
     assert compact_height < 430
     dialog.resize(dialog.width(), compact_height)
     assert dialog.height() < 430
+
+
+def test_restored_window_position_is_clamped_to_available_screen():
+    primary = QRect(0, 0, 1920, 1080)
+
+    assert _visible_window_position(5000, 4000, 730, 500, [primary], primary) == (1190, 580)
+    assert _visible_window_position(-5000, -4000, 730, 500, [primary], primary) == (0, 0)
+    assert _visible_window_position(300, 200, 730, 500, [primary], primary) == (300, 200)
+
+
+def test_simple_preferences_round_trip_across_setting_groups(qt_app):
+    settings = app_settings.get_settings()
+    settings.setValue("CNC/IGNORE_BLOCK_SKIP", True)
+    settings.setValue("EDITOR/MARGIN_FONT_SIZE", 13)
+    settings.setValue("GENERAL/AUTO_UPDATE", False)
+    settings.setValue("EXPORT_OPT/SEQ_NUM_START", 17)
+
+    window = main_window.MainWindow()
+    try:
+        assert window.ignoreBlockSkip is True
+        assert window.marginSizeTxt == 13
+        assert window.autoUpdateEnabled is False
+        assert window.seqNumStart == 17
+
+        window.ignoreBlockSkip = False
+        window.marginSizeTxt = 14
+        window.autoUpdateEnabled = True
+        window.seqNumStart = 19
+        window.saveSettings()
+
+        assert settings.value("CNC/IGNORE_BLOCK_SKIP", type=bool) is False
+        assert settings.value("EDITOR/MARGIN_FONT_SIZE", type=int) == 14
+        assert settings.value("GENERAL/AUTO_UPDATE", type=bool) is True
+        assert settings.value("EXPORT_OPT/SEQ_NUM_START", type=int) == 19
+    finally:
+        window.deleteLater()
+
+
+def test_invalid_simple_preferences_use_schema_defaults_and_bounds(qt_app):
+    settings = app_settings.get_settings()
+    settings.setValue("PLOT/LINE_WIDTH", "nan")
+    settings.setValue("CNC/LATHE_GCODE_SYSTEM", "C")
+    settings.setValue("EDITOR/FONT_SIZE", "broken")
+    settings.setValue("GENERAL/AUTO_UPDATE_MAX_SEGMENTS", "9999999999")
+
+    window = main_window.MainWindow()
+    try:
+        assert window.plotLineWidth == 1.5
+        assert window.latheGcodeSystem == "A"
+        assert window.sizeTxt == 12
+        assert window.autoUpdateMaxSegments == app_settings.AUTO_UPDATE_SEGMENTS_MAX
+    finally:
+        window.deleteLater()
 
 
 @pytest.mark.parametrize(("kind", "key"), [("turning", "T9898"), ("milling", "T98")])

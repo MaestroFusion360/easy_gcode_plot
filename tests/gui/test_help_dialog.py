@@ -171,6 +171,8 @@ def test_faq_search_counts_wraps_and_survives_theme_change(qt_app):
         == QIcon(":/resource/icons/down.png").pixmap(QSize(18, 18)).toImage()
     )
     dialog.search_edit.setText("deterministic")
+    assert dialog._search_timer.isActive()
+    dialog._run_pending_search()
     assert len(dialog._search_matches) > 1
     assert dialog.search_count.text() == f"1 / {len(dialog._search_matches)}"
     assert dialog.browser.textCursor().selectedText().casefold() == "deterministic"
@@ -185,6 +187,7 @@ def test_faq_search_counts_wraps_and_survives_theme_change(qt_app):
     assert dialog.search_count.text() == f"1 / {len(dialog._search_matches)}"
 
     dialog.search_edit.setText("no-such-faq-term-123")
+    dialog._run_pending_search()
     assert dialog.search_count.text() == "0 / 0"
     dialog.search_edit.clear()
     assert dialog.search_count.text() == ""
@@ -208,6 +211,41 @@ def test_faq_license_link_opens_packaged_license_dialog(qt_app):
 
     dialog.navigate_to_anchor(QUrl("#development-and-architecture"))
     assert dialog.browser.textCursor().block().text() == "Development and architecture"
+
+    window.close()
+    window.deleteLater()
+
+
+def test_faq_and_statistics_dialogs_share_window_frame_without_close_button(qt_app):
+    window = MainWindow()
+
+    for dialog in (window.helpDlg, window.statisticsDlg):
+        assert not hasattr(dialog.ui, "buttonBox")
+        flags = dialog.windowFlags()
+        assert flags & Qt.WindowType.WindowMinimizeButtonHint
+        assert flags & Qt.WindowType.WindowMaximizeButtonHint
+        assert flags & Qt.WindowType.WindowCloseButtonHint
+
+    window.close()
+    window.deleteLater()
+
+
+def test_russian_faq_is_packaged_and_loaded_for_russian_language(qt_app, monkeypatch):
+    assert QFile(":/resource/FAQ_RU.md").exists()
+    monkeypatch.setattr("app.ui.dialogs.help.ui_language", lambda: "ru")
+
+    window = MainWindow()
+    dialog = window.helpDlg
+    text = dialog.browser.toPlainText()
+
+    assert "часто задаваемые вопросы" in text
+    assert "Область применения проекта и модель выполнения" in text
+
+    dialog.navigate_to_anchor(QUrl("#начало-работы"))
+    assert dialog.browser.textCursor().block().text() == "Начало работы"
+
+    dialog.apply_theme("dark")
+    assert "часто задаваемые вопросы" in dialog.browser.toPlainText()
 
     window.close()
     window.deleteLater()

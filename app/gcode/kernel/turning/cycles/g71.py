@@ -8,6 +8,49 @@ from ...geometry import clip_polyline_max_x, clip_polyline_min_x, segment_points
 from .common import _append_profile_trace, add_feed_orthogonal, add_motion, add_motion_with_meta, ensure_cycle_return
 
 
+def _follow_type_ii_profile(motions, profile, seg_idx, entry_pt, pass_x, next_pass_x, boring_mode, feed):
+    """Follow one clipped Type II contour until the next depth boundary."""
+    previous = entry_pt
+    for index in range(seg_idx, len(profile)):
+        segment = profile[index]
+        start = entry_pt if index == seg_idx else segment.start
+        points = segment_points(segment, start, segment.end)
+        clipped = clip_polyline_min_x(points, pass_x) if boring_mode else clip_polyline_max_x(points, pass_x)
+        if len(clipped) < 2:
+            continue
+        if abs(previous.x - clipped[0].x) > 1e-5 or abs(previous.z - clipped[0].z) > 1e-5:
+            add_feed_orthogonal(motions, previous, clipped[0], feed)
+            previous = clipped[0]
+        for start_point, end_point in zip(clipped, clipped[1:]):
+            crosses_next = (start_point.x - next_pass_x) * (end_point.x - next_pass_x) <= 0.0 and abs(
+                end_point.x - start_point.x
+            ) > 1e-8
+            if crosses_next:
+                fraction = (next_pass_x - start_point.x) / (end_point.x - start_point.x)
+                fraction = max(0.0, min(1.0, fraction))
+                end_point = Point2(next_pass_x, start_point.z + (end_point.z - start_point.z) * fraction)
+            add_motion_with_meta(
+                motions,
+                1,
+                previous,
+                end_point,
+                None,
+                feed if feed > 0 else None,
+                playback_group=segment.playback_group,
+            )
+            previous = end_point
+            if crosses_next:
+                return previous
+    return previous
+
+
+def _finish_roughing(motions, profile, tool, feed, type_ii, cycle_start):
+    if not type_ii:
+        add_motion(motions, 0, tool, profile[0].start)
+        _append_profile_trace(motions, profile, feed)
+    ensure_cycle_return(motions, cycle_start, first_axis="x")
+
+
 def build_g71_roughing(
     profile: list[ProfileSegment],
     stock_x: float,
@@ -21,11 +64,11 @@ def build_g71_roughing(
 ) -> list[Motion]:
     motions: list[Motion] = []
     if not profile:
-        return motions
+        raise SemanticError("INVALID_G71_PROFILE", "G71 profile is empty", "invalid_input")
     cycle_start = Point2(stock_x, stock_z)
     step_dia = abs(depth_u) * 2.0
     if step_dia <= 1e-9:
-        return motions
+        raise SemanticError("INVALID_G71_DEPTH", "G71 pass depth must be nonzero", "invalid_input")
     retract_dia = abs(retract_r) * 2.0
     min_x = min(min(s.start.x, s.end.x) for s in profile)
     max_x = max(max(s.start.x, s.end.x) for s in profile)
@@ -73,52 +116,7 @@ def build_g71_roughing(
         # Type II permits pockets/non-monotonic contours.  Follow the clipped
         # profile conservatively; the analyzer separately marks Type-II use as
         # controller-dependent/unverified unless explicitly configured.
-        prev = entry_pt
-        pass_done = False
-        for i in range(seg_idx, len(profile)):
-            seg = profile[i]
-            sraw = entry_pt if i == seg_idx else seg.start
-            eraw = seg.end
-            raw = segment_points(seg, sraw, eraw)
-            clipped = clip_polyline_min_x(raw, pass_x) if boring_mode else clip_polyline_max_x(raw, pass_x)
-            if len(clipped) < 2:
-                continue
-            if abs(prev.x - clipped[0].x) > 1e-5 or abs(prev.z - clipped[0].z) > 1e-5:
-                add_feed_orthogonal(motions, prev, clipped[0], feed)
-                prev = clipped[0]
-            for idx_pair, (a, b) in enumerate(zip(clipped, clipped[1:])):
-                crosses_next = (a.x - next_pass_x) * (b.x - next_pass_x) <= 0.0 and abs(b.x - a.x) > 1e-8
-                if crosses_next:
-                    t = (next_pass_x - a.x) / (b.x - a.x)
-                    t = max(0.0, min(1.0, t))
-                    hit = Point2(next_pass_x, a.z + (b.z - a.z) * t)
-                    add_motion_with_meta(
-                        motions,
-                        1,
-                        prev,
-                        hit,
-                        None,
-                        feed if feed > 0 else None,
-                        playback_group=seg.playback_group,
-                    )
-                    prev = hit
-                    pass_done = True
-                    break
-                # Follow the sampled P-Q contour directly. Splitting every
-                # chord into X/Z legs turns G02/G03 profiles into a staircase.
-                _ = idx_pair, sraw, eraw, seg
-                add_motion_with_meta(
-                    motions,
-                    1,
-                    prev,
-                    b,
-                    None,
-                    feed if feed > 0 else None,
-                    playback_group=seg.playback_group,
-                )
-                prev = b
-            if pass_done:
-                break
+        prev = _follow_type_ii_profile(motions, profile, seg_idx, entry_pt, pass_x, next_pass_x, boring_mode, feed)
 
         retreat_x = prev.x - retract_dia if boring_mode else prev.x + retract_dia
         retreat = Point2(retreat_x, prev.z + abs(retract_r))
@@ -132,11 +130,6 @@ def build_g71_roughing(
     # Type I ends with one complete pass along the roughing profile.  The
     # incoming profile already includes the signed U/W finish allowances, so
     # this pass must not reuse the original finishing contour.
-    if not type_ii:
-        add_motion(motions, 0, tool, profile[0].start)
-        _append_profile_trace(motions, profile, feed)
-
-    # Return to the cycle start point once, after roughing and contour passes.
-    ensure_cycle_return(motions, cycle_start, first_axis="x")
+    _finish_roughing(motions, profile, tool, feed, type_ii, cycle_start)
 
     return motions

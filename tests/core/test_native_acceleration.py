@@ -67,6 +67,41 @@ M30
     assert accelerated == fallback
 
 
+def test_native_milling_first_simple_block_preserves_program_start_event(monkeypatch):
+    source = """X1
+Y2
+M30
+"""
+    accelerated = execute(source, language="fanuc_mill")
+    assert milling_executor._execute_simple_blocks is not None
+
+    monkeypatch.setattr(milling_executor, "_execute_simple_blocks", None)
+    fallback = execute(source, language="fanuc_mill")
+
+    assert accelerated == fallback
+    assert [event.kind for event in accelerated.events].count("program_start") == 1
+    assert accelerated.events[0].source_block == 0
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "G21 G90 G94\nG0 X0 Y0 Z2\nG1 X5 F120\nY-3\nG91 X2\nG90 Y0\nM30\n",
+        "G20 G90 G94\nG0 X0 Y0 Z0.5\nG1 X1 F12\nY1\nG21 X30 F300\nM30\n",
+        "G21 G90 G54\nG0 X1 Y2\nG55 X3\nG1 Y4 F100\nG54 X5\nM30\n",
+        "X1\nY2\nG1 X3 F100\nM30\n",
+    ],
+)
+def test_native_milling_modal_transitions_match_python_fallback(monkeypatch, source):
+    accelerated = execute(source, language="fanuc_mill")
+    assert milling_executor._execute_simple_blocks is not None
+
+    monkeypatch.setattr(milling_executor, "_execute_simple_blocks", None)
+    fallback = execute(source, language="fanuc_mill")
+
+    assert accelerated == fallback
+
+
 def test_native_milling_g65_matches_python_fallback(monkeypatch):
     source = """G21 G17 G90 G94
 G0 X0 Y0 Z5

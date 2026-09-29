@@ -1,7 +1,10 @@
 """Persistence and editor/plot preference handling for the main window."""
 
+from collections.abc import Callable
+from dataclasses import dataclass
+
 from PyQt6.Qsci import QsciScintilla
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import QRect, Qt
 from PyQt6.QtGui import QColor, QFont, QKeySequence, QVector3D
 from PyQt6.QtWidgets import QApplication
 
@@ -20,6 +23,7 @@ from app.settings import (
     ARC_TOLERANCE_DEFAULT,
     ARC_TOLERANCE_MAX,
     ARC_TOLERANCE_MIN,
+    AUTO_UPDATE_SEGMENTS_DEFAULT,
     AUTO_UPDATE_SEGMENTS_MAX,
     AUTO_UPDATE_SEGMENTS_MIN,
     DEFAULT_TOOLBAR_ICON_SIZE,
@@ -59,6 +63,161 @@ EDITOR_FONT_WEIGHT_KEY = "FONT_WEIGHT"
 EDITOR_FONT_ITALIC_KEY = "FONT_ITALIC"
 
 
+@dataclass(frozen=True)
+class _SettingSpec:
+    key: str
+    attribute: str
+    default: object
+    value_type: type
+    validator: Callable[[object], object] | None = None
+
+
+_STOCK_SETTINGS = (
+    _SettingSpec("CONFIGURED", "stockConfigured", False, bool),
+    _SettingSpec("ENABLED", "stockEnabled", False, bool),
+    _SettingSpec("DIAMETER", "turnStockDiameter", 50.0, float),
+    _SettingSpec("INNER_DIAMETER", "turnStockInnerDiameter", 0.0, float),
+    _SettingSpec("LENGTH", "turnStockLength", 100.0, float),
+    _SettingSpec("RESOLUTION", "turnStockResolution", 0.5, float),
+    _SettingSpec("FRONT_ALLOWANCE", "turnStockFrontAllowance", 2.0, float),
+)
+
+_PLOT_SETTINGS = (
+    _SettingSpec("ARC_TYPE", "arc_type", 1, int),
+    _SettingSpec("MACHINE_XPOS", "xPosMach", 0.0, float),
+    _SettingSpec("MACHINE_YPOS", "yPosMach", 0.0, float),
+    _SettingSpec("MACHINE_ZPOS", "zPosMach", 0.0, float),
+    _SettingSpec("LATHE_MODE", "latheMode", False, bool),
+    _SettingSpec("SHOW_STOCK", "showStock", True, bool),
+    _SettingSpec("SHOW_RAPID", "plotShowRapid", True, bool),
+    _SettingSpec("DASHED_RAPID", "plotDashedRapid", True, bool),
+    _SettingSpec("COLOR_BY_TOOL", "plotColorByTool", False, bool),
+    _SettingSpec(
+        "LINE_WIDTH",
+        "plotLineWidth",
+        1.5,
+        float,
+        lambda value: bounded_number(value, 1.5, LINE_WIDTH_MIN, LINE_WIDTH_MAX, name="PLOT/LINE_WIDTH"),
+    ),
+    _SettingSpec("GRID_STEP", "plotGridStep", 0.0, float),
+    _SettingSpec("AXES", "plotAxes", True, bool),
+    _SettingSpec("BACKGROUND_GRADIENT", "plotBackgroundGradient", False, bool),
+    _SettingSpec("STL_WIREFRAME", "stlWireframe", False, bool),
+    _SettingSpec("GRID", "plotGrid", False, bool),
+    _SettingSpec("GRID_SIZE", "plotGridSize", 1000, int),
+    _SettingSpec("GRID_SPACING", "plotGridSpacing", 50, int),
+)
+
+_CNC_SETTINGS = (
+    _SettingSpec("HOME_CONFIGURED", "homeConfigured", True, bool),
+    _SettingSpec("DEFAULT_UNITS", "defaultUnits", "mm", str),
+    _SettingSpec(
+        "LATHE_GCODE_SYSTEM", "latheGcodeSystem", "A", str, lambda value: value if value in {"A", "B"} else "A"
+    ),
+    _SettingSpec("CORRECTION_ENABLED", "correctionEnabled", True, bool),
+    _SettingSpec("AUTODETECT_ARC_TYPE", "autodetectArcType", True, bool),
+    _SettingSpec("IGNORE_BLOCK_SKIP", "ignoreBlockSkip", False, bool),
+)
+
+_EDITOR_SETTINGS = (
+    _SettingSpec("CARETLINE_COLOR", "caretLineColor", "#e8e8ff", str),
+    _SettingSpec("ENCODING", "fileEncoding", "utf-8", str),
+    _SettingSpec("DEFAULT_FILE_TYPE", "defaultFileType", 0, int),
+    _SettingSpec("CARETLINE_VISIBLE", "caretLine", True, bool),
+    _SettingSpec("EOL_VISIBLE", "eolVisible", False, bool),
+    _SettingSpec("WHITESPACE_VISIBLE", "spaceVisible", False, bool),
+    _SettingSpec("MARGIN_AREA", "marginArea", True, bool),
+    _SettingSpec("MARGIN_COLOR", "marginColor", "#808080", str),
+    _SettingSpec("MARGIN_FONT_FAMILY", "marginFontFamily", "Courier New", str),
+    _SettingSpec("MARGIN_FONT_SIZE", "marginSizeTxt", 11, int),
+    _SettingSpec(EDITOR_FONT_FAMILY_KEY, "fontFamily", "Courier New", str),
+    _SettingSpec(
+        EDITOR_FONT_SIZE_KEY,
+        "sizeTxt",
+        12,
+        int,
+        lambda value: int(bounded_number(value, 12, FONT_SIZE_MIN, FONT_SIZE_MAX, name="EDITOR/FONT_SIZE")),
+    ),
+    _SettingSpec(EDITOR_FONT_WEIGHT_KEY, "fontWeight", 500, int),
+    _SettingSpec(EDITOR_FONT_ITALIC_KEY, "fontItalic", False, bool),
+)
+
+_GENERAL_SETTINGS = (
+    _SettingSpec("LANGUAGE", "uiLanguage", "en", str),
+    _SettingSpec("LOGGING", "loggingEnabled", False, bool),
+    _SettingSpec("AUTO_UPDATE", "autoUpdateEnabled", True, bool),
+    _SettingSpec(
+        "AUTO_UPDATE_MAX_SEGMENTS",
+        "autoUpdateMaxSegments",
+        AUTO_UPDATE_SEGMENTS_DEFAULT,
+        int,
+        lambda value: int(
+            bounded_number(
+                value,
+                AUTO_UPDATE_SEGMENTS_DEFAULT,
+                AUTO_UPDATE_SEGMENTS_MIN,
+                AUTO_UPDATE_SEGMENTS_MAX,
+                name="GENERAL/AUTO_UPDATE_MAX_SEGMENTS",
+            )
+        ),
+    ),
+    _SettingSpec(
+        "MAX_GENERATED_MOTIONS",
+        "maxGeneratedMotions",
+        GENERATED_MOTIONS_DEFAULT,
+        int,
+        lambda value: int(
+            bounded_number(
+                value,
+                GENERATED_MOTIONS_DEFAULT,
+                GENERATED_MOTIONS_MIN,
+                GENERATED_MOTIONS_MAX,
+                name="GENERAL/MAX_GENERATED_MOTIONS",
+            )
+        ),
+    ),
+)
+
+_EXPORT_SETTINGS = (
+    _SettingSpec("FORCE_ADDRESS", "forceAdr", False, bool),
+    _SettingSpec("INCREMENTAL_MODE", "incrMode", False, bool),
+    _SettingSpec("START_PROGRAM", "startPgmExp", "O0001", str),
+    _SettingSpec("END_PROGRAM", "endPgmExp", "M30", str),
+    _SettingSpec("SAFETY_LINE", "safLine", False, bool),
+    _SettingSpec("SEQ_NUM", "seqNum", False, bool),
+    _SettingSpec("SEQ_NUM_START", "seqNumStart", 1, int),
+    _SettingSpec("SEQ_NUM_INCR", "seqNumIncr", 1, int),
+    _SettingSpec("SEQ_NUM_SPACING", "seqNumSpacing", False, bool),
+    _SettingSpec("DELIMITER", "delim", False, bool),
+    _SettingSpec("LEADING_ZERO", "leadingZero", False, bool),
+    _SettingSpec("ER_CHAR", "er", "%", str),
+)
+
+
+def _visible_window_position(x, y, width, height, geometries, primary_geometry=None):
+    """Clamp a restored top-level window to an available screen."""
+    areas = [geometry for geometry in geometries if geometry.isValid()]
+    if not areas:
+        return x, y
+
+    window = QRect(x, y, max(1, width), max(1, height))
+
+    def overlap_area(area):
+        overlap = area.intersected(window)
+        return max(0, overlap.width()) * max(0, overlap.height())
+
+    target = max(areas, key=overlap_area)
+    if overlap_area(target) == 0 and primary_geometry is not None and primary_geometry.isValid():
+        target = primary_geometry
+
+    max_x = max(target.left(), target.right() - width + 1)
+    max_y = max(target.top(), target.bottom() - height + 1)
+    return (
+        min(max(x, target.left()), max_x),
+        min(max(y, target.top()), max_y),
+    )
+
+
 class MainWindowSettingsMixin:
     """Load and save the existing 1.x main-window preferences."""
 
@@ -76,6 +235,10 @@ class MainWindowSettingsMixin:
         if isinstance(recent, str):
             recent = [recent]
         self.recentFiles = _normalized_recent_files(recent)
+        recent_stl = self.settings.value("FILE/RECENT_STL_FILES", [])
+        if isinstance(recent_stl, str):
+            recent_stl = [recent_stl]
+        self.recentStlFiles = _normalized_recent_files(recent_stl)
 
         # Plot
         self.dist = 100
@@ -83,7 +246,7 @@ class MainWindowSettingsMixin:
         self.ui.graphicsView.opts["center"] = QVector3D(0, 0, 0)
 
         self._load_playback_speed()
-        self.arc_type = self.settings.value("PLOT/ARC_TYPE", 1, type=int)
+        self._load_setting_group("PLOT", _PLOT_SETTINGS)
 
         if self.arc_type == 2:
             self.ui.actionAbsolute.setChecked(True)
@@ -92,10 +255,7 @@ class MainWindowSettingsMixin:
         else:
             self.ui.actionRelative_to_start.setChecked(True)
 
-        self.xPosMach = self.settings.value("PLOT/MACHINE_XPOS", 0, type=float)
-        self.yPosMach = self.settings.value("PLOT/MACHINE_YPOS", 0, type=float)
-        self.zPosMach = self.settings.value("PLOT/MACHINE_ZPOS", 0, type=float)
-        self.homeConfigured = self.settings.value("CNC/HOME_CONFIGURED", True, type=bool)
+        self._load_setting_group("CNC", _CNC_SETTINGS)
         self.wcsOffsets = {
             code: (
                 self.settings.value(f"CNC/G{code}_X", 0.0, type=float),
@@ -105,28 +265,13 @@ class MainWindowSettingsMixin:
             for code in range(54, 60)
         }
         self._load_tool_libraries()
-        self.latheMode = self.settings.value("PLOT/LATHE_MODE", False, type=bool)
         self.ui.actionLatheMode.setChecked(self.latheMode)
-        self.showStock = self.settings.value("PLOT/SHOW_STOCK", True, type=bool)
         self.uiTheme = theme.normalize_theme(self.settings.value("GENERAL/THEME", theme.DEFAULT_THEME))
         stored_icon_size = self.settings.value("GENERAL/TOOLBAR_ICON_SIZE", DEFAULT_TOOLBAR_ICON_SIZE, type=int)
         self.toolbarIconSize = stored_icon_size if stored_icon_size in TOOLBAR_ICON_SIZES else DEFAULT_TOOLBAR_ICON_SIZE
         self.applyToolbarIconSize(self.toolbarIconSize)
         self._load_plot_colors()
-        self.plotLineWidth = bounded_number(
-            self.settings.value("PLOT/LINE_WIDTH", 1.5), 1.5, LINE_WIDTH_MIN, LINE_WIDTH_MAX, name="PLOT/LINE_WIDTH"
-        )
-        self.plotGridStep = self.settings.value("PLOT/GRID_STEP", 0.0, type=float)
-        self.plotAxes = self.settings.value("PLOT/AXES", True, type=bool)
-        self.plotBackgroundGradient = self.settings.value("PLOT/BACKGROUND_GRADIENT", False, type=bool)
-        self.stlWireframe = self.settings.value("PLOT/STL_WIREFRAME", False, type=bool)
-        self.stockConfigured = self.settings.value("STOCK/CONFIGURED", False, type=bool)
-        self.stockEnabled = self.settings.value("STOCK/ENABLED", False, type=bool)
-        self.turnStockDiameter = self.settings.value("STOCK/DIAMETER", 50.0, type=float)
-        self.turnStockInnerDiameter = self.settings.value("STOCK/INNER_DIAMETER", 0.0, type=float)
-        self.turnStockLength = self.settings.value("STOCK/LENGTH", 100.0, type=float)
-        self.turnStockResolution = self.settings.value("STOCK/RESOLUTION", 0.5, type=float)
-        self.turnStockFrontAllowance = self.settings.value("STOCK/FRONT_ALLOWANCE", 2.0, type=float)
+        self._load_setting_group("STOCK", _STOCK_SETTINGS)
         # FRONT_Z is the absolute front face of manually configured stock.
         # Older settings used FRONT_ALLOWANCE for both meanings, so fall back to
         # that value until the first manual stock save writes FRONT_Z explicitly.
@@ -135,19 +280,8 @@ class MainWindowSettingsMixin:
             self.turnStockFrontAllowance,
             type=float,
         )
-        self.plotGrid = self.settings.value("PLOT/GRID", False, type=bool)
-        self.plotGridSize = self.settings.value("PLOT/GRID_SIZE", 1000, type=int)
-        self.plotGridSpacing = self.settings.value("PLOT/GRID_SPACING", 50, type=int)
         self.ui.actionGrid.setChecked(self.plotGrid)
-        self.fileEncoding = self.settings.value("EDITOR/ENCODING", "utf-8")
-        self.defaultFileType = self.settings.value("EDITOR/DEFAULT_FILE_TYPE", 0, type=int)
-        self.defaultUnits = self.settings.value("CNC/DEFAULT_UNITS", "mm")
-        self.latheGcodeSystem = self.settings.value("CNC/LATHE_GCODE_SYSTEM", "A")
-        if self.latheGcodeSystem not in {"A", "B"}:
-            self.latheGcodeSystem = "A"
-        self.correctionEnabled = self.settings.value("CNC/CORRECTION_ENABLED", True, type=bool)
-        self.autodetectArcType = self.settings.value("CNC/AUTODETECT_ARC_TYPE", True, type=bool)
-        self.ignoreBlockSkip = self.settings.value("CNC/IGNORE_BLOCK_SKIP", False, type=bool)
+        self._load_setting_group("EDITOR", _EDITOR_SETTINGS)
         self.arcTolerance = bounded_number(
             self.settings.value("CNC/ARC_TOLERANCE", ARC_TOLERANCE_DEFAULT),
             ARC_TOLERANCE_DEFAULT,
@@ -156,27 +290,7 @@ class MainWindowSettingsMixin:
             name="CNC/ARC_TOLERANCE",
         )
         self._load_arc_sampling_settings()
-        self.uiLanguage = self.settings.value("GENERAL/LANGUAGE", "en")
-        self.loggingEnabled = self.settings.value("GENERAL/LOGGING", False, type=bool)
-        self.autoUpdateEnabled = self.settings.value("GENERAL/AUTO_UPDATE", True, type=bool)
-        self.autoUpdateMaxSegments = int(
-            bounded_number(
-                self.settings.value("GENERAL/AUTO_UPDATE_MAX_SEGMENTS", 20000),
-                20000,
-                AUTO_UPDATE_SEGMENTS_MIN,
-                AUTO_UPDATE_SEGMENTS_MAX,
-                name="GENERAL/AUTO_UPDATE_MAX_SEGMENTS",
-            )
-        )
-        self.maxGeneratedMotions = int(
-            bounded_number(
-                self.settings.value("GENERAL/MAX_GENERATED_MOTIONS", GENERATED_MOTIONS_DEFAULT),
-                GENERATED_MOTIONS_DEFAULT,
-                GENERATED_MOTIONS_MIN,
-                GENERATED_MOTIONS_MAX,
-                name="GENERAL/MAX_GENERATED_MOTIONS",
-            )
-        )
+        self._load_setting_group("GENERAL", _GENERAL_SETTINGS)
         configure_logging(self.loggingEnabled)
 
         # Editor
@@ -186,28 +300,6 @@ class MainWindowSettingsMixin:
         self.ui.editor.setIndentationsUseTabs(False)
         self.ui.editor.setIndentationGuides(True)
         self.ui.editor.SendScintilla(QsciScintilla.SCI_SETHSCROLLBAR, 0)
-
-        self.caretLineColor = self.settings.value("EDITOR/CARETLINE_COLOR", "#e8e8ff")
-        self.caretLine = self.settings.value("EDITOR/CARETLINE_VISIBLE", True, type=bool)
-        self.eolVisible = self.settings.value("EDITOR/EOL_VISIBLE", False, type=bool)
-        self.spaceVisible = self.settings.value("EDITOR/WHITESPACE_VISIBLE", False, type=bool)
-        # self.wrapWord = self.settings.value("EDITOR/WRAP_WORD", True, type=bool)
-        self.marginArea = self.settings.value("EDITOR/MARGIN_AREA", True, type=bool)
-        self.marginColor = self.settings.value("EDITOR/MARGIN_COLOR", "#808080")
-        self.marginFontFamily = self.settings.value("EDITOR/MARGIN_FONT_FAMILY", "Courier New")
-        self.marginSizeTxt = self.settings.value("EDITOR/MARGIN_FONT_SIZE", 11, type=int)
-        self.fontFamily = self.settings.value(f"EDITOR/{EDITOR_FONT_FAMILY_KEY}", "Courier New")
-        self.sizeTxt = int(
-            bounded_number(
-                self.settings.value(f"EDITOR/{EDITOR_FONT_SIZE_KEY}", 12),
-                12,
-                FONT_SIZE_MIN,
-                FONT_SIZE_MAX,
-                name="EDITOR/FONT_SIZE",
-            )
-        )
-        self.fontWeight = self.settings.value(f"EDITOR/{EDITOR_FONT_WEIGHT_KEY}", 500, type=int)
-        self.fontItalic = self.settings.value(f"EDITOR/{EDITOR_FONT_ITALIC_KEY}", False, type=bool)
 
         self.ui.editor.setCaretLineBackgroundColor(QColor(self.caretLineColor))
         self.ui.editor.setCaretLineVisible(self.caretLine)
@@ -261,21 +353,13 @@ class MainWindowSettingsMixin:
             self.exportMode = mode if mode in range(DXF_MODE + 1) else EXPANDED_EXECUTION_MODE
             arc_mode = self.settings.value("EXPORT_OPT/ARC_MODE", 0, type=int)
             self.exportArcMode = arc_mode if arc_mode in range(4) else 0
-        self.forceAdr = self.settings.value("EXPORT_OPT/FORCE_ADDRESS", False, type=bool)
-        self.incrMode = self.settings.value("EXPORT_OPT/INCREMENTAL_MODE", False, type=bool)
-        self.startPgmExp = self.settings.value("EXPORT_OPT/START_PROGRAM", "O0001")
-        self.endPgmExp = self.settings.value("EXPORT_OPT/END_PROGRAM", "M30")
-        self.safLine = self.settings.value("EXPORT_OPT/SAFETY_LINE", False, type=bool)
-        self.seqNum = self.settings.value("EXPORT_OPT/SEQ_NUM", False, type=bool)
-        self.seqNumStart = self.settings.value("EXPORT_OPT/SEQ_NUM_START", 1, type=int)
-        self.seqNumIncr = self.settings.value("EXPORT_OPT/SEQ_NUM_INCR", 1, type=int)
-        self.seqNumSpacing = self.settings.value("EXPORT_OPT/SEQ_NUM_SPACING", False, type=bool)
-        self.delim = self.settings.value("EXPORT_OPT/DELIMITER", False, type=bool)
-        self.leadingZero = self.settings.value("EXPORT_OPT/LEADING_ZERO", False, type=bool)
+        self._load_setting_group("EXPORT_OPT", _EXPORT_SETTINGS)
         self._load_comment_style()
-        self.er = self.settings.value("EXPORT_OPT/ER_CHAR", "%")
 
-        # Geometry
+        self._restore_window_geometry()
+
+    def _restore_window_geometry(self):
+        """Restore the saved position within the currently available screens."""
         is_maximized = self.settings.value("GEOMETRY/APP_MAXIMIZED", False, type=bool)
         heightApp = self.settings.value("GEOMETRY/APP_HEIGHT", 500, type=int)
         widthApp = self.settings.value("GEOMETRY/APP_WIDTH", 730, type=int)
@@ -284,7 +368,28 @@ class MainWindowSettingsMixin:
         if is_maximized:
             self.setWindowState(Qt.WindowState.WindowMaximized)
         self.resize(widthApp, heightApp)
+        app = QApplication.instance()
+        screens = app.screens() if app is not None else []
+        geometries = [screen.availableGeometry() for screen in screens]
+        primary = app.primaryScreen().availableGeometry() if app is not None and app.primaryScreen() else None
+        x, y = _visible_window_position(x, y, self.width(), self.height(), geometries, primary)
         self.move(x, y)
+
+    def _load_setting_group(self, group, specs):
+        for spec in specs:
+            key = f"{group}/{spec.key}"
+            value = (
+                self.settings.value(key, spec.default)
+                if spec.validator
+                else self.settings.value(key, spec.default, type=spec.value_type)
+            )
+            if spec.validator is not None:
+                value = spec.validator(value)
+            setattr(self, spec.attribute, value)
+
+    def _save_setting_group(self, specs):
+        for spec in specs:
+            self.settings.setValue(spec.key, getattr(self, spec.attribute))
 
     def _load_comment_style(self):
         stored = self.settings.value("CNC/COMMENT_STYLE", None)
@@ -366,6 +471,9 @@ class MainWindowSettingsMixin:
         help_dialog = getattr(self, "helpDlg", None)
         if help_dialog is not None:
             help_dialog.apply_theme(self.uiTheme)
+        stl_panel = getattr(self, "stlObjectsDock", None)
+        if stl_panel is not None:
+            stl_panel.apply_theme(self.uiTheme)
         theme.apply_editor_theme(self.ui.editor, getattr(self, "lexer", None), self.uiTheme)
 
     def applyPlotTheme(self):
@@ -467,47 +575,23 @@ class MainWindowSettingsMixin:
         self.settings.beginGroup("PLOT")
         self.settings.setValue("TIMER_SPEED", self.speedTimer)
         self.settings.setValue("PLAYBACK_SPEED", self.playbackSpeed)
-        self.settings.setValue("ARC_TYPE", self.arc_type)
-        self.settings.setValue("MACHINE_XPOS", self.xPosMach)
-        self.settings.setValue("MACHINE_YPOS", self.yPosMach)
-        self.settings.setValue("MACHINE_ZPOS", self.zPosMach)
-        self.settings.setValue("LATHE_MODE", self.latheMode)
-        self.settings.setValue("SHOW_STOCK", self.showStock)
+        self._save_setting_group(_PLOT_SETTINGS)
         self.settings.setValue("LINE_COLOR", self.plotLineColor)
         self.settings.setValue("RAPID_COLOR", self.plotRapidColor)
         self.settings.setValue("ARC_COLOR", self.plotArcColor)
         self.settings.setValue("CURRENT_COLOR", self.plotCurrentColor)
         self.settings.setValue("TOOL_COLOR", self.plotToolColor)
-        self.settings.setValue("LINE_WIDTH", self.plotLineWidth)
-        self.settings.setValue("GRID_STEP", self.plotGridStep)
-        self.settings.setValue("AXES", self.plotAxes)
         self.settings.setValue("BACKGROUND", self.plotBackground)
-        self.settings.setValue("BACKGROUND_GRADIENT", self.plotBackgroundGradient)
         self.settings.setValue("STL_COLOR", self.stlColor)
-        self.settings.setValue("STL_WIREFRAME", self.stlWireframe)
-        self.settings.setValue("GRID", self.plotGrid)
         self.settings.setValue("GRID_COLOR", self.plotGridColor)
-        self.settings.setValue("GRID_SIZE", self.plotGridSize)
-        self.settings.setValue("GRID_SPACING", self.plotGridSpacing)
         self.settings.endGroup()
         self.settings.beginGroup("STOCK")
-        self.settings.setValue("CONFIGURED", self.stockConfigured)
-        self.settings.setValue("ENABLED", self.stockEnabled)
-        self.settings.setValue("DIAMETER", self.turnStockDiameter)
-        self.settings.setValue("INNER_DIAMETER", self.turnStockInnerDiameter)
-        self.settings.setValue("LENGTH", self.turnStockLength)
-        self.settings.setValue("RESOLUTION", self.turnStockResolution)
-        self.settings.setValue("FRONT_ALLOWANCE", self.turnStockFrontAllowance)
+        self._save_setting_group(_STOCK_SETTINGS)
         self.settings.setValue("FRONT_Z", self.turnStockFrontZ)
         self.settings.endGroup()
         self.settings.beginGroup("CNC")
-        self.settings.setValue("HOME_CONFIGURED", self.homeConfigured)
-        self.settings.setValue("DEFAULT_UNITS", self.defaultUnits)
-        self.settings.setValue("LATHE_GCODE_SYSTEM", self.latheGcodeSystem)
+        self._save_setting_group(_CNC_SETTINGS)
         for key, value in (
-            ("CORRECTION_ENABLED", self.correctionEnabled),
-            ("AUTODETECT_ARC_TYPE", self.autodetectArcType),
-            ("IGNORE_BLOCK_SKIP", self.ignoreBlockSkip),
             ("COMMENT_STYLE", self.commentStyle),
             ("ARC_TOLERANCE", self.arcTolerance),
             ("ARC_SAMPLING_PRESET", self.arcSamplingPreset),
@@ -523,46 +607,19 @@ class MainWindowSettingsMixin:
             self.settings.setValue(f"G{code}_Z", z_offset)
         self.settings.endGroup()
         self.settings.beginGroup("EDITOR")
-        self.settings.setValue("CARETLINE_COLOR", self.caretLineColor)
-        self.settings.setValue("ENCODING", self.fileEncoding)
-        self.settings.setValue("DEFAULT_FILE_TYPE", self.defaultFileType)
-        self.settings.setValue("CARETLINE_VISIBLE", self.caretLine)
-        self.settings.setValue("EOL_VISIBLE", self.eolVisible)
-        self.settings.setValue("WHITESPACE_VISIBLE", self.spaceVisible)
-        # self.settings.setValue("WRAP_WORD", self.wrapWord)
-        self.settings.setValue("MARGIN_AREA", self.marginArea)
-        self.settings.setValue("MARGIN_COLOR", self.marginColor)
-        self.settings.setValue("MARGIN_FONT_FAMILY", self.marginFontFamily)
-        self.settings.setValue("MARGIN_FONT_SIZE", self.marginSizeTxt)
-        self.settings.setValue(EDITOR_FONT_FAMILY_KEY, self.fontFamily)
-        self.settings.setValue(EDITOR_FONT_SIZE_KEY, self.sizeTxt)
-        self.settings.setValue(EDITOR_FONT_WEIGHT_KEY, self.fontWeight)
-        self.settings.setValue(EDITOR_FONT_ITALIC_KEY, self.fontItalic)
+        self._save_setting_group(_EDITOR_SETTINGS)
         self.settings.endGroup()
         self.settings.beginGroup("GENERAL")
-        self.settings.setValue("AUTO_UPDATE", self.autoUpdateEnabled)
-        self.settings.setValue("AUTO_UPDATE_MAX_SEGMENTS", self.autoUpdateMaxSegments)
-        self.settings.setValue("MAX_GENERATED_MOTIONS", self.maxGeneratedMotions)
+        self._save_setting_group(_GENERAL_SETTINGS)
         self.settings.remove("AUTO_UPDATE_MAX_LINES")
         self.settings.endGroup()
         self.settings.beginGroup("EXPORT_OPT")
         self.settings.setValue("MODE", self.exportMode)
         self.settings.setValue("ARC_MODE", self.exportArcMode)
         self.settings.remove("LANGUAGE")
-        self.settings.setValue("FORCE_ADDRESS", self.forceAdr)
-        self.settings.setValue("INCREMENTAL_MODE", self.incrMode)
-        self.settings.setValue("START_PROGRAM", self.startPgmExp)
-        self.settings.setValue("END_PROGRAM", self.endPgmExp)
-        self.settings.setValue("SAFETY_LINE", self.safLine)
-        self.settings.setValue("SEQ_NUM", self.seqNum)
-        self.settings.setValue("SEQ_NUM_START", self.seqNumStart)
-        self.settings.setValue("SEQ_NUM_INCR", self.seqNumIncr)
-        self.settings.setValue("SEQ_NUM_SPACING", self.seqNumSpacing)
-        self.settings.setValue("DELIMITER", self.delim)
-        self.settings.setValue("LEADING_ZERO", self.leadingZero)
+        self._save_setting_group(_EXPORT_SETTINGS)
         self.settings.remove("COMMENT_START")
         self.settings.remove("COMMENT_END")
-        self.settings.setValue("ER_CHAR", self.er)
         self.settings.endGroup()
         self.settings.beginGroup("GEOMETRY")
         self.settings.setValue("TOOLBAR_STATE", self.saveState(1))
@@ -574,10 +631,6 @@ class MainWindowSettingsMixin:
             self.settings.setValue("START_POS_Y", self.pos().y())
         self.settings.endGroup()
         self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
-        for key, value in (
-            ("LANGUAGE", self.uiLanguage),
-            ("THEME", self.uiTheme),
-            ("TOOLBAR_ICON_SIZE", self.toolbarIconSize),
-            ("LOGGING", self.loggingEnabled),
-        ):
-            self.settings.setValue(f"GENERAL/{key}", value)
+        self.settings.setValue("FILE/RECENT_STL_FILES", self.recentStlFiles)
+        self.settings.setValue("GENERAL/THEME", self.uiTheme)
+        self.settings.setValue("GENERAL/TOOLBAR_ICON_SIZE", self.toolbarIconSize)

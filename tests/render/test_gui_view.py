@@ -94,6 +94,7 @@ def test_lathe_fit_keeps_tall_stock_inside_widescreen_viewport(qt_app):
         RenderPoint(-152.5, 0.0, -222.7, None, 0, 0),
         RenderPoint(152.5, 0.0, 2.0, None, 1, 1),
     ]
+    window.ui.graphicsView.setProjectionMode("perspective")
     window.ui.graphicsView.resize(1536, 900)
     window.ui.graphicsView.opts["fov"] = 0.01
 
@@ -140,20 +141,46 @@ def test_lathe_zoom_uses_camera_distance_without_changing_near_zero_fov(qt_app):
     window.deleteLater()
 
 
-def test_milling_3d_zoom_keeps_existing_fov_behavior(qt_app):
+def test_milling_3d_zoom_changes_parallel_span_without_changing_fov(qt_app):
     window = MainWindow()
     window.ui.actionLatheMode.setChecked(False)
     qt_app.processEvents()
 
     view = window.ui.graphicsView
+    window.view3d()
+    assert view.isOrthographic()
     view.opts["fov"] = 60.0
     original_distance = float(view.opts["distance"])
+    original_width = view.orthographicWidth()
 
     window.zoomIn()
 
-    assert view.opts["fov"] < 60.0
+    assert view.opts["fov"] == pytest.approx(60.0)
     assert view.opts["distance"] == pytest.approx(original_distance)
+    assert view.orthographicWidth() == pytest.approx(original_width * 0.9)
     window.deleteLater()
+
+
+def test_milling_3d_parallel_projection_preserves_size_across_depth_and_orbit(qt_app):
+    window = MainWindow()
+    try:
+        window.ui.actionLatheMode.setChecked(False)
+        window.ui.graphicsView.resize(800, 500)
+        window.view3d()
+        view = window.ui.graphicsView
+        assert view.isOrthographic()
+
+        def screen_length(y):
+            start = window._project_world_to_screen(0, y, 0)  # pylint: disable=protected-access
+            end = window._project_world_to_screen(10, y, 0)  # pylint: disable=protected-access
+            return ((end[0] - start[0]) ** 2 + (end[1] - start[1]) ** 2) ** 0.5
+
+        assert screen_length(0) == pytest.approx(screen_length(20), rel=1e-6)
+        view.orbit(20, 10)
+        assert view.isOrthographic()
+        assert screen_length(0) == pytest.approx(screen_length(20), rel=1e-6)
+    finally:
+        window.deleteLater()
 
 
 @pytest.mark.parametrize(

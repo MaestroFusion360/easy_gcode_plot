@@ -21,7 +21,7 @@ $generatedUiDir = Join-Path $projectRootPath 'app\ui\generated'
 if (Test-Path -LiteralPath $generatedUiDir) {
     $sources += @(Get-ChildItem -LiteralPath $generatedUiDir -Filter '*.ui' -File -Recurse | ForEach-Object { $_.FullName })
 }
-foreach ($relativeDir in @('app\ui\dialogs', 'app\ui\windows', 'app\ui\plot', 'app\ui\support')) {
+foreach ($relativeDir in @('app\ui\dialogs', 'app\ui\windows', 'app\ui\plot', 'app\ui\panels', 'app\ui\support')) {
     $sourceDir = Join-Path $projectRootPath $relativeDir
     if (Test-Path -LiteralPath $sourceDir) {
         $sources += @(Get-ChildItem -LiteralPath $sourceDir -Filter '*.py' -File -Recurse | ForEach-Object { $_.FullName })

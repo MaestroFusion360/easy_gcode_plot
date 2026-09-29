@@ -1,6 +1,27 @@
 # Changelog
 
-## 1.6.8 - in progress
+## 1.6.9 - 2026-09-29
+
+- Switched the milling 3D camera to an orthographic CAD projection and kept it orthographic while orbiting from fixed views, so apparent feature size does not change with depth.
+- Refined the STL Objects panel with a dark-theme border, copyable statistics, visible base-point coordinates and a plot marker. Mesh measurements now account for float32 STL coordinate precision, and Section displays clipped 3D geometry with section caps and supports Clear/Undo.
+- Completed Russian localization of the STL Objects panel, compacted the operation pages, added Apply/Clear section controls, shortened array and positioning actions, renamed the minimum bounding-box base point, and removed the forced panel minimum width. Updated both FAQs and the README guidance.
+- Raised the default automatic-refresh segment and generated-motion limits to the QSpinBox upper bound (`2,147,483,647`); automatic refresh no longer applies a separate 20,000-point cap.
+- Updated STL section/statistics golden expectations for the current `test4.stl` asset and kept offscreen GUI tests from painting the OpenGL view when they only exercise editor actions or panel widgets.
+- Added a persistent Recent STL submenu after Clear STL in the File menu.
+- Replaced raster plot snapshots in Print with page-fitted vector toolpath rendering; all motions print regardless of playback position, with distinct rapid and cutting styles.
+- Removed the page heading from Print and added Plot settings for rapid visibility, rapid dashes, and colors by tool for both rapid and cutting moves. The settings apply to the 3D view and printed output and have Russian translations.
+- Matched on-screen rapid dashes to the short dash spacing used by Print at plot build and explicit view changes. Camera navigation now draws the resident VBO without rebuilding dash geometry on every frame.
+- Made Plot options more compact with paired checkboxes, playback speed last, and a shorter Options dialog.
+- Kept the milling `PROGRAM_START` event when the first block is eligible for native acceleration, and expanded native/Python trace parity checks across modal transitions.
+- A damaged user `rotary_profiles.json` no longer prevents the GUI from opening: menus use the installed profiles while strict kernel calls still report the invalid override.
+- Matched recent-file and save-path casing to the host platform, and moved restored windows back onto an available screen.
+- Solid STL overlays now write depth before the toolpath is drawn; trajectory segments behind the model are hidden. The plot requests a 24-bit depth buffer.
+- G71 now reports empty profiles and zero pass depth instead of producing an empty cycle. G72 Type II accepts repeated endpoint crossings on a closed contour while continuing to reject genuinely disjoint facing spans.
+- Consolidated simple Plot, Stock, CNC, Editor, General and Export preferences into shared load/save specifications with defaults, types and applicable bounds. Simplified turning-cycle, execution and tool-library code without changing its supported controller scope.
+- Delayed FAQ search while typing, retained immediate navigation, removed unused GUI compatibility wrappers, and labeled the text toolpath duration as estimated motion time.
+- Added a full Russian FAQ translation and kept the in-app FAQ content synchronized with the expanded English documentation.
+
+## 1.6.8 - 2026-09-28
 
 - Resolved duplicate hotkeys while loading older settings: Grid keeps its F4 default, and a conflicting legacy Fit to View F4 assignment is cleared before the Options hotkey list opens.
 - Brightened the Tool List toolbar icon and simplified the Hole Calculator icon to four blue markers for clearer display at 32×32.

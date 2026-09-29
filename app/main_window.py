@@ -61,7 +61,7 @@ from app.ui.windows.main_window_plot import (
     MainWindowPlotMixin,
 )
 from app.ui.windows.main_window_stock import MainWindowStockMixin
-from app.ui.windows.plot_printing import paint_plot_page
+from app.ui.windows.plot_printing import paint_plot_page, project_toolpath
 from app.ui.windows.window_settings import MainWindowSettingsMixin
 
 # Backward-compatible helper names used by existing GUI tests and callers.
@@ -112,7 +112,7 @@ class MainWindow(
 
     def _configure_rotary_kinematics_menu(self):
         """Expose indexed milling kinematics at the top of the Settings menu."""
-        catalog = load_catalog()
+        catalog = load_catalog(ignore_user_errors=True)
         saved = self.settings.value("CNC/ROTARY_KINEMATICS", "", type=str)
         self.rotaryKinematics = saved if saved in catalog and catalog[saved].enabled else None
 
@@ -131,7 +131,7 @@ class MainWindow(
         self._refresh_rotary_kinematics_menu(catalog)
 
     def _refresh_rotary_kinematics_menu(self, catalog=None):
-        catalog = catalog or load_catalog()
+        catalog = catalog or load_catalog(ignore_user_errors=True)
         menu = self._rotary_kinematics_menu
         menu.clear()
         previous_group = getattr(self, "_rotary_kinematics_group", None)
@@ -164,7 +164,7 @@ class MainWindow(
         self._rotary_kinematics_actions = actions
 
     def _select_rotary_kinematics(self, profile_id, *, force_refresh=False):
-        catalog = load_catalog()
+        catalog = load_catalog(ignore_user_errors=True)
         if profile_id is not None and (profile_id not in catalog or not catalog[profile_id].enabled):
             profile_id = None
         changed = profile_id != getattr(self, "rotaryKinematics", None)
@@ -231,6 +231,7 @@ class MainWindow(
             self.ui.actionGroupArcType.addAction(action)
 
         self._configure_file_type_button()
+        self._configure_stl_panel()
 
         self._toolbar_action_icons = {
             action: action.icon()
@@ -452,6 +453,7 @@ class MainWindow(
         self.ui.actionNew.triggered.connect(self.newFile)
         self.ui.actionOpen.triggered.connect(self.openFile)
         self._setup_recent_files_menu()
+        self._setup_recent_stl_menu()
         self.ui.actionSave.triggered.connect(self.save)
         self.ui.actionSaveAs.triggered.connect(self.saveAs)
         self.ui.actionExportData.triggered.connect(lambda: self.exportDlg.show())
@@ -537,60 +539,28 @@ class MainWindow(
             self.optionsDlg.ui.arcToleranceSpin.setEnabled(True)
 
     def printPlot(self):
-        """Preview a snapshot of the visible plot, then print through Qt."""
+        """Preview the complete toolpath in the current camera orientation."""
         view = self.ui.graphicsView
-        if not view.isVisible() or view.width() <= 0 or view.height() <= 0:
-            QMessageBox.warning(self, "Print", "The plot is not visible for printing.")
+        item = getattr(self, "_toolpath_item", None)
+        if item is None or not item.segments:
+            QMessageBox.warning(self, "Print", "There is no toolpath to print.")
             return
-        image = self._capturePrintPlot()
-        if image.isNull():
-            QMessageBox.warning(self, "Print", "Could not capture the current plot.")
-            return
+        segments = project_toolpath(
+            item.source_segments, view.viewMatrix(), show_rapid=getattr(self, "plotShowRapid", True)
+        )
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
         printer.setPageOrientation(QPageLayout.Orientation.Landscape)
         preview = QPrintPreviewDialog(printer, self)
         preview.setWindowTitle("Print plot")
-        preview.paintRequested.connect(lambda target: paint_plot_page(target, image))
-        preview.exec()
-
-    def _capturePrintPlot(self):
-        """Capture a white-page rendering, then restore the visible plot style."""
-        attributes = (
-            "plotBackground",
-            "plotBackgroundGradient",
-            "plotGridColor",
-            "plotRapidColor",
-            "plotLineColor",
-            "plotArcColor",
-            "plotCurrentColor",
-            "plotToolColor",
+        preview.paintRequested.connect(
+            lambda target: paint_plot_page(
+                target,
+                segments,
+                dashed_rapid=getattr(self, "plotDashedRapid", True),
+                color_by_tool=getattr(self, "plotColorByTool", False),
+            )
         )
-        original = {name: getattr(self, name) for name in attributes}
-        print_style = {
-            "plotBackground": "#ffffff",
-            "plotBackgroundGradient": False,
-            "plotGridColor": "#dddddd",
-            "plotRapidColor": "#000000",
-            "plotLineColor": "#000000",
-            "plotArcColor": "#000000",
-            "plotCurrentColor": "#000000",
-            "plotToolColor": "#000000",
-        }
-        try:
-            for name, value in print_style.items():
-                setattr(self, name, value)
-            self.loadPlot()
-            self._create_trace_items()
-            if self.execution_result is not None and self.execution_result.motions:
-                self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
-            return self.ui.graphicsView.grabFramebuffer()
-        finally:
-            for name, value in original.items():
-                setattr(self, name, value)
-            self.loadPlot()
-            self._create_trace_items()
-            if self.execution_result is not None and self.execution_result.motions:
-                self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
+        preview.exec()
 
     def changeArcType(self):
         """Change arc mode between relative, absolute, or radius modes."""

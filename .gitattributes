@@ -1,5 +1,6 @@
-# Keep Windows project files consistent across Git and IDE settings.
-* text=auto eol=crlf
+# Store text with LF in Git. Use each platform's Git checkout setting
+# (core.autocrlf=true on Windows, false on Linux) for working-tree endings.
+* text=auto
 
 # Shell scripts are executed by Bash in Linux CI and must stay LF.
 *.sh text eol=lf

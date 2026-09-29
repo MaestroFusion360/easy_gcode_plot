@@ -8,6 +8,7 @@ import pytest
 from app.gcode.kernel import execute
 from app.gcode.kernel.frontend.model import Point2, ProfileSegment
 from app.gcode.kernel.resources import ExecutionLimits, SemanticError
+from app.gcode.kernel.turning.cycles import g71 as g71_module
 from app.gcode.kernel.turning.cycles import g72 as g72_module
 from app.gcode.kernel.turning.cycles import g76 as cycle_module
 from app.gcode.kernel.turning.type_a import (
@@ -318,6 +319,22 @@ def test_g72_type_ii_lone_interior_crossing_is_diagnostic(monkeypatch):
     assert exc_info.value.code == "AMBIGUOUS_G72_TYPE_II_PROFILE"
 
 
+def test_g72_type_ii_closed_edge_deduplicates_repeated_endpoint_crossing():
+    points = (Point2(10, 0), Point2(20, 0), Point2(20, -5), Point2(10, -5), Point2(10, 0))
+    profile = [
+        ProfileSegment(index, 1, start, end, False, 0, False, Point2(0, 0))
+        for index, (start, end) in enumerate(zip(points, points[1:]))
+    ]
+
+    motions = g72_module.build_g72_facing(profile, 25, 1, 1, 0.2, 0, 0, 100, type_ii=True)
+    facing = [motion for motion in motions if motion.move == 1 and motion.start.z == motion.end.z]
+
+    assert facing
+    assert facing[0].start.z == pytest.approx(0)
+    assert {facing[0].start.x, facing[0].end.x} == {10, 20}
+    assert motions[-1].end == Point2(25, 1)
+
+
 def test_g72_rejects_empty_profile_and_zero_pass_depth():
     segment = ProfileSegment(0, 1, Point2(10, 0), Point2(20, -5), False, 0, False, Point2(0, 0))
 
@@ -325,6 +342,59 @@ def test_g72_rejects_empty_profile_and_zero_pass_depth():
         g72_module.build_g72_facing([], 20, 1, 1, 0.5, 0, 0, 100, type_ii=True)
     with pytest.raises(SemanticError, match="pass depth must be nonzero"):
         g72_module.build_g72_facing([segment], 20, 1, 0, 0.5, 0, 0, 100, type_ii=True)
+
+
+def test_g71_rejects_empty_profile_and_zero_pass_depth():
+    segment = ProfileSegment(0, 1, Point2(20, 0), Point2(10, -10), False, 0, False, Point2(0, 0))
+
+    with pytest.raises(SemanticError) as empty:
+        g71_module.build_g71_roughing([], 24, 1, 2, 0.2, 0, 100, boring_mode=False)
+    assert empty.value.code == "INVALID_G71_PROFILE"
+
+    with pytest.raises(SemanticError) as zero_depth:
+        g71_module.build_g71_roughing([segment], 24, 1, 0, 0.2, 0, 100, boring_mode=False)
+    assert zero_depth.value.code == "INVALID_G71_DEPTH"
+
+
+def test_g71_zero_depth_reports_diagnostic_without_partial_cycle():
+    source = "G21 G18 G90\nG0 X24 Z1\nG71 U0 R0.2\nG71 P10 Q20 U0 W0 F100\nN10 G0 X20\nN20 G1 X10 Z-10\nM30"
+    result = execute(source, language="fanuc_turn")
+
+    assert not result.ok
+    assert any(diagnostic.code == "INVALID_G71_DEPTH" for diagnostic in result.diagnostics)
+    assert not any(motion.cycle_generated for motion in result.motions)
+
+
+def test_g71_g72_exact_last_plane_and_return_to_cycle_start():
+    segment = ProfileSegment(0, 1, Point2(20, 0), Point2(10, -10), False, 0, False, Point2(0, 0))
+    profile = [segment]
+
+    longitudinal = g71_module.build_g71_roughing(profile, 24, 1, 2, 0.2, 0, 100, boring_mode=False)
+    facing = g72_module.build_g72_facing(profile, 24, 2, 2, 0.2, 0, 0, 100)
+
+    longitudinal_depths = [
+        motion.start.x for motion in longitudinal if motion.move == 1 and motion.start.x == motion.end.x
+    ]
+    facing_planes = [motion.start.z for motion in facing if motion.move == 1 and motion.start.z == motion.end.z]
+    assert longitudinal_depths == pytest.approx([20, 16, 12])
+    assert facing_planes == pytest.approx([0, -2, -4, -6, -8, -10])
+    assert longitudinal[-1].end == Point2(24, 1)
+    assert facing[-1].end == Point2(24, 2)
+
+
+def test_g71_boring_and_g72_reverse_facing_reach_last_plane():
+    segment = ProfileSegment(0, 1, Point2(10, 0), Point2(20, -10), False, 0, False, Point2(0, 0))
+    profile = [segment]
+
+    boring = g71_module.build_g71_roughing(profile, 6, 1, 2, 0.2, 0, 100, boring_mode=True)
+    reverse_facing = g72_module.build_g72_facing(profile, 24, -12, 2, 0.2, 0, 0, 100)
+
+    boring_depths = [motion.start.x for motion in boring if motion.move == 1 and motion.start.x == motion.end.x]
+    facing_planes = [motion.start.z for motion in reverse_facing if motion.move == 1 and motion.start.z == motion.end.z]
+    assert boring_depths == pytest.approx([10, 14, 18])
+    assert facing_planes == pytest.approx([-10, -8, -6, -4, -2, 0])
+    assert boring[-1].end == Point2(6, 1)
+    assert reverse_facing[-1].end == Point2(24, -12)
 
 
 def test_type_a_mapping_is_complete_and_does_not_admit_future_codes():

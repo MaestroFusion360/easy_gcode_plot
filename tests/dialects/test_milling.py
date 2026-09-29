@@ -66,6 +66,21 @@ def test_rotary_profile_override_is_persistent_and_does_not_edit_installed_catal
     assert load_catalog()["4ax_table_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
 
 
+def test_invalid_user_rotary_catalog_is_strict_by_default_and_has_explicit_fallback():
+    path = user_catalog_path()
+    path.write_text("{broken json", encoding="utf-8")
+
+    with pytest.raises(InvalidKinematicsProfile):
+        load_catalog()
+
+    fallback = load_catalog(ignore_user_errors=True)
+    assert {key for key, profile in fallback.items() if profile.enabled} == {
+        "4ax_table_a",
+        "4ax_table_b",
+        "4ax_table_c",
+    }
+
+
 def test_g10_at_rotary_index_preserves_machine_position_and_rebases_next_move():
     source = "G21 G90 G54\nG0 X10 Z20\nB90\nG10 L2 P1 X100 Z5\nG0 X10 Z20\nM30"
     result = execute(source, language="fanuc_mill", kinematics="4ax_table_b")

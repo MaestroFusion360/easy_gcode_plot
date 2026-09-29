@@ -61,6 +61,31 @@ def _emit_facing_pass(
     return tool
 
 
+def _facing_candidates(profile, pass_z, pass_dir, z_min, z_max, type_ii):
+    """Find contour crossings or the Type I stock-side fallback."""
+    candidates = _distinct_in_profile_order(_profile_intersections_at_z(profile, pass_z))
+    if candidates:
+        return candidates
+    stock_side = (pass_dir < 0.0 and pass_z > z_max + 1e-8) or (pass_dir > 0.0 and pass_z < z_min - 1e-8)
+    if not type_ii and stock_side:
+        # Before a facing plane reaches the P-Q contour, Q's programmed X
+        # remains the deterministic inner limit for a Type I pass.
+        return [profile[-1].end.x]
+    return []
+
+
+def _append_facing_contour(motions, profile, stock_x, tool, feed, type_ii):
+    """Add the final rough-profile pass."""
+    contour_start = profile[0].start
+    contour_rapid = Point2(stock_x, contour_start.z)
+    if type_ii:
+        add_rapid_orthogonal(motions, tool, contour_rapid, first_axis="z")
+    else:
+        add_motion(motions, 0, tool, contour_rapid)
+    add_motion(motions, 0, contour_rapid, contour_start)
+    _append_profile_trace(motions, profile, feed)
+
+
 def build_g72_facing(
     profile: list[ProfileSegment],
     stock_x: float,
@@ -106,23 +131,13 @@ def build_g72_facing(
         guard += 1
         if guard > 10000:
             raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
-        cand = _distinct_in_profile_order(_profile_intersections_at_z(profile, pass_z))
+        cand = _facing_candidates(profile, pass_z, pass_dir, z_min, z_max, type_ii)
         if not cand:
-            stock_side_of_profile = (pass_dir < 0.0 and pass_z > z_max + 1e-8) or (
-                pass_dir > 0.0 and pass_z < z_min - 1e-8
-            )
-            if not type_ii and stock_side_of_profile:
-                # G72 Type I faces every W plane between the saved cycle start
-                # and the P-Q contour. Before a plane reaches the contour's Z
-                # range, Q's programmed X is the deterministic inner limit;
-                # absence of a geometric intersection does not cancel a pass.
-                cand = [profile[-1].end.x]
-            else:
-                if abs(pass_z - limit_z) <= 1e-9:
-                    break
-                next_z = pass_z + pass_dir * step_z
-                pass_z = max(next_z, limit_z) if pass_dir < 0.0 else min(next_z, limit_z)
-                continue
+            if abs(pass_z - limit_z) <= 1e-9:
+                break
+            next_z = pass_z + pass_dir * step_z
+            pass_z = max(next_z, limit_z) if pass_dir < 0.0 else min(next_z, limit_z)
+            continue
         span = _facing_span(cand, stock_x, boring_mode, saw_closed_span, pass_z, limit_z, type_ii)
         if span is None:
             break
@@ -154,17 +169,7 @@ def build_g72_facing(
 
     # Add one contour-following pass on the rough profile (with U/W allowances applied),
     # matching the preview style expected from longitudinal roughing behavior.
-    if profile:
-        contour_start = profile[0].start
-        contour_rapid = Point2(stock_x, contour_start.z)
-        if type_ii:
-            add_rapid_orthogonal(motions, tool, contour_rapid, first_axis="z")
-        else:
-            add_motion(motions, 0, tool, contour_rapid)
-        add_motion(motions, 0, contour_rapid, contour_start)
-        # Keep contour pass geometry faithful to the programmed profile.
-        _append_profile_trace(motions, profile, feed)
-        tool = motions[-1].end
+    _append_facing_contour(motions, profile, stock_x, tool, feed, type_ii)
 
     ensure_cycle_return(motions, Point2(stock_x, stock_z), first_axis="z")
     return motions

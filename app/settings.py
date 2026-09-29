@@ -109,9 +109,10 @@ FONT_SIZE_MIN = 6
 FONT_SIZE_MAX = 48
 AUTO_UPDATE_SEGMENTS_MIN = 1000
 AUTO_UPDATE_SEGMENTS_MAX = 2_147_483_647
+AUTO_UPDATE_SEGMENTS_DEFAULT = AUTO_UPDATE_SEGMENTS_MAX
 GENERATED_MOTIONS_MIN = 1
 GENERATED_MOTIONS_MAX = 2_147_483_647
-GENERATED_MOTIONS_DEFAULT = 200_000
+GENERATED_MOTIONS_DEFAULT = GENERATED_MOTIONS_MAX
 LINE_WIDTH_MIN = 0.25
 LINE_WIDTH_MAX = 6.0
 
@@ -246,16 +247,23 @@ def save_milling_tools(tools: dict[str, dict]) -> bool:
         return False
 
 
+def _recent_file_key(path: str) -> str:
+    normalized = path.replace("\\", "/")
+    windows_like = (
+        len(normalized) >= 3 and normalized[0].isalpha() and normalized[1] == ":" and normalized[2] == "/"
+    ) or normalized.startswith("//")
+    if os.name == "nt" or windows_like:
+        return normalized.casefold()
+    return normalized
+
+
 def normalized_recent_files(paths, limit=RECENT_FILES_LIMIT):
-    """Return a stable, case-insensitive MRU list without empty values."""
+    """Return a stable MRU list using platform-appropriate path casing."""
     out = []
     seen = set()
     for value in paths or []:
         path = str(value).strip()
-        # Recent documents may contain Windows paths even when settings are
-        # inspected or migrated on Linux. os.path.normcase() is a no-op there,
-        # so normalize separators and case explicitly for stable behavior.
-        key = path.replace("\\", "/").casefold()
+        key = _recent_file_key(path)
         if not path or key in seen:
             continue
         out.append(path)

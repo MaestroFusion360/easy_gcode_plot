@@ -2,21 +2,43 @@
 
 import logging
 import math
+from dataclasses import dataclass, replace
+from pathlib import Path
 from time import perf_counter
 
+import numpy as np
 from OpenGL import GL
-from PyQt6.QtCore import QCoreApplication, QSignalBlocker
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker, Qt
 from PyQt6.QtGui import QColor, QMatrix4x4, QQuaternion, QVector3D, QVector4D
-from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox
-from pyqtgraph.opengl import GLGridItem, GLScatterPlotItem
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QHBoxLayout,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QVBoxLayout,
+)
+from pyqtgraph.opengl import GLGridItem, GLLinePlotItem, GLScatterPlotItem
 
 from app.tools.definitions import DEFAULT_MILLING_TOOL
+from app.ui.panels.stl_objects_panel import StlObjectsPanel
 from app.ui.plot.axis_triad import AxisTriadItem
 from app.ui.plot.milling_tool_preview import MillingToolPreviewItem
 from app.ui.plot.plot_grid import adaptive_grid_geometry
 from app.ui.plot.plot_navigation import point_segment_distance as _point_segment_distance
-from app.ui.plot.stl import StlMesh, read_stl
+from app.ui.plot.stl import StlMesh, mesh_from_triangles, read_stl
 from app.ui.plot.stl_overlay import StlOverlay
+from app.ui.plot.stl_transform import (
+    MeshMeasurements,
+    StlObject,
+    circular_array,
+    clip_mesh,
+    measure_mesh,
+    rectangular_array,
+)
 from app.ui.plot.toolpath_vbo import ToolpathVboItem, segments_from_render_points
 
 PICK_DISTANCE_PX = 8.0
@@ -66,9 +88,128 @@ def _render_point_bounds(points):
     return tuple((lows[axis], highs[axis]) for axis in range(3))
 
 
+def _bounds_exceed_milling_camera(view, bounds):
+    matrix = view.viewMatrix()
+    camera_center = matrix * QVector4D(view.opts["center"], 1.0)
+    aspect = max(float(view.width()), 1.0) / max(float(view.height()), 1.0)
+    distance = float(view.opts["distance"])
+    tangent = math.tan(math.radians(max(float(view.opts.get("fov", 60.0)), 0.01)) / 2.0)
+    for x in bounds[0]:
+        for y in bounds[1]:
+            for z in bounds[2]:
+                corner = matrix * QVector4D(x, y, z, 1.0)
+                lateral = max(abs(corner.x() - camera_center.x()), abs(corner.y() - camera_center.y()) * aspect)
+                if view.isOrthographic():
+                    if lateral > view.orthographicWidth() * 0.4:
+                        return True
+                    continue
+                depth = corner.z() - camera_center.z()
+                half_width = (distance - depth) * tangent * 0.8
+                if half_width <= 0 or lateral > half_width:
+                    return True
+    return False
+
+
+@dataclass
+class _StlSceneEntry:
+    obj: StlObject
+    overlay: StlOverlay
+    measurements: MeshMeasurements | None = None
+    section_overlay: StlOverlay | None = None
+
+
+@dataclass(frozen=True)
+class _StlSceneState:
+    objects: tuple[StlObject, ...]
+    selected_row: int
+    section: tuple[int, str, float, bool] | None
+
+
 class MainWindowPlotMixin:
+    def _configure_stl_panel(self):
+        """Create the runtime STL object dock without modifying generated Designer files."""
+        self._stl_entries = []
+        self._stl_section_item = None
+        self._stl_section_spec = None
+        self._stl_pivot_item = None
+        self._stl_bbox_item = None
+        self._stl_bbox_picks_item = None
+        self._stl_bbox_entry = None
+        self._stl_bbox_picked_index = None
+        self._stl_undo = []
+        self._stl_redo = []
+        self.stlObjectsDock = StlObjectsPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.stlObjectsDock)
+        self.ui.menuSettings.insertAction(self.ui.actionOptions, self.stlObjectsDock.toggleViewAction())
+        self.stlObjectsDock.hide()
+
+        panel = self.stlObjectsDock
+        panel.selectionChanged.connect(self._stl_selection_changed)
+        panel.deleteRequested.connect(self.removeSelectedStl)
+        panel.statisticsRequested.connect(self._show_selected_stl_statistics)
+        panel.pivotRequested.connect(self._set_selected_stl_pivot)
+        panel.moveRequested.connect(self._move_selected_stl)
+        panel.rotateRequested.connect(self._rotate_selected_stl)
+        panel.mirrorRequested.connect(self._mirror_selected_stl)
+        panel.scaleRequested.connect(self._scale_selected_stl)
+        panel.circularArrayRequested.connect(self._circular_array_selected_stl)
+        panel.rectangularArrayRequested.connect(self._rectangular_array_selected_stl)
+        panel.sectionRequested.connect(self._section_selected_stl)
+        panel.clearSectionRequested.connect(self._clear_stl_section_with_history)
+        panel.undoRequested.connect(self.undoStl)
+        panel.redoRequested.connect(self.redoStl)
+        panel.set_history_available(undo=False, redo=False)
+
+    def _capture_stl_scene(self):
+        return _StlSceneState(
+            tuple(entry.obj for entry in self._stl_entries),
+            self.stlObjectsDock.objectList.currentRow(),
+            self._stl_section_spec,
+        )
+
+    def _record_stl_edit(self):
+        self._stl_undo.append(self._capture_stl_scene())
+        del self._stl_undo[:-50]
+        self._stl_redo.clear()
+        self.stlObjectsDock.set_history_available(undo=True, redo=False)
+
+    def _restore_stl_scene(self, state):
+        self.clearStlSection()
+        for entry in self._stl_entries:
+            self._replace_scene_item(entry.overlay.item, None)
+        self._stl_entries.clear()
+        for obj in state.objects:
+            overlay = StlOverlay(obj)
+            item = overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+            self._stl_entries.append(_StlSceneEntry(obj, overlay))
+            self._replace_scene_item(None, item)
+        self._sync_stl_panel(state.selected_row)
+        self.stlObjectsDock.setVisible(bool(state.objects))
+        if state.section is not None:
+            row, axis, offset, keep_positive = state.section
+            self._show_stl_section(row, axis, offset, keep_positive)
+        self._restore_trace_overlay_order()
+        if self.render_points or state.objects:
+            self.fitToView()
+
+    def undoStl(self):
+        if not self._stl_undo:
+            return False
+        self._stl_redo.append(self._capture_stl_scene())
+        self._restore_stl_scene(self._stl_undo.pop())
+        self.stlObjectsDock.set_history_available(undo=bool(self._stl_undo), redo=True)
+        return True
+
+    def redoStl(self):
+        if not self._stl_redo:
+            return False
+        self._stl_undo.append(self._capture_stl_scene())
+        self._restore_stl_scene(self._stl_redo.pop())
+        self.stlObjectsDock.set_history_available(undo=True, redo=bool(self._stl_redo))
+        return True
+
     def importStl(self, path=None):
-        """Import an STL model as a persistent overlay in the plot scene."""
+        """Import an STL model as another editable object in the plot scene."""
         if not path:
             path, _selected_filter = QFileDialog.getOpenFileName(
                 self,
@@ -80,10 +221,11 @@ class MainWindowPlotMixin:
             return False
         try:
             mesh = read_stl(path)
-            self._set_stl_mesh(mesh)
+            self._add_stl_mesh(mesh, Path(path).name)
         except (OSError, ValueError) as exc:
             QMessageBox.critical(self, "STL Import Error", str(exc))
             return False
+        self._add_recent_stl(path)
         self.ui.statusbar.showMessage(
             QCoreApplication.translate("MainWindow", "Imported STL: {0:,} triangles").format(mesh.triangle_count), 5000
         )
@@ -102,9 +244,13 @@ class MainWindowPlotMixin:
             view.addItem(new_item)
 
     def _restore_trace_overlay_order(self):
-        """Keep the toolpath/cursor above the opaque STL without rebuilding their buffers."""
+        """Keep the toolpath/cursor above opaque STL objects without rebuilding buffers."""
         view = self.ui.graphicsView
         for item in (
+            getattr(self, "_stl_section_item", None),
+            getattr(self, "_stl_bbox_item", None),
+            getattr(self, "_stl_bbox_picks_item", None),
+            getattr(self, "_stl_pivot_item", None),
             getattr(self, "_toolpath_item", None),
             getattr(self, "_cursor_item", None),
             getattr(self, "_milling_tool_item", None),
@@ -113,42 +259,381 @@ class MainWindowPlotMixin:
                 view.removeItem(item)
                 view.addItem(item)
 
-    def _set_stl_mesh(self, mesh: StlMesh):
-        old_overlay = getattr(self, "_stl_overlay", None)
-        old_item = old_overlay.item if old_overlay is not None else None
-        overlay = StlOverlay(mesh)
-        new_item = overlay.item_for(
-            getattr(self, "stlColor", "#b0b0b0"),
-            getattr(self, "stlWireframe", False),
-        )
-        self._stl_overlay = overlay
-        self._replace_scene_item(old_item, new_item)
-        self._restore_trace_overlay_order()
-        self.ui.actionClearSTL.setEnabled(True)
+    def _unique_stl_name(self, requested: str) -> str:
+        existing = {entry.obj.name for entry in self._stl_entries}
+        if requested not in existing:
+            return requested
+        stem = Path(requested).stem or requested
+        suffix = Path(requested).suffix
+        index = 2
+        while f"{stem} ({index}){suffix}" in existing:
+            index += 1
+        return f"{stem} ({index}){suffix}"
+
+    def _add_stl_mesh(self, mesh: StlMesh, name: str = "STL"):
+        obj = StlObject(mesh=mesh, name=self._unique_stl_name(name)).set_pivot("center")
+        if self._stl_entries:
+            self._record_stl_edit()
+        else:
+            # The first imported model establishes the scene baseline. Undo must
+            # never restore the empty scene and make the STL dock disappear.
+            self._stl_undo.clear()
+            self._stl_redo.clear()
+            self.stlObjectsDock.set_history_available(undo=False, redo=False)
+        self._append_stl_object(obj, select=True)
+        self.stlObjectsDock.show()
         self.fitToView()
 
-    def refreshStlAppearance(self):
-        """Rebuild only the active STL GL item when its visual style actually changed."""
-        overlay = getattr(self, "_stl_overlay", None)
-        if overlay is None:
-            return False
-        old_item = overlay.item
-        new_item = overlay.item_for(
-            getattr(self, "stlColor", "#b0b0b0"),
-            getattr(self, "stlWireframe", False),
+    def _append_stl_object(self, obj: StlObject, *, select: bool):
+        overlay = StlOverlay(obj)
+        item = overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+        self._stl_entries.append(_StlSceneEntry(obj=obj, overlay=overlay))
+        self._replace_scene_item(None, item)
+        row = len(self._stl_entries) - 1 if select else self.stlObjectsDock.objectList.currentRow()
+        self._sync_stl_panel(row)
+        self._restore_trace_overlay_order()
+        self.ui.actionClearSTL.setEnabled(True)
+
+    def _selected_stl_entry(self):
+        row = self.stlObjectsDock.objectList.currentRow()
+        if 0 <= row < len(self._stl_entries):
+            return row, self._stl_entries[row]
+        return None, None
+
+    def _pivot_mode(self, obj: StlObject) -> str:
+        return obj.pivot_mode
+
+    def _sync_stl_panel(self, current_row=None):
+        if current_row is None:
+            current_row = self.stlObjectsDock.objectList.currentRow()
+        self.stlObjectsDock.set_objects((entry.obj.name for entry in self._stl_entries), current_row)
+        self.ui.actionClearSTL.setEnabled(bool(self._stl_entries))
+        self._stl_selection_changed(self.stlObjectsDock.objectList.currentRow())
+
+    def _stl_selection_changed(self, row: int):
+        if not 0 <= row < len(self._stl_entries):
+            self.stlObjectsDock.set_measurements(None)
+            self._update_stl_pivot_marker(None)
+            return
+        obj = self._stl_entries[row].obj
+        self.stlObjectsDock.set_object_state(
+            pivot_mode=self._pivot_mode(obj),
+            pivot=obj.pivot,
+            world_pivot=obj.world_pivot(),
         )
-        self._replace_scene_item(old_item, new_item)
-        if new_item is not old_item:
+        measurements = measure_mesh(obj.world_triangles())
+        self._stl_entries[row].measurements = measurements
+        self.stlObjectsDock.set_measurements(measurements)
+        self._update_stl_pivot_marker(obj.world_pivot())
+        self._update_stl_bbox_overlay(row)
+
+    def _update_stl_pivot_marker(self, point):
+        old_item = self._stl_pivot_item
+        if old_item is not None and old_item in self.ui.graphicsView.items:
+            self.ui.graphicsView.removeItem(old_item)
+        self._stl_pivot_item = None
+        if point is None:
+            return
+        item = GLScatterPlotItem(
+            pos=np.asarray((point,), dtype=np.float32),
+            color=(1.0, 0.56, 0.08, 1.0),
+            size=12,
+            pxMode=True,
+        )
+        item.setGLOptions({GL.GL_DEPTH_TEST: False, GL.GL_BLEND: True, "glDepthMask": (False,)})
+        self._stl_pivot_item = item
+        self.ui.graphicsView.addItem(item)
+        self._restore_trace_overlay_order()
+
+    def _update_stl_bbox_overlay(self, selected_row):
+        view = self.ui.graphicsView
+        for attribute in ("_stl_bbox_item", "_stl_bbox_picks_item"):
+            item = getattr(self, attribute, None)
+            if item is not None and item in view.items:
+                view.removeItem(item)
+            setattr(self, attribute, None)
+        if not 0 <= selected_row < len(self._stl_entries):
+            self._stl_bbox_entry = None
+            return
+        entry = self._stl_entries[selected_row]
+        obj = entry.obj
+        if obj.pivot_mode == "min":
+            if self._stl_bbox_entry is not entry:
+                self._stl_bbox_picked_index = None
+            self._stl_bbox_entry = entry
+        elif obj.pivot_mode != "custom" or self._stl_bbox_entry is not entry:
+            self._stl_bbox_entry = None
+        if self._stl_bbox_entry is not entry:
+            return
+        bounds = entry.overlay.bounds
+        corners = np.asarray(
+            [(x, y, z) for x in bounds[0] for y in bounds[1] for z in bounds[2]],
+            dtype=np.float32,
+        )
+        edges = ((0, 1), (0, 2), (0, 4), (1, 3), (1, 5), (2, 3), (2, 6), (3, 7), (4, 5), (4, 6), (5, 7), (6, 7))
+        line_positions = np.asarray([corners[index] for edge in edges for index in edge], dtype=np.float32)
+        color = (1.0, 0.56, 0.08, 1.0)
+        line = GLLinePlotItem(pos=line_positions, color=color, width=2.0, antialias=True, mode="lines")
+        line.setGLOptions({GL.GL_DEPTH_TEST: False, GL.GL_BLEND: True, "glDepthMask": (False,)})
+        pick_positions = corners
+        pick_colors = np.tile(color, (8, 1))
+        pick_sizes = np.full(8, 10.0, dtype=np.float32)
+        if self._stl_bbox_picked_index is not None:
+            pick_colors[self._stl_bbox_picked_index] = (0.15, 0.9, 1.0, 1.0)
+            pick_sizes[self._stl_bbox_picked_index] = 16.0
+        picks = GLScatterPlotItem(pos=pick_positions, color=pick_colors, size=pick_sizes, pxMode=True)
+        picks.setGLOptions({GL.GL_DEPTH_TEST: False, GL.GL_BLEND: True, "glDepthMask": (False,)})
+        self._stl_bbox_item = line
+        self._stl_bbox_picks_item = picks
+        view.addItem(line)
+        view.addItem(picks)
+        self._restore_trace_overlay_order()
+
+    def _pick_stl_bbox_point(self, position):
+        _row, entry = self._selected_stl_entry()
+        if entry is None or entry is not self._stl_bbox_entry or self._stl_bbox_picks_item is None:
+            return False
+        px, py = float(position.x()), float(position.y())
+        best_index, best_distance = None, PICK_DISTANCE_PX
+        for index, point in enumerate(self._stl_bbox_picks_item.pos):
+            projected = self._project_world_to_screen(*point)
+            if projected is None:
+                continue
+            distance = math.hypot(px - projected[0], py - projected[1])
+            if distance <= best_distance:
+                best_index, best_distance = index, distance
+        if best_index is None:
+            return False
+        self._stl_bbox_picked_index = best_index
+        bounds = entry.overlay.bounds
+        corner_index = best_index
+        corner = np.asarray(
+            [
+                bounds[0][(corner_index >> 2) & 1],
+                bounds[1][(corner_index >> 1) & 1],
+                bounds[2][corner_index & 1],
+            ],
+            dtype=float,
+        )
+        source_point = (np.linalg.inv(entry.obj.matrix) @ np.append(corner, 1.0))[:3]
+        self._stl_bbox_entry = entry
+        self._replace_selected_stl_object(entry.obj.set_pivot("custom", source_point), geometry_changed=False)
+        return True
+
+    def _show_selected_stl_statistics(self):
+        _row, entry = self._selected_stl_entry()
+        if entry is None:
+            return
+        if entry.measurements is None:
+            entry.measurements = measure_mesh(entry.obj.world_triangles())
+        self.stlObjectsDock.set_measurements(entry.measurements)
+        dialog = QDialog(self)
+        dialog.setWindowTitle(QCoreApplication.translate("MainWindow", "STL Statistics"))
+        layout = QVBoxLayout(dialog)
+        text = QPlainTextEdit(dialog)
+        text.setObjectName("stlStatisticsText")
+        text.setReadOnly(True)
+        text.setMinimumSize(440, 150)
+        layout.addWidget(text)
+        inches = QCheckBox(QCoreApplication.translate("MainWindow", "Inches"), dialog)
+        inches.setObjectName("stlStatisticsInchesCheck")
+        inches.toggled.connect(
+            lambda checked: text.setPlainText(
+                self.stlObjectsDock.format_measurements(entry.measurements, inches=checked)
+            )
+        )
+        text.setPlainText(self.stlObjectsDock.format_measurements(entry.measurements))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, parent=dialog)
+        buttons.rejected.connect(dialog.reject)
+        buttons.accepted.connect(dialog.accept)
+        buttons.button(QDialogButtonBox.StandardButton.Close).clicked.connect(dialog.accept)
+        controls = QHBoxLayout()
+        controls.addWidget(inches)
+        controls.addStretch(1)
+        controls.addWidget(buttons)
+        layout.addLayout(controls)
+        dialog.exec()
+
+    def _replace_selected_stl_object(self, obj: StlObject, *, geometry_changed: bool):
+        row, entry = self._selected_stl_entry()
+        if entry is None:
+            return False
+        if (
+            np.array_equal(entry.obj.matrix, obj.matrix)
+            and entry.obj.pivot == obj.pivot
+            and entry.obj.pivot_mode == obj.pivot_mode
+        ):
+            return False
+        self._record_stl_edit()
+        if geometry_changed:
+            self.clearStlSection()
+        old_item = entry.overlay.item
+        entry.obj = obj
+        if geometry_changed:
+            entry.overlay.set_object(obj)
+            new_item = entry.overlay.item_for(
+                getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False)
+            )
+            self._replace_scene_item(old_item, new_item)
             self._restore_trace_overlay_order()
-        return new_item is not old_item
+        else:
+            entry.overlay.object = obj
+        self._sync_stl_panel(row)
+        if geometry_changed:
+            self.fitToView()
+        return True
+
+    def _set_selected_stl_pivot(self, mode: str, point):
+        _row, entry = self._selected_stl_entry()
+        if entry is not None:
+            self._replace_selected_stl_object(entry.obj.set_pivot(mode, point), geometry_changed=False)
+
+    def _move_selected_stl(self, target):
+        _row, entry = self._selected_stl_entry()
+        if entry is not None:
+            self._replace_selected_stl_object(entry.obj.move_pivot_to(target), geometry_changed=True)
+
+    def _rotate_selected_stl(self, axis: str, angle: float):
+        _row, entry = self._selected_stl_entry()
+        if entry is not None:
+            self._replace_selected_stl_object(entry.obj.rotate(axis, angle), geometry_changed=True)
+
+    def _mirror_selected_stl(self, plane: str):
+        _row, entry = self._selected_stl_entry()
+        if entry is not None:
+            self._replace_selected_stl_object(entry.obj.mirrored(plane), geometry_changed=True)
+
+    def _scale_selected_stl(self, factor: float):
+        _row, entry = self._selected_stl_entry()
+        if entry is not None:
+            self._replace_selected_stl_object(entry.obj.scaled(factor), geometry_changed=True)
+
+    def _append_array_copies(self, source: StlObject, matrices):
+        if len(matrices) <= 1:
+            return
+        self._record_stl_edit()
+        current_row = self.stlObjectsDock.objectList.currentRow()
+        for index, matrix in enumerate(matrices[1:], 2):
+            name = self._unique_stl_name(f"{source.name} [{index}]")
+            copy = replace(source, name=name, matrix=matrix @ source.matrix)
+            self._append_stl_object(copy, select=False)
+        self._sync_stl_panel(current_row)
+        self.fitToView()
+
+    def _circular_array_selected_stl(self, count: int, total_angle: float, axis: str, center, rotate_copies: bool):
+        _row, entry = self._selected_stl_entry()
+        if entry is None:
+            return
+        matrices = circular_array(
+            count,
+            total_angle,
+            axis,
+            center,
+            rotate_copies=rotate_copies,
+            pivot=entry.obj.world_pivot(),
+        )
+        self._append_array_copies(entry.obj, matrices)
+
+    def _rectangular_array_selected_stl(self, nx: int, ny: int, nz: int, dx: float, dy: float, dz: float):
+        _row, entry = self._selected_stl_entry()
+        if entry is not None:
+            self._append_array_copies(entry.obj, rectangular_array(nx, ny, nz, dx, dy, dz))
+
+    def _section_selected_stl(self, axis: str, offset: float, keep_positive: bool = True):
+        row, _entry = self._selected_stl_entry()
+        if row is None:
+            return
+        spec = (row, axis, float(offset), bool(keep_positive))
+        if self._stl_section_spec == spec:
+            return
+        self._record_stl_edit()
+        self._show_stl_section(*spec)
+
+    def _show_stl_section(self, row: int, axis: str, offset: float, keep_positive: bool = True):
+        entry = self._stl_entries[row]
+        triangles = clip_mesh(entry.obj.world_triangles(), axis, offset, keep_positive)
+        self.clearStlSection()
+        if not triangles.size:
+            self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "STL section is empty"), 3000)
+            return
+        cut_mesh = mesh_from_triangles(triangles)
+        cut_obj = StlObject(mesh=cut_mesh, name=entry.obj.name)
+        overlay = StlOverlay(cut_obj)
+        item = overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+        self._replace_scene_item(entry.overlay.item, item)
+        entry.section_overlay = overlay
+        self._stl_section_item = item
+        self._stl_section_spec = (row, axis, float(offset), bool(keep_positive))
+        self._restore_trace_overlay_order()
+        self.ui.statusbar.showMessage(
+            QCoreApplication.translate("MainWindow", "STL cut created: {0:,} triangles").format(len(triangles)),
+            5000,
+        )
+
+    def clearStlSection(self):
+        restored = False
+        for entry in getattr(self, "_stl_entries", ()):
+            overlay = entry.section_overlay
+            if overlay is None:
+                continue
+            self._replace_scene_item(overlay.item, None)
+            entry.section_overlay = None
+            self._replace_scene_item(None, entry.overlay.item)
+            restored = True
+        self._stl_section_item = None
+        self._stl_section_spec = None
+        if restored:
+            self._restore_trace_overlay_order()
+
+    def _clear_stl_section_with_history(self):
+        if self._stl_section_spec is not None:
+            self._record_stl_edit()
+            self.clearStlSection()
+
+    def removeSelectedStl(self):
+        row, entry = self._selected_stl_entry()
+        if entry is None:
+            return False
+        self._record_stl_edit()
+        self.clearStlSection()
+        self._replace_scene_item(entry.overlay.item, None)
+        del self._stl_entries[row]
+        self._sync_stl_panel(min(row, len(self._stl_entries) - 1))
+        if not self._stl_entries:
+            self.stlObjectsDock.hide()
+        self.fitToView()
+        return True
+
+    def refreshStlAppearance(self):
+        """Rebuild STL GL items only when the shared visual style changed."""
+        changed = False
+        for entry in self._stl_entries:
+            active_overlay = entry.section_overlay or entry.overlay
+            old_item = active_overlay.item
+            new_item = active_overlay.item_for(
+                getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False)
+            )
+            if old_item in self.ui.graphicsView.items:
+                self._replace_scene_item(old_item, new_item)
+            if entry.section_overlay is not None:
+                self._stl_section_item = new_item
+            if entry.section_overlay is None and old_item not in self.ui.graphicsView.items:
+                entry.overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+            changed = changed or new_item is not old_item
+        if changed:
+            self._restore_trace_overlay_order()
+        return changed
 
     def clearStl(self):
-        """Remove only the imported model, preserving the executed toolpath."""
-        overlay = getattr(self, "_stl_overlay", None)
-        if overlay is not None:
-            self._replace_scene_item(overlay.item, None)
-        self._stl_overlay = None
-        self.ui.actionClearSTL.setEnabled(False)
+        """Remove all imported STL objects, preserving the executed toolpath."""
+        if self._stl_entries:
+            self._record_stl_edit()
+        self.clearStlSection()
+        for entry in self._stl_entries:
+            self._replace_scene_item(entry.overlay.item, None)
+        self._stl_entries.clear()
+        self._sync_stl_panel(-1)
+        self.stlObjectsDock.hide()
         if self.render_points:
             self.fitToView()
 
@@ -205,9 +690,8 @@ class MainWindowPlotMixin:
             return self.stockFitBounds()
         toolpath_bounds = self._cached_toolpath_bounds()
         stock_bounds = self.stockFitBounds() if hasattr(self, "stockFitBounds") else None
-        overlay = getattr(self, "_stl_overlay", None)
-        stl_bounds = overlay.mesh.bounds if overlay is not None else None
-        bounds = [item for item in (toolpath_bounds, stock_bounds, stl_bounds) if item is not None]
+        stl_bounds = [entry.overlay.bounds for entry in getattr(self, "_stl_entries", ())]
+        bounds = [item for item in (toolpath_bounds, stock_bounds, *stl_bounds) if item is not None]
         if not bounds:
             return None
         return tuple(
@@ -219,8 +703,6 @@ class MainWindowPlotMixin:
         if self.latheMode or getattr(self, "_view_mode", "3d") != "3d" or not points:
             return False
         view = self.ui.graphicsView
-        if view.isOrthographic():
-            return False
         bounds = _render_point_bounds(points)
         if bounds is None:
             return False
@@ -236,27 +718,7 @@ class MainWindowPlotMixin:
             if new_size < old_size * 3.0 and center_shift < old_size * 2.0:
                 return False
 
-        matrix = view.viewMatrix()
-        camera_center = matrix * QVector4D(view.opts["center"], 1.0)
-        distance = float(view.opts["distance"])
-        tangent = math.tan(math.radians(max(float(view.opts.get("fov", 60.0)), 0.01)) / 2.0)
-        aspect = max(float(view.width()), 1.0) / max(float(view.height()), 1.0)
-        for x in bounds[0]:
-            for y in bounds[1]:
-                for z in bounds[2]:
-                    corner = matrix * QVector4D(x, y, z, 1.0)
-                    depth = corner.z() - camera_center.z()
-                    half_width = (distance - depth) * tangent * 0.8
-                    if (
-                        half_width <= 0
-                        or max(
-                            abs(corner.x() - camera_center.x()),
-                            abs(corner.y() - camera_center.y()) * aspect,
-                        )
-                        > half_width
-                    ):
-                        return True
-        return False
+        return _bounds_exceed_milling_camera(view, bounds)
 
     def fitToView(self):
         """Center and fit the complete rendered toolpath and STL in the active projection."""
@@ -324,6 +786,9 @@ class MainWindowPlotMixin:
         view.setCameraPosition(distance=distance)
         self.dist = distance
         self._update_adaptive_grid()
+        toolpath_item = getattr(self, "_toolpath_item", None)
+        if toolpath_item is not None:
+            toolpath_item.update_dashes_for_view()
         LOGGER.debug(
             "fit_view duration_ms=%.3f mode=%s distance=%.3f bounds=%s",
             (perf_counter() - started) * 1000.0,
@@ -358,9 +823,13 @@ class MainWindowPlotMixin:
                 linear_color=self.plotLineColor,
                 arc_color=getattr(self, "plotArcColor", "#008000"),
                 width=width,
+                show_rapid=getattr(self, "plotShowRapid", True),
+                dashed_rapid=getattr(self, "plotDashedRapid", True),
+                color_by_tool=getattr(self, "plotColorByTool", False),
             )
             if toolpath_item not in self.ui.graphicsView.items:
                 self.ui.graphicsView.addItem(toolpath_item)
+            toolpath_item.update_dashes_for_view()
 
         if getattr(self, "_cursor_item", None) is None:
             self._cursor_item = GLScatterPlotItem(
@@ -431,6 +900,9 @@ class MainWindowPlotMixin:
 
     def _pick_trace_at(self, position):
         """Select the nearest trajectory segment on Shift+Click in a 2D view."""
+        bbox_picker = getattr(self, "_pick_stl_bbox_point", None)
+        if bbox_picker is not None and bbox_picker(position):
+            return True
         if getattr(self, "_stock_animation_active", False):
             return False
         view_mode = "lathe" if self.latheMode else getattr(self, "_view_mode", "3d")
@@ -655,20 +1127,33 @@ class MainWindowPlotMixin:
                 self._axis_triad_item = AxisTriadItem()
             self.ui.graphicsView.addItem(self._axis_triad_item)
 
-        overlay = getattr(self, "_stl_overlay", None)
-        if overlay is not None and overlay.item is not None:
-            self.ui.graphicsView.addItem(overlay.item)
+        stl_entries = getattr(self, "_stl_entries", ())
+        for entry in stl_entries:
+            if entry.overlay.item is not None:
+                self.ui.graphicsView.addItem(entry.overlay.item)
+        section_item = getattr(self, "_stl_section_item", None)
+        if section_item is not None:
+            self.ui.graphicsView.addItem(section_item)
+        self._restore_selected_stl_overlays(stl_entries)
         if hasattr(self, "_update_stock_outline"):
             self._update_stock_outline()
         LOGGER.debug(
-            "plot_scene_loaded stock_animation=false duration_ms=%.3f lathe=%s grid=%s axes=%s stl=%s items=%d",
+            "plot_scene_loaded stock_animation=false duration_ms=%.3f lathe=%s grid=%s axes=%s stl=%d items=%d",
             (perf_counter() - started) * 1000.0,
             self.latheMode,
             self.plotGrid,
             self.plotAxes,
-            overlay is not None,
+            len(stl_entries),
             len(self.ui.graphicsView.items),
         )
+
+    def _restore_selected_stl_overlays(self, stl_entries):
+        if not hasattr(self, "stlObjectsDock"):
+            return
+        row = self.stlObjectsDock.objectList.currentRow()
+        if 0 <= row < len(stl_entries):
+            self._update_stl_pivot_marker(stl_entries[row].obj.world_pivot())
+            self._update_stl_bbox_overlay(row)
 
     def _adaptive_grid_size(self):
         view = self.ui.graphicsView
@@ -810,8 +1295,8 @@ class MainWindowPlotMixin:
         self.fitToView()
 
     def _orthographic_orbit_started(self):
-        """Promote a fixed milling view to normal perspective before free rotation."""
-        if self.latheMode:
+        """Mark a rotated fixed milling view as freely rotatable orthographic 3D."""
+        if self.latheMode or getattr(self, "_view_mode", "3d") == "3d":
             return
         self._view_mode = "3d"
         self.ui.actionGrid.setEnabled(True)
@@ -819,11 +1304,11 @@ class MainWindowPlotMixin:
         self.fitToView()
 
     def view3d(self):
-        """Set the standard perspective 3D camera angle."""
+        """Set the standard CAD angle with a parallel 3D projection."""
         self._view_mode = "3d"
         self.ui.actionGrid.setEnabled(True)
         view = self.ui.graphicsView
-        view.setProjectionMode("perspective")
+        view.setProjectionMode("orthographic")
         if getattr(self, "rotaryKinematics", None) == "4ax_table_b":
             # Horizontal mill: +Y is screen-up; +X and +Z run to the right
             # on opposite diagonals. Only the camera changes; WCS stays fixed.

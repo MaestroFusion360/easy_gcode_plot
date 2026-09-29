@@ -15,8 +15,8 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PyQt6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
-    QSizePolicy, QTextBrowser, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QApplication, QDialog, QSizePolicy, QTextBrowser,
+    QVBoxLayout, QWidget)
 
 class Ui_HelpDialog(object):
     def setupUi(self, HelpDialog):
@@ -30,12 +30,6 @@ class Ui_HelpDialog(object):
         self.browser.setOpenExternalLinks(True)
 
         self.verticalLayout.addWidget(self.browser)
-
-        self.buttonBox = QDialogButtonBox(HelpDialog)
-        self.buttonBox.setObjectName(u"buttonBox")
-        self.buttonBox.setStandardButtons(QDialogButtonBox.StandardButton.Close)
-
-        self.verticalLayout.addWidget(self.buttonBox)
 
 
         self.retranslateUi(HelpDialog)

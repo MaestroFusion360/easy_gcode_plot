@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.6.8 development tree and explains the GUI, deterministic FANUC execution kernel, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.6.9 tree and explains the GUI, deterministic FANUC execution kernel, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -54,6 +54,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Are Macro B variable values stored per execution step?](#are-macro-b-variable-values-stored-per-execution-step)
     - [Does Expanded Execution export keep Macro B statements?](#does-expanded-execution-export-keep-macro-b-statements)
   - [FANUC turning](#fanuc-turning)
+    - [Main differences between Type A and Type B](#main-differences-between-type-a-and-type-b)
     - [What is the turning coordinate model?](#what-is-the-turning-coordinate-model)
     - [How do X/U and Z/W behave?](#how-do-xu-and-zw-behave)
     - [How are G20 and G21 handled?](#how-are-g20-and-g21-handled)
@@ -150,6 +151,15 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Does CLI execution load the GUI Saved Library?](#does-cli-execution-load-the-gui-saved-library)
   - [Interface, editor and playback](#interface-editor-and-playback)
     - [What are the two main GUI panels?](#what-are-the-two-main-gui-panels)
+    - [How does an imported STL affect toolpath visibility?](#how-does-an-imported-stl-affect-toolpath-visibility)
+    - [How do I use the STL Objects panel?](#how-do-i-use-the-stl-objects-panel)
+      - [How do I import and select STL models?](#how-do-i-import-and-select-stl-models)
+      - [What do Undo, Redo, Statistics and Delete do?](#what-do-undo-redo-statistics-and-delete-do)
+      - [How do STL base points and bounding-box picks work?](#how-do-stl-base-points-and-bounding-box-picks-work)
+      - [How do I position and transform an STL model?](#how-do-i-position-and-transform-an-stl-model)
+      - [How do STL arrays work?](#how-do-stl-arrays-work)
+      - [How do I make a 3D section through an STL model?](#how-do-i-make-a-3d-section-through-an-stl-model)
+      - [What does STL Statistics report, and how do I display inches?](#what-does-stl-statistics-report-and-how-do-i-display-inches)
     - [How do I change letter case or mark optional blocks?](#how-do-i-change-letter-case-or-mark-optional-blocks)
     - [How do I print the plot?](#how-do-i-print-the-plot)
     - [Which fixed views are available?](#which-fixed-views-are-available)
@@ -982,6 +992,8 @@ The first line captures rough depth and retract. The second line supplies the P-
 
 The first-line U depth is treated as a radial depth and converted consistently into programmed diameter motion when diameter programming is active.
 
+An empty P-Q profile or zero first-line depth produces an explicit G71 diagnostic; no partial cycle trajectory is published.
+
 ### How are G71 U/W finish allowances handled?
 
 The second-line U and W are applied to the roughing profile before rough passes are generated.
@@ -1033,6 +1045,8 @@ UNSUPPORTED_G72_TYPE_II_SPANS
 instead of choosing an arbitrary span.
 
 An empty profile, zero pass depth, or a lone interior crossing after a closed Type II span also produces an explicit diagnostic. No cuttable Type II facing span is reported as an error rather than an empty expansion.
+
+Repeated intersections at the same endpoint of a closed contour count as one crossing. Distinct, disjoint spans still produce `UNSUPPORTED_G72_TYPE_II_SPANS`.
 
 ### How does G73 work?
 
@@ -1213,6 +1227,8 @@ The `4ax_table_a` and `4ax_table_b` profiles have been compared with the program
 The catalog also contains head, mixed head/table, angled-axis and two-rotary-axis profiles. They remain in JSON with `enabled: false` and are hidden from the GUI because their geometry has not been checked against equivalent reference programs. Only `4ax_table_a`, `4ax_table_b` and `4ax_table_c` have `enabled: true`; **None** is the default selection. The confirmed scope is indexed 3+1 for vertical mill/table A and horizontal mill/table B, plus the checked planar X/C contour for table C. The schema does not specify rotary pivot locations, tool-center-point behavior or controller-specific offsets.
 
 The JSON editor validates a profile and saves it to `rotary_profiles.json` beside the user's `config.ini`. It does not change the installed catalog. A selected profile defines the table/head axis and sign explicitly; the software cannot infer those properties from an A, B or C word. Execution steps retain the selected WCS and the configured rotary angles. G10 L2 and WCS changes preserve the current machine position after a table index.
+
+If the user profile file is damaged or invalid, the GUI opens with the installed profiles. Kernel and CLI loads remain strict and report the invalid file until it is corrected.
 
 ### What happens when indexed geometry cannot be resolved?
 
@@ -1509,6 +1525,57 @@ This matters for G41/G42 verification: inferred tool dimensions should be review
 
 The left side is a QScintilla editor with syntax highlighting, line numbers, search/replace and cleanup functions. The right side is an OpenGL trajectory view with axes, grid, camera controls, trajectory picking and playback.
 
+The milling 3D view uses an orthographic CAD projection. Rotating from Top, Front or Left keeps parallel lines parallel and preserves apparent size across depth.
+
+### How does an imported STL affect toolpath visibility?
+
+In solid mode, the STL surface hides toolpath segments behind it. The feature-edge wireframe has no solid surface to occlude those segments. This changes only visibility in the plot, not the resolved trajectory geometry. Manage imported models in **Settings → STL Objects**; the guide below covers transforms, sections, picking and measurements.
+
+### How do I use the STL Objects panel?
+
+The **Settings → STL Objects** dock edits imported STL scene objects without changing the G-code program. Import a model with **File → Import STL**. The dock lists each imported model; select a row before applying an operation. Choose **Base point**, **Position**, **Transform**, **Circular array**, **Rectangular array** or **Section** from the operation selector. The four compact buttons at the top apply Undo, Redo, Statistics and Delete to the STL scene.
+
+#### How do I import and select STL models?
+
+Use **File → Import STL** to load an ASCII or binary mesh. **File → Recent STL** reopens a recent model. Each import appears as a separate row in the dock; selecting a row makes it the target of the operation controls and statistics. **Delete** removes the selected model. **File → Clear STL** removes all STL models. These commands affect imported scene objects, not the editor contents or G-code trajectory.
+
+#### What do Undo, Redo, Statistics and Delete do?
+
+The STL **Undo** and **Redo** history is separate from text-editor undo. It records scene edits such as adding another model, changing a base point, moving, rotating, mirroring, scaling, creating arrays, applying or clearing a section, and deleting an object. The first imported model establishes the scene baseline, so Undo does not close the panel or remove that first model. **Statistics** opens copyable measurements for the selected object. **Delete** removes only the selected row; use **File → Clear STL** to remove the complete STL scene.
+
+#### How do STL base points and bounding-box picks work?
+
+The **Base point** selector chooses the point used as the pivot for rotation, mirroring and scaling:
+
+- **Center** sets it to the center of the source mesh's bounding box.
+- **Bounding-box corner** sets it to the source mesh's minimum X, Y and Z corner and displays the transformed object's axis-aligned bounding box in the Base Point color.
+- **Origin** sets the point to model coordinates `(0, 0, 0)`.
+- **Custom** enables the X/Y/Z fields; enter coordinates in model space and press **Set base point**.
+
+When the bounding box is displayed, its eight corners are picking points. Hold **Shift** and left-click a corner in the 3D plot to move the base point there. The picked point becomes larger and cyan; the other seven corner markers remain in the Base Point color. Picking changes the base point to a custom point, while keeping the box visible so another corner can be picked. Choosing Center or Origin exits bounding-box picking.
+
+The **Position** page shows the current base point's world position. Enter a target X/Y/Z there and use **Move base point here** to place the pivot at those world coordinates. Moving changes the object's transform while preserving its shape.
+
+#### How do I position and transform an STL model?
+
+On **Transform**, select an axis and angle to rotate around the current base point. **Mirror** reflects the object across the plane whose normal is the selected X, Y or Z axis, passing through the base point. **Scale** applies a uniform factor around that point. These operations preserve the source STL and update the scene object's transform; they do not modify the original file on disk.
+
+#### How do STL arrays work?
+
+**Circular array** creates the requested number of copies around a selected axis and center, spread over the total angle. With **Rotate copies** enabled, each copy rotates with its position. When disabled, each copy keeps its orientation and distributes the current base point around the circle. A full 360-degree array spaces copies evenly without duplicating the first copy at the end.
+
+**Rectangular array** creates copies along X, Y and Z. Set the copy count and step for each axis; the resulting array includes the original object. Array creation is one STL history action and can be undone.
+
+#### How do I make a 3D section through an STL model?
+
+On **Section**, choose X, Y or Z for the cutting plane, enter its coordinate and choose which side to keep. The initial coordinate is the midpoint of the selected model's world-space bounding box along that axis. **Apply section** clips the solid in 3D and closes the cut where the mesh produces a closed contour; the cut model remains visible over the source toolpath. **Clear section** restores the full STL. Applying and clearing a section are undoable STL scene actions.
+
+#### What does STL Statistics report, and how do I display inches?
+
+**Statistics** reports surface area, volume, center of mass, world-space coordinate bounds and per-axis lengths. Bounds are written explicitly as `Xmin`, `Xmax` and `Length` (and likewise for Y and Z). The **Inches** checkbox at the lower left of the dialog converts all reported lengths, coordinates, area and volume while leaving the mesh unchanged. Unchecked values display in millimetres; checked values use inches, square inches and cubic inches.
+
+STL files do not encode a unit system, so these labels are display units and do not determine the source model's real-world scale. Surface area and bounding box are available for open meshes. Volume and center of mass require a closed mesh with consistently oriented faces; otherwise the dialog reports them as undefined.
+
 ### How do I change letter case or mark optional blocks?
 
 Use **Edit → Uppercase** (`Ctrl+Shift+U`) or **Edit → Lowercase** (`Ctrl+U`), or their toolbar buttons, to convert selected text. With no selection, they convert the entire editor document. Their shortcuts can be changed in Options.
@@ -1517,7 +1584,7 @@ Select one or more blocks and press **Ctrl+/** to add `/` at the start of each s
 
 ### How do I print the plot?
 
-Use **File → Print** (`Ctrl+P`) or the Print button in the File toolbar. The app captures the current plot view with a white background, faint grid and black toolpath, then restores the on-screen theme. The landscape print preview centers and scales the image to fit the printable area. **FAQ** opens with `F3`, and **Grid** toggles with `F4` by default.
+Use **File → Print** (`Ctrl+P`) or the Print button in the File toolbar. The app prints sharp vector lines in the current camera orientation, fitted to a landscape page. Printing ignores the playback slider and does not hide lines behind an imported STL. In **Options → Plot**, you can show or hide rapid moves, render them dashed or solid, and color all moves by tool; Print follows those choices. **FAQ** opens with `F3`, and **Grid** toggles with `F4` by default.
 
 ### Which fixed views are available?
 

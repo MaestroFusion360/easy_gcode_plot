@@ -6,7 +6,7 @@ import numpy as np
 from OpenGL import GL
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QLinearGradient, QMatrix4x4, QPainter, QVector3D
+from PyQt6.QtGui import QColor, QLinearGradient, QMatrix4x4, QPainter, QSurfaceFormat, QVector3D
 from pyqtgraph.opengl import GLViewWidget
 
 
@@ -42,6 +42,9 @@ class PlotView(GLViewWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        surface_format = QSurfaceFormat(self.format())
+        surface_format.setDepthBufferSize(max(24, surface_format.depthBufferSize()))
+        self.setFormat(surface_format)
         self._background_gradient = False
         self._projection_mode = "perspective"
         self._perspective_zoom_mode = "fov"
@@ -93,7 +96,7 @@ class PlotView(GLViewWidget):
         return self._orthographic_width
 
     def projectionMatrix(self, region, viewport):
-        """Build a true orthographic matrix for fixed milling views."""
+        """Build a true orthographic matrix for milling views."""
         if not self.isOrthographic():
             return super().projectionMatrix(region, viewport)
 
@@ -157,14 +160,8 @@ class PlotView(GLViewWidget):
             self.update()
 
     def orbit(self, azim, elev):
-        """Start free rotation in perspective when leaving a fixed orthographic view."""
+        """Start free rotation without changing the parallel CAD projection."""
         was_orthographic = self.isOrthographic()
-        if was_orthographic:
-            fov = 60.0
-            half_angle = radians(fov) * 0.5
-            self._projection_mode = "perspective"
-            self.opts["fov"] = fov
-            self.opts["distance"] = max(self._orthographic_width * 0.5 / tan(half_angle), 1e-9)
         super().orbit(azim, elev)
         if was_orthographic:
             self.orthographicOrbitStarted.emit()

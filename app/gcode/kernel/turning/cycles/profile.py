@@ -138,9 +138,10 @@ def _profile_intersections_at_z(profile: list[ProfileSegment], pass_z: float) ->
 
 
 def _distinct_in_profile_order(values: list[float], tolerance: float = 1e-3) -> list[float]:
+    """Keep first crossings, including when a closed contour repeats one later."""
     result: list[float] = []
     for value in values:
-        if not result or abs(value - result[-1]) > tolerance:
+        if all(abs(value - previous) > tolerance for previous in result):
             result.append(value)
     return result
 

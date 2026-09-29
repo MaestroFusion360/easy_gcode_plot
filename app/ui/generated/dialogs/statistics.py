@@ -15,9 +15,9 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PyQt6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QDialog,
-    QDialogButtonBox, QHBoxLayout, QPlainTextEdit, QSizePolicy,
-    QSpacerItem, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QApplication, QCheckBox, QDialog, QHBoxLayout,
+    QPlainTextEdit, QSizePolicy, QSpacerItem, QVBoxLayout,
+    QWidget)
 
 class Ui_StatisticsDialog(object):
     def setupUi(self, StatisticsDialog):
@@ -44,12 +44,6 @@ class Ui_StatisticsDialog(object):
         self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.controlsLayout.addItem(self.horizontalSpacer)
-
-        self.buttonBox = QDialogButtonBox(StatisticsDialog)
-        self.buttonBox.setObjectName(u"buttonBox")
-        self.buttonBox.setStandardButtons(QDialogButtonBox.StandardButton.Close)
-
-        self.controlsLayout.addWidget(self.buttonBox)
 
 
         self.verticalLayout.addLayout(self.controlsLayout)

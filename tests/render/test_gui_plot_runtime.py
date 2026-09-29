@@ -148,11 +148,13 @@ def test_milling_auto_refresh_keeps_camera_for_small_new_path(qt_app):
     window.yPosMach = 0.0
     window.zPosMach = 0.0
     view = window.ui.graphicsView
+    view.setOrthographicProjection(1000.0, 1.0, 5000.0)
     view.setCameraPosition(distance=1000.0)
     previous_center = view.opts["center"]
     window.ui.editor.setText("G21 G17 G90\nG0 X0 Y0 Z0\nG1 X10 Y5 Z-2 F100\nM30")
     assert window.autoUpdate()
     assert float(view.opts["distance"]) == pytest.approx(1000.0)
+    assert view.orthographicWidth() == pytest.approx(1000.0)
     assert view.opts["center"] == previous_center
     window.deleteLater()
 
@@ -254,6 +256,7 @@ def test_vbo_playback_view_changes_and_reload_preserve_scene_contract(qt_app):
     axis_item = window._axis_triad_item  # pylint: disable=protected-access
     assert axis_item.center == (0.0, 0.0, 0.0)
     vertices = item.packed_vertices
+    source_segments = item.source_segments
     assert item.logical_count == len(window.execution_result.motions)
     assert item in window.ui.graphicsView.items
 
@@ -279,7 +282,9 @@ def test_vbo_playback_view_changes_and_reload_preserve_scene_contract(qt_app):
     assert window._toolpath_item is item  # pylint: disable=protected-access
     assert window._axis_triad_item is axis_item  # pylint: disable=protected-access
     assert axis_item.center == (0.0, 0.0, 0.0)
-    assert item.packed_vertices is vertices
+    assert item.source_segments is source_segments
+    assert item.logical_count == len(window.execution_result.motions)
+    assert item.visible_logical_count == 1
     assert item in window.ui.graphicsView.items
     assert window.ui.editor.getCursorPosition() == cursor
     assert window.ui.editor.firstVisibleLine() == first_visible_line

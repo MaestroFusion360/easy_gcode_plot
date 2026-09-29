@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 
-from PyQt6.QtCore import QCoreApplication, QFile, QIODevice, QSize, Qt, QUrl
+from PyQt6.QtCore import QCoreApplication, QFile, QIODevice, QSize, Qt, QTimer, QUrl
 from PyQt6.QtGui import (
     QColor,
     QDesktopServices,
@@ -33,17 +33,25 @@ from PyQt6.QtWidgets import (
 )
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources.
+from app import i18n
+from app.settings import ui_language
 from app.ui.generated.dialogs.help import Ui_HelpDialog
 
 _SLUG_PUNCTUATION = re.compile(r"[^\w\s-]", re.UNICODE)
-_SLUG_WHITESPACE = re.compile(r"\s+")
+_SLUG_WHITESPACE = re.compile(r"\s")
 LOGGER = logging.getLogger(__name__)
 _EXTERNAL_SCHEMES = frozenset({"http", "https", "mailto"})
+_DEFAULT_FAQ_RESOURCE = ":/resource/FAQ.md"
+_LOCALIZED_FAQ_RESOURCES = {"ru": ":/resource/FAQ_RU.md"}
 
 
 def heading_anchor(text: str) -> str:
-    """Reproduce the GitHub-style slug used by the FAQ table of contents."""
-    return _SLUG_WHITESPACE.sub("-", _SLUG_PUNCTUATION.sub("", text.lower()).strip())
+    """Reproduce the GitHub-style slug used by the FAQ table of contents.
+
+    GitHub replaces every space with a hyphen after dropping punctuation, so
+    runs of spaces around removed characters become consecutive hyphens.
+    """
+    return _SLUG_WHITESPACE.sub("-", _SLUG_PUNCTUATION.sub("", text.lower()))
 
 
 def _read_resource(path: str, fallback: str) -> str:
@@ -364,7 +372,11 @@ class HelpDialog(QDialog):
         self.ui.verticalLayout.insertLayout(1, search_row)
         self._search_matches: list[QTextCursor] = []
         self._search_index = -1
-        self.search_edit.textChanged.connect(self._search_text_changed)
+        self._search_timer = QTimer(self)
+        self._search_timer.setSingleShot(True)
+        self._search_timer.setInterval(150)
+        self._search_timer.timeout.connect(self._run_pending_search)
+        self.search_edit.textChanged.connect(self._queue_search)
         self.search_edit.returnPressed.connect(self.search_next)
         self.search_previous_button.clicked.connect(self.search_previous)
         self.search_next_button.clicked.connect(self.search_next)
@@ -379,7 +391,6 @@ class HelpDialog(QDialog):
         # resolve "#slug" fragments against the document headings ourselves.
         self.browser.setOpenLinks(False)
         self.browser.anchorClicked.connect(self.open_link)
-        self.ui.buttonBox.rejected.connect(self.close)
 
     def apply_theme(self, theme_name: str) -> None:
         """Rebuild the FAQ colors when the application theme changes."""
@@ -397,7 +408,19 @@ class HelpDialog(QDialog):
             _recolor_dark_links(self.browser)
         self.syntax_highlighter = MarkdownSyntaxHighlighter(self.browser.document(), self.browser, dark=dark)
         if hasattr(self, "search_edit"):
+            self._search_timer.stop()
             self._search_text_changed(self.search_edit.text())
+
+    def _queue_search(self, query: str) -> None:
+        if not query:
+            self._search_timer.stop()
+            self._search_text_changed("")
+        else:
+            self._search_timer.start()
+
+    def _run_pending_search(self) -> None:
+        self._search_timer.stop()
+        self._search_text_changed(self.search_edit.text())
 
     def _search_text_changed(self, query: str) -> None:
         self._search_matches = []
@@ -428,12 +451,18 @@ class HelpDialog(QDialog):
         self.search_count.setText(f"{self._search_index + 1} / {len(self._search_matches)}")
 
     def search_next(self) -> None:
+        if self._search_timer.isActive():
+            self._run_pending_search()
+            return
         if self._search_matches:
             self._show_search_match(self._search_index + 1)
         else:
             self.search_edit.setFocus()
 
     def search_previous(self) -> None:
+        if self._search_timer.isActive():
+            self._run_pending_search()
+            return
         if self._search_matches:
             self._show_search_match(self._search_index - 1)
         else:
@@ -441,13 +470,15 @@ class HelpDialog(QDialog):
 
     @staticmethod
     def _read_faq() -> str:
-        markdown = _read_resource(":/resource/FAQ.md", "# FAQ\n\nThe packaged help resource could not be opened.")
+        language = i18n.normalize_language(ui_language())
+        resource = _LOCALIZED_FAQ_RESOURCES.get(language, _DEFAULT_FAQ_RESOURCE)
+        markdown = _read_resource(resource, "# FAQ\n\nThe packaged help resource could not be opened.")
         # Qt's Markdown parser treats <details> as an HTML block and does not
         # parse the nested Markdown TOC correctly. Keep the source file's
         # collapsible GitHub view, but show a normal Markdown heading in Qt.
         markdown = re.sub(
-            r"<details>\s*<summary><h2>Contents</h2></summary>",
-            "## Contents",
+            r"<details>\s*<summary><h2>(.*?)</h2></summary>",
+            r"## \1",
             markdown,
             count=1,
         )

@@ -37,6 +37,19 @@ def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
         window.deleteLater()
 
 
+def test_broken_user_rotary_catalog_does_not_prevent_gui_startup(qt_app):
+    user_catalog_path().write_text("{broken json", encoding="utf-8")
+
+    window = MainWindow()
+    try:
+        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c"}
+        assert set(window._rotary_kinematics_actions) == expected
+        combo = window.optionsDlg.ui.rotaryKinematicsCombo
+        assert {combo.itemData(index) for index in range(combo.count())} == expected
+    finally:
+        window.deleteLater()
+
+
 def test_rotary_profile_editor_saves_user_override_and_refreshes_menu(qt_app):
     installed = CATALOG_PATH.read_bytes()
     window = MainWindow()
@@ -236,8 +249,8 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     dialog.ui.linearColorEdit.setText("#123456")
     dialog.restore_defaults()
     assert dialog.ui.autoUpdateCheck.isChecked()
-    assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 20000
-    assert dialog.ui.maxGeneratedMotionsSpin.value() == 200000
+    assert dialog.ui.autoUpdateMaxSegmentsSpin.value() == 2147483647
+    assert dialog.ui.maxGeneratedMotionsSpin.value() == 2147483647
     assert dialog.ui.autodetectArcTypeCheck.isChecked()
     assert not dialog.ui.ignoreBlockSkipCheck.isChecked()
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
@@ -337,7 +350,7 @@ def test_generated_motion_limit_defaults_and_persists(qt_app):
     settings.sync()
 
     window = MainWindow()
-    assert window.maxGeneratedMotions == 200000
+    assert window.maxGeneratedMotions == 2147483647
     window.maxGeneratedMotions = 345678
     window.saveSettings()
     window.settings.sync()
@@ -373,6 +386,9 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.gridStepSpin.setValue(12.5)
     dialog.ui.axesCheck.setChecked(False)
     dialog.ui.gridCheck.setChecked(True)
+    dialog.ui.showRapidCheck.setChecked(False)
+    dialog.ui.dashedRapidCheck.setChecked(False)
+    dialog.ui.colorByToolCheck.setChecked(True)
     dialog.ui.arcToleranceSpin.setValue(0.02)
     dialog.ui.correctionCheck.setChecked(False)
     dialog.ui.ignoreBlockSkipCheck.setChecked(True)
@@ -397,6 +413,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.plotGridStep == 12.5
     assert window.plotAxes is False
     assert window.plotGrid is True and window.ui.actionGrid.isChecked()
+    assert (window.plotShowRapid, window.plotDashedRapid, window.plotColorByTool) == (False, False, True)
     assert window.arcTolerance == 0.02
     assert window.correctionEnabled is False
     assert window.ignoreBlockSkip is True
@@ -412,6 +429,23 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     window.deleteLater()
 
 
+def test_plot_options_use_two_columns_with_playback_last(qt_app):
+    window = MainWindow()
+    dialog = window.optionsDlg
+    form = dialog.ui.plotForm
+    assert form.rowCount() == 8  # Rotary kinematics is inserted ahead of the UI rows.
+    for left, right in (
+        (dialog.ui.axesCheck, dialog.ui.gridCheck),
+        (dialog.ui.showRapidCheck, dialog.ui.dashedRapidCheck),
+        (dialog.ui.colorByToolCheck, dialog.ui.showStockCheck),
+        (dialog.ui.backgroundGradientCheck, dialog.ui.stlWireframeCheck),
+    ):
+        assert form.getWidgetPosition(left)[0] == form.getWidgetPosition(right)[0]
+    assert form.getWidgetPosition(dialog.ui.playbackSpeedLabel)[0] == form.rowCount() - 1
+    assert dialog.height() <= 470
+    window.deleteLater()
+
+
 def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     window = MainWindow()
     window.plotBackgroundGradient = True
@@ -420,6 +454,9 @@ def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     window.playbackSpeed = 4
     window.speedTimer = 40
     window.stlWireframe = True
+    window.plotShowRapid = False
+    window.plotDashedRapid = False
+    window.plotColorByTool = True
     window.saveSettings()
     window.settings.sync()
 
@@ -430,6 +467,7 @@ def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     assert restored.playbackSpeed == 4
     assert restored.speedTimer == 40
     assert restored.stlWireframe is True
+    assert (restored.plotShowRapid, restored.plotDashedRapid, restored.plotColorByTool) == (False, False, True)
     window.deleteLater()
     restored.deleteLater()
 

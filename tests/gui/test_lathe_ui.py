@@ -43,8 +43,14 @@ def test_stl_and_lathe_toolbar_actions_are_in_the_required_order(qt_app):
     assert playback_actions[-2] is window.ui.actionStep_Forward
     assert window.optionsDlg.ui.showStockCheck.text() == "Show Stock"
     plot_form = window.optionsDlg.ui.plotForm
-    assert plot_form.getWidgetPosition(window.optionsDlg.ui.gridCheck)[0] == 4
-    assert plot_form.getWidgetPosition(window.optionsDlg.ui.showStockCheck)[0] == 6
+    assert (
+        plot_form.getWidgetPosition(window.optionsDlg.ui.gridCheck)[0]
+        == plot_form.getWidgetPosition(window.optionsDlg.ui.axesCheck)[0]
+    )
+    assert (
+        plot_form.getWidgetPosition(window.optionsDlg.ui.showStockCheck)[0]
+        == plot_form.getWidgetPosition(window.optionsDlg.ui.colorByToolCheck)[0]
+    )
     assert QFile(":/resource/icons/stl.png").exists()
     assert not window.ui.actionImportSTL.icon().isNull()
     window.deleteLater()

@@ -74,6 +74,13 @@ def _mesh(triangles, normals) -> StlMesh:
     return StlMesh(triangle_array, normal_array, bounds)
 
 
+def mesh_from_triangles(triangles) -> StlMesh:
+    """Build a validated mesh with geometric normals and bounds."""
+    triangle_array = np.asarray(triangles, dtype=np.float32).reshape((-1, 3, 3))
+    normals = np.cross(triangle_array[:, 1] - triangle_array[:, 0], triangle_array[:, 2] - triangle_array[:, 0])
+    return _mesh(triangle_array, normals)
+
+
 def _read_binary(data: bytes, count: int) -> StlMesh:
     if count > MAX_STL_TRIANGLES:
         raise ValueError(f"STL has too many triangles ({count:,})")

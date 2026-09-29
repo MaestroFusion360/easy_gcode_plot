@@ -126,70 +126,29 @@ def execute_trace_step(
     state = ctx.state
     runtime = ctx.runtime
 
-    ctx.words = ()
-    ctx.signals = ()
-    ctx.events = ()
-    block = runtime.next_block(blocks, guard_message="Source trace execution guard reached")
-    event_list: list[ExecutionEvent] = []
-    if not ctx.program_started and block.index == ctx.program_start_block:
-        event_list.append(program_start_event(block, ctx.program_number))
-        ctx.program_started = True
-    ctx.events = tuple(event_list)
-    ast_node = None
-    if getattr(program, "ast", None) is not None and 0 <= ctx.pc < len(program.ast.nodes):
-        ast_node = program.ast.nodes[ctx.pc]
+    block, event_list, ast_node = _begin_turning_step(program, ctx)
 
-    if skip_optional_blocks and block.optional_skip:
-        ctx.pc += 1
+    if _skip_turning_block(ctx, block, skip_optional_blocks):
         return False, motions
 
-    if ctx.pc in (ctx.contour_block_indices or set()):
-        ctx.pc += 1
-        return False, motions
-
-    flow_dispatch = runtime.dispatch_macro(block, ctx.pc, blocks)
-    if flow_dispatch.handled:
-        ctx.pc = flow_dispatch.next_pc
+    if _dispatch_turning_macro(ctx, block, blocks):
         return False, motions
 
     evaluated_block = runtime.evaluate_block(block)
     words = evaluated_block.words
-    if getattr(words, "errors", None):
-        details = ", ".join(f"{tok.letter}{tok.expr}: {msg}" for tok, msg in words.errors)
-        raise ValueError(f"Cannot evaluate CNC words at line {block.index + 1}: {block.raw}: {details}")
+    _check_turning_word_errors(words, block)
     ctx.words = evaluated_block.values
-    if runtime.gcode_system == "B":
-        if any(code not in supported_codes("B") for code in evaluated_block.source_gcodes):
-            ctx.pc += 1
-            return False, motions
+    if _skip_unsupported_system_b(ctx, evaluated_block):
+        return False, motions
     codes = evaluated_block.codes
     all_g = codes.all_g
     gcode = codes.gcode
 
-    conflict_diagnostics = modal_conflict_diagnostics(all_g, "fanuc_turn", block)
-    if conflict_diagnostics:
-        ctx.diagnostics.extend(conflict_diagnostics)
-        ctx.pc += 1
-        return False, motions
-
     effective_motion = resolve_modal_move(ast_node, gcode, state.modal_move)
-    if 53 in all_g and effective_motion not in (0, 1):
-        ctx.diagnostics.append(unsupported_g53_motion_diagnostic(block, effective_motion))
-        ctx.pc += 1
+    if _reject_invalid_turning_block(ctx, block, all_g, effective_motion):
         return False, motions
 
-    g65_flow = runtime.dispatch_g65(
-        block=block,
-        words=words,
-        codes=codes,
-        pc=ctx.pc,
-        program=program,
-    )
-    if g65_flow.dispatch.handled:
-        event_list.extend(g65_flow.events)
-        ctx.signals = ()
-        ctx.events = tuple(event_list)
-        ctx.pc = g65_flow.dispatch.next_pc
+    if _dispatch_turning_g65(program, ctx, block, words, codes, event_list):
         return False, motions
 
     def tagged(items: list[object]) -> list[object]:
@@ -214,12 +173,7 @@ def execute_trace_step(
     # offset table and must never fall through to the current modal motion.
     # G10 contains offset data and G4 contains dwell data. Consume either
     # complete block so X/P values cannot fall through to modal motion.
-    if 10 in all_g or 4 in all_g:
-        ctx.pc += 1
-        return False, motions
-
-    if ctx.pc in (ctx.contour_block_indices or set()):
-        ctx.pc += 1
+    if _skip_turning_data_block(ctx, all_g):
         return False, motions
 
     rough_cycles, finish_cycles = expand_cycle_block(
@@ -232,13 +186,7 @@ def execute_trace_step(
         **ctx.cycle_options,
     )
     state.rough_idx = state.finish_idx = 0
-    if any(g in (70, 71, 72, 73) for g in all_g) and "P" in words and "Q" in words:
-        bounds = resolve_cycle_profile_indices(
-            blocks, ctx.pc, int(words["P"]), int(words["Q"]), prefer_preceding=70 in all_g
-        )
-        if bounds is None:
-            raise ValueError(f"Missing cycle P/Q contour at line {block.index + 1}")
-        ctx.contour_block_indices.update(range(bounds[0], bounds[1] + 1))
+    _mark_cycle_contour_blocks(ctx, blocks, block, words, all_g)
 
     cycle_motions = _execute_turning_cycle_stage(
         program, ctx, ast_node, block, words, gcode, all_g, rough_cycles, finish_cycles, semantics, tagged
@@ -259,6 +207,94 @@ def execute_trace_step(
         motions,
         tagged,
     )
+
+
+def _reject_invalid_turning_block(ctx, block, all_g, effective_motion):
+    """Record modal conflicts or unsupported machine-coordinate motion."""
+    conflict_diagnostics = modal_conflict_diagnostics(all_g, "fanuc_turn", block)
+    if conflict_diagnostics:
+        ctx.diagnostics.extend(conflict_diagnostics)
+    elif 53 in all_g and effective_motion not in (0, 1):
+        ctx.diagnostics.append(unsupported_g53_motion_diagnostic(block, effective_motion))
+    else:
+        return False
+    ctx.pc += 1
+    return True
+
+
+def _check_turning_word_errors(words, block):
+    if getattr(words, "errors", None):
+        details = ", ".join(f"{tok.letter}{tok.expr}: {msg}" for tok, msg in words.errors)
+        raise ValueError(f"Cannot evaluate CNC words at line {block.index + 1}: {block.raw}: {details}")
+
+
+def _begin_turning_step(program, ctx):
+    ctx.words = ()
+    ctx.signals = ()
+    ctx.events = ()
+    block = ctx.runtime.next_block(program.blocks, guard_message="Source trace execution guard reached")
+    events: list[ExecutionEvent] = []
+    if not ctx.program_started and block.index == ctx.program_start_block:
+        events.append(program_start_event(block, ctx.program_number))
+        ctx.program_started = True
+    ctx.events = tuple(events)
+    ast_node = None
+    if getattr(program, "ast", None) is not None and 0 <= ctx.pc < len(program.ast.nodes):
+        ast_node = program.ast.nodes[ctx.pc]
+    return block, events, ast_node
+
+
+def _skip_turning_data_block(ctx, all_g):
+    if 10 in all_g or 4 in all_g or ctx.pc in (ctx.contour_block_indices or set()):
+        ctx.pc += 1
+        return True
+    return False
+
+
+def _skip_turning_block(ctx, block, skip_optional_blocks):
+    if (skip_optional_blocks and block.optional_skip) or ctx.pc in (ctx.contour_block_indices or set()):
+        ctx.pc += 1
+        return True
+    return False
+
+
+def _dispatch_turning_macro(ctx, block, blocks):
+    dispatch = ctx.runtime.dispatch_macro(block, ctx.pc, blocks)
+    if not dispatch.handled:
+        return False
+    ctx.pc = dispatch.next_pc
+    return True
+
+
+def _skip_unsupported_system_b(ctx, evaluated_block):
+    if ctx.runtime.gcode_system != "B":
+        return False
+    if all(code in supported_codes("B") for code in evaluated_block.source_gcodes):
+        return False
+    ctx.pc += 1
+    return True
+
+
+def _dispatch_turning_g65(program, ctx, block, words, codes, event_list):
+    flow = ctx.runtime.dispatch_g65(block=block, words=words, codes=codes, pc=ctx.pc, program=program)
+    if not flow.dispatch.handled:
+        return False
+    event_list.extend(flow.events)
+    ctx.signals = ()
+    ctx.events = tuple(event_list)
+    ctx.pc = flow.dispatch.next_pc
+    return True
+
+
+def _mark_cycle_contour_blocks(ctx, blocks, block, words, all_g):
+    if not (any(g in (70, 71, 72, 73) for g in all_g) and "P" in words and "Q" in words):
+        return
+    bounds = resolve_cycle_profile_indices(
+        blocks, ctx.pc, int(words["P"]), int(words["Q"]), prefer_preceding=70 in all_g
+    )
+    if bounds is None:
+        raise ValueError(f"Missing cycle P/Q contour at line {block.index + 1}")
+    ctx.contour_block_indices.update(range(bounds[0], bounds[1] + 1))
 
 
 def _apply_turning_state_and_flow(
@@ -411,6 +447,13 @@ def _apply_turning_modal_state(
         state.feed_mode = "per_minute"
     if 99 in all_g:
         state.feed_mode = "per_revolution"
+    _apply_turning_spindle_state(state, all_g, all_m, words)
+    if "F" in words:
+        state.feed = words["F"] * state.unit_scale
+
+
+def _apply_turning_spindle_state(state, all_g, all_m, words):
+    """Apply RPM/CSS mode and spindle controls from one block."""
     if 50 in all_g and "S" in words:
         state.spindle_limit_rpm = words["S"]
     if 96 in all_g:
@@ -431,8 +474,6 @@ def _apply_turning_modal_state(
         state.spindle_running = True
     if 5 in all_m:
         state.spindle_running = False
-    if "F" in words:
-        state.feed = words["F"] * state.unit_scale
 
 
 def _turning_reference_events(block, all_g, words, call_depth):

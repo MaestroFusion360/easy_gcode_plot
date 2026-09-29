@@ -539,11 +539,14 @@ def execute_milling(
     try:
         _validate_g73_retract_distance(state.g73_retract_distance)
         while 0 <= runtime.pc < len(program.blocks):
-            if (
+            simple_blocks_available = (
                 not contains_rotary
                 and kinematics is None
                 and _execute_simple_blocks is not None
-                and _execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs_offsets)
+                and (ctx.program_started or runtime.pc != ctx.program_start_block)
+            )
+            if simple_blocks_available and _execute_simple_blocks(
+                program, runtime, state, motions, executed, steps, wcs_offsets
             ):
                 continue
             block = runtime.next_block(program.blocks)

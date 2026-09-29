@@ -26,7 +26,7 @@ class Ui_OptionsDlg(object):
     def setupUi(self, OptionsDlg):
         if not OptionsDlg.objectName():
             OptionsDlg.setObjectName(u"OptionsDlg")
-        OptionsDlg.resize(660, 620)
+        OptionsDlg.resize(660, 470)
         self.verticalLayout = QVBoxLayout(OptionsDlg)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.tabs = QTabWidget(OptionsDlg)
@@ -115,7 +115,7 @@ class Ui_OptionsDlg(object):
         self.autoUpdateMaxSegmentsSpin.setMinimum(1000)
         self.autoUpdateMaxSegmentsSpin.setMaximum(2147483647)
         self.autoUpdateMaxSegmentsSpin.setSingleStep(5000)
-        self.autoUpdateMaxSegmentsSpin.setValue(20000)
+        self.autoUpdateMaxSegmentsSpin.setValue(2147483647)
 
         self.generalForm.setWidget(7, QFormLayout.ItemRole.FieldRole, self.autoUpdateMaxSegmentsSpin)
 
@@ -129,7 +129,7 @@ class Ui_OptionsDlg(object):
         self.maxGeneratedMotionsSpin.setMinimum(1)
         self.maxGeneratedMotionsSpin.setMaximum(2147483647)
         self.maxGeneratedMotionsSpin.setSingleStep(50000)
-        self.maxGeneratedMotionsSpin.setValue(200000)
+        self.maxGeneratedMotionsSpin.setValue(2147483647)
 
         self.generalForm.setWidget(8, QFormLayout.ItemRole.FieldRole, self.maxGeneratedMotionsSpin)
 
@@ -301,6 +301,7 @@ class Ui_OptionsDlg(object):
         self.plotTab.setObjectName(u"plotTab")
         self.plotForm = QFormLayout(self.plotTab)
         self.plotForm.setObjectName(u"plotForm")
+        self.plotForm.setRowWrapPolicy(QFormLayout.RowWrapPolicy.WrapLongRows)
         self.lineWidthLabel = QLabel(self.plotTab)
         self.lineWidthLabel.setObjectName(u"lineWidthLabel")
 
@@ -331,32 +332,47 @@ class Ui_OptionsDlg(object):
         self.axesCheck = QCheckBox(self.plotTab)
         self.axesCheck.setObjectName(u"axesCheck")
 
-        self.plotForm.setWidget(2, QFormLayout.ItemRole.SpanningRole, self.axesCheck)
+        self.plotForm.setWidget(2, QFormLayout.ItemRole.LabelRole, self.axesCheck)
 
         self.gridCheck = QCheckBox(self.plotTab)
         self.gridCheck.setObjectName(u"gridCheck")
 
-        self.plotForm.setWidget(3, QFormLayout.ItemRole.SpanningRole, self.gridCheck)
+        self.plotForm.setWidget(2, QFormLayout.ItemRole.FieldRole, self.gridCheck)
 
         self.backgroundGradientCheck = QCheckBox(self.plotTab)
         self.backgroundGradientCheck.setObjectName(u"backgroundGradientCheck")
 
-        self.plotForm.setWidget(4, QFormLayout.ItemRole.SpanningRole, self.backgroundGradientCheck)
+        self.plotForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.backgroundGradientCheck)
 
         self.showStockCheck = QCheckBox(self.plotTab)
         self.showStockCheck.setObjectName(u"showStockCheck")
 
-        self.plotForm.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.showStockCheck)
+        self.plotForm.setWidget(4, QFormLayout.ItemRole.FieldRole, self.showStockCheck)
 
         self.stlWireframeCheck = QCheckBox(self.plotTab)
         self.stlWireframeCheck.setObjectName(u"stlWireframeCheck")
 
-        self.plotForm.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.stlWireframeCheck)
+        self.plotForm.setWidget(5, QFormLayout.ItemRole.FieldRole, self.stlWireframeCheck)
+
+        self.showRapidCheck = QCheckBox(self.plotTab)
+        self.showRapidCheck.setObjectName(u"showRapidCheck")
+
+        self.plotForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.showRapidCheck)
+
+        self.dashedRapidCheck = QCheckBox(self.plotTab)
+        self.dashedRapidCheck.setObjectName(u"dashedRapidCheck")
+
+        self.plotForm.setWidget(3, QFormLayout.ItemRole.FieldRole, self.dashedRapidCheck)
+
+        self.colorByToolCheck = QCheckBox(self.plotTab)
+        self.colorByToolCheck.setObjectName(u"colorByToolCheck")
+
+        self.plotForm.setWidget(4, QFormLayout.ItemRole.LabelRole, self.colorByToolCheck)
 
         self.playbackSpeedLabel = QLabel(self.plotTab)
         self.playbackSpeedLabel.setObjectName(u"playbackSpeedLabel")
 
-        self.plotForm.setWidget(7, QFormLayout.ItemRole.LabelRole, self.playbackSpeedLabel)
+        self.plotForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.playbackSpeedLabel)
 
         self.playbackSpeedLayout = QHBoxLayout()
         self.playbackSpeedLayout.setObjectName(u"playbackSpeedLayout")
@@ -375,7 +391,7 @@ class Ui_OptionsDlg(object):
         self.playbackSpeedLayout.addWidget(self.playbackSpeedValueLabel)
 
 
-        self.plotForm.setLayout(7, QFormLayout.ItemRole.FieldRole, self.playbackSpeedLayout)
+        self.plotForm.setLayout(6, QFormLayout.ItemRole.FieldRole, self.playbackSpeedLayout)
 
         self.tabs.addTab(self.plotTab, "")
         self.colorsTab = QWidget()
@@ -650,6 +666,9 @@ class Ui_OptionsDlg(object):
         self.backgroundGradientCheck.setText(QCoreApplication.translate("OptionsDlg", u"Gradient background", None))
         self.showStockCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show Stock", None))
         self.stlWireframeCheck.setText(QCoreApplication.translate("OptionsDlg", u"STL edges only", None))
+        self.showRapidCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show rapid moves (G0)", None))
+        self.dashedRapidCheck.setText(QCoreApplication.translate("OptionsDlg", u"Dashed rapid moves", None))
+        self.colorByToolCheck.setText(QCoreApplication.translate("OptionsDlg", u"Color by tool", None))
         self.playbackSpeedLabel.setText(QCoreApplication.translate("OptionsDlg", u"Playback speed", None))
         self.playbackSpeedValueLabel.setText(QCoreApplication.translate("OptionsDlg", u"3 \u2014 100 ms/step", None))
         self.tabs.setTabText(self.tabs.indexOf(self.plotTab), QCoreApplication.translate("OptionsDlg", u"Plot", None))

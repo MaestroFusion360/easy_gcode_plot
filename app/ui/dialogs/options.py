@@ -28,6 +28,7 @@ from app.settings import (
     ARC_SAMPLING_PRESET_DEFAULT,
     ARC_SAMPLING_PRESETS,
     ARC_TOLERANCE_DEFAULT,
+    AUTO_UPDATE_SEGMENTS_DEFAULT,
     DEFAULT_TOOLBAR_ICON_SIZE,
     GENERATED_MOTIONS_DEFAULT,
     MAXIMUM_CIRCULAR_RADIUS_DEFAULT,
@@ -51,7 +52,7 @@ def _option_snapshot(window):
         "units": getattr(window, "defaultUnits", "mm"),
         "logging": getattr(window, "loggingEnabled", False),
         "auto_update": getattr(window, "autoUpdateEnabled", True),
-        "auto_update_limit": getattr(window, "autoUpdateMaxSegments", 20000),
+        "auto_update_limit": getattr(window, "autoUpdateMaxSegments", AUTO_UPDATE_SEGMENTS_DEFAULT),
         "generated_motions_limit": getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT),
         "correction": getattr(window, "correctionEnabled", True),
         "autodetect_arc_type": getattr(window, "autodetectArcType", True),
@@ -70,6 +71,9 @@ def _option_snapshot(window):
         "whitespace_visible": getattr(window, "spaceVisible", False),
         "margin_visible": getattr(window, "marginArea", True),
         "show_stock": getattr(window, "showStock", True),
+        "show_rapid": getattr(window, "plotShowRapid", True),
+        "dashed_rapid": getattr(window, "plotDashedRapid", True),
+        "color_by_tool": getattr(window, "plotColorByTool", False),
         "plot_grid": getattr(window, "plotGrid", False),
         "plot_axes": getattr(window, "plotAxes", True),
         "grid_step": getattr(window, "plotGridStep", 0.0),
@@ -232,6 +236,7 @@ class OptionsDialog(QDialog):
         self.ui.arcSamplingPresetCombo.currentIndexChanged.connect(self._apply_arc_sampling_preset)
         self.ui.correctionCheck.toggled.connect(self._preview_correction)
         self.ui.showStockCheck.toggled.connect(self._preview_show_stock)
+        self.ui.showRapidCheck.toggled.connect(self.ui.dashedRapidCheck.setEnabled)
         self._loading_values = False
         self._correction_before_show = None
         self._correction_preview_applied = False
@@ -246,7 +251,7 @@ class OptionsDialog(QDialog):
         self.ui.rotaryKinematicsCombo = QComboBox(self.ui.plotTab)
         self.ui.rotaryKinematicsCombo.setObjectName("rotaryKinematicsCombo")
         self.ui.rotaryKinematicsEditButton = QPushButton(
-            QCoreApplication.translate("OptionsDlg", "Edit JSON..."), self.ui.plotTab
+            QCoreApplication.translate("OptionsDlg", "Edit"), self.ui.plotTab
         )
         self.ui.rotaryKinematicsEditButton.setObjectName("rotaryKinematicsEditButton")
 
@@ -266,7 +271,7 @@ class OptionsDialog(QDialog):
         try:
             combo.clear()
             combo.addItem(QCoreApplication.translate("OptionsDlg", "None"), None)
-            for profile_id, profile in load_catalog().items():
+            for profile_id, profile in load_catalog(ignore_user_errors=True).items():
                 if profile.enabled:
                     combo.addItem(f"{profile.name} [{profile_id}]", profile_id)
             index = combo.findData(selected)
@@ -319,7 +324,9 @@ class OptionsDialog(QDialog):
         )
         self.ui.loggingCheck.setChecked(getattr(window, "loggingEnabled", False))
         self.ui.autoUpdateCheck.setChecked(getattr(window, "autoUpdateEnabled", True))
-        self.ui.autoUpdateMaxSegmentsSpin.setValue(getattr(window, "autoUpdateMaxSegments", 20000))
+        self.ui.autoUpdateMaxSegmentsSpin.setValue(
+            getattr(window, "autoUpdateMaxSegments", AUTO_UPDATE_SEGMENTS_DEFAULT)
+        )
         self.ui.maxGeneratedMotionsSpin.setValue(getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT))
         self._loading_values = True
         try:
@@ -339,6 +346,10 @@ class OptionsDialog(QDialog):
         self.ui.eolCheck.setChecked(window.eolVisible)
         self.ui.whitespaceCheck.setChecked(window.spaceVisible)
         self.ui.marginCheck.setChecked(window.marginArea)
+        self._load_plot_values(window)
+
+    def _load_plot_values(self, window):
+        """Populate plot appearance and playback controls."""
         self._reload_rotary_kinematics_combo(getattr(window, "rotaryKinematics", None))
         self.ui.rapidColorEdit.setText(getattr(window, "plotRapidColor", "#d02020"))
         self.ui.linearColorEdit.setText(window.plotLineColor)
@@ -353,6 +364,10 @@ class OptionsDialog(QDialog):
         self.ui.gridStepSpin.setValue(getattr(window, "plotGridStep", 0.0))
         self.ui.axesCheck.setChecked(getattr(window, "plotAxes", True))
         self.ui.gridCheck.setChecked(window.plotGrid)
+        self.ui.showRapidCheck.setChecked(getattr(window, "plotShowRapid", True))
+        self.ui.dashedRapidCheck.setChecked(getattr(window, "plotDashedRapid", True))
+        self.ui.dashedRapidCheck.setEnabled(self.ui.showRapidCheck.isChecked())
+        self.ui.colorByToolCheck.setChecked(getattr(window, "plotColorByTool", False))
         self.ui.playbackSpeedSlider.setValue(getattr(window, "playbackSpeed", 3))
         self._update_playback_speed_label(self.ui.playbackSpeedSlider.value())
         for button, edit in self._color_controls:
@@ -454,6 +469,21 @@ class OptionsDialog(QDialog):
             for key, attribute in theme.PLOT_COLOR_ATTRIBUTES.items():
                 setattr(window, attribute, theme.themed_plot_value(getattr(window, attribute), key, window.uiTheme))
 
+    def _apply_plot_options(self, window, color_edits, previous_theme):
+        """Apply the Plot tab without changing execution semantics."""
+        self._apply_plot_colors(window, color_edits, previous_theme)
+        window.plotBackgroundGradient = self.ui.backgroundGradientCheck.isChecked()
+        window.stlWireframe = self.ui.stlWireframeCheck.isChecked()
+        window.plotLineWidth = self.ui.lineWidthSpin.value()
+        window.plotGridStep = self.ui.gridStepSpin.value()
+        window.plotAxes = self.ui.axesCheck.isChecked()
+        window.plotGrid = self.ui.gridCheck.isChecked()
+        window.showStock = self.ui.showStockCheck.isChecked()
+        window.plotShowRapid = self.ui.showRapidCheck.isChecked()
+        window.plotDashedRapid = self.ui.dashedRapidCheck.isChecked()
+        window.plotColorByTool = self.ui.colorByToolCheck.isChecked()
+        window.setPlaybackSpeed(self.ui.playbackSpeedSlider.value())
+
     def accept(self):
         window = self.parent()
         previous_options = _option_snapshot(window)
@@ -509,15 +539,7 @@ class OptionsDialog(QDialog):
         window.eolVisible = self.ui.eolCheck.isChecked()
         window.spaceVisible = self.ui.whitespaceCheck.isChecked()
         window.marginArea = self.ui.marginCheck.isChecked()
-        self._apply_plot_colors(window, color_edits, previous_theme)
-        window.plotBackgroundGradient = self.ui.backgroundGradientCheck.isChecked()
-        window.stlWireframe = self.ui.stlWireframeCheck.isChecked()
-        window.plotLineWidth = self.ui.lineWidthSpin.value()
-        window.plotGridStep = self.ui.gridStepSpin.value()
-        window.plotAxes = self.ui.axesCheck.isChecked()
-        window.plotGrid = self.ui.gridCheck.isChecked()
-        window.showStock = self.ui.showStockCheck.isChecked()
-        window.setPlaybackSpeed(self.ui.playbackSpeedSlider.value())
+        self._apply_plot_options(window, color_edits, previous_theme)
         target_file_type = window.defaultFileType
         signals_blocked = window.ui.fileTypeCombo.blockSignals(True)
         window.ui.fileTypeCombo.setCurrentIndex(target_file_type)
@@ -652,7 +674,7 @@ class OptionsDialog(QDialog):
         self.ui.toolpanelIconsCombo.setCurrentIndex(1)
         self.ui.loggingCheck.setChecked(False)
         self.ui.autoUpdateCheck.setChecked(True)
-        self.ui.autoUpdateMaxSegmentsSpin.setValue(20000)
+        self.ui.autoUpdateMaxSegmentsSpin.setValue(AUTO_UPDATE_SEGMENTS_DEFAULT)
         self.ui.maxGeneratedMotionsSpin.setValue(GENERATED_MOTIONS_DEFAULT)
         self.ui.correctionCheck.setChecked(True)
         self.ui.autodetectArcTypeCheck.setChecked(True)
@@ -684,6 +706,9 @@ class OptionsDialog(QDialog):
         self.ui.gridStepSpin.setValue(0.0)
         self.ui.axesCheck.setChecked(True)
         self.ui.gridCheck.setChecked(False)
+        self.ui.showRapidCheck.setChecked(True)
+        self.ui.dashedRapidCheck.setChecked(True)
+        self.ui.colorByToolCheck.setChecked(False)
         self.ui.playbackSpeedSlider.setValue(3)
 
     def _set_arc_sampling_values(self, preset):

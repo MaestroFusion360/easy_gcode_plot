@@ -53,15 +53,18 @@ class StatisticsDialog(QDialog):
         self.ui.setupUi(self)
         if parent is not None:
             self.setWindowIcon(parent.windowIcon())
-        self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.setWindowFlags(
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
+        )
         self.inchesCheck = self.ui.inchesCheck
         self.reportText = self.ui.reportText
-        self.buttons = self.ui.buttonBox
         self.inchesCheck.toggled.connect(self._refresh_statistics_report)
         self._statistics = None
         self.reportText.setFont(QFontDatabase.systemFont(QFontDatabase.SystemFont.FixedFont))
         self.reportText.customContextMenuRequested.connect(self._show_report_context_menu)
-        self.buttons.rejected.connect(self.close)
 
     def show_report(self, report: str) -> None:
         """Replace the report, reset scrolling and bring the dialog forward."""

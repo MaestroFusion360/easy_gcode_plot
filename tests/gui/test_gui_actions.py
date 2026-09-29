@@ -101,6 +101,7 @@ def test_ctrl_slash_adds_one_blockskip_to_each_selected_block(qt_app):
     editor.undo()
     assert editor.text() == "N10 G1 X1\n/N20 G1 X2\n\nN30 G1 X3\nM30"
     editor.setCursorPosition(4, 2)
+    window.ui.graphicsView.hide()
     window.show()
     editor.setFocus()
     qt_app.processEvents()
@@ -122,6 +123,7 @@ def test_ctrl_shift_slash_removes_only_selected_block_skips(qt_app):
     assert editor.text() == "N10\n/N20\nN30\n/M30"
     editor.undo()
     assert editor.text() == "/N10\n//N20\nN30\n/M30"
+    window.ui.graphicsView.hide()
     window.show()
     editor.setFocus()
     qt_app.processEvents()
