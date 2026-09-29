@@ -198,10 +198,14 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     monkeypatch.setattr(
         main_window_file_ops.QFileDialog,
         "getOpenFileName",
-        lambda *args: calls.append(("open", args[-1])) or ("", ""),
+        lambda *args: calls.append(args) or ("", ""),
     )
-    MainWindowFileMixin.openFile(SimpleNamespace(maybeSave=lambda: True))
-    assert calls[-1] == ("open", main_window_file_ops.NC_FILE_FILTER)
+    window = SimpleNamespace(
+        maybeSave=lambda: True,
+        _open_file_directory=lambda: str(tmp_path),
+    )
+    MainWindowFileMixin.openFile(window)
+    assert calls[-1][1:4] == ("Open", str(tmp_path), main_window_file_ops.NC_FILE_FILTER)
 
     saved = []
     monkeypatch.setattr(
@@ -212,3 +216,33 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     window = SimpleNamespace(curFile="", saveFile=lambda path: saved.append(path) or True)
     assert MainWindowFileMixin.saveAs(window) is True
     assert saved == [str(save_target) + ".nc"]
+
+
+def test_open_file_directory_prefers_remembered_directory(tmp_path):
+    remembered = tmp_path / "remembered"
+    remembered.mkdir()
+    settings = SimpleNamespace(value=lambda key, default, **_kwargs: str(remembered))
+    window = SimpleNamespace(settings=settings, curFile="")
+
+    assert MainWindowFileMixin._open_file_directory(window) == str(remembered)
+
+
+def test_open_file_directory_falls_back_to_current_file_directory(tmp_path):
+    current = tmp_path / "current"
+    current.mkdir()
+    settings = SimpleNamespace(value=lambda key, default, **_kwargs: "")
+    window = SimpleNamespace(settings=settings, curFile=str(current / "part.nc"))
+
+    assert MainWindowFileMixin._open_file_directory(window) == str(current)
+
+
+def test_successful_open_remembers_file_directory(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "program.nc"
+    path.write_text("G0 X0\nM30\n", encoding="utf-8")
+    window = main_window.MainWindow()
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+
+    window.loadFile(str(path))
+
+    assert window.settings.value("FILE/LAST_OPEN_DIRECTORY") == str(tmp_path)
+    window.deleteLater()

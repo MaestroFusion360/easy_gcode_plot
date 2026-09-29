@@ -3,8 +3,7 @@
 # pylint: disable=protected-access  # Print tests inspect internal plot items.
 import pytest
 from PyQt6.QtCore import QSettings
-from PyQt6.QtGui import QKeySequence, QMatrix4x4
-from PyQt6.QtPrintSupport import QPrinter
+from PyQt6.QtGui import QKeySequence, QMatrix4x4, QPdfWriter
 from PyQt6.QtWidgets import QApplication
 
 from app import settings as app_settings
@@ -61,10 +60,9 @@ def test_complete_vector_toolpath_is_printed_to_pdf(qt_app, tmp_path):
     )
     assert len(segments) == 2
     path = tmp_path / "plot.pdf"
-    printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-    printer.setOutputFormat(QPrinter.OutputFormat.PdfFormat)
-    printer.setOutputFileName(str(path))
-    paint_plot_page(printer, segments)
+    writer = QPdfWriter(str(path))
+    writer.setResolution(300)
+    paint_plot_page(writer, segments)
     assert path.read_bytes().startswith(b"%PDF")
     qt_app.processEvents()
 

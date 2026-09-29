@@ -59,6 +59,12 @@
     <file>icons/minus-16.png</file>
     <file>icons/plus-16.png</file>
     <file>icons/trash.png</file>
+    <file>icons/apply.png</file>
+    <file>icons/create.png</file>
+    <file>icons/mirror.png</file>
+    <file>icons/remove.png</file>
+    <file>icons/rotate.png</file>
+    <file>icons/scale.png</file>
     <file>icons/rename.png</file>
     <file>icons/save-as.png</file>
     <file>icons/select-all.png</file>

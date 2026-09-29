@@ -542,20 +542,20 @@
         <translation>Перемещение %1 / %2</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="483"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="486"/>
         <source>Trajectory exceeds the Auto Update limit of %1 points; press Update.</source>
         <translation>Траектория превышает предел автообновления в %1 точек; нажмите «Обновить».</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="248"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="255"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="305"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="312"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="277"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="324"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="383"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="408"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="449"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="342"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="401"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="426"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="468"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="487"/>
         <source>Easy G-code Plot</source>
         <translation>Easy G-code Plot</translation>
     </message>
@@ -1059,8 +1059,8 @@
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="898"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="505"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="526"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="525"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="546"/>
         <source>Tool List</source>
         <translation>Список инструментов</translation>
     </message>
@@ -1175,47 +1175,47 @@
         <translation>Смены инструмента не найдены</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="249"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="256"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="306"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="313"/>
         <source>Cannot find text:
 &apos;%s&apos;</source>
         <translation>Текст не найден:
 &apos;%s&apos;</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="218"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="219"/>
         <source>Cancelling CNC execution...</source>
         <translation>Отмена выполнения ЧПУ...</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="365"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="551"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="368"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="554"/>
         <source>CNC execution</source>
         <translation>Выполнение ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="367"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="370"/>
         <source>Executing CNC program…</source>
         <translation>Выполнение программы ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="368"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="371"/>
         <source>Cancelling CNC execution…</source>
         <translation>Отмена выполнения ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="553"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="556"/>
         <source>Building toolpath…</source>
         <translation>Построение траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="366"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="552"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="369"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="555"/>
         <source>Updating plot…</source>
         <translation>Обновление графика…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="554"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="557"/>
         <source>Cancelling toolpath calculation…</source>
         <translation>Отмена расчёта траектории…</translation>
     </message>
@@ -1267,7 +1267,7 @@
     </message>
     <message>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="278"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="325"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="343"/>
         <source>File not found:
 {0}</source>
         <translation>Файл не найден:
@@ -1284,105 +1284,110 @@
         <translation>Очистить список STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="384"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="402"/>
         <source>The document has been modified.
 Do you want to save your changes?</source>
         <translation>Документ был изменён.
 Сохранить изменения?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="409"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="427"/>
         <source>Cannot read file %s:
 %s.</source>
         <translation>Не удалось прочитать файл %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="450"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="469"/>
         <source>The file was changed by another application. Overwrite those changes?</source>
         <translation>Файл был изменён другим приложением. Перезаписать эти изменения?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="469"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="488"/>
         <source>Cannot write file %s:
 %s.</source>
         <translation>Не удалось записать файл %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="490"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="510"/>
         <source>%s[*] - Easy G-code Plot</source>
         <translation>%s[*] - Easy G-code Plot</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="507"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="527"/>
         <source>Text files (*.txt);;All files (*)</source>
         <translation>Текстовые файлы (*.txt);;Все файлы (*)</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="527"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="547"/>
         <source>Cannot write tool list %s:
 %s.</source>
         <translation>Не удалось записать список инструментов %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="531"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="551"/>
         <source>Tool list exported to %s</source>
         <translation>Список инструментов экспортирован в %s</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="549"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="569"/>
         <source>No valid CNC execution result is available for export</source>
         <translation>Нет корректного результата выполнения программы ЧПУ для экспорта</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="573"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="593"/>
         <source>Export</source>
         <translation>Экспорт</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="574"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="594"/>
         <source>Exporting program…</source>
         <translation>Экспорт программы…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="575"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="595"/>
         <source>Cancelling export…</source>
         <translation>Отмена экспорта…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="578"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="598"/>
         <source>Export cancelled.</source>
         <translation>Экспорт отменён.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="587"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="607"/>
         <source>Export Execution time: {0:.3f} ms</source>
         <translation>Время экспорта: {0:.3f} мс</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="230"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="235"/>
         <source>Imported STL: {0:,} triangles</source>
         <translation>Импортирован STL: {0:,} треугольников</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="431"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="432"/>
         <source>STL Statistics</source>
         <translation>Статистика STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="438"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="439"/>
         <source>Inches</source>
         <translation>Дюймы</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="557"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="514"/>
+        <source>Scale rejected: {0}</source>
+        <translation>Масштабирование отклонено: {0}</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_plot.py" line="565"/>
         <source>STL section is empty</source>
         <translation>??????? STL ??????</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="569"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="577"/>
         <source>STL cut created: {0:,} triangles</source>
         <translation>??????? ??????? STL: {0:,} ?????????????</translation>
     </message>
@@ -1417,181 +1422,181 @@ Do you want to save your changes?</source>
         <translation>Снятие заготовки недоступно: {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="124"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="125"/>
         <source>Base point</source>
         <translation>Базовая точка</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="128"/>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="209"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="129"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="210"/>
         <source>Center</source>
         <translation>Центр</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="129"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="130"/>
         <source>Bounding-box corner</source>
         <translation>Угол габаритов</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="130"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="131"/>
         <source>Origin</source>
         <translation>Начало координат</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="131"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="132"/>
         <source>Custom</source>
         <translation>Пользовательская</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="142"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="143"/>
         <source>Set base point</source>
         <translation>Задать базовую точку</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="147"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="148"/>
         <source>Position</source>
         <translation>Положение</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="153"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="154"/>
         <source>Move here</source>
         <translation>Переместить сюда</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="158"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="159"/>
         <source>Transform</source>
         <translation>Преобразование</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="163"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="164"/>
         <source>Rotate</source>
         <translation>Повернуть</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="170"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="171"/>
         <source>Rotation</source>
         <translation>Поворот</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="174"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="175"/>
         <source>Mirror</source>
         <translation>Отразить</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="180"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="181"/>
         <source>Plane normal</source>
         <translation>Нормаль плоскости</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="183"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="184"/>
         <source>Scale</source>
         <translation>Масштабировать</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="189"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="190"/>
         <source>Factor</source>
         <translation>Коэффициент</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="193"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="194"/>
         <source>Circular array</source>
         <translation>Круговой массив</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="201"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="202"/>
         <source>Copies</source>
         <translation>Копий</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="202"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="203"/>
         <source>Total angle</source>
         <translation>Общий угол</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="203"/>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="225"/>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="255"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="204"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="226"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="256"/>
         <source>Axis</source>
         <translation>Ось</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="210"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="211"/>
         <source>Rotate copies</source>
         <translation>Поворачивать копии</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="213"/>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="242"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="214"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="243"/>
         <source>Create</source>
         <translation>Создать</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="218"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="219"/>
         <source>Rectangular array</source>
         <translation>Прямоугольный массив</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="226"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="227"/>
         <source>Count</source>
         <translation>Количество</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="227"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="228"/>
         <source>Step</source>
         <translation>Шаг</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="247"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="248"/>
         <source>Section</source>
         <translation>Сечение</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="253"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="254"/>
         <source>Positive side</source>
         <translation>Положительная сторона</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="254"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="255"/>
         <source>Negative side</source>
         <translation>Отрицательная сторона</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="256"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="257"/>
         <source>Coordinate</source>
         <translation>Координата</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="257"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="258"/>
         <source>Keep</source>
         <translation>Оставить</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="258"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="259"/>
         <source>Apply</source>
         <translation>Применить</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="259"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="260"/>
         <source>Clear</source>
         <translation>Очистить</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="311"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="312"/>
         <source>Center of the source mesh bounding box, in model coordinates.</source>
         <translation>Центр габаритного параллелепипеда исходной сетки в координатах модели.</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="314"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="315"/>
         <source>Minimum X, Y and Z. Shift+Click any highlighted bounding-box corner to use it.</source>
         <translation>Минимальные X, Y и Z. Shift+щелчок по выделенному углу габаритов задаёт его базовой точкой.</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="317"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="318"/>
         <source>Model coordinate origin (0, 0, 0).</source>
         <translation>Начало координат модели (0, 0, 0).</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="318"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="319"/>
         <source>Enter a point in model coordinates, then apply it.</source>
         <translation>Введите координаты модели и задайте базовую точку.</translation>
     </message>
@@ -1663,9 +1668,9 @@ Do you want to save your changes?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
-        <location filename="../app/ui/dialogs/options.py" line="418"/>
-        <location filename="../app/ui/dialogs/options.py" line="430"/>
-        <location filename="../app/ui/dialogs/options.py" line="441"/>
+        <location filename="../app/ui/dialogs/options.py" line="421"/>
+        <location filename="../app/ui/dialogs/options.py" line="433"/>
+        <location filename="../app/ui/dialogs/options.py" line="444"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -2054,39 +2059,39 @@ Do you want to save your changes?</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="168"/>
-        <location filename="../app/ui/dialogs/options.py" line="200"/>
-        <location filename="../app/ui/dialogs/options.py" line="648"/>
+        <location filename="../app/ui/dialogs/options.py" line="169"/>
+        <location filename="../app/ui/dialogs/options.py" line="201"/>
+        <location filename="../app/ui/dialogs/options.py" line="651"/>
         <source>Rotary kinematics JSON</source>
         <translation>JSON поворотной кинематики</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="247"/>
+        <location filename="../app/ui/dialogs/options.py" line="248"/>
         <source>Rotary kinematics</source>
         <translation>Поворотная кинематика</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="253"/>
+        <location filename="../app/ui/dialogs/options.py" line="254"/>
         <source>Edit</source>
         <translation>Редак-ть</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="272"/>
+        <location filename="../app/ui/dialogs/options.py" line="273"/>
         <source>None</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="419"/>
+        <location filename="../app/ui/dialogs/options.py" line="422"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="431"/>
+        <location filename="../app/ui/dialogs/options.py" line="434"/>
         <source>Hotkeys must be unique.</source>
         <translation>Горячие клавиши не должны повторяться.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="442"/>
+        <location filename="../app/ui/dialogs/options.py" line="445"/>
         <source>Plot colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета графика должны быть корректными именами цветов Qt, например #008000.</translation>
     </message>
@@ -2451,7 +2456,7 @@ Do you want to save your changes?</source>
         <translation>Инструмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="830"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="833"/>
         <source>No Data Available</source>
         <translation>Нет данных</translation>
     </message>
@@ -2488,28 +2493,28 @@ Do you want to save your changes?</source>
 <context>
     <name>StlStatistics</name>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="392"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="393"/>
         <source>Surface area</source>
         <translation>Площадь поверхности</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="393"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="394"/>
         <source>Volume</source>
         <translation>Объём</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="394"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="395"/>
         <source>Center of mass</source>
         <translation>Центр масс</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="395"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="396"/>
         <source>Bounding box</source>
         <translation>Габариты</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="399"/>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="404"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="400"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="405"/>
         <source>undefined (open mesh)</source>
         <translation>не определёно (открытая сетка)</translation>
     </message>

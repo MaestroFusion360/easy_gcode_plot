@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import pytest
 from PyQt6.QtCore import QPoint
-from PyQt6.QtGui import QVector3D
+from PyQt6.QtGui import QMatrix4x4, QVector3D, QVector4D
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.trace_tools import RenderPoint
 from app.main_window import MainWindow
+
+# These tests inspect internal camera mappings while validating fixed views.
+# pylint: disable=protected-access
 
 
 @pytest.fixture(scope="module")
@@ -219,6 +222,76 @@ def test_milling_fit_keeps_every_bounds_corner_inside_view(qt_app, view_mode, fo
     window.deleteLater()
 
 
+def test_orthographic_clipping_remains_safe_across_orbit_angles(qt_app):
+    window = MainWindow()
+    try:
+        window.latheMode = False
+        window._view_mode = "3d"  # pylint: disable=protected-access
+        view = window.ui.graphicsView
+        view.resize(800, 400)
+        view.setProjectionMode("orthographic")
+        bounds = ((800.0, 820.0), (20.0, 40.0), (-30.0, -10.0))
+        window.render_points = [
+            RenderPoint(bounds[0][0], bounds[1][0], bounds[2][0], None, 0, 0),
+            RenderPoint(bounds[0][1], bounds[1][1], bounds[2][1], None, 1, 1),
+        ]
+
+        window.fitToView()
+        orthographic_width = view._orthographic_width  # pylint: disable=protected-access
+        near_clip = view._orthographic_near  # pylint: disable=protected-access
+        far_clip = view._orthographic_far  # pylint: disable=protected-access
+
+        for azimuth, elevation in ((170, 70), (-250, 20), (90, -130), (320, 80)):
+            view.orbit(azimuth, elevation)
+            matrix = view.viewMatrix()
+            camera_depths = [
+                -(matrix * QVector4D(x, y, z, 1.0)).z() for x in bounds[0] for y in bounds[1] for z in bounds[2]
+            ]
+            camera_depths.append(-(matrix * QVector4D(0.0, 0.0, 0.0, 1.0)).z())
+
+            assert min(camera_depths) >= near_clip
+            assert max(camera_depths) <= far_clip
+            assert view._orthographic_near == near_clip  # pylint: disable=protected-access
+            assert view._orthographic_far == far_clip  # pylint: disable=protected-access
+            assert view._orthographic_width == orthographic_width  # pylint: disable=protected-access
+    finally:
+        window.deleteLater()
+
+
+def test_grid_is_only_available_in_fixed_and_lathe_views(qt_app):
+    window = MainWindow()
+    try:
+        window.latheMode = False
+        window.plotGrid = True
+        window._view_mode = "3d"  # pylint: disable=protected-access
+        window.loadPlot()
+        assert window._milling_grid_item is None  # pylint: disable=protected-access
+        assert not window.ui.actionGrid.isEnabled()
+
+        window.viewTop()
+        assert window._milling_grid_item is not None  # pylint: disable=protected-access
+        assert window._milling_grid_item.visible()  # pylint: disable=protected-access
+        assert window.ui.actionGrid.isEnabled()
+
+        window.viewFront()
+        assert window._milling_grid_item.visible()  # pylint: disable=protected-access
+        window.viewLeft()
+        assert window._milling_grid_item.visible()  # pylint: disable=protected-access
+
+        window.view3d()
+        assert not window._milling_grid_item.visible()  # pylint: disable=protected-access
+        assert not window.ui.actionGrid.isEnabled()
+
+        window.latheMode = True
+        window._view_mode = "lathe"  # pylint: disable=protected-access
+        window.loadPlot()
+        assert window._lathe_grid_item is not None  # pylint: disable=protected-access
+        assert window._lathe_grid_item.visible()  # pylint: disable=protected-access
+        assert window.ui.actionGrid.isEnabled()
+    finally:
+        window.deleteLater()
+
+
 def test_plot_context_menu_starts_with_fit_to_view(qt_app, monkeypatch):
     captured = []
 
@@ -237,3 +310,170 @@ def test_plot_context_menu_starts_with_fit_to_view(qt_app, monkeypatch):
     window.plotContextMenu(QPoint())
     assert captured[0] is window.ui.actionFitToView
     window.deleteLater()
+
+
+def _camera_axis_signature(window):
+    matrix = window.ui.graphicsView.viewMatrix()
+    signature = []
+    for axis in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)):
+        point = matrix * QVector4D(*axis, 0.0)
+        signature.extend((point.x(), point.y(), point.z()))
+    return tuple(signature)
+
+
+@pytest.mark.parametrize(
+    ("kinematics", "expected"),
+    [
+        (None, {"top": "xy", "front": "xz", "left": "yz"}),
+        ("4ax_table_a", {"top": "xy", "front": "xz", "left": "yz"}),
+        ("4ax_table_c", {"top": "xy", "front": "xz", "left": "yz"}),
+        ("4ax_table_b", {"top": "xy", "front": "xz", "left": "yz"}),
+    ],
+)
+def test_milling_physical_views_map_to_expected_world_planes(qt_app, kinematics, expected):
+    window = MainWindow()
+    previous = window.rotaryKinematics
+    try:
+        window.rotaryKinematics = kinematics
+        assert {mode: window._milling_view_plane(mode) for mode in ("top", "front", "left")} == expected
+    finally:
+        window.rotaryKinematics = previous
+        window.deleteLater()
+
+
+def test_table_b_top_and_front_use_spindle_side_camera_orientation(qt_app):
+    window = MainWindow()
+    previous = window.rotaryKinematics
+    try:
+        window.rotaryKinematics = None
+        window.viewTop()
+        vertical_top = _camera_axis_signature(window)
+        window.viewFront()
+        window.viewLeft()
+        vertical_left = _camera_axis_signature(window)
+
+        window.rotaryKinematics = "4ax_table_b"
+        window.viewTop()
+        # Top is XY/G17, using the spindle-side Front camera orientation.
+        assert window._milling_view_plane() == "xy"
+        assert _camera_axis_signature(window) == pytest.approx(vertical_top, abs=1e-6)
+        assert window.ui.actionTop.toolTip().endswith("(XY/G17)")
+
+        window.viewFront()
+        # Front is XZ/G18, with X right and Z down in the horizontal mill view.
+        assert window._milling_view_plane() == "xz"
+        assert window.ui.graphicsView.cameraPosition().y() > 0
+        assert window.ui.actionFront.toolTip().endswith("(XZ/G18)")
+
+        window.viewLeft()
+        assert _camera_axis_signature(window) == pytest.approx(vertical_left, abs=1e-6)
+        assert window.ui.actionLeft.toolTip().endswith("(YZ/G19)")
+    finally:
+        window.rotaryKinematics = previous
+        window.deleteLater()
+
+
+def test_switching_to_table_b_reapplies_current_fixed_physical_view(qt_app):
+    window = MainWindow()
+    previous = window.rotaryKinematics
+    try:
+        window._select_rotary_kinematics(None)
+        window.viewFront()
+        window.viewTop()
+        vertical_top = _camera_axis_signature(window)
+        assert window._view_mode == "top"  # pylint: disable=protected-access
+
+        window._select_rotary_kinematics("4ax_table_b")
+
+        assert window._view_mode == "top"  # pylint: disable=protected-access
+        assert _camera_axis_signature(window) == pytest.approx(vertical_top, abs=1e-6)
+        assert window.ui.actionTop.toolTip().endswith("(XY/G17)")
+        assert window.ui.actionFront.toolTip().endswith("(XZ/G18)")
+    finally:
+        window._select_rotary_kinematics(previous)
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("vertical_profile", [None, "4ax_table_a", "4ax_table_c"])
+@pytest.mark.parametrize("view_method", ["viewTop", "viewFront", "viewLeft"])
+def test_switching_from_table_b_restores_vertical_mapping_for_active_view(qt_app, vertical_profile, view_method):
+    window = MainWindow()
+    previous = window.rotaryKinematics
+    try:
+        window._select_rotary_kinematics("4ax_table_b")
+        getattr(window, view_method)()
+        assert window._milling_view_plane() == {"viewTop": "xy", "viewFront": "xz", "viewLeft": "yz"}[view_method]
+
+        window._select_rotary_kinematics(vertical_profile)
+
+        assert window._view_mode == {"viewTop": "top", "viewFront": "front", "viewLeft": "left"}[view_method]
+        assert window._milling_view_plane() == {"viewTop": "xy", "viewFront": "xz", "viewLeft": "yz"}[view_method]
+        expected_label = {"viewTop": "(XY/G17)", "viewFront": "(XZ/G18)", "viewLeft": "(YZ/G19)"}[view_method]
+        action = {"viewTop": window.ui.actionTop, "viewFront": window.ui.actionFront, "viewLeft": window.ui.actionLeft}[
+            view_method
+        ]
+        assert action.toolTip().endswith(expected_label)
+        expected_left = _camera_signature_for_look_at((-1.0, 0.0, 0.0), (0.0, 1.0, 0.0))
+        assert _camera_axis_signature(window) == pytest.approx(
+            {
+                "viewTop": _camera_signature_for(90.0, -90.0),
+                "viewFront": _camera_signature_for(0.0, -90.0),
+                "viewLeft": expected_left,
+            }[view_method],
+            abs=1e-6,
+        )
+    finally:
+        window._select_rotary_kinematics(previous)
+        window.deleteLater()
+
+
+def _camera_signature_for(elevation, azimuth):
+    """Return the expected GL view rotation produced by camera angles."""
+    matrix = QMatrix4x4()
+    matrix.rotate(elevation - 90.0, 1.0, 0.0, 0.0)
+    matrix.rotate(azimuth + 90.0, 0.0, 0.0, -1.0)
+    signature = []
+    for axis in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)):
+        point = matrix * QVector4D(*axis, 0.0)
+        signature.extend((point.x(), point.y(), point.z()))
+    return tuple(signature)
+
+
+def _camera_signature_for_look_at(eye, up):
+    """Return the expected GL view rotation for a fixed eye/up camera basis."""
+    matrix = QMatrix4x4()
+    matrix.lookAt(QVector3D(*eye), QVector3D(0.0, 0.0, 0.0), QVector3D(*up))
+    signature = []
+    for axis in ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)):
+        point = matrix * QVector4D(*axis, 0.0)
+        signature.extend((point.x(), point.y(), point.z()))
+    return tuple(signature)
+
+
+def test_table_b_grid_tracks_world_plane_of_physical_view(qt_app):
+    window = MainWindow()
+    previous = window.rotaryKinematics
+    try:
+        window.rotaryKinematics = "4ax_table_b"
+        window.latheMode = False
+        window.plotGrid = True
+        window.plotGridStep = 10.0
+        center = QVector3D(12.0, 23.0, 34.0)
+
+        window.viewTop()
+        window.ui.graphicsView.opts["center"] = center
+        window._update_milling_grid()  # pylint: disable=protected-access
+        assert window._milling_grid_center == pytest.approx((10.0, 20.0, 0.0))  # pylint: disable=protected-access
+
+        window.viewFront()
+        window.ui.graphicsView.opts["center"] = center
+        window._update_milling_grid()  # pylint: disable=protected-access
+        assert window._milling_grid_center == pytest.approx((10.0, 0.0, 30.0))  # pylint: disable=protected-access
+
+        window.viewLeft()
+        window.ui.graphicsView.opts["center"] = center
+        window._update_milling_grid()  # pylint: disable=protected-access
+        assert window._milling_grid_center == pytest.approx((0.0, 20.0, 30.0))  # pylint: disable=protected-access
+    finally:
+        window.rotaryKinematics = previous
+        window.deleteLater()

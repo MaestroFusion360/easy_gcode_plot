@@ -6,7 +6,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 from OpenGL import GL
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, Qt
 from PyQt6.QtGui import QPalette, QVector3D, QVector4D
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QPlainTextEdit
 
@@ -148,6 +148,7 @@ def test_new_command_clears_stl_only_after_document_close_is_accepted(qt_app, mo
 
 def test_grid_is_drawn_after_background_but_keeps_scene_depth(qt_app):
     window = MainWindow()
+    window.viewTop()
     window.ui.actionGrid.setChecked(True)
     assert window.importStl(str(STL_FIXTURE)) is True
 
@@ -380,8 +381,18 @@ def test_stl_panel_is_in_settings_and_history_restores_transforms_arrays_and_del
     window = MainWindow()
     try:
         panel = window.stlObjectsDock
-        assert panel.toggleViewAction() in window.ui.menuSettings.actions()
-        assert panel.toggleViewAction() not in window.ui.menu_View.actions()
+        toggle_action = window._stl_panel_toggle_action
+        assert toggle_action in window.ui.menuSettings.actions()
+        assert toggle_action not in window.ui.menu_View.actions()
+        assert toggle_action.isCheckable()
+        assert not toggle_action.isChecked()
+        assert panel.isHidden()
+        toggle_action.setChecked(True)
+        assert not panel.isHidden()
+        assert window.dockWidgetArea(panel) == Qt.DockWidgetArea.RightDockWidgetArea
+        toggle_action.setChecked(False)
+        assert panel.isHidden()
+        assert window.dockWidgetArea(panel) == Qt.DockWidgetArea.RightDockWidgetArea
         assert panel.operationStack.count() == panel.operationCombo.count() == 6
         assert window.importStl(str(STL_FIXTURE))
         original = window._stl_entries[0].obj
@@ -452,6 +463,9 @@ def test_test4_section_displays_a_clipped_3d_mesh_and_restores_original(qt_app):
         assert float(cut_triangles[:, :, 0].min()) == pytest.approx(0.1234, abs=1e-4)
         assert float(cut_triangles[:, :, 0].max()) > 100
         assert 0 < cut_stats.volume < source_stats.volume
+        assert entry.section_overlay.item in window.ui.graphicsView.items
+        assert source_item not in window.ui.graphicsView.items
+        window.loadPlot()
         assert entry.section_overlay.item in window.ui.graphicsView.items
         assert source_item not in window.ui.graphicsView.items
 
@@ -573,6 +587,46 @@ def test_stl_clear_and_import_are_independent_history_steps(qt_app):
         assert len(window._stl_entries) == 2
         assert window.redoStl()
         assert not window._stl_entries
+    finally:
+        window.deleteLater()
+
+
+def test_stl_history_survives_clear_and_import_of_next_model(qt_app):
+    window = MainWindow()
+    try:
+        assert window.importStl(str(STL_FIXTURE))
+        original = window._stl_entries[0].obj
+        window.clearStl()
+        assert window.importStl(str(STL_CAMERA_FIXTURE))
+
+        assert window.undoStl()
+        assert [entry.obj for entry in window._stl_entries] == [original]
+        assert not window.stlObjectsDock.isHidden()
+    finally:
+        window.deleteLater()
+
+
+def test_stl_appearance_refresh_updates_hidden_original_during_section(qt_app):
+    window = MainWindow()
+    try:
+        assert window.importStl(str(STL_FIXTURE))
+        entry = window._stl_entries[0]
+        window._section_selected_stl("Z", 10.0, True)
+        assert entry.section_overlay is not None
+        original_item = entry.overlay.item
+        original_appearance = entry.overlay._appearance
+
+        window.stlColor = "#ff0000"
+        window.stlWireframe = True
+        assert window.refreshStlAppearance()
+        updated_original = entry.overlay.item
+        assert updated_original is not original_item
+        assert entry.overlay._appearance != original_appearance
+        assert entry.overlay._appearance[1] is True
+
+        window.clearStlSection()
+        assert updated_original in window.ui.graphicsView.items
+        assert entry.section_overlay is None
     finally:
         window.deleteLater()
 

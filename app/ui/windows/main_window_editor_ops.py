@@ -4,7 +4,7 @@ import logging
 import re
 
 from PyQt6.Qsci import QsciScintilla
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QLabel, QMenu, QMessageBox
 
@@ -26,6 +26,20 @@ def _code_without_comments(line: str) -> str:
             chars[index] = " "
         if char == ")" and parentheses:
             parentheses -= 1
+    return "".join(chars)
+
+
+def _code_words_without_macro_expressions(line: str) -> str:
+    """Mask bracketed Macro B expressions before scanning CNC address words."""
+    chars = list(line)
+    depth = 0
+    for index, char in enumerate(line):
+        if char == "[":
+            depth += 1
+        if depth:
+            chars[index] = " "
+        if char == "]" and depth:
+            depth -= 1
     return "".join(chars)
 
 
@@ -185,7 +199,9 @@ class MainWindowEditorMixin:
         matches = [
             (line_number, match.start(), match.end())
             for line_number in range(editor.lines())
-            for match in _TOOLCHANGE_PATTERN.finditer(_code_without_comments(editor.text(line_number)))
+            for match in _TOOLCHANGE_PATTERN.finditer(
+                _code_words_without_macro_expressions(_code_without_comments(editor.text(line_number)))
+            )
         ]
         if not matches:
             self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "No tool changes found"), 2500)
@@ -204,7 +220,66 @@ class MainWindowEditorMixin:
         editor.setSelection(line, start, line, end)
         editor.ensureLineVisible(line)
         editor.setFocus()
+        self._seek_playback_to_toolchange(line, forward=forward)
         return True
+
+    def _seek_playback_to_toolchange(self, source_line: int, *, forward: bool) -> bool:
+        """Move playback to the matching executed tool-change occurrence."""
+        result = getattr(self, "execution_result", None)
+        if result is None or not result.motions or getattr(self, "_plot_source_stale", False):
+            return False
+        movements = getattr(self, "_playback_movements", ())
+        motion_to_playback = getattr(self, "_motion_to_playback", ())
+        if not movements or not motion_to_playback:
+            return False
+        candidates = self._toolchange_playback_positions(result, motion_to_playback, source_line)
+        if not candidates:
+            return False
+        slider = self.ui.horizontalSlider
+        current = slider.value()
+        if forward:
+            target = next((value for value in candidates if value > current), candidates[0])
+        else:
+            target = next((value for value in reversed(candidates) if value < current), candidates[-1])
+        if target == current:
+            return True
+
+        # This is the deliberate editor -> playback exception. Block the normal
+        # slider callback so it cannot move the editor away from the selected T
+        # word; still refresh the trace cursor and playback-dependent inspectors.
+        with QSignalBlocker(slider):
+            slider.setValue(target)
+        self.valueHandler(target, sync_editor=False)
+        if hasattr(self, "updatePlaybackStatus"):
+            self.updatePlaybackStatus(target)
+        if hasattr(self, "_macro_playback_position_changed"):
+            self._macro_playback_position_changed(target)
+        return True
+
+    @staticmethod
+    def _toolchange_playback_positions(result, motion_to_playback, source_line):
+        """Map executed tool-change blocks to one-based playback slider positions."""
+        candidates = []
+        motion_cursor = 0
+        for step in result.execution_steps:
+            step_start = motion_cursor
+            motion_cursor += step.emitted_count
+            owns_toolchange = any(
+                event.kind == "tool_change"
+                and (event.source_block == source_line or event.related_block == source_line)
+                for event in step.events
+            )
+            # Turning tool selections and milling T blocks can be represented by
+            # executed words even when the controller emits no M06 event.
+            owns_tool_word = step.source_block == source_line and any(address == "T" for address, _ in step.words)
+            if not (owns_toolchange or owns_tool_word):
+                continue
+            motion_index = step_start if step.emitted_count else motion_cursor
+            if motion_index >= len(result.motions):
+                motion_index = len(result.motions) - 1
+            if motion_index >= 0:
+                candidates.append(motion_to_playback[motion_index] + 1)
+        return candidates
 
     def runFindDlg(self):
         """Show the find/replace dialog, seeding it with the current selection."""

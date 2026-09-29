@@ -24,6 +24,7 @@ def test_axes_grid_and_fixed_grid_step_change_rendered_items(qt_app):
     window.plotGrid = False
     window.loadPlot()
     assert window.ui.graphicsView.items == []
+    window.viewTop()
     window.plotGrid = True
     window.plotGridStep = 25.0
     window.loadPlot()

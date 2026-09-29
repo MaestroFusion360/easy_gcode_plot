@@ -3,7 +3,16 @@
 from copy import deepcopy
 
 from PyQt6.QtCore import QCoreApplication, Qt
-from PyQt6.QtWidgets import QDialog, QFileDialog, QMessageBox, QSizePolicy, QTableWidgetItem
+from PyQt6.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QMessageBox,
+    QSizePolicy,
+    QTableWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.settings import save_library_changes
 from app.tools.definitions import (
@@ -48,6 +57,7 @@ class ToolLibraryDialog(QDialog):
         for kind in ("milling", "turning"):
             self.pages[kind]["preview"] = self.pages[kind]["previewPane"].preview
             splitter = getattr(self.ui, f"{kind}Splitter")
+            self._move_preview_footer_outside_splitter(kind, splitter)
             splitter.setStretchFactor(0, 2)
             splitter.setStretchFactor(1, 1)
             self.pages[kind]["widget"].setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
@@ -61,6 +71,39 @@ class ToolLibraryDialog(QDialog):
                 table.horizontalHeader().setStretchLastSection(True)
         self.begin_session()
         self._connect_actions()
+
+    def _move_preview_footer_outside_splitter(self, kind, splitter):
+        """Keep the preview footer below the splitter and align it to the right."""
+        pane = self.pages[kind]["previewPane"]
+        tab = self.pages[kind]["widget"]
+        tab_layout = tab.layout()
+        tab_layout.removeWidget(splitter)
+
+        content = QWidget(tab)
+        content.setObjectName(f"{kind}ToolLibraryContent")
+        content_layout = QVBoxLayout(content)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.addWidget(splitter, 1)
+
+        footer_widget = QWidget(content)
+        footer_widget.setObjectName(f"{kind}PreviewFooter")
+        footer_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        footer = QHBoxLayout(footer_widget)
+        footer.setContentsMargins(0, 0, 0, 0)
+        footer.addStretch(1)
+        controls = pane.ui.controlsLayout
+        for name in ("tracePointLabel", "zoomOutButton", "fitButton", "zoomInButton"):
+            widget = getattr(pane.ui, name)
+            controls.removeWidget(widget)
+            footer.addWidget(widget)
+
+        pane_layout = pane.ui.verticalLayout
+        pane_layout.removeItem(controls)
+        controls.setParent(None)
+        controls.deleteLater()
+
+        content_layout.addWidget(footer_widget, 0)
+        tab_layout.addWidget(content)
 
     def _connect_actions(self):
         self.ui.buttonBox.accepted.connect(self.accept)

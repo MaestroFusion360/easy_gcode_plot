@@ -8,11 +8,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
+import mapbox_earcut
 import numpy as np
 
 from .stl import StlMesh
 
 _EPS = 1e-9
+_FLOAT32_MAX = 3.4028234663852886e38
 _AXES = {"X": 0, "Y": 1, "Z": 2}
 
 
@@ -85,9 +87,29 @@ class StlObject:
         return self.with_matrix(mirror(plane, self.world_pivot()) @ self.matrix)
 
     def scaled(self, factor: float) -> StlObject:
+        factor = float(factor)
+        if not np.isfinite(factor) or factor <= 0.0:
+            raise ValueError("Scale factor must be finite and greater than zero")
         scale = np.diag((factor, factor, factor, 1.0))
         pivot = self.world_pivot()
-        return self.with_matrix(translation(pivot) @ scale @ translation(-pivot) @ self.matrix)
+        matrix = translation(pivot) @ scale @ translation(-pivot) @ self.matrix
+        source = self.mesh.triangles.astype(np.float64)
+        transformed64 = source @ matrix[:3, :3].T + matrix[:3, 3]
+        if not np.isfinite(transformed64).all() or np.max(np.abs(transformed64)) > _FLOAT32_MAX:
+            raise ValueError("Scale would exceed the STL mesh's coordinate range")
+        if np.linalg.det(matrix[:3, :3]) < 0:
+            transformed64 = transformed64[:, (0, 2, 1), :]
+        transformed = transformed64.astype(np.float32)
+        source_area = np.linalg.norm(np.cross(source[:, 1] - source[:, 0], source[:, 2] - source[:, 0]), axis=1)
+        transformed64 = transformed.astype(np.float64)
+        transformed_area = np.linalg.norm(
+            np.cross(transformed64[:, 1] - transformed64[:, 0], transformed64[:, 2] - transformed64[:, 0]), axis=1
+        )
+        if not np.isfinite(transformed).all() or np.any((source_area > 0.0) & (transformed_area == 0.0)):
+            raise ValueError("Scale would exceed the STL mesh's coordinate precision")
+        if measure_mesh(source).volume is not None and measure_mesh(transformed).volume is None:
+            raise ValueError("Scale would make the closed STL mesh numerically invalid")
+        return self.with_matrix(matrix)
 
     def world_triangles(self) -> np.ndarray:
         """(N,3,3) triangles in world space; winding fixed if the matrix mirrors."""
@@ -242,9 +264,8 @@ def _inside_plane(distance, keep_positive):
 
 def _clip_triangle(triangle, coordinate, offset, keep_positive):
     if np.all(np.abs(triangle[:, coordinate] - offset) <= _EPS):
-        # The cap generation below owns coplanar facets; retaining the source
-        # facet would duplicate the section face and make the cut non-manifold.
-        return [], None
+        # A source facet on the cutting plane already is the cap for this side.
+        return [triangle], None
     polygon = []
     intersections = []
     for index in range(3):
@@ -304,8 +325,9 @@ def _section_loops(segments, quantization):
 
 
 def _project_section_loop(loop, axis):
-    coordinate = _AXES[axis]
-    return np.delete(loop, coordinate, axis=1)
+    # Cyclic coordinate pairs keep the projected normal aligned with +axis.
+    plane_axes = {"X": (1, 2), "Y": (2, 0), "Z": (0, 1)}[axis]
+    return loop[:, plane_axes]
 
 
 def _signed_area_2d(points):
@@ -322,62 +344,127 @@ def _point_in_polygon(point, polygon):
     return inside
 
 
-def _point_in_triangle(point, first, second, third, orientation):
-    def cross(a, b, candidate):
-        return (b[0] - a[0]) * (candidate[1] - a[1]) - (b[1] - a[1]) * (candidate[0] - a[0])
-
-    return all(orientation * cross(a, b, point) >= -_EPS for a, b in ((first, second), (second, third), (third, first)))
-
-
-def _triangulate_polygon(loop, axis, keep_positive):
+def _normalize_section_loop(loop, axis, quantization):
+    """Drop only adjacent duplicate vertices before passing a ring to earcut."""
+    loop = np.asarray(loop, dtype=np.float64)
     projected = _project_section_loop(loop, axis)
-    area = _signed_area_2d(projected)
-    if abs(area) <= _EPS:
-        return []
-    desired_sign = -1 if keep_positive else 1
-    if np.sign(area) != desired_sign:
-        loop = loop[::-1]
-        projected = projected[::-1]
-    orientation = float(np.sign(_signed_area_2d(projected)))
-    indices = list(range(len(projected)))
+    if len(projected) < 3:
+        return None
+    kept = [0]
+    for index in range(1, len(projected)):
+        if np.linalg.norm(projected[index] - projected[kept[-1]]) > quantization:
+            kept.append(index)
+    if len(kept) > 1 and np.linalg.norm(projected[kept[0]] - projected[kept[-1]]) <= quantization:
+        kept.pop()
+    if len(kept) < 3:
+        return None
+    normalized = loop[kept]
+    area = _signed_area_2d(_project_section_loop(normalized, axis))
+    if abs(area) <= max(_EPS, quantization**2 * 1e-2):
+        return None
+    return normalized
+
+
+def _restore_ring_boundary_vertices(indices, vertices, tolerance):
+    """Split earcut boundary edges at collinear contour vertices it omits."""
+    used = np.zeros(len(vertices), dtype=bool)
+    used[indices] = True
+    unused = np.flatnonzero(~used)
+    if unused.size == 0:
+        return indices.reshape((-1, 3))
+
     triangles = []
-    while len(indices) > 3:
-        ear_found = False
-        for position, current in enumerate(indices):
-            previous = indices[position - 1]
-            following = indices[(position + 1) % len(indices)]
-            a, b, c = projected[previous], projected[current], projected[following]
-            cross = (b[0] - a[0]) * (c[1] - b[1]) - (b[1] - a[1]) * (c[0] - b[0])
-            if orientation * cross <= _EPS:
-                continue
-            if any(
-                _point_in_triangle(projected[index], a, b, c, orientation)
-                for index in indices
-                if index not in (previous, current, following)
+    for source in indices.reshape((-1, 3)):
+        pending = [source]
+        while pending:
+            triangle = pending.pop()
+            split = False
+            for first_index, second_index, opposite_index in (
+                (0, 1, 2),
+                (1, 2, 0),
+                (2, 0, 1),
             ):
-                continue
-            triangles.append((loop[previous], loop[current], loop[following]))
-            del indices[position]
-            ear_found = True
-            break
-        if not ear_found:
-            return []
-    triangles.append(tuple(loop[index] for index in indices))
+                first, second = vertices[triangle[first_index]], vertices[triangle[second_index]]
+                direction = second - first
+                length_squared = float(np.dot(direction, direction))
+                if length_squared <= tolerance**2:
+                    continue
+                candidates = vertices[unused] - first
+                parameters = candidates @ direction / length_squared
+                distances = np.abs(direction[0] * candidates[:, 1] - direction[1] * candidates[:, 0]) / np.sqrt(
+                    length_squared
+                )
+                on_edge = (parameters > 1e-12) & (parameters < 1.0 - 1e-12) & (distances <= tolerance)
+                if not np.any(on_edge):
+                    continue
+                selected = unused[on_edge]
+                order = np.argsort(parameters[on_edge])
+                chain = [int(triangle[first_index]), *selected[order].tolist(), int(triangle[second_index])]
+                selected_set = set(selected.tolist())
+                unused = np.asarray([index for index in unused if int(index) not in selected_set], dtype=np.int64)
+                pending.extend(
+                    np.asarray((chain[index], chain[index + 1], int(triangle[opposite_index])), dtype=np.uint32)
+                    for index in range(len(chain) - 1)
+                )
+                split = True
+                break
+            if not split:
+                triangles.append(triangle)
+    return np.asarray(triangles, dtype=np.uint32).reshape((-1, 3))
+
+
+def _triangulate_polygon_with_holes(outer_loop, hole_loops, axis, offset, keep_positive):
+    """Triangulate one outer section ring and its holes with mapbox-earcut."""
+    plane_axes = {"X": (1, 2), "Y": (2, 0), "Z": (0, 1)}[axis]
+    rings = [outer_loop, *hole_loops]
+    projected_rings = [_project_section_loop(loop, axis) for loop in rings]
+    vertices = np.ascontiguousarray(np.concatenate(projected_rings), dtype=np.float64)
+    ring_ends = np.cumsum([len(ring) for ring in projected_rings], dtype=np.uint32)
+    indices = mapbox_earcut.triangulate_float64(vertices, ring_ends)
+    if indices.size == 0:
+        return []
+    tolerance = max(float(np.ptp(vertices, axis=0).max()) * 1e-10, 1e-12)
+    indices = _restore_ring_boundary_vertices(indices, vertices, tolerance)
+
+    points = np.empty((len(vertices), 3), dtype=np.float64)
+    points[:, plane_axes] = vertices
+    points[:, _AXES[axis]] = offset
+    triangles = points[indices]
+    normal_sign = -1.0 if keep_positive else 1.0
+    normals = np.cross(triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0])
+    reverse = normals[:, _AXES[axis]] * normal_sign < 0.0
+    triangles[reverse] = triangles[reverse][:, (0, 2, 1)]
     return triangles
 
 
 def _cap_triangles(segments, axis, offset, keep_positive, quantization):
-    loops = _section_loops(segments, quantization)
+    loops = [
+        normalized
+        for loop in _section_loops(segments, quantization)
+        if (normalized := _normalize_section_loop(loop, axis, quantization)) is not None
+    ]
     projected = [_project_section_loop(loop, axis) for loop in loops]
-    cap = []
-    for index, (loop, polygon) in enumerate(zip(loops, projected)):
-        depth = sum(
-            _point_in_polygon(polygon[0], candidate) for other, candidate in enumerate(projected) if index != other
+    parents = []
+    for index, polygon in enumerate(projected):
+        containers = [
+            other
+            for other, candidate in enumerate(projected)
+            if other != index and _point_in_polygon(polygon[0], candidate)
+        ]
+        parents.append(
+            min(containers, key=lambda other: abs(_signed_area_2d(projected[other]))) if containers else None
         )
-        # Cap outer contours and nested solid islands. Odd-depth contours are
-        # through-holes, so leave those open instead of filling them falsely.
-        if depth % 2 == 0:
-            cap.extend(_triangulate_polygon(loop, axis, keep_positive))
+    cap = []
+    for index, parent in enumerate(parents):
+        depth = 0
+        ancestor = parent
+        while ancestor is not None:
+            depth += 1
+            ancestor = parents[ancestor]
+        if depth % 2:
+            continue
+        holes = [loops[child] for child, candidate_parent in enumerate(parents) if candidate_parent == index]
+        cap.extend(_triangulate_polygon_with_holes(loops[index], holes, axis, offset, keep_positive))
     return cap
 
 

@@ -84,6 +84,7 @@ class PlotNavigation(QObject):
                 handled = True
             elif event.buttons() & Qt.MouseButton.MiddleButton:
                 self._orbit_at_pivot(diff.x(), diff.y())
+                QTimer.singleShot(0, self.on_view_changed)
                 handled = True
         elif event_type == QEvent.Type.Wheel:
             QTimer.singleShot(0, self.on_view_changed)

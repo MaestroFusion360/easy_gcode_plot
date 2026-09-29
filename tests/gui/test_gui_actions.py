@@ -2,15 +2,22 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 from PyQt6.QtCore import QPoint, Qt
 from PyQt6.QtGui import QKeySequence
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar, QToolBar
+from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar, QSlider, QToolBar
 
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
 from app.ui.generated.main.main_ui import Ui_MainWindow
+from app.ui.plot.playback import build_playback_movements
+from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
+
+# These tests exercise the editor's private playback-navigation implementation.
+# pylint: disable=protected-access
 
 
 @pytest.fixture(scope="module")
@@ -298,7 +305,7 @@ def test_block_number_dialog_applies_values_only_on_ok(qt_app):
 
 def test_toolchange_navigation_skips_comments_and_wraps(qt_app):
     window = MainWindow()
-    window.ui.editor.setText("(T9999)\nT0101 M6\nG0 X10\n; T8888\nN20T0202\n")
+    window.ui.editor.setText("(T9999)\nWHILE[#140 LT 6]DO1\nT0101 M6\nG0 X10\n; T8888\nN20T0202\n")
     window.ui.editor.setCursorPosition(0, 0)
 
     assert window.nextToolchange()
@@ -309,7 +316,52 @@ def test_toolchange_navigation_skips_comments_and_wraps(qt_app):
     assert window.ui.editor.selectedText() == "T0101"
     assert window.previousToolchange()
     assert window.ui.editor.selectedText() == "T0202"
+
+    window.ui.editor.setCursorPosition(1, 0)
+    assert window.nextToolchange()
+    assert window.ui.editor.selectedText() == "T0101"
     window.deleteLater()
+
+
+def test_toolchange_navigation_seeks_each_executed_macro_occurrence(qt_app):
+    source = """O1000
+G21 G90 G17
+M98 P2000 L3
+M30
+O2000
+T1 M6
+G0 X1
+G1 X2 F100
+M99
+"""
+    result = execute(source, language="fanuc_mill")
+    movements, motion_to_playback = build_playback_movements(result.motions)
+    slider = QSlider(Qt.Orientation.Horizontal)
+    slider.setMaximum(len(movements))
+    updates = []
+
+    class Window(MainWindowEditorMixin):
+        execution_result = result
+        _playback_movements = movements
+        _motion_to_playback = motion_to_playback
+        _plot_source_stale = False
+        ui = SimpleNamespace(horizontalSlider=slider)
+
+        def valueHandler(self, value, *, sync_editor=True):
+            updates.append((value, sync_editor))
+
+    window = Window()
+    assert window._seek_playback_to_toolchange(5, forward=True)
+    assert slider.value() == 1
+    assert window._seek_playback_to_toolchange(5, forward=True)
+    assert slider.value() == 3
+    assert window._seek_playback_to_toolchange(5, forward=True)
+    assert slider.value() == 5
+    assert window._seek_playback_to_toolchange(5, forward=True)
+    assert slider.value() == 1
+    assert window._seek_playback_to_toolchange(5, forward=False)
+    assert slider.value() == 5
+    assert updates == [(1, False), (3, False), (5, False), (1, False), (5, False)]
 
 
 def test_editor_context_menu_contains_edit_then_all_cnc_actions(qt_app, monkeypatch):

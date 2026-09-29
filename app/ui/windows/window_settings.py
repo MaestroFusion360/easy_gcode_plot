@@ -468,6 +468,27 @@ class MainWindowSettingsMixin:
         app = QApplication.instance()
         if app is not None:
             theme.apply_application_theme(app, self.uiTheme)
+        if self.uiTheme == "dark":
+            hover, pressed, checked, border = "#454952", "#343940", "#3b4655", "#727a86"
+        else:
+            hover, pressed, checked, border = "#e7eef7", "#d0dfef", "#d7e7f8", "#7d9fc6"
+        toolbar_button_style = (
+            "QToolButton { border: 1px solid transparent; border-radius: 3px; padding: 3px; }"
+            "QToolButton:hover {"
+            f" background-color: {hover}; border-color: {border};"
+            "}"
+            "QToolButton:pressed {"
+            f" background-color: {pressed}; border-color: {border};"
+            "}"
+            "QToolButton:checked {"
+            f" background-color: {checked}; border-color: {border};"
+            "}"
+            "QToolButton:checked:hover {"
+            f" background-color: {hover}; border-color: {border};"
+            "}"
+        )
+        for toolbar in self._toolbars():
+            toolbar.setStyleSheet(toolbar_button_style)
         help_dialog = getattr(self, "helpDlg", None)
         if help_dialog is not None:
             help_dialog.apply_theme(self.uiTheme)

@@ -6,7 +6,7 @@ import numpy as np
 from OpenGL import GL
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QLinearGradient, QMatrix4x4, QPainter, QSurfaceFormat, QVector3D
+from PyQt6.QtGui import QColor, QLinearGradient, QMatrix4x4, QPainter, QQuaternion, QSurfaceFormat, QVector3D
 from pyqtgraph.opengl import GLViewWidget
 
 
@@ -162,6 +162,12 @@ class PlotView(GLViewWidget):
     def orbit(self, azim, elev):
         """Start free rotation without changing the parallel CAD projection."""
         was_orthographic = self.isOrthographic()
+        if was_orthographic and self.opts["rotationMethod"] == "euler":
+            # Preserve the exact current camera orientation, then use
+            # pyqtgraph's native quaternion orbit so drag angles are not
+            # clamped at +/-90 degrees as they are in Euler mode.
+            self.opts["rotation"] = QQuaternion.fromRotationMatrix(self.viewMatrix().normalMatrix())
+            self.opts["rotationMethod"] = "quaternion"
         super().orbit(azim, elev)
         if was_orthographic:
             self.orthographicOrbitStarted.emit()

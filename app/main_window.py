@@ -94,7 +94,7 @@ class MainWindow(
         self.ui.setupUi(self)
         self._configure_runtime_ui()
         self._configure_playback_speed_slider()
-        self._plot_navigation = PlotNavigation(self.ui.graphicsView, self._update_adaptive_grid, self._pick_trace_at)
+        self._plot_navigation = PlotNavigation(self.ui.graphicsView, self._plot_camera_changed, self._pick_trace_at)
         self.ui.graphicsView.installEventFilter(self._plot_navigation)
 
         icon = QIcon()
@@ -180,12 +180,22 @@ class MainWindow(
 
         if not (changed or force_refresh):
             return
-        if changed and not getattr(self, "latheMode", False) and getattr(self, "_view_mode", "3d") == "3d":
-            self.view3d()
+        view_mode = getattr(self, "_view_mode", "3d")
         self._deferred_execution_result = None
         self._deferred_execution_source = None
         if self.ui.editor.text():
             self.updateData()
+        # Reapply after updateData: it redraws the scene and can restore a
+        # previous camera state, including a quaternion left by table B.
+        if not getattr(self, "latheMode", False):
+            if view_mode == "top":
+                self.viewTop()
+            elif view_mode == "front":
+                self.viewFront()
+            elif view_mode == "left":
+                self.viewLeft()
+            else:
+                self.view3d()
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
@@ -198,6 +208,12 @@ class MainWindow(
         self.ui.menuSettings.insertAction(self.ui.actionWCS, self.ui.actionStock)
         self.ui.menuCNC_Functions.addSeparator()
         self.ui.cncToolBar.addSeparator()
+        self.viewActionGroup = QActionGroup(self)
+        self.viewActionGroup.setExclusive(True)
+        for action in (self.ui.action3D, self.ui.actionTop, self.ui.actionFront, self.ui.actionLeft):
+            action.setCheckable(True)
+            self.viewActionGroup.addAction(action)
+        self.ui.action3D.setChecked(True)
         for name, text, icon_path in (
             (
                 "actionHoleCalculator",
@@ -498,6 +514,7 @@ class MainWindow(
         self.ui.actionStep_Forward.triggered.connect(self.forward)
 
         self.ui.editor.modificationChanged.connect(self.documentWasModified)
+        self.ui.actionSave.setEnabled(self.ui.editor.isModified())
         self.ui.editor.textChanged.connect(self.scheduleAutoUpdate)
         self.ui.editor.cursorPositionChanged.connect(self.updateStatusBar)
         self.ui.editor.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)

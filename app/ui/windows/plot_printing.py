@@ -3,7 +3,7 @@
 from math import isfinite
 
 from PyQt6.QtCore import QPointF, QRectF, Qt
-from PyQt6.QtGui import QColor, QPainter, QPen, QVector4D
+from PyQt6.QtGui import QColor, QPagedPaintDevice, QPainter, QPen, QVector4D
 from PyQt6.QtPrintSupport import QPrinter
 
 from app.ui.plot.toolpath_vbo import tool_color
@@ -31,12 +31,15 @@ def print_segment_color(move, tool, *, color_by_tool=False):
     return "#b94a4a" if move == 0 else "#176e54" if move in (2, 3) else "#172d49"
 
 
-def paint_plot_page(printer: QPrinter, segments, *, dashed_rapid=False, color_by_tool=False) -> None:
+def paint_plot_page(printer: QPagedPaintDevice, segments, *, dashed_rapid=False, color_by_tool=False) -> None:
     """Fit and draw the whole trajectory as resolution-independent page lines."""
     painter = QPainter(printer)
     try:
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        page = QRectF(printer.pageRect(QPrinter.Unit.DevicePixel))
+        if hasattr(printer, "pageRect"):
+            page = QRectF(printer.pageRect(QPrinter.Unit.DevicePixel))
+        else:
+            page = QRectF(printer.pageLayout().paintRectPixels(printer.resolution()))
         unit = printer.resolution() / 25.4
         margin = 12 * unit
         drawing = page.adjusted(margin, margin, -margin, -margin)

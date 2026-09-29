@@ -9,7 +9,7 @@ from time import perf_counter
 import numpy as np
 from OpenGL import GL
 from PyQt6.QtCore import QCoreApplication, QSignalBlocker, Qt
-from PyQt6.QtGui import QColor, QMatrix4x4, QQuaternion, QVector3D, QVector4D
+from PyQt6.QtGui import QAction, QColor, QMatrix4x4, QQuaternion, QVector3D, QVector4D
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -57,6 +57,24 @@ GRID_GL_OPTIONS = {
         GL.GL_ONE_MINUS_SRC_ALPHA,
     ),
 }
+
+_MILLING_VIEW_MAPPINGS = {
+    "vertical": {
+        "top": ("xy", ("euler", 90.0, -90.0)),
+        "front": ("xz", ("euler", 0.0, -90.0)),
+        "left": ("yz", ("look_at", (-1.0, 0.0, 0.0), (0.0, 1.0, 0.0))),
+    },
+    # B's physical Top is the spindle-side XY/G17 view. Keep its screen axes
+    # aligned with the established Front camera (X right, Z down in the view).
+    "4ax_table_b": {
+        "top": ("xy", ("euler", 90.0, -90.0)),
+        "front": ("xz", ("look_at", (0.0, 1.0, 0.0), (0.0, 0.0, -1.0))),
+        # Rotate the existing operator-side YZ view 90° clockwise: +Y is up.
+        "left": ("yz", ("look_at", (-1.0, 0.0, 0.0), (0.0, 1.0, 0.0))),
+    },
+}
+_MILLING_PLANE_LABELS = {"xy": "XY/G17", "xz": "XZ/G18", "yz": "YZ/G19"}
+_MILLING_VIEW_TITLES = {"top": "View Top", "front": "View Front", "left": "View Left"}
 
 
 def _display_value(value, unit_scale):
@@ -140,7 +158,13 @@ class MainWindowPlotMixin:
         self._stl_redo = []
         self.stlObjectsDock = StlObjectsPanel(self)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.stlObjectsDock)
-        self.ui.menuSettings.insertAction(self.ui.actionOptions, self.stlObjectsDock.toggleViewAction())
+        self._stl_panel_toggle_action = QAction(self.stlObjectsDock.windowTitle(), self)
+        self._stl_panel_toggle_action.setObjectName("actionStlObjects")
+        self._stl_panel_toggle_action.setCheckable(True)
+        self._stl_panel_toggle_action.toggled.connect(self.stlObjectsDock.setVisible)
+        self.stlObjectsDock.visibilityChanged.connect(self._stl_panel_toggle_action.setChecked)
+        self.stlObjectsDock.visibilityChanged.connect(self._sync_stl_pivot_marker_visibility)
+        self.ui.menuSettings.insertAction(self.ui.actionOptions, self._stl_panel_toggle_action)
         self.stlObjectsDock.hide()
 
         panel = self.stlObjectsDock
@@ -219,13 +243,34 @@ class MainWindowPlotMixin:
             )
         if not path:
             return False
+        path = str(Path(path).expanduser())
+        started = perf_counter()
+        LOGGER.info("stl_import_started path=%s", path)
         try:
+            read_started = perf_counter()
             mesh = read_stl(path)
+            read_ms = (perf_counter() - read_started) * 1000.0
+            add_started = perf_counter()
             self._add_stl_mesh(mesh, Path(path).name)
+            add_ms = (perf_counter() - add_started) * 1000.0
         except (OSError, ValueError) as exc:
+            LOGGER.exception(
+                "stl_import_failed path=%s duration_ms=%.3f error=%s",
+                path,
+                (perf_counter() - started) * 1000.0,
+                exc,
+            )
             QMessageBox.critical(self, "STL Import Error", str(exc))
             return False
         self._add_recent_stl(path)
+        LOGGER.info(
+            "stl_import_finished path=%s triangles=%d read_ms=%.3f add_ms=%.3f duration_ms=%.3f",
+            path,
+            mesh.triangle_count,
+            read_ms,
+            add_ms,
+            (perf_counter() - started) * 1000.0,
+        )
         self.ui.statusbar.showMessage(
             QCoreApplication.translate("MainWindow", "Imported STL: {0:,} triangles").format(mesh.triangle_count), 5000
         )
@@ -274,12 +319,8 @@ class MainWindowPlotMixin:
         obj = StlObject(mesh=mesh, name=self._unique_stl_name(name)).set_pivot("center")
         if self._stl_entries:
             self._record_stl_edit()
-        else:
-            # The first imported model establishes the scene baseline. Undo must
-            # never restore the empty scene and make the STL dock disappear.
-            self._stl_undo.clear()
-            self._stl_redo.clear()
-            self.stlObjectsDock.set_history_available(undo=False, redo=False)
+        # With an empty scene, an existing Undo entry may represent Clear or
+        # deleting the previous last object. Keep it so Undo can restore that scene.
         self._append_stl_object(obj, select=True)
         self.stlObjectsDock.show()
         self.fitToView()
@@ -341,9 +382,16 @@ class MainWindowPlotMixin:
             pxMode=True,
         )
         item.setGLOptions({GL.GL_DEPTH_TEST: False, GL.GL_BLEND: True, "glDepthMask": (False,)})
+        item.setVisible(self.stlObjectsDock.isVisible())
         self._stl_pivot_item = item
         self.ui.graphicsView.addItem(item)
         self._restore_trace_overlay_order()
+
+    def _sync_stl_pivot_marker_visibility(self, visible):
+        """Show the selected STL pivot marker only while its panel is visible."""
+        marker = getattr(self, "_stl_pivot_item", None)
+        if marker is not None:
+            marker.setVisible(bool(visible))
 
     def _update_stl_bbox_overlay(self, selected_row):
         view = self.ui.graphicsView
@@ -454,7 +502,14 @@ class MainWindowPlotMixin:
         layout.addLayout(controls)
         dialog.exec()
 
-    def _replace_selected_stl_object(self, obj: StlObject, *, geometry_changed: bool):
+    def _replace_selected_stl_object(
+        self,
+        obj: StlObject,
+        *,
+        geometry_changed: bool,
+        operation: str = "transform",
+        compute_ms: float = 0.0,
+    ):
         row, entry = self._selected_stl_entry()
         if entry is None:
             return False
@@ -464,11 +519,20 @@ class MainWindowPlotMixin:
             and entry.obj.pivot_mode == obj.pivot_mode
         ):
             return False
+        started = perf_counter()
+        LOGGER.info(
+            "stl_transform_started operation=%s triangles=%d geometry_changed=%s compute_ms=%.3f",
+            operation,
+            len(entry.obj.mesh.triangles),
+            geometry_changed,
+            compute_ms,
+        )
         self._record_stl_edit()
         if geometry_changed:
             self.clearStlSection()
         old_item = entry.overlay.item
         entry.obj = obj
+        overlay_started = perf_counter()
         if geometry_changed:
             entry.overlay.set_object(obj)
             new_item = entry.overlay.item_for(
@@ -478,52 +542,120 @@ class MainWindowPlotMixin:
             self._restore_trace_overlay_order()
         else:
             entry.overlay.object = obj
+        overlay_ms = (perf_counter() - overlay_started) * 1000.0
+        panel_started = perf_counter()
         self._sync_stl_panel(row)
+        panel_ms = (perf_counter() - panel_started) * 1000.0
+        fit_ms = 0.0
         if geometry_changed:
+            fit_started = perf_counter()
             self.fitToView()
+            fit_ms = (perf_counter() - fit_started) * 1000.0
+        LOGGER.info(
+            "stl_transform_finished operation=%s triangles=%d compute_ms=%.3f overlay_ms=%.3f "
+            "panel_ms=%.3f fit_ms=%.3f duration_ms=%.3f",
+            operation,
+            len(obj.mesh.triangles),
+            compute_ms,
+            overlay_ms,
+            panel_ms,
+            fit_ms,
+            (perf_counter() - started) * 1000.0 + compute_ms,
+        )
         return True
 
     def _set_selected_stl_pivot(self, mode: str, point):
         _row, entry = self._selected_stl_entry()
         if entry is not None:
-            self._replace_selected_stl_object(entry.obj.set_pivot(mode, point), geometry_changed=False)
+            started = perf_counter()
+            obj = entry.obj.set_pivot(mode, point)
+            compute_ms = (perf_counter() - started) * 1000.0
+            self._replace_selected_stl_object(obj, geometry_changed=False, operation="set_pivot", compute_ms=compute_ms)
 
     def _move_selected_stl(self, target):
         _row, entry = self._selected_stl_entry()
         if entry is not None:
-            self._replace_selected_stl_object(entry.obj.move_pivot_to(target), geometry_changed=True)
+            started = perf_counter()
+            obj = entry.obj.move_pivot_to(target)
+            compute_ms = (perf_counter() - started) * 1000.0
+            self._replace_selected_stl_object(obj, geometry_changed=True, operation="move", compute_ms=compute_ms)
 
     def _rotate_selected_stl(self, axis: str, angle: float):
         _row, entry = self._selected_stl_entry()
         if entry is not None:
-            self._replace_selected_stl_object(entry.obj.rotate(axis, angle), geometry_changed=True)
+            started = perf_counter()
+            obj = entry.obj.rotate(axis, angle)
+            compute_ms = (perf_counter() - started) * 1000.0
+            self._replace_selected_stl_object(obj, geometry_changed=True, operation="rotate", compute_ms=compute_ms)
 
     def _mirror_selected_stl(self, plane: str):
         _row, entry = self._selected_stl_entry()
         if entry is not None:
-            self._replace_selected_stl_object(entry.obj.mirrored(plane), geometry_changed=True)
+            started = perf_counter()
+            obj = entry.obj.mirrored(plane)
+            compute_ms = (perf_counter() - started) * 1000.0
+            self._replace_selected_stl_object(obj, geometry_changed=True, operation="mirror", compute_ms=compute_ms)
 
     def _scale_selected_stl(self, factor: float):
         _row, entry = self._selected_stl_entry()
         if entry is not None:
-            self._replace_selected_stl_object(entry.obj.scaled(factor), geometry_changed=True)
+            started = perf_counter()
+            try:
+                scaled = entry.obj.scaled(factor)
+            except ValueError as exc:
+                LOGGER.warning(
+                    "stl_transform_rejected operation=scale triangles=%d duration_ms=%.3f reason=%s",
+                    len(entry.obj.mesh.triangles),
+                    (perf_counter() - started) * 1000.0,
+                    exc,
+                )
+                self.ui.statusbar.showMessage(
+                    QCoreApplication.translate("MainWindow", "Scale rejected: {0}").format(exc), 5000
+                )
+                return
+            compute_ms = (perf_counter() - started) * 1000.0
+            self._replace_selected_stl_object(scaled, geometry_changed=True, operation="scale", compute_ms=compute_ms)
 
-    def _append_array_copies(self, source: StlObject, matrices):
+    def _append_array_copies(self, source: StlObject, matrices, *, operation="array", generation_ms=0.0):
         if len(matrices) <= 1:
             return
+        started = perf_counter()
+        LOGGER.info(
+            "stl_array_started operation=%s source_triangles=%d copies=%d generation_ms=%.3f",
+            operation,
+            len(source.mesh.triangles),
+            len(matrices) - 1,
+            generation_ms,
+        )
         self._record_stl_edit()
         current_row = self.stlObjectsDock.objectList.currentRow()
+        copies_started = perf_counter()
         for index, matrix in enumerate(matrices[1:], 2):
             name = self._unique_stl_name(f"{source.name} [{index}]")
             copy = replace(source, name=name, matrix=matrix @ source.matrix)
             self._append_stl_object(copy, select=False)
+        copies_ms = (perf_counter() - copies_started) * 1000.0
+        panel_started = perf_counter()
         self._sync_stl_panel(current_row)
+        panel_ms = (perf_counter() - panel_started) * 1000.0
+        fit_started = perf_counter()
         self.fitToView()
+        fit_ms = (perf_counter() - fit_started) * 1000.0
+        LOGGER.info(
+            "stl_array_finished operation=%s copies=%d copies_ms=%.3f panel_ms=%.3f fit_ms=%.3f duration_ms=%.3f",
+            operation,
+            len(matrices) - 1,
+            copies_ms,
+            panel_ms,
+            fit_ms,
+            generation_ms + (perf_counter() - started) * 1000.0,
+        )
 
     def _circular_array_selected_stl(self, count: int, total_angle: float, axis: str, center, rotate_copies: bool):
         _row, entry = self._selected_stl_entry()
         if entry is None:
             return
+        started = perf_counter()
         matrices = circular_array(
             count,
             total_angle,
@@ -532,12 +664,16 @@ class MainWindowPlotMixin:
             rotate_copies=rotate_copies,
             pivot=entry.obj.world_pivot(),
         )
-        self._append_array_copies(entry.obj, matrices)
+        generation_ms = (perf_counter() - started) * 1000.0
+        self._append_array_copies(entry.obj, matrices, operation="circular", generation_ms=generation_ms)
 
     def _rectangular_array_selected_stl(self, nx: int, ny: int, nz: int, dx: float, dy: float, dz: float):
         _row, entry = self._selected_stl_entry()
         if entry is not None:
-            self._append_array_copies(entry.obj, rectangular_array(nx, ny, nz, dx, dy, dz))
+            started = perf_counter()
+            matrices = rectangular_array(nx, ny, nz, dx, dy, dz)
+            generation_ms = (perf_counter() - started) * 1000.0
+            self._append_array_copies(entry.obj, matrices, operation="rectangular", generation_ms=generation_ms)
 
     def _section_selected_stl(self, axis: str, offset: float, keep_positive: bool = True):
         row, _entry = self._selected_stl_entry()
@@ -550,21 +686,74 @@ class MainWindowPlotMixin:
         self._show_stl_section(*spec)
 
     def _show_stl_section(self, row: int, axis: str, offset: float, keep_positive: bool = True):
+        started = perf_counter()
         entry = self._stl_entries[row]
-        triangles = clip_mesh(entry.obj.world_triangles(), axis, offset, keep_positive)
-        self.clearStlSection()
-        if not triangles.size:
-            self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "STL section is empty"), 3000)
+        input_triangles = len(entry.obj.mesh.triangles)
+        LOGGER.info(
+            "stl_section_started axis=%s offset=%s keep_positive=%s triangles=%d",
+            axis,
+            offset,
+            keep_positive,
+            input_triangles,
+        )
+        try:
+            transform_started = perf_counter()
+            world_triangles = entry.obj.world_triangles()
+            transform_ms = (perf_counter() - transform_started) * 1000.0
+            clip_started = perf_counter()
+            triangles = clip_mesh(world_triangles, axis, offset, keep_positive)
+            clip_ms = (perf_counter() - clip_started) * 1000.0
+            if not triangles.size:
+                LOGGER.info(
+                    "stl_section_empty axis=%s input_triangles=%d transform_ms=%.3f clip_ms=%.3f duration_ms=%.3f",
+                    axis,
+                    input_triangles,
+                    transform_ms,
+                    clip_ms,
+                    (perf_counter() - started) * 1000.0,
+                )
+                self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "STL section is empty"), 3000)
+                return
+            mesh_started = perf_counter()
+            cut_mesh = mesh_from_triangles(triangles)
+            cut_obj = StlObject(mesh=cut_mesh, name=entry.obj.name)
+            mesh_ms = (perf_counter() - mesh_started) * 1000.0
+            item_started = perf_counter()
+            overlay = StlOverlay(cut_obj)
+            item = overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+            item_ms = (perf_counter() - item_started) * 1000.0
+        except Exception as exc:  # Qt slot exceptions can terminate the application.
+            LOGGER.exception(
+                "stl_section_failed axis=%s offset=%s input_triangles=%d duration_ms=%.3f",
+                axis,
+                offset,
+                input_triangles,
+                (perf_counter() - started) * 1000.0,
+            )
+            self.ui.statusbar.showMessage(str(exc), 5000)
             return
-        cut_mesh = mesh_from_triangles(triangles)
-        cut_obj = StlObject(mesh=cut_mesh, name=entry.obj.name)
-        overlay = StlOverlay(cut_obj)
-        item = overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+
+        scene_started = perf_counter()
+        self.clearStlSection()
         self._replace_scene_item(entry.overlay.item, item)
         entry.section_overlay = overlay
         self._stl_section_item = item
         self._stl_section_spec = (row, axis, float(offset), bool(keep_positive))
         self._restore_trace_overlay_order()
+        scene_ms = (perf_counter() - scene_started) * 1000.0
+        LOGGER.info(
+            "stl_section_finished axis=%s input_triangles=%d output_triangles=%d transform_ms=%.3f "
+            "clip_ms=%.3f mesh_ms=%.3f item_ms=%.3f scene_ms=%.3f duration_ms=%.3f",
+            axis,
+            input_triangles,
+            len(triangles),
+            transform_ms,
+            clip_ms,
+            mesh_ms,
+            item_ms,
+            scene_ms,
+            (perf_counter() - started) * 1000.0,
+        )
         self.ui.statusbar.showMessage(
             QCoreApplication.translate("MainWindow", "STL cut created: {0:,} triangles").format(len(triangles)),
             5000,
@@ -594,38 +783,62 @@ class MainWindowPlotMixin:
         row, entry = self._selected_stl_entry()
         if entry is None:
             return False
+        started = perf_counter()
+        LOGGER.info(
+            "stl_delete_started name=%s row=%d triangles=%d",
+            entry.obj.name,
+            row,
+            len(entry.obj.mesh.triangles),
+        )
+        scene_started = perf_counter()
         self._record_stl_edit()
         self.clearStlSection()
         self._replace_scene_item(entry.overlay.item, None)
         del self._stl_entries[row]
+        scene_ms = (perf_counter() - scene_started) * 1000.0
+        panel_started = perf_counter()
         self._sync_stl_panel(min(row, len(self._stl_entries) - 1))
+        panel_ms = (perf_counter() - panel_started) * 1000.0
         if not self._stl_entries:
             self.stlObjectsDock.hide()
+        fit_started = perf_counter()
         self.fitToView()
+        fit_ms = (perf_counter() - fit_started) * 1000.0
+        LOGGER.info(
+            "stl_delete_finished name=%s scene_ms=%.3f panel_ms=%.3f fit_ms=%.3f duration_ms=%.3f",
+            entry.obj.name,
+            scene_ms,
+            panel_ms,
+            fit_ms,
+            (perf_counter() - started) * 1000.0,
+        )
         return True
 
     def refreshStlAppearance(self):
         """Rebuild STL GL items only when the shared visual style changed."""
         changed = False
         for entry in self._stl_entries:
-            active_overlay = entry.section_overlay or entry.overlay
-            old_item = active_overlay.item
-            new_item = active_overlay.item_for(
-                getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False)
-            )
-            if old_item in self.ui.graphicsView.items:
-                self._replace_scene_item(old_item, new_item)
-            if entry.section_overlay is not None:
-                self._stl_section_item = new_item
-            if entry.section_overlay is None and old_item not in self.ui.graphicsView.items:
-                entry.overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
-            changed = changed or new_item is not old_item
+            for overlay in (entry.overlay, entry.section_overlay):
+                if overlay is None:
+                    continue
+                old_item = overlay.item
+                new_item = overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+                if old_item in self.ui.graphicsView.items:
+                    self._replace_scene_item(old_item, new_item)
+                if overlay is entry.section_overlay:
+                    self._stl_section_item = new_item
+                changed = changed or new_item is not old_item
         if changed:
             self._restore_trace_overlay_order()
         return changed
 
     def clearStl(self):
         """Remove all imported STL objects, preserving the executed toolpath."""
+        started = perf_counter()
+        count = len(self._stl_entries)
+        triangles = sum(len(entry.obj.mesh.triangles) for entry in self._stl_entries)
+        LOGGER.info("stl_clear_started objects=%d triangles=%d", count, triangles)
+        scene_started = perf_counter()
         if self._stl_entries:
             self._record_stl_edit()
         self.clearStlSection()
@@ -634,8 +847,20 @@ class MainWindowPlotMixin:
         self._stl_entries.clear()
         self._sync_stl_panel(-1)
         self.stlObjectsDock.hide()
+        scene_ms = (perf_counter() - scene_started) * 1000.0
+        fit_ms = 0.0
         if self.render_points:
+            fit_started = perf_counter()
             self.fitToView()
+            fit_ms = (perf_counter() - fit_started) * 1000.0
+        LOGGER.info(
+            "stl_clear_finished objects=%d triangles=%d scene_ms=%.3f fit_ms=%.3f duration_ms=%.3f",
+            count,
+            triangles,
+            scene_ms,
+            fit_ms,
+            (perf_counter() - started) * 1000.0,
+        )
 
     def zoomIn(self):
         """Zoom in on the plot."""
@@ -655,6 +880,17 @@ class MainWindowPlotMixin:
         self._create_trace_items()
         if self.execution_result is not None and self.execution_result.motions:
             self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
+
+    def _grid_available_in_current_view(self):
+        return self.latheMode or getattr(self, "_view_mode", "3d") in {"top", "front", "left"}
+
+    def _sync_grid_view_state(self):
+        """Restrict the Grid command and rendered grid to supported views."""
+        available = self._grid_available_in_current_view()
+        self.ui.actionGrid.setEnabled(available)
+        grid = getattr(self, "_milling_grid_item", None)
+        if grid is not None:
+            grid.setVisible(available and self.plotGrid)
 
     def plotContextMenu(self, point):
         """Show context menu for plot view controls."""
@@ -761,16 +997,14 @@ class MainWindowPlotMixin:
                     )
                     / 0.9
                 )
-                diagonal = max(math.sqrt(sum(span * span for span in spans)), 1.0)
-                depths = [corner.z() - view_center.z() for corner in corners]
-                origin = matrix * QVector4D(0.0, 0.0, 0.0, 1.0)
-                depths.append(origin.z() - view_center.z())
+                diagonal = math.sqrt(sum(span * span for span in spans))
                 margin = max(diagonal * 0.05, 1.0)
-                max_depth = max(depths)
-                min_depth = min(depths)
-                distance = max(max_depth + margin, margin)
-                near_clip = max(distance - max_depth, 1e-3)
-                far_clip = max(distance - min_depth + margin, near_clip + 1.0)
+                radius = 0.5 * diagonal
+                center_distance = math.sqrt(center.x() ** 2 + center.y() ** 2 + center.z() ** 2)
+                depth_extent = max(radius, center_distance)
+                distance = depth_extent + margin
+                near_clip = margin
+                far_clip = distance + depth_extent + margin
                 view.setOrthographicProjection(2.0 * half_width, near_clip, far_clip)
             else:
                 # GLViewWidget's fov is horizontal, so vertical view-space extent
@@ -1107,7 +1341,9 @@ class MainWindowPlotMixin:
             getattr(self, "plotBackgroundGradient", False),
             self.plotBackground,
         )
-        if self.plotGrid:
+        grid_available = self._grid_available_in_current_view()
+        self.ui.actionGrid.setEnabled(grid_available)
+        if self.plotGrid and grid_available:
             if self.latheMode:
                 self._lathe_grid_item = GLGridItem()
                 self._lathe_grid_item.lineplot.setGLOptions(GRID_GL_OPTIONS)
@@ -1129,11 +1365,9 @@ class MainWindowPlotMixin:
 
         stl_entries = getattr(self, "_stl_entries", ())
         for entry in stl_entries:
-            if entry.overlay.item is not None:
-                self.ui.graphicsView.addItem(entry.overlay.item)
-        section_item = getattr(self, "_stl_section_item", None)
-        if section_item is not None:
-            self.ui.graphicsView.addItem(section_item)
+            active_overlay = entry.section_overlay or entry.overlay
+            if active_overlay.item is not None:
+                self.ui.graphicsView.addItem(active_overlay.item)
         self._restore_selected_stl_overlays(stl_entries)
         if hasattr(self, "_update_stock_outline"):
             self._update_stock_outline()
@@ -1178,6 +1412,23 @@ class MainWindowPlotMixin:
         else:
             self._update_milling_grid()
 
+    def _plot_camera_changed(self):
+        """Keep grid and orthographic depth clipping aligned with camera movement."""
+        self._update_adaptive_grid()
+        view = self.ui.graphicsView
+        if not view.isOrthographic():
+            return
+        bounds = self._scene_bounds()
+        if bounds is None:
+            return
+        matrix = view.viewMatrix()
+        depths = [-(matrix * QVector4D(x, y, z, 1.0)).z() for x in bounds[0] for y in bounds[1] for z in bounds[2]]
+        diagonal = math.sqrt(sum((high - low) ** 2 for low, high in bounds))
+        margin = max(diagonal * 0.05, 1.0)
+        near_clip = max(0.001, min(depths) - margin)
+        far_clip = max(max(depths) + margin, near_clip + 1.0)
+        view.setOrthographicProjection(view.orthographicWidth(), near_clip, far_clip)
+
     def _update_lathe_grid(self):
         """Adapt the single XZ lathe grid to the current camera zoom."""
         grid = getattr(self, "_lathe_grid_item", None)
@@ -1195,24 +1446,47 @@ class MainWindowPlotMixin:
         grid.translate(snapped_x - old_x, 0.0, snapped_z - old_z)
         self._lathe_grid_center = (snapped_x, snapped_z)
 
+    def _milling_view_plane(self, view_mode=None):
+        """Map a physical milling view name to its fixed world plane."""
+        mapping = self._milling_view_mapping(view_mode)
+        return mapping[0] if mapping is not None else None
+
+    def _milling_view_mapping(self, view_mode=None):
+        """Return the world plane and oriented camera (elevation, azimuth)."""
+        mode = view_mode or getattr(self, "_view_mode", "3d")
+        if mode not in {"top", "front", "left"}:
+            return None
+        machine = "4ax_table_b" if getattr(self, "rotaryKinematics", None) == "4ax_table_b" else "vertical"
+        return _MILLING_VIEW_MAPPINGS[machine][mode]
+
+    def _sync_milling_view_tooltips(self):
+        """Keep physical view actions labelled with the world plane they currently show."""
+        for mode, action_name in (("top", "actionTop"), ("front", "actionFront"), ("left", "actionLeft")):
+            plane = self._milling_view_plane(mode)
+            title = QCoreApplication.translate("MainWindow", _MILLING_VIEW_TITLES[mode])
+            getattr(self.ui, action_name).setToolTip(f"{title} ({_MILLING_PLANE_LABELS[plane]})")
+
     def _orient_milling_grid(self):
-        """Rotate the existing milling grid for the active view without rebuilding the scene."""
+        """Rotate the existing milling grid onto the world plane of the active physical view."""
         grid = getattr(self, "_milling_grid_item", None)
         if grid is None:
             return
         grid.resetTransform()
-        view_mode = getattr(self, "_view_mode", "3d")
-        if view_mode == "front":
+        plane = self._milling_view_plane()
+        if plane == "xz":
             grid.rotate(90, 1, 0, 0)
-        elif view_mode == "left":
+        elif plane == "yz":
             grid.rotate(90, 0, 1, 0)
         self._milling_grid_center = (0.0, 0.0, 0.0)
 
     def _update_milling_grid(self):
-        """Adapt the active milling grid in Top, Front, and Left views only."""
+        """Adapt the milling grid in 3D and fixed physical views."""
         grid = getattr(self, "_milling_grid_item", None)
         view_mode = getattr(self, "_view_mode", "3d")
+        plane = self._milling_view_plane(view_mode)
         if grid is None or self.latheMode or not self.plotGrid:
+            return
+        if plane is None:
             return
 
         spacing, size = self._adaptive_grid_size()
@@ -1221,14 +1495,12 @@ class MainWindowPlotMixin:
         grid.setSize(size, size)
         grid.setSpacing(spacing, spacing)
         center = self.ui.graphicsView.opts["center"]
-        if view_mode == "top":
+        if plane == "xy":
             snapped = (round(center.x() / spacing) * spacing, round(center.y() / spacing) * spacing, 0.0)
-        elif view_mode == "front":
+        elif plane == "xz":
             snapped = (round(center.x() / spacing) * spacing, 0.0, round(center.z() / spacing) * spacing)
-        elif view_mode == "left":
+        else:  # YZ/G19
             snapped = (0.0, round(center.y() / spacing) * spacing, round(center.z() / spacing) * spacing)
-        else:
-            snapped = (round(center.x() / spacing) * spacing, round(center.y() / spacing) * spacing, 0.0)
 
         old = getattr(self, "_milling_grid_center", (0.0, 0.0, 0.0))
         grid.translate(snapped[0] - old[0], snapped[1] - old[1], snapped[2] - old[2])
@@ -1291,7 +1563,16 @@ class MainWindowPlotMixin:
 
     def _finish_camera_change(self):
         """Fit the new camera and reorient only the existing grid."""
+        self._sync_milling_view_tooltips()
         self._orient_milling_grid()
+        self._sync_grid_view_state()
+        if self.plotGrid and not self.latheMode and self._view_mode in {"top", "front", "left"}:
+            if self._milling_grid_item is None:
+                self._milling_grid_item = GLGridItem()
+                self._milling_grid_item.lineplot.setGLOptions(GRID_GL_OPTIONS)
+                self._milling_grid_item.setColor(QColor(self.plotGridColor))
+                self.ui.graphicsView.addItem(self._milling_grid_item)
+                self._orient_milling_grid()
         self.fitToView()
 
     def _orthographic_orbit_started(self):
@@ -1299,14 +1580,16 @@ class MainWindowPlotMixin:
         if self.latheMode or getattr(self, "_view_mode", "3d") == "3d":
             return
         self._view_mode = "3d"
-        self.ui.actionGrid.setEnabled(True)
+        self._set_active_view_action("3d")
+        self._sync_grid_view_state()
         self._orient_milling_grid()
         self.fitToView()
 
     def view3d(self):
         """Set the standard CAD angle with a parallel 3D projection."""
         self._view_mode = "3d"
-        self.ui.actionGrid.setEnabled(True)
+        self._set_active_view_action("3d")
+        self._sync_grid_view_state()
         view = self.ui.graphicsView
         view.setProjectionMode("orthographic")
         if getattr(self, "rotaryKinematics", None) == "4ax_table_b":
@@ -1324,35 +1607,52 @@ class MainWindowPlotMixin:
         self._finish_camera_change()
         LOGGER.info("plot_view_changed mode=3d")
 
-    def viewTop(self):
-        """Switch camera to a true top-down orthographic view."""
-        self._view_mode = "top"
-        self.ui.actionGrid.setEnabled(True)
-        self.ui.graphicsView.opts["rotationMethod"] = "euler"
-        self.ui.graphicsView.setProjectionMode("orthographic")
-        self.setView(60, 90, -90, use_calc_dist=False)
+    def _set_fixed_milling_view(self, view_mode):
+        """Apply a physical Top/Front/Left view using the active machine orientation."""
+        self._view_mode = view_mode
+        self._set_active_view_action(view_mode)
+        self._sync_grid_view_state()
+        view = self.ui.graphicsView
+        view.opts["rotationMethod"] = "euler"
+        view.setProjectionMode("orthographic")
+        plane, camera = self._milling_view_mapping(view_mode)
+        if camera[0] == "look_at":
+            _mode, eye, up = camera
+            basis = QMatrix4x4()
+            basis.lookAt(QVector3D(*eye), QVector3D(0.0, 0.0, 0.0), QVector3D(*up))
+            view.opts["rotationMethod"] = "euler"
+            self.setView(60, 0.0, 0.0, use_calc_dist=False)
+            view.opts["rotationMethod"] = "quaternion"
+            view.setCameraPosition(distance=1.0, rotation=QQuaternion.fromRotationMatrix(basis.normalMatrix()))
+        else:
+            _mode, elevation, azimuth = camera
+            view.opts["rotationMethod"] = "euler"
+            self.setView(60, elevation, azimuth, use_calc_dist=False)
         self._finish_camera_change()
-        LOGGER.info("plot_view_changed mode=top")
+        LOGGER.info("plot_view_changed mode=%s plane=%s", view_mode, plane)
+
+    def _set_active_view_action(self, view_mode):
+        actions = {
+            "3d": self.ui.action3D,
+            "top": self.ui.actionTop,
+            "front": self.ui.actionFront,
+            "left": self.ui.actionLeft,
+        }
+        action = actions.get(view_mode)
+        if action is not None and action.isCheckable():
+            action.setChecked(True)
+
+    def viewTop(self):
+        """Switch to the machine's physical top orthographic view."""
+        self._set_fixed_milling_view("top")
 
     def viewFront(self):
-        """Switch camera to a true front orthographic view."""
-        self._view_mode = "front"
-        self.ui.actionGrid.setEnabled(True)
-        self.ui.graphicsView.opts["rotationMethod"] = "euler"
-        self.ui.graphicsView.setProjectionMode("orthographic")
-        self.setView(60, 0, -90, use_calc_dist=False)
-        self._finish_camera_change()
-        LOGGER.info("plot_view_changed mode=front")
+        """Switch to the machine's physical front orthographic view."""
+        self._set_fixed_milling_view("front")
 
     def viewLeft(self):
-        """Switch camera to a true left orthographic view."""
-        self._view_mode = "left"
-        self.ui.actionGrid.setEnabled(True)
-        self.ui.graphicsView.opts["rotationMethod"] = "euler"
-        self.ui.graphicsView.setProjectionMode("orthographic")
-        self.setView(60, 0, 180, use_calc_dist=False)
-        self._finish_camera_change()
-        LOGGER.info("plot_view_changed mode=left")
+        """Switch to the machine's physical left/operator-side orthographic view."""
+        self._set_fixed_milling_view("left")
 
     def calcDist(self):
         """Calculate fit distance without moving the current camera center."""

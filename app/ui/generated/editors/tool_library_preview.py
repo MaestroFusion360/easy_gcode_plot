@@ -39,14 +39,14 @@ class Ui_ToolLibraryPreviewPane(object):
         self.controlsLayout = QHBoxLayout()
         self.controlsLayout.setObjectName(u"controlsLayout")
         self.controlsLayout.setContentsMargins(0, 0, 0, 0)
+        self.controlsSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.controlsLayout.addItem(self.controlsSpacer)
+
         self.tracePointLabel = QLabel(ToolLibraryPreviewPane)
         self.tracePointLabel.setObjectName(u"tracePointLabel")
 
         self.controlsLayout.addWidget(self.tracePointLabel)
-
-        self.controlsSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.controlsLayout.addItem(self.controlsSpacer)
 
         self.zoomOutButton = QToolButton(ToolLibraryPreviewPane)
         self.zoomOutButton.setObjectName(u"zoomOutButton")

@@ -300,6 +300,24 @@ class MainWindowFileMixin:
         self.settings.setValue("FILE/RECENT_FILES", self.recentFiles)
         self.settings.sync()
 
+    def _remember_file_directory(self, path):
+        """Persist the directory used by Open File for the next dialog."""
+        directory = str(Path(path).expanduser().resolve().parent)
+        self.settings.setValue("FILE/LAST_OPEN_DIRECTORY", directory)
+        self.settings.sync()
+
+    def _open_file_directory(self):
+        """Return the last valid Open File directory, with useful fallbacks."""
+        remembered = self.settings.value("FILE/LAST_OPEN_DIRECTORY", "", type=str)
+        if remembered and Path(remembered).is_dir():
+            return remembered
+        current_file = getattr(self, "curFile", "")
+        if current_file:
+            current_directory = str(Path(current_file).expanduser().parent)
+            if Path(current_directory).is_dir():
+                return current_directory
+        return str(Path.home())
+
     def _add_recent_file(self, path):
         absolute = QFileInfo(str(path)).absoluteFilePath()
         self.recentFiles = _normalized_recent_files([absolute, *self.recentFiles])
@@ -347,7 +365,7 @@ class MainWindowFileMixin:
     def openFile(self):
         """Prompt for a file to open and load its contents."""
         if self.maybeSave():
-            fileName, _ = QFileDialog.getOpenFileName(self, "Open", "", NC_FILE_FILTER)
+            fileName, _ = QFileDialog.getOpenFileName(self, "Open", self._open_file_directory(), NC_FILE_FILTER)
             if fileName:
                 self.loadFile(fileName)
 
@@ -368,7 +386,9 @@ class MainWindowFileMixin:
 
     def documentWasModified(self):
         """Update document actions without invalidating the displayed trace."""
-        self.setWindowModified(self.ui.editor.isModified())
+        modified = self.ui.editor.isModified()
+        self.setWindowModified(modified)
+        self.ui.actionSave.setEnabled(modified)
         self.ui.actionUndo.setEnabled(self.ui.editor.isUndoAvailable())
         self.ui.actionRedo.setEnabled(self.ui.editor.isRedoAvailable())
 
@@ -430,6 +450,7 @@ class MainWindowFileMixin:
             self._loading_document = False
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
+        self._remember_file_directory(fileName)
         self.changeFileType(self.ui.fileTypeCombo.currentIndex())
         self.syncGuiCapabilities()
         self._add_recent_file(fileName)
@@ -473,6 +494,7 @@ class MainWindowFileMixin:
         LOGGER.info("file_saved path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
         self.setCurrentFile(fileName)
         self._document_disk_signature = _file_signature(fileName)
+        self._remember_file_directory(fileName)
         self._add_recent_file(fileName)
         return True
 
@@ -481,6 +503,7 @@ class MainWindowFileMixin:
         self.curFile = fileName
         self.ui.editor.setModified(False)
         self.setWindowModified(False)
+        self.ui.actionSave.setEnabled(False)
 
         if self.curFile:
             name = self.strippedName(self.curFile)

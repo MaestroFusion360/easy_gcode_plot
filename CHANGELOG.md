@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.7.0 - 2026-09-29
+
+- Corrected physical milling views for horizontal and vertical spindle profiles, including camera orientation and restoring the selected view after changing kinematics.
+- Fixed toolpath segments disappearing during middle-button orbit by refreshing orthographic camera clipping after rotation.
+- Show the active 3D/Top/Front/Left view as a checked, mutually exclusive toolbar action; add visible theme-aware hover and pressed states to the main toolbars.
+- Enable Save only when the editor has unsaved changes, and restore its disabled state after saving or opening a file.
+- Add action icons to STL Objects controls, hide the selected object's pivot marker with the panel, and log load, delete, transform, array and section timings.
+- Fixed STL section cap winding for all three axes, including Y-plane handedness; a cut coincident with an outer mesh face now retains that face instead of opening the shell.
+- Triangulate section caps with nested contours as polygons with holes, preserving hollow regions in tubes and enclosed cavities.
+- Replaced the section-cap Python ear-clipping and manual hole bridging with `mapbox-earcut`; preserve holes and disconnected contours, restore collinear boundary vertices for watertight caps, and keep cap normals aligned with the selected side. On `assets/stl/test4.stl` (14,522 triangles, midplane cuts), `clip_mesh` measured X 345 ms, Y 396 ms and Z 350 ms, down from 2,577/18,906/3,651 ms.
+- Keep the active section mesh in the plot after `loadPlot()`, and refresh both the visible cut and hidden source mesh when STL color or wireframe settings change.
+- Preserve STL undo history when importing after Clear STL or deleting the final object.
+- Reject cumulative STL scales that overflow float32 coordinates, collapse non-degenerate faces, or invalidate an originally closed mesh; report rejected GUI scaling in the status bar.
+- Added section-cap regression coverage for convex and concave contours, holes, disconnected outer contours, large polygon-with-hole earcut usage, X/Y/Z orientation, both kept sides and watertight results; retain coverage for face-coincident cuts, repeated scaling, plot reloads, appearance refresh and import/clear history.
+
 ## 1.6.9 - 2026-09-29
 
 - Switched the milling 3D camera to an orthographic CAD projection and kept it orthographic while orbiting from fixed views, so apparent feature size does not change with depth.

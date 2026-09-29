@@ -63,6 +63,7 @@ class StlObjectsPanel(QDockWidget):
 
     def __init__(self, parent=None):
         super().__init__(QCoreApplication.translate("StlObjectsPanelForm", "STL Objects"), parent)
+        self.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.setObjectName("stlObjectsDock")
         self._section_bounds = None
         self._measurements = None
@@ -80,6 +81,7 @@ class StlObjectsPanel(QDockWidget):
         outer.addWidget(content, 1)
         wrapper = QWidget()
         wrapper.setLayout(outer)
+        wrapper.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
         self.objectList = self.ui.objectList
         self.objectList.setObjectName("stlObjectList")
         self.operationCombo = self.ui.operationCombo
@@ -89,7 +91,7 @@ class StlObjectsPanel(QDockWidget):
             ("undoButton", "undo.png"),
             ("redoButton", "redo.png"),
             ("statisticsButton", "stat.png"),
-            ("deleteButton", "trash.png"),
+            ("deleteButton", "remove.png"),
         )
         self.actionButtons = []
         for name, icon in specs:
@@ -98,7 +100,7 @@ class StlObjectsPanel(QDockWidget):
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextBesideIcon)
             button.setIconSize(QSize(18, 18))
             button.setMaximumHeight(30)
-            button.setAutoRaise(True)
+            button.setAutoRaise(False)
             button.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
             setattr(self, name, button)
             self.actionButtons.append(button)
@@ -139,6 +141,7 @@ class StlObjectsPanel(QDockWidget):
         _axis_row(grid, 0, (self.pivotX, self.pivotY, self.pivotZ))
         layout.addLayout(grid)
         self.pivotApplyButton = QPushButton(QCoreApplication.translate("MainWindow", "Set base point"))
+        self._set_action_icon(self.pivotApplyButton, "apply.png")
         layout.addWidget(self.pivotApplyButton)
         return group
 
@@ -150,6 +153,7 @@ class StlObjectsPanel(QDockWidget):
         _axis_row(grid, 0, (self.positionX, self.positionY, self.positionZ))
         layout.addLayout(grid)
         self.moveButton = QPushButton(QCoreApplication.translate("MainWindow", "Move here"))
+        self._set_action_icon(self.moveButton, "apply.png")
         layout.addWidget(self.moveButton)
         return group
 
@@ -160,6 +164,7 @@ class StlObjectsPanel(QDockWidget):
         self.rotateAxis.addItems(tuple("XYZ"))
         self.rotateAngle = _spin(minimum=-360_000, maximum=360_000, decimals=3)
         self.rotateButton = QPushButton(QCoreApplication.translate("MainWindow", "Rotate"))
+        self._set_action_icon(self.rotateButton, "rotate.png")
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -171,6 +176,7 @@ class StlObjectsPanel(QDockWidget):
         self.mirrorPlane = QComboBox()
         self.mirrorPlane.addItems(tuple("XYZ"))
         self.mirrorButton = QPushButton(QCoreApplication.translate("MainWindow", "Mirror"))
+        self._set_action_icon(self.mirrorButton, "mirror.png")
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -180,6 +186,7 @@ class StlObjectsPanel(QDockWidget):
 
         self.scaleFactor = _spin(minimum=1e-6, maximum=1_000_000, value=1.0, decimals=6, step=0.1)
         self.scaleButton = QPushButton(QCoreApplication.translate("MainWindow", "Scale"))
+        self._set_action_icon(self.scaleButton, "scale.png")
         row = QWidget()
         row_layout = QHBoxLayout(row)
         row_layout.setContentsMargins(0, 0, 0, 0)
@@ -210,6 +217,7 @@ class StlObjectsPanel(QDockWidget):
         self.rotateCopies.setChecked(True)
         layout.addRow(self.rotateCopies)
         self.circularButton = QPushButton(QCoreApplication.translate("MainWindow", "Create"))
+        self._set_action_icon(self.circularButton, "create.png")
         layout.addRow(self.circularButton)
         return group
 
@@ -239,6 +247,7 @@ class StlObjectsPanel(QDockWidget):
             layout.addWidget(count, row, 1)
             layout.addWidget(step, row, 2)
         self.rectangularButton = QPushButton(QCoreApplication.translate("MainWindow", "Create"))
+        self._set_action_icon(self.rectangularButton, "create.png")
         layout.addWidget(self.rectangularButton, 4, 0, 1, 3)
         return group
 
@@ -255,7 +264,9 @@ class StlObjectsPanel(QDockWidget):
         layout.addRow(QCoreApplication.translate("MainWindow", "Coordinate"), self.sectionOffset)
         layout.addRow(QCoreApplication.translate("MainWindow", "Keep"), self.sectionKeepSide)
         self.sectionButton = QPushButton(QCoreApplication.translate("MainWindow", "Apply"))
+        self._set_action_icon(self.sectionButton, "apply.png")
         self.clearSectionButton = QPushButton(QCoreApplication.translate("MainWindow", "Clear"))
+        self._set_action_icon(self.clearSectionButton, "remove.png")
         actions = QWidget()
         actions_layout = QHBoxLayout(actions)
         actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -263,6 +274,11 @@ class StlObjectsPanel(QDockWidget):
         actions_layout.addWidget(self.clearSectionButton)
         layout.addRow(actions)
         return group
+
+    @staticmethod
+    def _set_action_icon(button, filename):
+        button.setIcon(QIcon(f":/resource/icons/{filename}"))
+        button.setIconSize(QSize(18, 18))
 
     def _connect_signals(self):
         self.objectList.currentRowChanged.connect(self._selection_changed)
@@ -417,6 +433,11 @@ class StlObjectsPanel(QDockWidget):
 
     def apply_theme(self, _theme_name):
         self.update()
+
+    def minimumSizeHint(self):  # noqa: N802 - Qt API
+        """Do not let dense controls impose a fixed minimum dock width."""
+        size = super().minimumSizeHint()
+        return QSize(0, size.height())
 
     def paintEvent(self, event):
         super().paintEvent(event)
