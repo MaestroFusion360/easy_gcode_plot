@@ -53,7 +53,10 @@ def _arc_ocs(
     assert motion.arc is not None
     expected_sweep = math.degrees(motion.arc.sweep)
     choices = []
-    for normal in _normal_candidates(motion.arc.plane, turning):
+    normals = _normal_candidates(motion.arc.plane, turning)
+    if not turning and motion.arc.normal is not None:
+        normals = (motion.arc.normal, tuple(-value for value in motion.arc.normal))
+    for normal in normals:
         ocs = OCS(normal)
         ocs_start = ocs.from_wcs(start)
         ocs_end = ocs.from_wcs(end)

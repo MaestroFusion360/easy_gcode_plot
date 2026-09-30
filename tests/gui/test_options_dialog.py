@@ -26,13 +26,18 @@ def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
         "4ax_table_a",
         "4ax_table_b",
         "4ax_table_c",
+        "5ax_table_ac_angled",
+        "5ax_table_bc_angled",
     }
     window = MainWindow()
     try:
-        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c"}
+        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c", "5ax_table_ac_angled", "5ax_table_bc_angled"}
         assert set(window._rotary_kinematics_actions) == expected
         combo = window.optionsDlg.ui.rotaryKinematicsCombo
         assert {combo.itemData(index) for index in range(combo.count())} == expected
+        ordered_ids = [None, *sorted(expected - {None})]
+        assert list(window._rotary_kinematics_actions) == ordered_ids
+        assert [combo.itemData(index) for index in range(combo.count())] == ordered_ids
     finally:
         window.deleteLater()
 
@@ -42,7 +47,7 @@ def test_broken_user_rotary_catalog_does_not_prevent_gui_startup(qt_app):
 
     window = MainWindow()
     try:
-        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c"}
+        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c", "5ax_table_ac_angled", "5ax_table_bc_angled"}
         assert set(window._rotary_kinematics_actions) == expected
         combo = window.optionsDlg.ui.rotaryKinematicsCombo
         assert {combo.itemData(index) for index in range(combo.count())} == expected

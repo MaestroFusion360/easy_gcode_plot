@@ -106,6 +106,8 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Does P dwell in turning G83/G84 create geometry?](#does-p-dwell-in-turning-g83g84-create-geometry)
     - [What happens if a modal drilling/tapping cycle is left in an invalid state?](#what-happens-if-a-modal-drillingtapping-cycle-is-left-in-an-invalid-state)
   - [FANUC milling](#fanuc-milling)
+    - [Which milling G functions are recognized?](#which-milling-g-functions-are-recognized)
+    - [Which milling M functions are recognized?](#which-milling-m-functions-are-recognized)
     - [What basic milling motion is modeled?](#what-basic-milling-motion-is-modeled)
     - [How is indexed rotary milling handled in 1.6.7?](#how-is-indexed-rotary-milling-handled-in-167)
     - [Which rotary profiles have been checked?](#which-rotary-profiles-have-been-checked)
@@ -369,7 +371,7 @@ uv run --no-dev python main.py
 
 ### Which input encodings are supported?
 
-The normal document encodings are UTF-8 and Windows-1251. The CLI exposes the supported encodings through `--encoding`.
+The normal document encodings are UTF-8 and Windows-1251. The GUI opens `.ptp` files by default and tries Windows-1251 if UTF-8 decoding fails; saving preserves the detected encoding. The CLI exposes the supported encodings through `--encoding`.
 
 ### Are compact FANUC blocks accepted?
 
@@ -451,11 +453,12 @@ Yes. Supported modal groups are checked for conflicts within one block. A confli
 
 Yes. The default execution budget protects against runaway macros, recursive calls and pathological cycles:
 
-| Resource | Default limit |
+| Resource | GUI default |
 | --- | ---: |
 | Executed blocks | 500,000 |
 | Subprogram/macro calls | 10,000 |
-| Generated motions | 200,000 |
+| Generated motions | 2,147,483,647 |
+| Auto update max segments | 2,147,483,647 |
 | Cycle iterations | 100,000 |
 | Macro loop iterations | 100,000 |
 | General call depth | 64 |
@@ -934,20 +937,20 @@ If the required geometry cannot be established safely, the result is not present
 
 The current turning cycle layer includes:
 
-| Cycle | Purpose in the kernel |
-| --- | --- |
-| G70 | P-Q finishing contour |
-| G71 | Longitudinal roughing |
-| G72 | Facing roughing |
-| G73 | Pattern-repeat roughing |
-| G74 | Z peck / face grooving |
-| G75 | X peck / radial grooving |
-| G76 | Two-line multipass threading |
-| G83 | Axial peck drilling |
-| G84 | Axial tapping |
-| G90 | Modal longitudinal turning cycle |
-| G92 | Modal threading cycle |
-| G94 | Modal facing cycle |
+| Type A | Type B | Purpose in the kernel |
+| --- | --- | --- |
+| G70 | G70 | P-Q finishing contour |
+| G71 | G71 | Longitudinal roughing |
+| G72 | G72 | Facing roughing |
+| G73 | G73 | Pattern-repeat roughing |
+| G74 | G74 | Z peck / face grooving |
+| G75 | G75 | X peck / radial grooving |
+| G76 | G76 | Two-line multipass threading |
+| G83 | G83 | Axial peck drilling |
+| G84 | G84 | Axial tapping |
+| G90 | G77 | Modal longitudinal turning cycle |
+| G92 | G78 | Modal threading cycle |
+| G94 | G79 | Modal facing cycle |
 
 Cycle geometry is expanded into ordinary logical motions. Those motions are then consumed by playback, statistics, Stock Removal and export.
 
@@ -1206,6 +1209,62 @@ The runtime can report an `UNCLOSED_CYCLE`-class execution error rather than sil
 
 ## FANUC milling
 
+### Which milling G functions are recognized?
+
+This table lists the G codes recognized by the `fanuc_mill` kernel. Details and limits are explained below.
+
+| G code | Function in the kernel |
+| --- | --- |
+| G00 | Rapid positioning |
+| G01 | Linear interpolation |
+| G02 / G03 | Clockwise / counterclockwise circular interpolation |
+| G04 | Dwell signal; no spatial motion |
+| G10 | Program WCS offsets (`L2`, `L20`) |
+| G15 / G16 | Cancel / enable polar coordinate programming |
+| G17 / G18 / G19 | Select XY / XZ / YZ plane |
+| G20 / G21 | Inch / millimetre input units |
+| G28 | Reference return using the configured home |
+| G40 / G41 / G42 | Cancel / left / right cutter-radius compensation |
+| G43 / G49 | Track / cancel tool-length state; G43 does not apply H geometry to the plotted path |
+| G43.4 | Continuous TCP linear and rotary motion for the enabled angled AC/BC table profiles; circular rotary arcs and combination with G68.2 are unsupported |
+| G50 / G51 | Cancel / enable coordinate scaling |
+| G52 | Local coordinate shift |
+| G53 | Non-modal machine-coordinate motion |
+| G54–G59 | Select work coordinate system |
+| G54.1 P1–P99 | Parsed and selected; the GUI has no offset setting, so the offset is zero unless the program sets it with G10 L20 |
+| G65 | Call a Macro B program |
+| G68 / G69 | Enable / cancel coordinate rotation |
+| G68.2 / G53.1 | Tilted working plane / tool-axis orientation (3+2, `fanuc_mill` with two-axis table-table, head-head or head-table kinematics) |
+| G73 | High-speed peck drilling cycle |
+| G80 | Cancel canned cycle |
+| G81 | Drilling cycle |
+| G82 | Drilling cycle with dwell |
+| G83 | Full-retract peck drilling cycle |
+| G84 | Tapping cycle |
+| G85 | Boring cycle with feed return |
+| G86 | Boring cycle with spindle-stop signal |
+| G90 / G91 | Absolute / incremental programming |
+| G94 / G95 | Feed per minute / feed per revolution |
+| G98 / G99 | Return to initial / R plane in canned cycles |
+
+### Which milling M functions are recognized?
+
+| M code | Function in the kernel |
+| --- | --- |
+| M00 / M01 | Stop / optional-stop signal |
+| M02 / M30 | End program |
+| M03 / M04 / M05 | Spindle clockwise / counterclockwise / stop signals |
+| M06 | Tool-change event for the selected T number |
+| M07 | Recognized; no machine-specific coolant action is modeled |
+| M08 / M09 | Coolant on / off signals |
+| M19 | Spindle-orientation signal; S on this block is an angle, not spindle RPM |
+| M29 | Prepare rigid tapping; S on this block sets spindle RPM for the following G84 |
+| M98 / M99 | Call / return from subprogram |
+
+Unknown M codes produce `UNSUPPORTED_M_CODE` warnings. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
+
+`M29 S500` followed by `G84` marks rigid tapping in the trace. With `G95`, `F1.5` is 1.5 mm per revolution in metric mode; with `G94`, the equivalent feed at 500 RPM is `F750` mm/min. `G80` clears the rigid-tapping preparation. M29 syntax and whether it is required depend on the machine configuration. The kernel records synchronization semantics but does not simulate an encoder or spindle acceleration.
+
 ### What basic milling motion is modeled?
 
 The milling kernel supports XYZ rapid, linear and circular/helical motion in the active G17/G18/G19 plane.
@@ -1224,7 +1283,7 @@ For the checked `4ax_table_c` profile, concurrent X/C feed blocks and C-only blo
 
 The `4ax_table_a` and `4ax_table_b` profiles have been compared with the programs in `tests/fixtures/milling/indexed_table_a.nc` and `tests/fixtures/milling/indexed_table_b.nc`. The `4ax_table_c` profile is checked against `tests/fixtures/milling/indexed_table_c.nc`: its X/C contour overlays the program's first XY contour within 0.05 mm at the sampled endpoints. The fixture files are reference inputs, not definitions of a machine. Automated checks also cover A/B angle signs, G90/G91, and repeated G28/G53 behavior.
 
-The catalog also contains head, mixed head/table, angled-axis and two-rotary-axis profiles. They remain in JSON with `enabled: false` and are hidden from the GUI because their geometry has not been checked against equivalent reference programs. Only `4ax_table_a`, `4ax_table_b` and `4ax_table_c` have `enabled: true`; **None** is the default selection. The confirmed scope is indexed 3+1 for vertical mill/table A and horizontal mill/table B, plus the checked planar X/C contour for table C. The schema does not specify rotary pivot locations, tool-center-point behavior or controller-specific offsets.
+The catalog also contains head, mixed head/table and other two-rotary-axis profiles. They remain in JSON with `enabled: false` and are hidden from the GUI. The enabled profiles are `4ax_table_a`, `4ax_table_b`, `4ax_table_c`, `5ax_table_ac_angled` and `5ax_table_bc_angled`; **None** is the default selection. The angled AC/BC tables support indexed 3+2 through G68.2/G53.1. The schema does not specify rotary pivot locations, tool-center-point behavior or controller-specific offsets.
 
 The JSON editor validates a profile and saves it to `rotary_profiles.json` beside the user's `config.ini`. It does not change the installed catalog. A selected profile defines the table/head axis and sign explicitly; the software cannot infer those properties from an A, B or C word. Execution steps retain the selected WCS and the configured rotary angles. G10 L2 and WCS changes preserve the current machine position after a table index.
 
@@ -1309,6 +1368,8 @@ G68 enables coordinate rotation around the programmed center in the active plane
 
 The active transform applies to later endpoints and I/J/K arc vectors. Enabling or cancelling the transform does not itself create a motion segment.
 
+G68.2 X/Y/Z I/J/K defines a 3+2 tilted working plane with Z-X-Z Euler angles. Select a kinematics profile with two distinct rotary axes first; supported topologies include table-table, head-head and head-table. G53.1 must be the next standalone block: it solves the selected profile's rotary angles to align the physical tool axis with functional +Z. An unreachable orientation stops with a diagnostic. G69 cancels the plane while retaining the indexed rotary position. This model applies only to `fanuc_mill`. Explicit A/B/C addresses during the tilted plane and simultaneous G68 rotation are unsupported. G53 and G28 reference motions use machine coordinates. Expanded NC export is unavailable for these programs; Full Program preserves the source.
+
 ### How does G51/G50 scaling work?
 
 Milling G51 supports:
@@ -1324,11 +1385,15 @@ Axis-specific scaling of an arc can turn a circle into non-circular geometry. Th
 
 ### Is G53 supported in milling?
 
-Yes. G53 is non-modal machine-coordinate motion. It does not overwrite the active WCS for later ordinary work-coordinate blocks. With a selected table profile, the machine-axis target is mapped into the fixed WCS display frame after the indexed orientation is applied.
+Yes. G53 is non-modal machine-coordinate motion. It does not overwrite the active WCS for later ordinary work-coordinate blocks. An absolute zero axis target such as `G53 Z0` resolves to the configured machine home on that axis; non-zero absolute and incremental targets retain their machine-coordinate meanings.
 
 ### Is G28 supported in milling?
 
-Yes. The configured reference-return path is resolved through the execution kernel rather than handled only by the GUI. For indexed milling, the intermediate and home targets are resolved on machine axes before their trace points are transformed for display.
+Yes. The configured reference-return path is resolved through the execution kernel rather than handled only by the GUI. For indexed milling, the intermediate and home targets are resolved on machine axes before their trace points are transformed for display. `G91 G28 Z0` returns the Z axis to the configured home Z.
+
+### Is continuous five-axis TCP (`G43.4`) supported?
+
+For `fanuc_mill`, continuous `G0/G1` tool-center motion with simultaneous linear and rotary axes is supported on the angled AC and BC table profiles. Activating TCP and indexing rotary axes preserve the current physical point in the plotted trace. `G2/G3` rotary TCP motion and combining TCP with `G68.2` are unsupported. This is toolpath interpretation, not a complete machine or collision simulation.
 
 ### How are milling arcs programmed?
 

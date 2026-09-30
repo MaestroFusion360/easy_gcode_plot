@@ -30,6 +30,7 @@ _TYPE_HINTS = (
     (r"\bTHREAD(?:ING)?\b", "thread"),
     (r"\bGROOV(?:E|ING)\b", "groove"),
     (r"\bDRILL(?:ING)?\b", "drill"),
+    (r"\bTAPER(?:ED)?\s+BALL(?:\s+END)?\s+MILL\b|\bTAPER_BALL_MILL\b", "taper_ball_mill"),
     (r"\bBALL\b", "mill_ball"),
     (r"\bFACE MILL\b", "face_mill"),
     (r"\bSLOT MILL\b", "slot_mill"),
@@ -108,6 +109,9 @@ def _milling_spec(description, scale, operation_kind=None):
     radius = _dimension(description, "CR", 0.0, scale, allow_zero=True)
     if 0 < radius <= spec["diameter"] / 2 and spec["type"] in {"mill_flat", "mill_bull"}:
         spec.update(type="mill_bull", cornerRadius=radius)
+    if spec["type"] == "taper_ball_mill":
+        spec["length"] = _dimension(description, "L|LENGTH", 50.0, scale)
+        spec["taperAngle"] = _dimension(description, r"TAPER\s*ANGLE|ANGLE|B", 6.0, 1.0)
     return spec
 
 

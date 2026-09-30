@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QCoreApplication, QFile, QLibraryInfo
-from PyQt6.QtWidgets import QApplication, QDialogButtonBox, QSizePolicy
+from PyQt6.QtWidgets import QApplication, QDialogButtonBox, QMessageBox, QSizePolicy
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources.
 from app import i18n
@@ -46,6 +46,17 @@ def test_russian_translator_translates_form_strings(qt_app, translator):
     assert QCoreApplication.translate("OptionsDlg", "Theme") == "Тема"
     assert QCoreApplication.translate("OptionsDlg", "Russian") == "Русский"
     assert QCoreApplication.translate("MainWindow", "&File") == "&Файл"
+
+
+def test_russian_reload_prompt_is_translated(qt_app, translator):
+    assert i18n.install_translator(qt_app, "ru") is True
+    assert QCoreApplication.translate("MainWindow", "Reload file") == "Загрузить файл заново"
+    assert "Загрузить его заново с диска?" in QCoreApplication.translate(
+        "MainWindow", "This file has been modified by another program.\nDo you want to reload it from disk?"
+    )
+    assert QCoreApplication.translate("MainWindow", "Reloading will discard your unsaved changes.") == (
+        "Несохранённые изменения будут потеряны."
+    )
 
 
 def test_english_language_keeps_source_strings(qt_app, translator):
@@ -125,3 +136,9 @@ def test_russian_standard_dialog_buttons_are_localized(qt_app, translator):
     assert "Cancel" not in labels
     assert "Close" not in labels
     box.deleteLater()
+
+    reload_box = QMessageBox()
+    reload_box.setStandardButtons(QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+    assert reload_box.button(QMessageBox.StandardButton.Yes).text().replace("&", "") == "Да"
+    assert reload_box.button(QMessageBox.StandardButton.No).text().replace("&", "") == "Нет"
+    reload_box.deleteLater()

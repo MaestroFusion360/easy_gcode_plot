@@ -6,15 +6,24 @@ import math
 from dataclasses import dataclass, replace
 from enum import Enum, auto
 
-from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
+from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, MachineSignal, TraceMotion
 from ..frontend.program import parse_program
 from ..runtime.diagnostics import modal_conflict_diagnostics
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
 from ..runtime.execution import ProgramRuntime, semantic_instructions
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
-from .kinematics import MachineKinematics, effective_orientation
+from .kinematics import TCP_TABLE_PROFILES, MachineKinematics, effective_orientation
 from .motion import _emit_milling_motions, _g53_home_axes
-from .state import MillState, _apply_pre_flow_modal_state, _execution_step, _wcs_offset
+from .state import (
+    MillState,
+    _activate_tcp,
+    _apply_pre_flow_modal_state,
+    _coordinate_transform,
+    _execution_step,
+    _orient_point,
+    _unorient_point,
+    _wcs_offset,
+)
 
 try:
     from ._native_executor import execute_simple_blocks as _execute_simple_blocks
@@ -42,11 +51,13 @@ MILLING_RECOGNIZED_G_CODES = frozenset(
         41,
         42,
         43,
+        43.4,
         49,
         50,
         51,
         52,
         53,
+        53.1,
         54.1,
         54,
         55,
@@ -56,6 +67,7 @@ MILLING_RECOGNIZED_G_CODES = frozenset(
         59,
         65,
         68,
+        68.2,
         69,
         73,
         80,
@@ -73,7 +85,7 @@ MILLING_RECOGNIZED_G_CODES = frozenset(
         99,
     }
 )
-MILLING_RECOGNIZED_M_CODES = frozenset({0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 98, 99})
+MILLING_RECOGNIZED_M_CODES = frozenset({0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 19, 29, 30, 98, 99})
 
 
 class _BlockAction(Enum):
@@ -138,6 +150,14 @@ def _report_unknown_m_codes(diagnostics, mcodes, recognized_m, block) -> None:
                     block.raw,
                 )
             )
+
+
+def _milling_spindle_signals(block, words, mcodes) -> tuple[MachineSignal, ...]:
+    signals = []
+    for code, kind in ((19, "spindle_orient"), (29, "rigid_tapping_prepare")):
+        if code in mcodes:
+            signals.append(MachineSignal(kind, block.index, f"M{code}", words.get("S")))
+    return tuple(signals)
 
 
 def _validate_g73_retract_distance(value: float) -> None:
@@ -225,6 +245,36 @@ def _validate_milling_block(ctx, block, evaluated_block, occurrence_events):
             words=evaluated,
         )
 
+    twp_requested = 68.2 in codes.all_g
+    orient_requested = 53.1 in codes.all_g
+    tcp_requested = 43.4 in codes.all_g
+    rotary_requested = any(axis in words for axis in ("A", "B", "C"))
+    error = None
+    if tcp_requested and (ctx.state.kinematics is None or ctx.state.kinematics.id not in TCP_TABLE_PROFILES):
+        error = (
+            "TCP_KINEMATICS_REQUIRED",
+            "G43.4 requires the 5ax_table_ac_angled or 5ax_table_bc_angled kinematics profile",
+        )
+    elif tcp_requested and (ctx.state.twp.active or twp_requested):
+        error = ("UNSUPPORTED_TCP_TWP_COMPOSITION", "G43.4 cannot combine with G68.2 tilted-work-plane mode")
+    elif tcp_requested and rotary_requested:
+        error = ("UNSUPPORTED_G43_4_START_ROTARY", "Rotary addresses in the G43.4 activation block are not modeled")
+    elif (ctx.state.twp.active or twp_requested) and rotary_requested:
+        error = ("UNSUPPORTED_TWP_EXPLICIT_ROTARY", "G68.2 does not support explicit A/B/C rotary addresses")
+    elif orient_requested and (
+        codes.all_g != (53.1,) or codes.all_m or any(key not in ("G", "N") for key, _ in evaluated)
+    ):
+        error = ("G53_1_MUST_BE_STANDALONE", "G53.1 must be a standalone block")
+    elif orient_requested and (not ctx.state.twp.active or ctx.state.twp.start_block != block.index - 1):
+        error = ("G53_1_REQUIRES_G68_2", "G53.1 must immediately follow G68.2")
+    if error is not None:
+        return _BlockOutcome(
+            action=_BlockAction.STOP,
+            events=tuple(occurrence_events),
+            diagnostics=(Diagnostic(error[0], error[1], "error", "unsupported", block.index + 1, block.raw),),
+            words=evaluated,
+        )
+
     g65_flow = ctx.runtime.dispatch_g65(
         block=block,
         words=words,
@@ -269,7 +319,9 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
     _report_unknown_m_codes(block_diagnostics, codes.all_m, MILLING_RECOGNIZED_M_CODES, block)
     if not (unknown_g and position_words):
         return None
-    _apply_pre_flow_modal_state(ctx.state, codes.all_g, codes.all_m, words, wcs_offsets=ctx.wcs_offsets)
+    _apply_pre_flow_modal_state(
+        ctx.state, codes.all_g, codes.all_m, words, wcs_offsets=ctx.wcs_offsets, block_index=block.index
+    )
     ctx.state.unknown_axes.update(letter for letter in ("X", "Y", "Z") if letter in words)
     return _BlockOutcome(
         action=_BlockAction.STOP if any(axis in words for axis in ("A", "B", "C")) else _BlockAction.ADVANCE,
@@ -293,7 +345,46 @@ def _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, b
         occurrence_events,
         ctx.runtime.call_stack,
     )
-    _apply_pre_flow_modal_state(ctx.state, codes.all_g, codes.all_m, words, wcs_offsets=ctx.wcs_offsets)
+    was_twp_active = ctx.state.twp.active
+    old_rotary_angles = tuple(ctx.state.rotary_angles[axis] for axis in ("A", "B", "C"))
+    _apply_pre_flow_modal_state(
+        ctx.state, codes.all_g, codes.all_m, words, wcs_offsets=ctx.wcs_offsets, block_index=block.index
+    )
+    if 68.2 in codes.all_g:
+        occurrence_events.append(
+            ExecutionEvent(
+                "TILTED_WORK_PLANE_ON",
+                block.index,
+                twp_origin=ctx.state.twp.origin,
+                twp_angles=ctx.state.twp.angles,
+                twp_orientation=ctx.state.twp.orientation,
+            )
+        )
+    if 53.1 in codes.all_g:
+        occurrence_events.append(
+            ExecutionEvent(
+                "TOOL_AXIS_ORIENT",
+                block.index,
+                twp_origin=ctx.state.twp.origin,
+                twp_angles=ctx.state.twp.angles,
+                twp_orientation=ctx.state.twp.orientation,
+                old_abc=old_rotary_angles,
+                new_abc=tuple(ctx.state.rotary_angles[axis] for axis in ("A", "B", "C")),
+                kinematics_profile=ctx.state.kinematics.id,
+            )
+        )
+    if 69 in codes.all_g and was_twp_active:
+        occurrence_events.append(ExecutionEvent("TILTED_WORK_PLANE_OFF", block.index))
+    if 43.4 in codes.all_g:
+        occurrence_events.append(
+            ExecutionEvent(
+                "TCP_CONTROL_ON",
+                block.index,
+                kinematics_profile=ctx.state.kinematics.id if ctx.state.kinematics else None,
+            )
+        )
+    if 49 in codes.all_g:
+        occurrence_events.append(ExecutionEvent("TCP_CONTROL_OFF", block.index))
     if not ctx.state.unknown_axes:
         return None
     if ctx.state.absolute:
@@ -378,6 +469,14 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
         and 53 not in gcodes
         and move in (0, 1)
     )
+    tcp_motion = (
+        state.tcp_control
+        and state.kinematics is not None
+        and state.kinematics.id in TCP_TABLE_PROFILES
+        and 28 not in gcodes
+        and 53 not in gcodes
+        and move in (0, 1)
+    )
     message = ""
     if state.kinematics is None:
         code = "ROTARY_KINEMATICS_REQUIRED"
@@ -385,10 +484,13 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
     elif any(axis not in state.kinematics.addresses for axis in changed):
         code = "UNCONFIGURED_ROTARY_AXIS"
         message = f"Rotary address {', '.join(changed)} is not configured in profile {state.kinematics.id}"
-    elif any(axis in words for axis in ("X", "Y", "Z")) and not continuous_c:
+    elif state.tcp_control and move in (2, 3):
+        code = "UNSUPPORTED_TCP_ROTARY_ARC"
+        message = "G43.4 rotary interpolation with G2/G3 is not modeled; use G0/G1 TCP motion"
+    elif any(axis in words for axis in ("X", "Y", "Z")) and not (continuous_c or tcp_motion):
         code = "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"
         message = "Rotary and linear motion in one block is not supported"
-    elif 28 not in gcodes and move != 0 and not (continuous_c and move == 1):
+    elif 28 not in gcodes and move != 0 and not (continuous_c and move == 1) and not tcp_motion:
         code = "UNSUPPORTED_ROTARY_INTERPOLATION"
         message = "Rotary motion requires rapid G0 indexing"
     else:
@@ -401,12 +503,21 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
             words=evaluated_block.values,
         )
     old = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
+    transform = _coordinate_transform(state)
+    machine_point = (
+        _orient_point(transform.apply((state.x, state.y, state.z)), state)
+        if not state.tcp_control and not continuous_c
+        else None
+    )
     for axis in changed:
         state.rotary_angles[axis] = targets[axis]
+    if machine_point is not None:
+        rebased = _unorient_point(machine_point, state)
+        state.x, state.y, state.z = transform.inverse(rebased)
     new = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
     occurrence_events.append(
         ExecutionEvent(
-            "ROTARY_MOTION" if continuous_c else "ROTARY_INDEX",
+            "ROTARY_MOTION" if (continuous_c or tcp_motion) else "ROTARY_INDEX",
             block.index,
             axes=changed,
             old_abc=old,
@@ -447,7 +558,7 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     early_outcome = _validate_milling_block(ctx, block, evaluated_block, occurrence_events)
     if early_outcome is not None:
         return early_outcome
-    occurrence_signals = evaluated_block.signals
+    occurrence_signals = evaluated_block.signals + _milling_spindle_signals(block, words, codes.all_m)
     block_diagnostics: list[Diagnostic] = []
     early_outcome = _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
     if early_outcome is not None:
@@ -466,6 +577,9 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     if early_outcome is not None:
         return early_outcome
 
+    if 43.4 in gcodes:
+        _activate_tcp(ctx.state)
+
     # Phase 6: execute geometric semantics and return everything for one commit.
     emitted: list[TraceMotion] = []
     cycle_signals = _emit_milling_motions(
@@ -481,6 +595,8 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     if ctx.state.kinematics is not None:
         tool_orientation = effective_orientation(ctx.state.kinematics, ctx.state.rotary_angles)
         emitted = [replace(motion, tool_orientation=tool_orientation) for motion in emitted]
+    elif ctx.state.twp.active and ctx.state.twp.tool_axis_control:
+        emitted = [replace(motion, tool_orientation=ctx.state.twp.orientation) for motion in emitted]
     occurrence_signals += cycle_signals
     return _BlockOutcome(
         motions=tuple(emitted),
@@ -541,6 +657,8 @@ def execute_milling(
         while 0 <= runtime.pc < len(program.blocks):
             simple_blocks_available = (
                 not contains_rotary
+                and not state.twp.active
+                and not state.tcp_control
                 and kinematics is None
                 and _execute_simple_blocks is not None
                 and (ctx.program_started or runtime.pc != ctx.program_start_block)

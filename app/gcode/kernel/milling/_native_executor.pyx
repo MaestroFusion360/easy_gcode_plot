@@ -39,6 +39,7 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
             block.flow_node is not None
             or block.optional_skip
             or state.cycle != 80
+            or state.twp.active
             or state.polar_active
             or state.unknown_axes
             or state.transform.translation != (0.0, 0.0, 0.0)

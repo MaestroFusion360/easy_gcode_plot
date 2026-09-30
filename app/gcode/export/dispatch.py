@@ -43,9 +43,13 @@ def export_program(
     if mode == MILL_FULL_PROGRAM_MODE:
         if lathe_mode:
             raise ValueError("Mill Full Program export requires Milling Mode")
+        if any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events):
+            return source
         return export_full_mill_program(result, source.splitlines(), replace(options, arc_mode=0), cancelled=cancelled)
 
     if mode == EXPANDED_EXECUTION_MODE:
+        if any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events):
+            raise ValueError("Expanded NC cannot preserve G68.2 tilted working-plane commands")
         return export_result(result, replace(options, arc_mode=int(export_arc_mode)), cancelled=cancelled)
 
     if mode == PLOT_DATA_MODE:

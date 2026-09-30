@@ -55,13 +55,13 @@ def test_expanded_arc_segments_keep_their_logical_motion_mapping():
     assert all(segment.move == 3 for segment in segments[1:])
 
 
-def test_indexed_discontinuity_does_not_draw_false_rapid_line():
+def test_indexed_rebase_keeps_rapid_path_contiguous():
     result = execute("G90 G0 Z400\nB90\nG0 Z50\nM30", language="fanuc_mill", kinematics="4ax_table_b")
     segments = segments_from_render_points(render_trace(result), result.motions)
     assert len(segments) == 2
     assert segments[0].end == pytest.approx((0, 0, 400))
-    assert segments[1].start == pytest.approx((400, 0, 0))
-    assert segments[1].end == pytest.approx((50, 0, 0))
+    assert segments[1].start == pytest.approx(segments[0].end)
+    assert segments[1].end == pytest.approx((50, 0, 400))
 
 
 def test_sampled_segments_keep_modal_tool_for_coloring():

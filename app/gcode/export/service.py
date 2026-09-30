@@ -184,6 +184,26 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
     if (
         request.format == "nc"
+        and request.mode != "full"
+        and any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events)
+    ):
+        result = replace(
+            result,
+            ok=False,
+            complete=False,
+            diagnostics=result.diagnostics
+            + (
+                Diagnostic(
+                    "UNSUPPORTED_TWP_EXPANDED_EXPORT",
+                    "Generated NC cannot preserve G68.2 tilted working-plane commands",
+                    "error",
+                    "unsupported",
+                ),
+            ),
+        )
+        return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
+    if (
+        request.format == "nc"
         and request.mode == "expanded"
         and result.kinematics_profile
         and any(e.kind == "ROTARY_INDEX" for e in result.events)
@@ -277,8 +297,11 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         text = (
             source
             if request.mode == "full"
-            and result.kinematics_profile
-            and any(e.kind == "ROTARY_INDEX" for e in result.events)
+            and (
+                any(e.kind == "TILTED_WORK_PLANE_ON" for e in result.events)
+                or result.kinematics_profile
+                and any(e.kind == "ROTARY_INDEX" for e in result.events)
+            )
             else export_cycle_groups(result, options)
             if request.mode == "cycles"
             else export_program(

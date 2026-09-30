@@ -485,7 +485,9 @@ class _MillingToolEditor(QDialog):
         )
         self.shankDiameter.setValue(float(spec.get("shankDiameter", default_shank_diameter(diameter))))
         self.tipDiameter.setValue(float(spec.get("tipDiameter", default_tip_diameter(diameter))))
-        self.chamferAngle.setValue(float(spec.get("chamferAngle", 90.0)))
+        self.chamferAngle.setValue(
+            float(spec.get("taperAngle", 6.0) if tool_type == "taper_ball_mill" else spec.get("chamferAngle", 90.0))
+        )
         self.tipAngle.setValue(float(spec.get("tipAngle", default_drill_tip_angle())))
         self.description.setText(str(spec.get("description", "")))
         self._shapeRows = {
@@ -500,6 +502,7 @@ class _MillingToolEditor(QDialog):
         self.buttonBox.rejected.connect(self.reject)
         self.toolType.currentIndexChanged.connect(self.updateRadiusField)
         self.diameter.valueChanged.connect(self.updateBallRadius)
+        self._last_shape_type = tool_type
         self.updateRadiusField()
         self.toolCode.selectAll()
         self.toolCode.setFocus()
@@ -517,6 +520,13 @@ class _MillingToolEditor(QDialog):
     def updateRadiusField(self, *_args):
         """Expose only geometry fields meaningful for the selected cutter type."""
         tool_type = self.currentType()
+        previous_type = getattr(self, "_last_shape_type", tool_type)
+        if tool_type != previous_type:
+            if tool_type == "taper_ball_mill":
+                self.chamferAngle.setValue(6.0)
+            elif tool_type == "chamfer_mill":
+                self.chamferAngle.setValue(90.0)
+        self._last_shape_type = tool_type
         self.cornerRadius.setEnabled(tool_type == "mill_bull")
         if tool_type == "mill_ball":
             self.cornerRadius.setValue(self.diameter.value() / 2.0)
@@ -525,12 +535,19 @@ class _MillingToolEditor(QDialog):
 
         stepped = tool_type in {"face_mill", "slot_mill"}
         chamfer = tool_type == "chamfer_mill"
+        taper_ball = tool_type == "taper_ball_mill"
         for field in (self.cuttingHeight, self.shankDiameter):
             field.setVisible(stepped)
             self._shapeRows[field].setVisible(stepped)
         for field in (self.tipDiameter, self.chamferAngle):
-            field.setVisible(chamfer)
-            self._shapeRows[field].setVisible(chamfer)
+            visible = chamfer or (taper_ball and field is self.chamferAngle)
+            field.setVisible(visible)
+            self._shapeRows[field].setVisible(visible)
+        self.ui.chamferAngleLabel.setText(
+            QCoreApplication.translate("MillingToolEditor", "Taper angle, deg")
+            if taper_ball
+            else QCoreApplication.translate("MillingToolEditor", "Chamfer angle, deg")
+        )
         axial = tool_type == "drill"
         self.tipAngle.setVisible(axial)
         self._shapeRows[self.tipAngle].setVisible(axial)
@@ -539,6 +556,31 @@ class _MillingToolEditor(QDialog):
         """Keep ball radius equal to half of tool diameter."""
         if self.currentType() == "mill_ball":
             self.cornerRadius.setValue(self.diameter.value() / 2.0)
+
+    def _valid_shape_dimensions(self, tool_type):
+        """Validate geometry fields specific to the selected milling cutter."""
+        if tool_type == "mill_bull" and self.cornerRadius.value() > self.diameter.value() / 2.0:
+            message = "Bull corner radius cannot exceed half the diameter."
+        elif tool_type in {"face_mill", "slot_mill"}:
+            if not 0.0 < self.cuttingHeight.value() <= self.length.value():
+                message = "Cutting height must be within the total tool length."
+            elif not 0.0 < self.shankDiameter.value() < self.diameter.value():
+                message = "Shank diameter must be smaller than cutter diameter."
+            else:
+                return True
+        elif tool_type == "chamfer_mill" and not 0.0 <= self.tipDiameter.value() < self.diameter.value():
+            message = "Chamfer tip diameter must be smaller than cutter diameter."
+        elif tool_type == "taper_ball_mill" and not 0.0 < self.chamferAngle.value() < 90.0:
+            message = "Taper angle must be greater than 0 and less than 90 degrees."
+        else:
+            return True
+
+        QMessageBox.warning(
+            self,
+            QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
+            QCoreApplication.translate("ToolLibraryDialog", message),
+        )
+        return False
 
     def validateAndAccept(self):
         """Accept only valid compact tool numbers and physical geometry."""
@@ -559,40 +601,7 @@ class _MillingToolEditor(QDialog):
             )
             return
         tool_type = self.currentType()
-        if tool_type == "mill_bull" and self.cornerRadius.value() > self.diameter.value() / 2.0:
-            QMessageBox.warning(
-                self,
-                QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
-                QCoreApplication.translate("ToolLibraryDialog", "Bull corner radius cannot exceed half the diameter."),
-            )
-            return
-        if tool_type in {"face_mill", "slot_mill"}:
-            if not 0.0 < self.cuttingHeight.value() <= self.length.value():
-                QMessageBox.warning(
-                    self,
-                    QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
-                    QCoreApplication.translate(
-                        "ToolLibraryDialog", "Cutting height must be within the total tool length."
-                    ),
-                )
-                return
-            if not 0.0 < self.shankDiameter.value() < self.diameter.value():
-                QMessageBox.warning(
-                    self,
-                    QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
-                    QCoreApplication.translate(
-                        "ToolLibraryDialog", "Shank diameter must be smaller than cutter diameter."
-                    ),
-                )
-                return
-        if tool_type == "chamfer_mill" and not 0.0 <= self.tipDiameter.value() < self.diameter.value():
-            QMessageBox.warning(
-                self,
-                QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
-                QCoreApplication.translate(
-                    "ToolLibraryDialog", "Chamfer tip diameter must be smaller than cutter diameter."
-                ),
-            )
+        if not self._valid_shape_dimensions(tool_type):
             return
         _accept_unique_tool(self)
 
@@ -624,6 +633,8 @@ class _MillingToolEditor(QDialog):
                 tipDiameter=metric_value(self.tipDiameter),
                 chamferAngle=self.chamferAngle.value(),
             )
+        elif tool_type == "taper_ball_mill":
+            spec["taperAngle"] = self.chamferAngle.value()
         elif tool_type == "drill":
             spec["tipAngle"] = self.tipAngle.value()
         description = " ".join(self.description.text().split())

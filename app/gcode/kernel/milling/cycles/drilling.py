@@ -68,10 +68,13 @@ def _drilling_cycle_signals(block, state: MillState, words) -> tuple[MachineSign
     if state.cycle == 82 and state.cycle_p > 0.0:
         return (MachineSignal("dwell", block.index, "G82", state.cycle_p),)
     if state.cycle == 84:
-        return (
+        signals = (
             MachineSignal("spindle_sync", block.index, "G84"),
             MachineSignal("spindle_reverse", block.index, "G84"),
         )
+        if state.rigid_tapping_ready:
+            return (MachineSignal("rigid_tapping", block.index, "G84"),) + signals
+        return signals
     if state.cycle == 86:
         return (MachineSignal("spindle_stop", block.index, "G86"),)
     return ()
@@ -86,7 +89,8 @@ def _cycle_modal_updates(state: MillState, gcodes) -> tuple[tuple[str, object], 
         if gcode != 80 and cycle == 80:
             initial_z = state.z
         cycle = int(gcode)
-    return (("cycle", cycle), ("cycle_initial_z", initial_z))
+    updates = (("cycle", cycle), ("cycle_initial_z", initial_z))
+    return updates + (("rigid_tapping_ready", False),) if 80 in gcodes else updates
 
 
 def _cycle_parameter_updates(state: MillState) -> tuple[tuple[str, object], ...]:

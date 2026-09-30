@@ -102,6 +102,7 @@ class MainWindow(
         self.setWindowIcon(icon)
 
         self.loadSettings()
+        self._configure_document_watcher()
         self._configure_rotary_kinematics_menu()
         self.restoreToolbarState()
         self._initialize_runtime_helpers()
@@ -145,7 +146,12 @@ class MainWindow(
         group = QActionGroup(self)
         group.setExclusive(True)
         actions = {}
-        for profile_id, profile in ((None, None), *((key, value) for key, value in catalog.items() if value.enabled)):
+        for profile_id, profile in (
+            (None, None),
+            *sorted(
+                ((key, value) for key, value in catalog.items() if value.enabled), key=lambda item: item[0].casefold()
+            ),
+        ):
             text = (
                 QCoreApplication.translate("MainWindow", "None")
                 if profile_id is None
@@ -424,6 +430,10 @@ class MainWindow(
         QMessageBox.critical(
             self, QCoreApplication.translate("MainWindow", "Tool Library"), self._tool_library_load_error
         )
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._schedule_document_disk_check()
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""

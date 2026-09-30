@@ -4,13 +4,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ..api.resources import SemanticError
 from ..api.types import ExecutionStep
 from ..geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
 from ..geometry.transform import CoordinateTransform, TransformState
 from ..runtime.execution import apply_unit_mode
 from ..runtime.state import MachineRuntimeState
-from .kinematics import MachineKinematics, point_orientation, transform_point, transform_vector
+from .kinematics import MachineKinematics, _transpose, point_orientation, transform_point, transform_vector
 from .polar import activate_polar, cancel_polar, resolve_polar_endpoint, select_polar_plane
+from .twp import TiltedWorkPlane, solve_table_orientation, supports_twp_kinematics
 
 
 @dataclass
@@ -24,6 +26,7 @@ class MillState(MachineRuntimeState):
     plane: int = 17
     move: int = 0
     transform: TransformState = field(default_factory=TransformState)
+    twp: TiltedWorkPlane = field(default_factory=TiltedWorkPlane)
     cycle: int = 80
     cycle_z: float | None = None
     cycle_r: float | None = None
@@ -36,6 +39,8 @@ class MillState(MachineRuntimeState):
     cutter_comp: int = 40
     tool_length_comp: bool = False
     tool_length_h: int | None = None
+    tcp_control: bool = False
+    rigid_tapping_ready: bool = False
     selected_tool: str | None = None
     selected_tool_block: int | None = None
     unknown_axes: set[str] = field(default_factory=set)
@@ -84,22 +89,80 @@ def _machine(point: tuple[float, float, float], state: MillState, wcs_offsets) -
 
 
 def _orient_point(point: tuple[float, float, float], state: MillState) -> tuple[float, float, float]:
+    if state.tcp_control:
+        return point
+    if state.twp.active:
+        return state.twp.apply(point)
     if state.kinematics is None:
         return point
     return transform_point(point_orientation(state.kinematics, state.rotary_angles), point)
 
 
 def _orient_vector(vector: tuple[float, float, float], state: MillState) -> tuple[float, float, float]:
+    if state.tcp_control:
+        return vector
+    if state.twp.active:
+        return state.twp.vector(vector)
     if state.kinematics is None:
         return vector
     return transform_vector(point_orientation(state.kinematics, state.rotary_angles), vector)
 
 
 def _unorient_point(point: tuple[float, float, float], state: MillState) -> tuple[float, float, float]:
-    if state.kinematics is None:
+    if state.tcp_control:
         return point
-    orientation = point_orientation(state.kinematics, state.rotary_angles)
-    return tuple(sum(orientation[j][i] * point[j] for j in range(3)) for i in range(3))
+    if state.twp.active:
+        return state.twp.inverse(point)
+    if state.kinematics is not None:
+        orientation = point_orientation(state.kinematics, state.rotary_angles)
+        point = tuple(sum(orientation[j][i] * point[j] for j in range(3)) for i in range(3))
+    return point
+
+
+def _cancel_tcp(state: MillState) -> None:
+    """Disable TCP while keeping the current tool-center position fixed."""
+    if not state.tcp_control:
+        return
+    point = _coordinate_transform(state).apply((state.x, state.y, state.z))
+    if state.kinematics is not None:
+        orientation = point_orientation(state.kinematics, state.rotary_angles)
+        point = transform_vector(_transpose(orientation), point)
+    state.x, state.y, state.z = _coordinate_transform(state).inverse(point)
+    state.tcp_control = False
+
+
+def _activate_tcp(state: MillState) -> None:
+    """Enable TCP without changing the current physical machine point."""
+    transform = _coordinate_transform(state)
+    point = transform.apply((state.x, state.y, state.z))
+    point = _orient_point(point, state)
+    state.x, state.y, state.z = transform.inverse(point)
+    state.tcp_control = True
+
+
+def _set_twp(state: MillState, words, block_index: int) -> None:
+    if state.kinematics is None or not supports_twp_kinematics(state.kinematics):
+        raise SemanticError("TWP_KINEMATICS_REQUIRED", "G68.2 requires two distinct rotary axes", "unsupported")
+    if state.twp.active or state.transform.rotation_active:
+        raise SemanticError(
+            "UNSUPPORTED_TWP_COMPOSITION", "G68.2 cannot combine with G68 or another G68.2", "unsupported"
+        )
+    required = ("X", "Y", "Z", "I", "J", "K")
+    if any(letter not in words for letter in required):
+        raise SemanticError("INVALID_G68_2_WORDS", "G68.2 requires X/Y/Z origin and I/J/K Euler angles")
+    work_position = _orient_point(_coordinate_transform(state).apply((state.x, state.y, state.z)), state)
+    origin = tuple(words[axis] * state.unit_scale for axis in ("X", "Y", "Z"))
+    angles = tuple(float(words[axis]) for axis in ("I", "J", "K"))
+    state.twp.configure(origin, angles, block_index)
+    state.x, state.y, state.z = _coordinate_transform(state).inverse(state.twp.inverse(work_position))
+
+
+def _cancel_twp(state: MillState) -> None:
+    if not state.twp.active:
+        return
+    work_position = _orient_point(_coordinate_transform(state).apply((state.x, state.y, state.z)), state)
+    state.twp.clear()
+    state.x, state.y, state.z = _coordinate_transform(state).inverse(_unorient_point(work_position, state))
 
 
 def _preserve_work_position(state: MillState, work_position: tuple[float, float, float]) -> None:
@@ -231,10 +294,13 @@ def _execution_step(
             for axis in ("A", "B", "C")
             if (state.kinematics is not None and axis in state.kinematics.addresses)
         ),
+        twp_origin=state.twp.origin if state.twp.active else None,
+        twp_orientation=state.twp.orientation if state.twp.active else None,
+        tool_axis_control=state.twp.tool_axis_control,
     )
 
 
-def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) -> bool:
+def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets, block_index: int) -> bool:
     if g == 10:
         _program_wcs_offset(state, words, wcs_offsets=wcs_offsets)
     elif g == 52:
@@ -244,9 +310,19 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets) ->
     elif g == 51:
         _set_g51_scaling(state, words)
     elif g == 68:
+        if state.twp.active:
+            raise SemanticError("UNSUPPORTED_TWP_COMPOSITION", "G68 cannot combine with G68.2", "unsupported")
         _set_g68_rotation(state, words)
+    elif g == 68.2:
+        _set_twp(state, words, block_index)
+    elif g == 53.1:
+        state.rotary_angles.update(
+            solve_table_orientation(state.kinematics, state.twp.orientation, state.rotary_angles)
+        )
+        state.twp.tool_axis_control = True
     elif g == 69:
         _cancel_g68_rotation(state)
+        _cancel_twp(state)
     elif (extended_wcs := extended_wcs_from_gcode(g, words)) is not None or (isinstance(g, int) and 54 <= g <= 59):
         selected_wcs = extended_wcs if extended_wcs is not None else g
         transform = _coordinate_transform(state)
@@ -276,7 +352,22 @@ def _apply_polar_modal_state(state: MillState, g, *, effective_plane: int, effec
     return True
 
 
-def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets) -> None:
+def _apply_milling_spindle_state(state: MillState, gcodes, all_m, words) -> None:
+    if 94 in gcodes:
+        state.feed_mode = "per_minute"
+    if 95 in gcodes:
+        state.feed_mode = "per_revolution"
+    if 29 in all_m:
+        state.rigid_tapping_ready = True
+    if "S" in words and 19 not in all_m:
+        state.spindle_rpm = words["S"]
+    if 5 in all_m:
+        state.spindle_rpm = None
+    if "F" in words:
+        state.feed = words["F"] * state.unit_scale
+
+
+def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets, block_index: int) -> None:
     """Apply state-only modal words before an M98/M99 control transfer."""
     apply_unit_mode(state, gcodes)
     effective_plane = next((g for g in reversed(gcodes) if g in (17, 18, 19)), state.plane)
@@ -295,30 +386,30 @@ def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_o
             state.absolute = True
         elif g == 91:
             state.absolute = False
-        elif _apply_coordinate_modal_state(state, g, words, wcs_offsets=wcs_offsets):
+        elif _apply_coordinate_modal_state(state, g, words, wcs_offsets=wcs_offsets, block_index=block_index):
             pass
         elif g in (40, 41, 42):
             state.cutter_comp = g
         elif g == 43:
             state.tool_length_comp = True
+            state.tcp_control = False
+            if "H" in words:
+                h_value = words["H"]
+                state.tool_length_h = int(h_value) if float(h_value).is_integer() else None
+        elif g == 43.4:
+            # FANUC Type 1 enables TCP after the activation block executes.
+            state.tool_length_comp = True
+            state.tcp_control = False
             if "H" in words:
                 h_value = words["H"]
                 state.tool_length_h = int(h_value) if float(h_value).is_integer() else None
         elif g == 49:
             state.tool_length_comp = False
             state.tool_length_h = None
+            _cancel_tcp(state)
         elif g == 98:
             state.return_initial = True
         elif g == 99:
             state.return_initial = False
 
-    if 94 in gcodes:
-        state.feed_mode = "per_minute"
-    if 95 in gcodes:
-        state.feed_mode = "per_revolution"
-    if "S" in words:
-        state.spindle_rpm = words["S"]
-    if 5 in all_m:
-        state.spindle_rpm = None
-    if "F" in words:
-        state.feed = words["F"] * state.unit_scale
+    _apply_milling_spindle_state(state, gcodes, all_m, words)

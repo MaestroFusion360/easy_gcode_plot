@@ -4,12 +4,9 @@
 
 <!-- markdownlint-disable MD033 -->
 
-<details>
-  <summary><h2>Main Window</h2></summary>
-  <p align="center">
-    <img src="assets/img1.png" alt="Main Window">
-  </p>
-</details>
+<p align="center">
+  <img src="assets/impeller.gif" alt="Main Window">
+</p>
 
 <details>
   <summary><h2>STL Playback</h2></summary>
@@ -55,7 +52,9 @@ Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter f
 - FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, `G15/G16` polar-coordinate programming, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
+- Indexed 3+2 milling with `G68.2/G53.1` and continuous five-axis TCP motion with `G43.4` on the angled AC/BC table profiles; FANUC milling fixtures are checked for trace continuity.
 - Indexed A/B milling and planar X/C contour mapping with selected rotary profiles; `4ax_table_a`, `4ax_table_b` and `4ax_table_c` have fixture checks.
+- Milling tool previews include tapered ball mills (`TAPER_BALL_MILL`).
 - G-code editor with highlighting, line numbers, search, replace and cleanup tools.
 - CNC editing assistants for circular/grid hole patterns, circular/rectangular pockets and reusable persistent snippets.
 - Interactive OpenGL toolpath, logical-motion playback and source-line synchronization.

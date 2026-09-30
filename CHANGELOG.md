@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.7.1 - 2026-09-30
+
+- Added a bilingual prompt to reload the open document after another program changes it on disk. Declining keeps editor changes; accepting reloads the file and warns before discarding unsaved edits.
+- Added `.ptp` to the GUI Open/Save file filters. When UTF-8 decoding fails on Open, the editor tries Windows-1251 and preserves the detected encoding on Save.
+- Added `G68.2` tilted working planes and `G53.1` table-axis indexing for `fanuc_mill` with the enabled angled AC/BC table profiles. The physical tool axis is solved against the selected profile; programs without a supported profile or with an unreachable orientation stop explicitly. Included vertical arcs, DXF geometry, machine-reference bypass, cube golden tests, and guarded NC export.
+- Added continuous five-axis `G43.4` TCP motion for the angled AC and BC table profiles. TCP activation and rotary indexing preserve the current physical point; `G53 Z0` and `G91 G28 Z0` return to the configured home Z. Added a corpus-wide FANUC milling trace continuity regression check and the `impeller.ptp` / `impeller2.ptp` fixtures.
+- Added the tapered ball mill (`TAPER_BALL_MILL`) to milling tool definitions, dimension validation, discovery and preview geometry.
+
+- Added milling `M19` spindle-orientation and `M29` rigid-tapping preparation signals. An `S` word on an `M19` block is recorded as an orientation angle without replacing spindle RPM; `M29 S...` sets RPM, marks following `G84` cycles as rigid tapping, and `G80` clears that state.
+- Added regression checks for `M19` orientation, `M29` with `G84` in `G95` and `G94` feed modes, and cancellation of rigid-tapping preparation by `G80`.
+- Expanded both FAQs with complete tables of recognized milling G and M functions, clarified Type A/Type B turning-cycle codes and GUI resource limits, and revised the Russian terminology and export explanations.
+
 ## 1.7.0 - 2026-09-29
 
 - Corrected physical milling views for horizontal and vertical spindle profiles, including camera orientation and restoring the selected view after changing kinematics.

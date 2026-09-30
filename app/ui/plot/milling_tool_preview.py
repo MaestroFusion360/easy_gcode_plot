@@ -26,7 +26,7 @@ TOOL_GL_OPTIONS = {
     ),
 }
 SUPPORTED_TOOL_TYPES = frozenset(
-    {"mill_flat", "mill_bull", "mill_ball", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
+    {"mill_flat", "mill_bull", "mill_ball", "taper_ball_mill", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
 )
 
 
@@ -126,6 +126,8 @@ class MillingToolPreviewItem(GLGraphicsItem):
             spec.update(tipDiameter=extra[0], chamferAngle=extra[1])
         elif tool_type == "drill":
             spec["tipAngle"] = extra[0]
+        elif tool_type == "taper_ball_mill":
+            spec["taperAngle"] = extra[0]
         profile = milling_tool_profile(spec)
         meshdata = self._surface_of_revolution(profile)
         if self._meshes:

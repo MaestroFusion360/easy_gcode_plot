@@ -71,7 +71,7 @@
         }
       ],
       "head": [],
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "5ax_table_bc_angled",
@@ -95,7 +95,7 @@
         }
       ],
       "head": [],
-      "enabled": false
+      "enabled": true
     },
     {
       "id": "5ax_head_ac_angled",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -24,6 +25,23 @@ from app.gcode.kernel.milling.kinematics import (
     user_catalog_path,
 )
 from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
+
+_MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling"
+_FIXTURE_KINEMATICS = {
+    "indexed_table_a.nc": "4ax_table_a",
+    "indexed_table_b.nc": "4ax_table_b",
+    "indexed_table_c.nc": "4ax_table_c",
+    "Machine_tool_simulation.ptp": "5ax_table_ac_angled",
+    "Machine_tool_simulation_BC.ptp": "5ax_table_bc_angled",
+    "g68_2_cube.nc": "5ax_table_ac_angled",
+    "impeller.ptp": "5ax_table_bc_angled",
+    "impeller2.ptp": "5ax_table_ac_angled",
+}
+_MILLING_FIXTURE_CASES = tuple(
+    (path.name, _FIXTURE_KINEMATICS.get(path.name))
+    for path in sorted(_MILLING_FIXTURE_DIR.iterdir())
+    if path.is_file() and path.suffix.lower() in {".nc", ".ptp"}
+)
 
 
 def _motion_endpoints(result, source_blocks):
@@ -78,6 +96,8 @@ def test_invalid_user_rotary_catalog_is_strict_by_default_and_has_explicit_fallb
         "4ax_table_a",
         "4ax_table_b",
         "4ax_table_c",
+        "5ax_table_ac_angled",
+        "5ax_table_bc_angled",
     }
 
 
@@ -86,7 +106,7 @@ def test_g10_at_rotary_index_preserves_machine_position_and_rebases_next_move():
     result = execute(source, language="fanuc_mill", kinematics="4ax_table_b")
     assert result.ok, result.diagnostics
     assert result.execution_steps[3].position == pytest.approx(result.execution_steps[2].position)
-    assert (result.motions[-1].start_x, result.motions[-1].start_z) == pytest.approx((20, -10))
+    assert (result.motions[-1].start_x, result.motions[-1].start_z) == pytest.approx((10, 20))
     assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((120, -5))
 
 
@@ -192,6 +212,95 @@ def test_table_a_b_still_reject_simultaneous_rotary_linear_motion(profile, axis)
 
 
 @pytest.mark.parametrize(
+    ("profile", "rotary_word"),
+    [("5ax_table_ac_angled", "A30 C45"), ("5ax_table_bc_angled", "B30 C45")],
+)
+def test_g43_4_tcp_linear_motion_keeps_programmed_tool_center_path(profile, rotary_word):
+    result = execute(
+        f"G90 G0 X1 Y2 Z3\nG1 G43.4 H7 Z20 F100\nG1 X10 Y5 Z-2 {rotary_word} F100\nG49\nM30",
+        language="fanuc_mill",
+        kinematics=profile,
+    )
+    assert result.ok and result.complete, result.diagnostics
+    tcp_move = next(m for m in result.motions if rotary_word in m.source_raw)
+    assert (tcp_move.end_x, tcp_move.end_y, tcp_move.end_z) == pytest.approx((10, 5, -2))
+    assert tcp_move.orientation is None
+    assert tcp_move.start_tool_orientation is not None
+    assert tcp_move.tool_orientation is not None
+    assert tcp_move.start_tool_orientation != tcp_move.tool_orientation
+
+
+def test_g43_4_accepts_activation_then_continuous_rotary_linear_moves():
+    for profile, initial, first, second in (
+        ("5ax_table_ac_angled", "A0 C0", "A30 C45", "A60 C90"),
+        ("5ax_table_bc_angled", "B0 C0", "B30 C45", "B60 C90"),
+    ):
+        result = execute(
+            f"G90 G0 X0 Y0 Z0 {initial}\nG43.4 H1\nG1 X10 Y20 Z30 {first} F100\nG1 X20 Y25 Z35 {second}\nM30",
+            language="fanuc_mill",
+            kinematics=profile,
+        )
+        assert result.ok and result.complete, result.diagnostics
+        assert result.motions[-1].orientation is None
+        assert result.motions[-1].start_tool_orientation != result.motions[-1].tool_orientation
+
+
+def test_g43_4_rejects_unsupported_profile_rotary_arcs_and_post_g49_motion():
+    unsupported = execute("G43.4 H1\nM30", language="fanuc_mill", kinematics="4ax_table_a")
+    assert unsupported.diagnostics[0].code == "TCP_KINEMATICS_REQUIRED"
+    arc = execute(
+        "G90 G0 X0 Y0 A0 C0\nG43.4 H1\nG2 X10 Y0 I5 J0 A30 C45 F100\nM30",
+        language="fanuc_mill",
+        kinematics="5ax_table_ac_angled",
+    )
+    assert arc.diagnostics[0].code == "UNSUPPORTED_TCP_ROTARY_ARC"
+    after_cancel = execute(
+        "G90 G0 X0 A0 C0\nG43.4 H1\nG1 X10 A30 C45 F100\nG49\nG1 X20 A60 C90\nM30",
+        language="fanuc_mill",
+        kinematics="5ax_table_ac_angled",
+    )
+    assert after_cancel.diagnostics[-1].code == "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"
+
+
+@pytest.mark.parametrize(("reference", "source_kind"), [("G53 Z0", "g53"), ("G91 G28 Z0", "g28")])
+@pytest.mark.parametrize("home_z", [300.0, 500.0])
+def test_g43_4_cancel_keeps_reference_move_contiguous_and_uses_home_z(reference, source_kind, home_z):
+    result = execute(
+        f"G90 G0 X0 Y0 Z0 A0 C0\nG43.4 H1\nG1 X10 Y20 Z30 A30 C45 F100\nG0 X20 Y10 Z180 A30 C45\nG49\n{reference}\nM30",
+        language="fanuc_mill",
+        kinematics="5ax_table_ac_angled",
+        home_z=home_z,
+    )
+    assert result.ok and result.complete, result.diagnostics
+    retract_start = next(m for m in result.motions if "X20 Y10 Z180" in m.source_raw)
+    reference_move = next(m for m in result.motions if m.source_kind == source_kind)
+    assert (reference_move.start_x, reference_move.start_y, reference_move.start_z) == pytest.approx(
+        (retract_start.end_x, retract_start.end_y, retract_start.end_z),
+        abs=1e-7,
+    )
+    assert reference_move.end_z == pytest.approx(home_z)
+    assert reference_move.end_z > reference_move.start_z
+
+
+@pytest.mark.parametrize("name,kinematics", _MILLING_FIXTURE_CASES)
+def test_fanuc_mill_fixture_motion_trace_never_teleports_between_adjacent_moves(name, kinematics, fixture_text):
+    result = execute(
+        fixture_text(f"milling/{name}"),
+        language="fanuc_mill",
+        kinematics=kinematics,
+        home_z=500.0,
+    )
+    assert result.ok and result.complete, result.diagnostics
+    assert result.motions
+
+    for previous, current in zip(result.motions, result.motions[1:]):
+        assert (current.start_x, current.start_y, current.start_z) == pytest.approx(
+            (previous.end_x, previous.end_y, previous.end_z),
+            abs=1e-7,
+        ), f"{name}: trajectory gap between N{previous.source_nlabel} and N{current.source_nlabel}"
+
+
+@pytest.mark.parametrize(
     ("angle", "expected_y", "expected_z"),
     [(90, -20.0, 10.0), (270, 20.0, -10.0)],
 )
@@ -209,15 +318,14 @@ def test_table_a_quarter_turn_signs(angle, expected_y, expected_z):
     ("reference", "source_kind"),
     [("G91 G28 Z0", "g28"), ("G53 G0 Z100", "g53")],
 )
-def test_repeated_reference_return_after_b_index_uses_machine_axes(reference, source_kind):
+def test_reference_return_after_b_index_targets_machine_home_axes(reference, source_kind):
     source = f"G90 G0 X10 Z20\nB90\n{reference}\nG90 G0 Z10\n{reference}\nM30"
     result = execute(source, language="fanuc_mill", kinematics="4ax_table_b", home_z=100)
     assert result.ok and result.complete, result.diagnostics
     returns = [motion for motion in result.motions if motion.source_kind == source_kind]
-    assert len(returns) == 2
-    for motion in returns:
-        assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx((100, 0, -10), abs=1e-8)
-    assert returns[1].start_x == pytest.approx(10)
+    assert len(returns) == 1
+    assert (returns[0].start_x, returns[0].start_y, returns[0].start_z) == pytest.approx((10, 0, 20), abs=1e-8)
+    assert (returns[0].end_x, returns[0].end_y, returns[0].end_z) == pytest.approx((10, 0, 100), abs=1e-8)
 
 
 def test_incremental_g53_z_after_b_index_uses_machine_z():
@@ -228,8 +336,8 @@ def test_incremental_g53_z_after_b_index_uses_machine_z():
         home_z=100,
     )
     assert result.ok and result.complete, result.diagnostics
-    assert result.motions[-1].end_x == pytest.approx(110)
-    assert result.motions[-1].end_z == pytest.approx(-10)
+    assert result.motions[-1].end_x == pytest.approx(10)
+    assert result.motions[-1].end_z == pytest.approx(110)
 
 
 def test_b_index_obeys_g90_g91_on_same_block_and_modal_blocks():
@@ -691,6 +799,54 @@ def test_milling_g84_publishes_spindle_synchronization_and_reverse():
     assert result.ok, result.diagnostics
     kinds = [signal.kind for signal in result.signals if signal.code == "G84"]
     assert kinds == ["spindle_sync", "spindle_reverse"]
+
+
+def test_m19_s_angle_does_not_replace_spindle_speed():
+    result = execute("G95\nS600 M03\nM19 S90\nG1 X10 F1.5\nM30", language="fanuc_mill")
+
+    assert result.ok, result.diagnostics
+    assert [(signal.kind, signal.value) for signal in result.signals if signal.code == "M19"] == [
+        ("spindle_orient", 90.0)
+    ]
+    move = next(motion for motion in result.motions if motion.move == 1)
+    assert move.spindle_rpm == 600.0
+    assert move.feed_mode == "per_revolution"
+    assert move.feed == 1.5
+    assert not any(diagnostic.code == "UNSUPPORTED_M_CODE" for diagnostic in result.diagnostics)
+
+
+def test_m29_prepares_g84_and_g80_cancels_rigid_tapping_state():
+    result = execute(
+        "G95\nM29 S500\nG84 Z-20 R2 F1.5\nG80\nG84 Z-10 R2 F1.5\nG80\nM30",
+        language="fanuc_mill",
+    )
+
+    assert result.ok, result.diagnostics
+    assert [(signal.kind, signal.value) for signal in result.signals if signal.code == "M29"] == [
+        ("rigid_tapping_prepare", 500.0)
+    ]
+    assert [signal.kind for signal in result.signals if signal.code == "G84"] == [
+        "rigid_tapping",
+        "spindle_sync",
+        "spindle_reverse",
+        "spindle_sync",
+        "spindle_reverse",
+    ]
+    cycle_feed = [motion for motion in result.motions if motion.cycle_generated and motion.move == 1]
+    assert cycle_feed
+    assert all(motion.spindle_rpm == 500.0 and motion.feed_mode == "per_revolution" for motion in cycle_feed)
+    assert all(motion.feed == 1.5 for motion in cycle_feed)
+
+
+def test_m29_g94_keeps_programmed_feed_per_minute():
+    result = execute("G94\nM29 S600\nG84 Z-18 R2 F900\nG80\nM30", language="fanuc_mill")
+
+    assert result.ok, result.diagnostics
+    assert any(signal.kind == "rigid_tapping" for signal in result.signals)
+    cycle_feed = [motion for motion in result.motions if motion.cycle_generated and motion.move == 1]
+    assert cycle_feed
+    assert all(motion.spindle_rpm == 600.0 and motion.feed_mode == "per_minute" for motion in cycle_feed)
+    assert all(motion.feed == 900.0 for motion in cycle_feed)
 
 
 def test_milling_g86_publishes_spindle_stop_at_depth():

@@ -25,7 +25,7 @@ from app.gcode.kernel import execute
         (
             "indexed_table_a.nc",
             "4ax_table_a",
-            382,
+            384,
             6,
             6,
             2,
@@ -36,11 +36,11 @@ from app.gcode.kernel import execute
         (
             "indexed_table_b.nc",
             "4ax_table_b",
-            1764,
-            1077,
+            1776,
+            1078,
             103,
             25,
-            (0.0, -35.0, 0.0),
+            (-147.22521808479436, -35.0, 0.0),
             (-192.25233918766384, 96.41814145298089, -84.0, 73.025, -150.0, 150.0),
             {"UNSUPPORTED_M_CODE", "UNVERIFIED_CUTTER_COMPENSATION"},
         ),

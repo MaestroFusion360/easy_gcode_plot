@@ -21,6 +21,7 @@ from app import settings as app_settings
 Vector = tuple[float, float, float]
 Matrix = tuple[Vector, Vector, Vector]
 IDENTITY: Matrix = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+TCP_TABLE_PROFILES = frozenset({"5ax_table_ac_angled", "5ax_table_bc_angled"})
 CATALOG_PATH = Path(__file__).with_name("rotary_profiles.json")
 LOGGER = logging.getLogger(__name__)
 

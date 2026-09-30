@@ -61,9 +61,9 @@ _MILLING_MODAL_GROUPS = {
     "distance_mode": frozenset({90, 91}),
     "feed_mode": frozenset({94, 95}),
     "cycle_return": frozenset({98, 99}),
-    "tool_length_compensation": frozenset({43, 49}),
+    "tool_length_compensation": frozenset({43, 43.4, 49}),
     "coordinate_scaling": frozenset({50, 51}),
-    "coordinate_rotation": frozenset({68, 69}),
+    "coordinate_rotation": frozenset({68, 68.2, 69}),
 }
 _TURNING_MODAL_GROUPS = {
     **_COMMON_MODAL_GROUPS,

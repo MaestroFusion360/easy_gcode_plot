@@ -6,20 +6,30 @@ import time
 from pathlib import Path
 from threading import Event
 
-from PyQt6.QtCore import QCoreApplication, QFileInfo, QIODevice, QSaveFile
+from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QTimer
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
 from app.gcode.dxf_exporter import export_dxf
 from app.gcode.exporter import DXF_MODE, _window_export_options, export_program
-from app.gcode.kernel.io import read_nc_text
+from app.gcode.kernel.io import NCTextDecodeError, read_nc_text
 from app.gcode.trace_tools import format_tool_list, trace_statistics
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
 from app.ui.windows.execution_worker import run_execution
 
 LOGGER = logging.getLogger(__name__)
-NC_FILE_FILTER = "NC programs (*.nc *.cnc *.tap *.txt);;STL models (*.stl);;All files (*)"
-SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.tap *.txt);;All files (*)"
+NC_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.tap *.txt);;STL models (*.stl);;All files (*)"
+SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.tap *.txt);;All files (*)"
+
+
+def _read_editor_text(path: str, encoding: str) -> tuple[str, str]:
+    """Open legacy Windows NC text when the default UTF-8 decoding fails."""
+    try:
+        return read_nc_text(path, encoding=encoding), encoding
+    except NCTextDecodeError as error:
+        if encoding != "utf-8" or b"\x00" in Path(path).read_bytes():
+            raise error
+        return read_nc_text(path, encoding="cp1251"), "cp1251"
 
 
 def _file_signature(path):
@@ -180,6 +190,75 @@ def _write_export(
 
 
 class MainWindowFileMixin:
+    def _configure_document_watcher(self):
+        """Watch both the file and its directory so atomic replacements are seen."""
+        self._document_watcher = QFileSystemWatcher(self)
+        self._document_watcher.fileChanged.connect(self._schedule_document_disk_check)
+        self._document_watcher.directoryChanged.connect(self._schedule_document_disk_check)
+        self._document_change_timer = QTimer(self)
+        self._document_change_timer.setSingleShot(True)
+        self._document_change_timer.setInterval(300)
+        self._document_change_timer.timeout.connect(self._check_document_disk_change)
+        self._ignored_document_signature = None
+        self._document_reload_prompt_active = False
+
+    def _watch_current_document(self):
+        watcher = getattr(self, "_document_watcher", None)
+        if watcher is None:
+            return
+        paths = watcher.files() + watcher.directories()
+        if paths:
+            watcher.removePaths(paths)
+        file_name = getattr(self, "curFile", "")
+        if not file_name:
+            self._document_change_timer.stop()
+            return
+        path = Path(file_name).resolve()
+        if path.parent.is_dir():
+            watcher.addPath(str(path.parent))
+        if path.is_file():
+            watcher.addPath(str(path))
+
+    def _schedule_document_disk_check(self, _path=None):
+        if getattr(self, "curFile", "") and self.isVisible():
+            self._document_change_timer.start()
+
+    def _check_document_disk_change(self):
+        """Ask once per external file version, retaining any rejected edit."""
+        file_name = getattr(self, "curFile", "")
+        if not file_name or self._document_reload_prompt_active:
+            return
+        path = Path(file_name).resolve()
+        watcher = self._document_watcher
+        if path.is_file() and str(path) not in watcher.files():
+            watcher.addPath(str(path))
+        signature = _file_signature(path)
+        if signature is None or signature in (
+            getattr(self, "_document_disk_signature", None),
+            self._ignored_document_signature,
+        ):
+            return
+
+        self._ignored_document_signature = signature
+        prompt = QCoreApplication.translate(
+            "MainWindow", "This file has been modified by another program.\nDo you want to reload it from disk?"
+        )
+        if self.ui.editor.isModified():
+            prompt += "\n\n" + QCoreApplication.translate("MainWindow", "Reloading will discard your unsaved changes.")
+        self._document_reload_prompt_active = True
+        try:
+            answer = QMessageBox.question(
+                self,
+                QCoreApplication.translate("MainWindow", "Reload file"),
+                f"{path}\n\n{prompt}",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+        finally:
+            self._document_reload_prompt_active = False
+        if answer == QMessageBox.StandardButton.Yes:
+            self.loadFile(file_name)
+
     @staticmethod
     def _first_local_drop_path(event):
         """Return the first local file from a drop event, or an empty string."""
@@ -354,8 +433,11 @@ class MainWindowFileMixin:
             self._manual_arc_type_override = False
             self.curFile = ""
             self._document_disk_signature = None
+            self._document_encoding = None
+            self._ignored_document_signature = None
             self.ui.editor.clear()
             self.setCurrentFile("")
+            self._watch_current_document()
             self.clearPlot()
             self.clearStl()
             if hasattr(self, "resetStockToAuto"):
@@ -420,7 +502,7 @@ class MainWindowFileMixin:
         if Path(fileName).suffix.casefold() == ".stl":
             return self.importStl(fileName)
         try:
-            content = read_nc_text(fileName, encoding=getattr(self, "fileEncoding", "utf-8"))
+            content, document_encoding = _read_editor_text(fileName, getattr(self, "fileEncoding", "utf-8"))
         except (OSError, UnicodeError) as exc:
             LOGGER.exception("file_open_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
             QMessageBox.warning(
@@ -432,7 +514,7 @@ class MainWindowFileMixin:
 
         reset_program_setup(self)
         self._manual_arc_type_override = False
-        LOGGER.info("file_opened path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
+        LOGGER.info("file_opened path=%s encoding=%s", fileName, document_encoding)
         if hasattr(self, "resetStockToAuto"):
             self.resetStockToAuto(refresh=False)
         # Opening another program invalidates the previous trajectory immediately.
@@ -441,6 +523,8 @@ class MainWindowFileMixin:
         self.clearPlot()
         self._fit_view_after_program_load = True
         self._document_disk_signature = _file_signature(fileName)
+        self._document_encoding = document_encoding
+        self._ignored_document_signature = None
         if hasattr(self, "autoUpdateTimer"):
             self.autoUpdateTimer.stop()
         self._loading_document = True
@@ -450,6 +534,7 @@ class MainWindowFileMixin:
             self._loading_document = False
         self.ui.editor.setCursorPosition(0, 0)
         self.setCurrentFile(fileName)
+        self._watch_current_document()
         self._remember_file_directory(fileName)
         self.changeFileType(self.ui.fileTypeCombo.currentIndex())
         self.syncGuiCapabilities()
@@ -462,6 +547,7 @@ class MainWindowFileMixin:
 
     def saveFile(self, fileName):
         """Write editor contents to disk."""
+        encoding = getattr(self, "_document_encoding", None) or getattr(self, "fileEncoding", "utf-8")
         same_file = bool(self.curFile) and _same_file_path(fileName, self.curFile)
         if same_file and getattr(self, "_document_disk_signature", None) is not None:
             if _file_signature(fileName) != self._document_disk_signature:
@@ -480,10 +566,10 @@ class MainWindowFileMixin:
             _atomic_write(
                 fileName,
                 self.ui.editor.text(),
-                encoding=getattr(self, "fileEncoding", "utf-8"),
+                encoding=encoding,
             )
         except (OSError, UnicodeError) as exc:
-            LOGGER.exception("file_save_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
+            LOGGER.exception("file_save_failed path=%s encoding=%s", fileName, encoding)
             QMessageBox.warning(
                 self,
                 QCoreApplication.translate("MainWindow", "Easy G-code Plot"),
@@ -491,9 +577,12 @@ class MainWindowFileMixin:
             )
             return False
 
-        LOGGER.info("file_saved path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
+        LOGGER.info("file_saved path=%s encoding=%s", fileName, encoding)
         self.setCurrentFile(fileName)
         self._document_disk_signature = _file_signature(fileName)
+        self._document_encoding = encoding
+        self._ignored_document_signature = None
+        self._watch_current_document()
         self._remember_file_directory(fileName)
         self._add_recent_file(fileName)
         return True

@@ -240,6 +240,14 @@ def _normalize_milling_extras(raw_spec, spec, tool_type, diameter, length):
         return False
     if tool_type == "drill":
         return _normalize_milling_drill_tip(raw_spec, spec)
+    if tool_type == "taper_ball_mill":
+        try:
+            taper_angle = float(raw_spec.get("taperAngle", 6.0))
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(taper_angle) or not 0.0 < taper_angle < 90.0:
+            return False
+        spec["taperAngle"] = taper_angle
     return True
 
 

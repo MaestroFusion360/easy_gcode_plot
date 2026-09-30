@@ -28,6 +28,7 @@ MILLING_TOOL_LABELS = {
     "mill_flat": "Flat Mill",
     "mill_bull": "Bull Mill",
     "mill_ball": "Ball Mill",
+    "taper_ball_mill": "Taper Ball Mill",
     "face_mill": "Face Mill",
     "slot_mill": "Slot Mill",
     "chamfer_mill": "Chamfer Mill",

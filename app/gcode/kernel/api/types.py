@@ -67,6 +67,7 @@ class TraceMotion:
     orientation: tuple[tuple[float, float, float], ...] | None = None
     orientation_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     tool_orientation: tuple[tuple[float, float, float], ...] | None = None
+    start_tool_orientation: tuple[tuple[float, float, float], ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +108,9 @@ class ExecutionEvent:
     old_abc: tuple[float, float, float] | None = None
     new_abc: tuple[float, float, float] | None = None
     kinematics_profile: str | None = None
+    twp_origin: tuple[float, float, float] | None = None
+    twp_angles: tuple[float, float, float] | None = None
+    twp_orientation: tuple[tuple[float, float, float], ...] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +139,9 @@ class ExecutionStep:
     variables: tuple[tuple[str, float], ...] = ()
     events: tuple[ExecutionEvent, ...] = ()
     rotary_angles: tuple[tuple[str, float], ...] = ()
+    twp_origin: tuple[float, float, float] | None = None
+    twp_orientation: tuple[tuple[float, float, float], ...] | None = None
+    tool_axis_control: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -206,16 +206,98 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     )
     MainWindowFileMixin.openFile(window)
     assert calls[-1][1:4] == ("Open", str(tmp_path), main_window_file_ops.NC_FILE_FILTER)
+    assert "*.ptp" in main_window_file_ops.NC_FILE_FILTER.split(";;", 1)[0]
 
     saved = []
     monkeypatch.setattr(
         main_window_file_ops.QFileDialog,
         "getSaveFileName",
-        lambda *args: (str(save_target), "NC programs (*.nc *.cnc *.tap *.txt)"),
+        lambda *args: (str(save_target), main_window_file_ops.SAVE_FILE_FILTER),
     )
     window = SimpleNamespace(curFile="", saveFile=lambda path: saved.append(path) or True)
     assert MainWindowFileMixin.saveAs(window) is True
     assert saved == [str(save_target) + ".nc"]
+
+
+def test_cp1251_ptp_opens_and_saves_in_original_encoding(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "program.ptp"
+    original = "%\nO0001\n(ПРОГРАММИСТ ЮРИЙ)\nG0 X0\nM30\n"
+    path.write_bytes(original.encode("cp1251"))
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    try:
+        window.loadFile(str(path))
+        assert window.curFile == str(path)
+        assert window._document_encoding == "cp1251"
+        assert window.fileEncoding == "utf-8"
+        assert window.ui.editor.text().replace("\r\n", "\n") == original
+        window.ui.editor.setText(original.replace("ЮРИЙ", "ИВАН"))
+        assert window.saveFile(str(path)) is True
+        assert path.read_bytes().decode("cp1251").find("ИВАН") >= 0
+    finally:
+        window.deleteLater()
+
+
+def test_external_change_reload_replaces_editor_content(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "program.nc"
+    path.write_text("G0 X0\n", encoding="utf-8")
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    prompts = []
+    monkeypatch.setattr(
+        main_window_file_ops.QMessageBox,
+        "question",
+        lambda *_args: prompts.append(_args[2]) or main_window_file_ops.QMessageBox.StandardButton.Yes,
+    )
+    try:
+        window.loadFile(str(path))
+        assert str(path.resolve()) in window._document_watcher.files()
+        assert str(tmp_path.resolve()) in window._document_watcher.directories()
+        window.ui.editor.setText("G0 X999\n")
+        path.write_text("G1 X123\nM30\n", encoding="utf-8")
+        window._check_document_disk_change()
+        assert len(prompts) == 1
+        assert "modified by another program" in prompts[0]
+        assert "unsaved changes" in prompts[0]
+        assert window.ui.editor.text().startswith("G1 X123")
+        assert not window.ui.editor.isModified()
+        window._check_document_disk_change()
+        assert len(prompts) == 1
+    finally:
+        window.deleteLater()
+
+
+def test_external_change_no_keeps_unsaved_work_and_reprompts_on_next_change(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "program.nc"
+    path.write_text("G0 X0\n", encoding="utf-8")
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    prompts = []
+    monkeypatch.setattr(
+        main_window_file_ops.QMessageBox,
+        "question",
+        lambda *_args: prompts.append(_args[2]) or main_window_file_ops.QMessageBox.StandardButton.No,
+    )
+    try:
+        window.loadFile(str(path))
+        window.ui.editor.setText("G1 X999\n")
+        path.write_text("G1 X1\n", encoding="utf-8")
+        window._check_document_disk_change()
+        assert len(prompts) == 1
+        assert "unsaved changes" in prompts[0]
+        assert window.ui.editor.text() == "G1 X999\n"
+        assert window.ui.editor.isModified()
+        window._check_document_disk_change()
+        assert len(prompts) == 1
+        path.write_text("G1 X12345\n", encoding="utf-8")
+        window._check_document_disk_change()
+        assert len(prompts) == 2
+        assert window.ui.editor.text() == "G1 X999\n"
+    finally:
+        window.deleteLater()
 
 
 def test_open_file_directory_prefers_remembered_directory(tmp_path):

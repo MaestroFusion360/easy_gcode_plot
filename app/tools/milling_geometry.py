@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 
 SUPPORTED_MILLING_GEOMETRIES = frozenset(
-    {"mill_flat", "mill_bull", "mill_ball", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
+    {"mill_flat", "mill_bull", "mill_ball", "taper_ball_mill", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
 )
 
 
@@ -98,6 +98,15 @@ def milling_geometry(  # pylint: disable=too-many-return-statements
             return None
         result["tipAngle"] = min(max(tip_angle, 1.0), 179.0)
 
+    if tool_type == "taper_ball_mill":
+        try:
+            taper_angle = float(spec.get("taperAngle", 6.0))
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(taper_angle):
+            return None
+        result["taperAngle"] = min(max(taper_angle, 0.1), 89.0)
+
     return result
 
 
@@ -119,6 +128,8 @@ def milling_geometry_key(spec: dict[str, object] | None) -> tuple | None:
         key.extend((float(geometry["tipDiameter"]), float(geometry["chamferAngle"])))
     elif tool_type == "drill":
         key.append(float(geometry["tipAngle"]))
+    elif tool_type == "taper_ball_mill":
+        key.append(float(geometry["taperAngle"]))
     return tuple(key)
 
 
@@ -185,6 +196,26 @@ def milling_tool_profile(  # pylint: disable=too-many-return-statements
         ]
         if length > radius:
             profile.append((length, radius))
+        return tuple(profile)
+
+    if tool_type == "taper_ball_mill":
+        angle = math.radians(float(geometry["taperAngle"]))
+        tangent_angle = math.pi * 0.5 - angle
+        sphere_end_z = radius * (1.0 - math.cos(tangent_angle))
+        sphere_steps = 16
+        sphere_end = min(length, sphere_end_z)
+        profile = []
+        for step in range(sphere_steps + 1):
+            z_value = sphere_end * step / sphere_steps
+            radial = math.sqrt(max(0.0, radius * radius - (z_value - radius) ** 2))
+            profile.append((z_value, radial))
+        if length > sphere_end_z:
+            cone_radius = radius * math.sin(tangent_angle)
+            cone_height = length - sphere_end_z
+            profile.extend(
+                (sphere_end_z + cone_height * step / 12.0, cone_radius + cone_height * step / 12.0 * math.tan(angle))
+                for step in range(1, 13)
+            )
         return tuple(profile)
 
     if tool_type == "mill_bull" and corner_radius > 0.0:

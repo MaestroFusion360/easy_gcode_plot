@@ -271,7 +271,8 @@ class OptionsDialog(QDialog):
         try:
             combo.clear()
             combo.addItem(QCoreApplication.translate("OptionsDlg", "None"), None)
-            for profile_id, profile in load_catalog(ignore_user_errors=True).items():
+            catalog = load_catalog(ignore_user_errors=True)
+            for profile_id, profile in sorted(catalog.items(), key=lambda item: item[0].casefold()):
                 if profile.enabled:
                     combo.addItem(f"{profile.name} [{profile_id}]", profile_id)
             index = combo.findData(selected)
@@ -521,7 +522,10 @@ class OptionsDialog(QDialog):
             return
         if not self._apply_hotkeys(window):
             return
-        window.fileEncoding = "cp1251" if self.ui.encodingCombo.currentIndex() else "utf-8"
+        selected_encoding = "cp1251" if self.ui.encodingCombo.currentIndex() else "utf-8"
+        if selected_encoding != getattr(window, "fileEncoding", "utf-8") and getattr(window, "curFile", ""):
+            window._document_encoding = selected_encoding
+        window.fileEncoding = selected_encoding
         window.defaultFileType = self.ui.fileTypeCombo.currentIndex()
         window.defaultUnits = "inch" if self.ui.unitsCombo.currentIndex() else "mm"
         self._apply_language_and_theme(window, previous_language, previous_theme)
