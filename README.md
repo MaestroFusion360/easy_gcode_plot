@@ -50,6 +50,7 @@ Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter f
 ## Highlights
 
 - FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
+- SINUMERIK 840D MPF/SPF input with a bounded G291 ISO Dialect M subset routed through the milling kernel; native Siemens language and unsupported ISO-M functions stop with diagnostics.
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, `G15/G16` polar-coordinate programming, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
 - Indexed 3+2 milling with `G68.2/G53.1` and continuous five-axis TCP motion with `G43.4` on the angled AC/BC table profiles; FANUC milling fixtures are checked for trace continuity.
@@ -64,22 +65,10 @@ Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter f
 - The **Settings → STL Objects** panel supports independent undo/redo, base-point and bounding-box picking, positioning, transforms, circular/rectangular arrays, 3D sections and copyable statistics with millimetre/inch display.
 - SQLite-backed turning and milling tool libraries.
 - Full Program, Expanded Execution, Plot Data and DXF exports.
-- English and Russian UI, Light and Dark themes, UTF-8 and Windows-1251 files.
+- English and Russian UI, Light and Dark themes, UTF-8 and Windows-1251 files; GUI and batch scanning recognize `.mpf` and `.spf` programs.
 - Native Cython acceleration with a compatible Python fallback.
 
 Detailed controller behavior, limitations, configuration and troubleshooting are documented in [FAQ.md](FAQ.md), also available through **Help → FAQ**.
-
-## 1.6.7 development changes
-
-- Added selectable milling rotary profiles in **Settings → Rotary kinematics** and the CLI `--kinematics PROFILE_ID` option for `fanuc_mill`.
-- Added indexed A/B/C state with G90/G91 angle handling. For the checked A-table and B-table profiles, subsequent tool-tip motions, arcs and drilling cycles are plotted in a fixed WCS; playback rotates the tool preview. G28 and G53 use machine-axis coordinates before the indexed display transform.
-- G40/G41/G42 is solved in the local working plane before indexed A/B geometry is mapped into fixed WCS. Missing tool or unsupported contour data still produces a compensation warning without stopping execution; unknown M-codes remain warnings.
-- Fixed false plot connectors across an indexed position change. The index itself has no sampled rotary sweep in the logical trace.
-- Enabled `4ax_table_c` for the checked planar X/C program. Concurrent X and C, including C-only blocks, map tool-tip points into the fixed XY WCS plane and overlay the program's equivalent XY contour.
-- G41/G42 cutter compensation is unsupported for `4ax_table_c`: the X/C plot remains the programmed, uncompensated tool-tip path and reports a warning without stopping execution. G40 cancels the modal request.
-- Matched CAD mouse navigation to CNCEditor: left drag pans and middle drag orbits around the cursor. The 3D/ISO camera for `4ax_table_b` shows +Y vertically upward, with +X and +Z extending along the upper-right and lower-right diagonals; `4ax_table_a` retains the vertical mill view.
-
-Only `4ax_table_a`, `4ax_table_b` and `4ax_table_c` are enabled in the GUI; the default is **None**. Other catalog profiles remain in JSON with `enabled: false` until reference scenarios can verify them. The confirmed 1.6.7 scope covers indexed 3+1 for vertical mills with table A and horizontal mills with table B, plus the checked planar X/C table C contour. See the [rotary milling limits](FAQ.md#how-is-indexed-rotary-milling-handled-in-167).
 
 ## Quick start
 
@@ -94,12 +83,11 @@ Download the GUI executable and `easy_gcode_plot_cli.exe` from [GitHub Releases]
 
 ### Linux executables
 
-Download `Easy-G-Code-Plot-<version>-Linux-x64.tar.gz` and its `.sha256` file from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). The archive contains separate GUI and CLI executables and preserves their executable permissions. Verify and unpack it with the downloaded version number:
+Download the Linux x64 archive and its matching `.sha256` file from [GitHub Releases](https://github.com/MaestroFusion360/easy_gcode_plot/releases). The archive contains separate GUI and CLI executables and preserves their executable permissions. In a directory containing the downloaded release files, verify and unpack them:
 
 ```bash
-version=1.6.7
-sha256sum -c "Easy-G-Code-Plot-$version-Linux-x64.tar.gz.sha256"
-tar -xzf "Easy-G-Code-Plot-$version-Linux-x64.tar.gz"
+sha256sum -c Easy-G-Code-Plot-*-Linux-x64.tar.gz.sha256
+tar -xzf Easy-G-Code-Plot-*-Linux-x64.tar.gz
 ./easy_gcode_plot
 ./easy_gcode_plot_cli --help
 ```
@@ -123,7 +111,7 @@ uv run --no-dev python main.py
 
 ## Basic workflow
 
-1. Open or drag a `.nc`, `.cnc` or `.txt` program into the application.
+1. Open or drag a `.nc`, `.cnc`, `.ptp`, `.mpf`, `.spf` or `.txt` program into the application.
 2. Enable `Lathe Mode` for turning or leave it disabled for milling.
 3. Configure WCS, machine home and tools when required.
    For indexed milling, select the matching **Settings → Rotary kinematics** profile before refreshing.
@@ -201,7 +189,15 @@ The CLI uses the same execution kernel as the GUI. In PowerShell, run the Window
 .\easy_gcode_plot_cli.exe batch-export .\programs --lang fanuc_mill --mode expanded -o normalized
 .\easy_gcode_plot_cli.exe analyze indexed.nc --lang fanuc_mill --kinematics 4ax_table_b
 .\easy_gcode_plot_cli.exe batch-export .\indexed --lang fanuc_mill --mode full --kinematics-map .\profiles.json -o .\indexed-output
+.\easy_gcode_plot_cli.exe analyze part.mpf --lang fanuc_mill
+.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode full -o part_copy.nc
+.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode expanded -o part_geometry.nc
+.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o siemens_part.mpf
+.\easy_gcode_plot_cli.exe export siemens_part.mpf --lang fanuc_mill --mode full -o fanuc_part_roundtrip.nc
+.\easy_gcode_plot_cli.exe batch-export .\fanuc_parts --lang fanuc_mill --target-dialect sinumerik840d --mode full -o .\siemens_parts
 ```
+
+In the GUI, choose **File → Export → MILL FULL PROGRAM** and select the target in **Target CNC**. For SINUMERIK input, the CLI recognizes `.mpf`/`.spf` programs containing G290/G291 or native Siemens syntax; use `--lang fanuc_mill` for ISO Dialect M analysis. Dialect conversion is available only with `--mode full`: it preserves all source blocks and adds or removes the standalone `G291` mode switch. Only the verified three-axis ISO-M subset is converted and analyzed in the target dialect. Rotary 4-axis programs, 5-axis/TCP (`G43.4`) programs and tilted working-plane transforms are unsupported for SINUMERIK ISO export. The converter rejects these programs before writing NC and never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile also blocks SINUMERIK ISO export, even for XYZ-only source. Export fails if diagnostics appear, motion geometry or machine signals change, or SINUMERIK-target cutter compensation cannot be verified. Expanded Execution is an analysis representation, not a dialect conversion. DXF exports resolved geometry. This is not full 840D validation; see [FAQ.md](FAQ.md#sinumerik-840d-input) for supported behavior and limits.
 
 From the repository root, use `.\dist\easy_gcode_plot_cli.exe` instead. When running from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.
 
@@ -236,7 +232,7 @@ bash scripts/sh/batch/batch_export_turn.sh
 The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They run the executable in `dist/` directly without building or running tests. Both `analyze` and `batch` detect Arc Type per program from IJK arcs in milling and turning. When no arc identifies the type unambiguously, relative IJK is used.
 The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory. For the same program and language, `analyze` and `batch` use the same execution settings and report matching status, diagnostics, motion and executed-block counts, and unsupported G/M codes. Their JSON layouts differ because `analyze` also includes detailed trace statistics while `batch` aggregates files.
 
-Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input. The `batch` command scans `.nc`, `.cnc`, `.ptp`, `.tap` and `.txt` recursively by default and writes `batch_report.json` plus an Excel-friendly `batch_report.csv`. File status is `CLEAN` (no diagnostics), `WARNINGS` (review needed) or `ERRORS` (analysis or input failed); an empty scan has overall status `NO_FILES`. `CLEAN` is not machine validation. The summary includes diagnostic frequencies and unknown/unsupported G/M codes. Use `--extensions .nc,.mpf` to override the file set or `--top-level-only` to disable recursive scanning.
+Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input. The `batch` and `batch-export` commands scan `.nc`, `.cnc`, `.ptp`, `.mpf`, `.spf`, `.tap` and `.txt` recursively by default. SINUMERIK MPF/SPF files are selected by their G290/G291 or native Siemens signature. Batch analysis writes `batch_report.json` plus an Excel-friendly `batch_report.csv`. File status is `CLEAN` (no diagnostics), `WARNINGS` (review needed) or `ERRORS` (analysis or input failed); an empty scan has overall status `NO_FILES`. `CLEAN` is not machine validation. The summary includes diagnostic frequencies and unknown/unsupported G/M codes. Use `--extensions .nc,.mpf` to override the file set or `--top-level-only` to disable recursive scanning.
 
 CLI execution discovers temporary tool geometry from literal `T` selections and source comments, as the GUI does for a newly opened program. This lets G41/G42 use geometry described in the NC file. Manually assigned Current Program tools and Saved Library entries in the GUI are not imported into CLI runs; verify inferred dimensions before relying on compensated output.
 

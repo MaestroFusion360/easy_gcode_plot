@@ -157,6 +157,20 @@ def _set_twp(state: MillState, words, block_index: int) -> None:
     state.x, state.y, state.z = _coordinate_transform(state).inverse(state.twp.inverse(work_position))
 
 
+def _orient_twp_tool_axis(state: MillState) -> None:
+    # G68.2 changes coordinates without moving the tip. G53.1 then indexes
+    # the table: retain machine XYZ and express the rotated tip in the TWP.
+    transform = _coordinate_transform(state)
+    displayed = state.twp.apply(transform.apply((state.x, state.y, state.z)))
+    old_frame = point_orientation(state.kinematics, state.rotary_angles)
+    machine = transform_vector(_transpose(old_frame), displayed)
+    solved = solve_table_orientation(state.kinematics, state.twp.orientation, state.rotary_angles)
+    state.rotary_angles.update(solved)
+    displayed = transform_point(point_orientation(state.kinematics, state.rotary_angles), machine)
+    state.x, state.y, state.z = transform.inverse(state.twp.inverse(displayed))
+    state.twp.tool_axis_control = True
+
+
 def _cancel_twp(state: MillState) -> None:
     if not state.twp.active:
         return
@@ -316,10 +330,7 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets, bl
     elif g == 68.2:
         _set_twp(state, words, block_index)
     elif g == 53.1:
-        state.rotary_angles.update(
-            solve_table_orientation(state.kinematics, state.twp.orientation, state.rotary_angles)
-        )
-        state.twp.tool_axis_control = True
+        _orient_twp_tool_axis(state)
     elif g == 69:
         _cancel_g68_rotation(state)
         _cancel_twp(state)

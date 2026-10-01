@@ -31,6 +31,7 @@ from .formatting import (
     motion_line,
 )
 from .options import ExportOptions, _mill_program_options
+from .validation import validate_sinumerik_iso_export
 
 
 def _scale_mill_motion(motion: TraceMotion, *, unit_scale: float) -> TraceMotion:
@@ -215,6 +216,10 @@ def export_full_mill_program(
         "Expanded mill program export requires a valid and complete milling execution result",
         cancelled,
     )
+    if any(event.kind == "SINUMERIK_ISO_MODE" for event in result.events):
+        validate_sinumerik_iso_export(result)
+    if any(event.kind == "TCP_CONTROL_ON" for event in result.events):
+        raise ValueError("Flattened mill export cannot preserve G43.4 TCP rotary commands")
 
     del source_lines
     options = _mill_program_options(options)

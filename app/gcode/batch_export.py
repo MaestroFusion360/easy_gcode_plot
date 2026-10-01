@@ -18,9 +18,11 @@ REPORT_BASENAME = "batch_export_report"
 REPORT_SCHEMA_VERSION = 1
 
 
-def _destination(path: Path, root: Path, output_root: Path, format_name: str, source_extensions: Iterable[str]) -> Path:
+def _destination(
+    path: Path, root: Path, output_root: Path, request: ExportRequest, source_extensions: Iterable[str]
+) -> Path:
     destination = output_root / path.relative_to(root)
-    suffix = ".dxf" if format_name == "dxf" else ".nc"
+    suffix = ".dxf" if request.format == "dxf" else ".mpf" if request.target_dialect == "sinumerik840d" else ".nc"
     if path.suffix.lower() in source_extensions:
         return destination.with_suffix(suffix)
     return destination.with_name(destination.name + suffix)
@@ -100,9 +102,7 @@ def export_directory(
     unknown = set(profiles) - actual
     if unknown:
         raise ValueError(f"Kinematics map references an undiscovered file: {sorted(unknown)[0]}")
-    destinations = [
-        _destination(path, directory, destination_root, request.format, normalized_extensions) for path in paths
-    ]
+    destinations = [_destination(path, directory, destination_root, request, normalized_extensions) for path in paths]
     duplicates = [
         name for name, count in Counter(path.as_posix().casefold() for path in destinations).items() if count > 1
     ]

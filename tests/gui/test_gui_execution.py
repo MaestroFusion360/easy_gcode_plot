@@ -498,3 +498,26 @@ def test_machine_mode_switch_reexecutes_silently(qt_app):
     assert calls
     assert calls[-1] is False
     window.deleteLater()
+
+
+def test_gui_forwards_sinumerik_document_dialect_and_absolute_arc_override(monkeypatch):
+    captured = {}
+    expected = SimpleNamespace(ok=True, diagnostics=(), motions=())
+
+    def fake_execute(source, **kwargs):
+        del source
+        captured.update(kwargs)
+        return expected
+
+    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    window = _gui_execution_harness("G291\nG90 G0 X10", lathe_mode=False)
+    window._document_source_dialect = "sinumerik"
+    window._document_arc_type = 2
+    window.autodetectArcType = True
+
+    result, _points, _render_limited = main_window.MainWindow._calculate_editor_source(window, show_errors=False)
+
+    assert result is expected
+    assert captured["source_dialect"] == "sinumerik"
+    assert captured["source_arc_type"] == 2
+    assert captured["autodetect_arc_type"] is False

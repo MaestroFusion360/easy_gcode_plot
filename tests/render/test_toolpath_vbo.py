@@ -55,13 +55,14 @@ def test_expanded_arc_segments_keep_their_logical_motion_mapping():
     assert all(segment.move == 3 for segment in segments[1:])
 
 
-def test_indexed_rebase_keeps_rapid_path_contiguous():
+def test_indexed_approach_uses_current_table_frame_without_cross_part_bridge():
     result = execute("G90 G0 Z400\nB90\nG0 Z50\nM30", language="fanuc_mill", kinematics="4ax_table_b")
     segments = segments_from_render_points(render_trace(result), result.motions)
     assert len(segments) == 2
     assert segments[0].end == pytest.approx((0, 0, 400))
-    assert segments[1].start == pytest.approx(segments[0].end)
-    assert segments[1].end == pytest.approx((50, 0, 400))
+    assert segments[1].start == pytest.approx((400, 0, 0), abs=1e-8)
+    assert segments[1].end == pytest.approx((50, 0, 0), abs=1e-8)
+    assert min(segments[1].start[0], segments[1].end[0]) > 0
 
 
 def test_sampled_segments_keep_modal_tool_for_coloring():
@@ -266,3 +267,13 @@ def test_visible_logical_count_is_clamped(logical_count):
     item.set_segments(_segments(), logical_count=4)
     item.set_visible_logical_count(logical_count)
     assert 0 <= item.visible_logical_count <= 4
+
+
+@pytest.mark.parametrize("reference", ["G91 G28 Z0", "G53 Z0"])
+def test_three_axis_reference_and_next_approach_are_contiguous(reference):
+    result = execute(f"G90 G0 Z50\n{reference}\nG90 G0 X10 Z20\nM30", language="fanuc_mill", home_z=400)
+    assert result.ok and result.complete, result.diagnostics
+    segments = segments_from_render_points(render_trace(result), result.motions)
+    assert len(segments) == 3
+    for previous, current in zip(segments, segments[1:]):
+        assert current.start == pytest.approx(previous.end)

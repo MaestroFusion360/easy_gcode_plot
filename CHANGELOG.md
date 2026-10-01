@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.7.2 - 2026-10-01
+
+- Fixed G53.1 table indexing after G68.2: retain machine XYZ while rotating the displayed tip, then rebase into the tilted plane. The first XY-only approach preserves retracted clearance instead of starting near the WCS centre. Added cube approach and rendered-segment regressions for both angled AC/BC tables.
+- Added SINUMERIK 840D MPF/SPF source detection and G290/G291 mode handling. G291 ISO Dialect M runs through the milling kernel with one integer-code whitelist, modeled unit aliases and `G54 P1..P48` work offsets; native Siemens execution, SINUMERIK ISO-T, Macro B flow and unsupported ISO functions stop with diagnostics.
+- Added MPF/SPF support to GUI file filters and batch scanning. Content-aware SINUMERIK detection is shared by GUI and CLI; ordinary FANUC code in an MPF/SPF file stays in FANUC mode.
+- Allowed ordinary G91 incremental positioning in SINUMERIK ISO-M and applied dialect modal state once in the shared milling kernel. Restricted G68 to its standalone active-plane 2D form without extra words or I/J/K; only G68 while G91 is active is rejected. G69 remains supported.
+- Made Full Program conversion preserve source blocks while adding or removing a standalone G291 switch. Conversion validates target motion geometry and machine signals, and rejects unverified cutter compensation for a SINUMERIK target. Expanded Execution is not a dialect-conversion mode. Added CLI and batch full-program conversion.
+- Restricted SINUMERIK ISO export to the verified three-axis subset. Rotary 4-axis and 5-axis/TCP/TWP conversions fail before NC is written in core, CLI, batch and GUI paths; removed automatic `G43.4` to `TRAORI` conversion and FANUC-surrogate validation. FANUC multi-axis analysis remains supported; selected 4/5-axis profiles also block SINUMERIK export for XYZ-only source. G28/G53 reference returns use the current rotary frame instead of an implicit ABC=0 frame; preserve ABC and trace continuity with TCP active or after G49. Added rotary-frame retract regressions, including B180 returning toward negative global Z.
+- Restored indexed table XYZ retention, including five-axis profiles with TCP off, so approaches after G28/G53 start on the current table side. Reference Z returns crossing the WCS centre plane stop execution. Multi-axis reference returns may end a trace run without a connector to the next indexed approach; three-axis continuity remains required.
+- Restricted SINUMERIK dialect conversion to Full Program mode; batch conversion writes target `.mpf` files.
+
 ## 1.7.1 - 2026-09-30
 
 - Added a bilingual prompt to reload the open document after another program changes it on disk. Declining keeps editor changes; accepting reloads the file and warns before discarding unsaved edits.

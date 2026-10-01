@@ -18,6 +18,7 @@ from .options import (
 )
 from .trace import export_result
 from .turn import export_full_program
+from .validation import validate_sinumerik_iso_export
 
 
 def export_program(
@@ -41,15 +42,13 @@ def export_program(
         return export_full_program(result, source.splitlines(), replace(options, arc_mode=2), cancelled=cancelled)
 
     if mode == MILL_FULL_PROGRAM_MODE:
-        if lathe_mode:
-            raise ValueError("Mill Full Program export requires Milling Mode")
-        if any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events):
-            return source
-        return export_full_mill_program(result, source.splitlines(), replace(options, arc_mode=0), cancelled=cancelled)
+        return _export_full_mill(result, source, lathe_mode, options, cancelled)
 
     if mode == EXPANDED_EXECUTION_MODE:
         if any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events):
             raise ValueError("Expanded NC cannot preserve G68.2 tilted working-plane commands")
+        if any(event.kind == "TCP_CONTROL_ON" for event in result.events):
+            raise ValueError("Expanded NC cannot preserve G43.4 TCP rotary commands")
         return export_result(result, replace(options, arc_mode=int(export_arc_mode)), cancelled=cancelled)
 
     if mode == PLOT_DATA_MODE:
@@ -68,6 +67,17 @@ def export_program(
         raise ValueError("DXF export requires a file target")
 
     raise ValueError(f"Unknown export mode: {mode}")
+
+
+def _export_full_mill(result, source, lathe_mode, options, cancelled):
+    if lathe_mode:
+        raise ValueError("Mill Full Program export requires Milling Mode")
+    if any(event.kind == "SINUMERIK_ISO_MODE" for event in result.events):
+        validate_sinumerik_iso_export(result)
+    preserved_events = {"TILTED_WORK_PLANE_ON", "TCP_CONTROL_ON"}
+    if any(event.kind in preserved_events for event in result.events):
+        return source
+    return export_full_mill_program(result, source.splitlines(), replace(options, arc_mode=0), cancelled=cancelled)
 
 
 def export_pgm(window) -> str:

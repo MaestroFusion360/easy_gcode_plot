@@ -7,21 +7,28 @@ from dataclasses import dataclass, replace
 from enum import Enum, auto
 
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, MachineSignal, TraceMotion
-from ..frontend.program import parse_program
+from ..frontend.program import EvaluatedWords, parse_program
 from ..runtime.diagnostics import modal_conflict_diagnostics
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
 from ..runtime.execution import ProgramRuntime, semantic_instructions
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .kinematics import TCP_TABLE_PROFILES, MachineKinematics, effective_orientation
 from .motion import _emit_milling_motions, _g53_home_axes
+from .sinumerik_iso import (
+    SINUMERIK_MODE_ISO,
+    SINUMERIK_MODE_SIEMENS,
+    is_siemens_metadata_block,
+    mode_switch_code,
+    mode_switch_diagnostic,
+    unsupported_iso_macro_diagnostic,
+    unsupported_siemens_mode_diagnostic,
+    validate_and_normalize_iso_block,
+)
 from .state import (
     MillState,
     _activate_tcp,
     _apply_pre_flow_modal_state,
-    _coordinate_transform,
     _execution_step,
-    _orient_point,
-    _unorient_point,
     _wcs_offset,
 )
 
@@ -107,6 +114,18 @@ class _BlockOutcome:
     words: tuple = ()
 
 
+@dataclass(frozen=True)
+class _PreparedMillingBlock:
+    """State-phase output consumed by geometric execution."""
+
+    words: EvaluatedWords
+    evaluated: tuple
+    gcodes: tuple
+    rotary_start_angles: dict[str, float]
+    signals: tuple
+    diagnostics: tuple[Diagnostic, ...]
+
+
 @dataclass
 class _MillingExecutionContext:
     program: object
@@ -116,6 +135,8 @@ class _MillingExecutionContext:
     wcs_offsets: dict[int, tuple[float, float, float]] | None
     program_start_block: int
     program_number: int | None
+    source_dialect: str = "fanuc"
+    controller_mode: str = "fanuc"
     program_started: bool = False
 
 
@@ -230,6 +251,147 @@ def _finalize_milling_block(
     else:
         ctx.runtime.advance()
     return False
+
+
+def _apply_sinumerik_mode_switch(ctx, block, evaluated_block, occurrence_events):
+    switch_diagnostic = mode_switch_diagnostic(block, evaluated_block)
+    if switch_diagnostic is not None:
+        return evaluated_block, _BlockOutcome(
+            action=_BlockAction.STOP,
+            events=tuple(occurrence_events),
+            diagnostics=(switch_diagnostic,),
+            words=evaluated_block.values,
+        )
+
+    switch = mode_switch_code(evaluated_block)
+    if switch is None:
+        return None
+    ctx.controller_mode = SINUMERIK_MODE_ISO if switch == 291 else SINUMERIK_MODE_SIEMENS
+    occurrence_events.append(
+        ExecutionEvent(
+            "SINUMERIK_ISO_MODE" if switch == 291 else "SINUMERIK_SIEMENS_MODE",
+            block.index,
+            code=f"G{switch}",
+        )
+    )
+    return evaluated_block, _BlockOutcome(
+        events=tuple(occurrence_events),
+        words=evaluated_block.values,
+    )
+
+
+def _prepare_siemens_block(block, evaluated_block, occurrence_events):
+    if is_siemens_metadata_block(block, evaluated_block):
+        return evaluated_block, _BlockOutcome(
+            events=tuple(occurrence_events),
+            words=evaluated_block.values,
+        )
+    return evaluated_block, _BlockOutcome(
+        action=_BlockAction.STOP,
+        events=tuple(occurrence_events),
+        diagnostics=(unsupported_siemens_mode_diagnostic(block),),
+        words=evaluated_block.values,
+    )
+
+
+def _prepare_source_dialect_block(ctx, block, evaluated_block, occurrence_events):
+    """Apply SINUMERIK G290/G291 mode semantics before FANUC-style dispatch."""
+    if ctx.source_dialect != "sinumerik":
+        return evaluated_block, None
+
+    switch_result = _apply_sinumerik_mode_switch(ctx, block, evaluated_block, occurrence_events)
+    if switch_result is not None:
+        return switch_result
+    if ctx.controller_mode == SINUMERIK_MODE_SIEMENS:
+        return _prepare_siemens_block(block, evaluated_block, occurrence_events)
+
+    gcodes = evaluated_block.codes.all_g
+    absolute_mode = next((g == 90 for g in reversed(gcodes) if g in (90, 91)), ctx.state.absolute)
+    active_plane = next((int(g) for g in reversed(gcodes) if g in (17, 18, 19)), ctx.state.plane)
+    normalized, diagnostic = validate_and_normalize_iso_block(
+        block, evaluated_block, absolute_mode=absolute_mode, active_plane=active_plane
+    )
+    if diagnostic is None:
+        # The common milling state phase applies modal changes exactly once.
+        return normalized, None
+    return normalized, _BlockOutcome(
+        action=_BlockAction.STOP,
+        events=tuple(occurrence_events),
+        diagnostics=(diagnostic,),
+        words=normalized.values,
+    )
+
+
+def _reject_unsupported_sinumerik_flow(ctx, block, occurrence_events):
+    if ctx.source_dialect != "sinumerik" or block.flow_node is None:
+        return None
+    diagnostic = (
+        unsupported_siemens_mode_diagnostic(block)
+        if ctx.controller_mode == SINUMERIK_MODE_SIEMENS
+        else unsupported_iso_macro_diagnostic(block)
+    )
+    return _BlockOutcome(
+        action=_BlockAction.STOP,
+        events=tuple(occurrence_events),
+        diagnostics=(diagnostic,),
+    )
+
+
+def _finish_milling_block(ctx, block, prepared: _PreparedMillingBlock, occurrence_events):
+    if 43.4 in prepared.gcodes:
+        _activate_tcp(ctx.state)
+
+    emitted: list[TraceMotion] = []
+    cycle_signals = _emit_milling_motions(
+        block,
+        ctx.state,
+        prepared.words,
+        prepared.gcodes,
+        emitted,
+        ctx.home,
+        ctx.wcs_offsets,
+        rotary_start_angles=prepared.rotary_start_angles,
+    )
+    if ctx.state.kinematics is not None:
+        tool_orientation = effective_orientation(ctx.state.kinematics, ctx.state.rotary_angles)
+        emitted = [replace(motion, tool_orientation=tool_orientation) for motion in emitted]
+    elif ctx.state.twp.active and ctx.state.twp.tool_axis_control:
+        emitted = [replace(motion, tool_orientation=ctx.state.twp.orientation) for motion in emitted]
+    return _BlockOutcome(
+        motions=tuple(emitted),
+        events=tuple(occurrence_events),
+        signals=prepared.signals + cycle_signals,
+        diagnostics=prepared.diagnostics,
+        words=prepared.evaluated,
+    )
+
+
+def _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events):
+    words = evaluated_block.words
+    early_outcome = _validate_milling_block(ctx, block, evaluated_block, occurrence_events)
+    if early_outcome is not None:
+        return early_outcome, None
+
+    gcodes = evaluated_block.codes.all_g
+    evaluated = evaluated_block.values
+    signals = evaluated_block.signals + _milling_spindle_signals(block, words, evaluated_block.codes.all_m)
+    diagnostics: list[Diagnostic] = []
+    early_outcome = _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_events, diagnostics)
+    if early_outcome is not None:
+        return early_outcome, None
+
+    rotary_start_angles = dict(ctx.state.rotary_angles)
+    early_outcome = _apply_rotary_index(ctx, block, evaluated_block, occurrence_events)
+    if early_outcome is None:
+        early_outcome = _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, diagnostics)
+    if early_outcome is not None:
+        return early_outcome, None
+    _append_milling_reference_events(ctx, block, gcodes, words, occurrence_events)
+
+    early_outcome = _dispatch_milling_program_flow(ctx, block, evaluated_block, occurrence_events, diagnostics)
+    if early_outcome is not None:
+        return early_outcome, None
+    return None, _PreparedMillingBlock(words, evaluated, gcodes, rotary_start_angles, signals, tuple(diagnostics))
 
 
 def _validate_milling_block(ctx, block, evaluated_block, occurrence_events):
@@ -503,17 +665,12 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
             words=evaluated_block.values,
         )
     old = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
-    transform = _coordinate_transform(state)
-    machine_point = (
-        _orient_point(transform.apply((state.x, state.y, state.z)), state)
-        if not state.tcp_control and not continuous_c
-        else None
-    )
+    # Indexed tables retain programmed XYZ, as in 1.7.0, including
+    # five-axis profiles with TCP off. Rebasing to the previous display
+    # point puts the next approach on the opposite side of the workpiece.
+    # Active TCP keeps its existing fixed-tip semantics in _machine.
     for axis in changed:
         state.rotary_angles[axis] = targets[axis]
-    if machine_point is not None:
-        rebased = _unorient_point(machine_point, state)
-        state.x, state.y, state.z = transform.inverse(rebased)
     new = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
     occurrence_events.append(
         ExecutionEvent(
@@ -536,6 +693,9 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
         ctx.program_started = True
 
     # Phase 1: control flow that must run before CNC word evaluation.
+    early_outcome = _reject_unsupported_sinumerik_flow(ctx, block, occurrence_events)
+    if early_outcome is not None:
+        return early_outcome
     flow = ctx.runtime.dispatch_macro(block, ctx.runtime.pc, ctx.program.blocks)
     if flow.handled:
         return _BlockOutcome(
@@ -550,61 +710,19 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     if words.errors:
         token, error = words.errors[0]
         raise ValueError(f"{error} at line {block.index + 1}: {block.raw} ({token.letter}{token.expr})") from error
-    codes = evaluated_block.codes
-    gcodes = codes.all_g
-    evaluated = evaluated_block.values
 
-    # Phase 3: reject ambiguous or unsupported semantics before applying state.
-    early_outcome = _validate_milling_block(ctx, block, evaluated_block, occurrence_events)
-    if early_outcome is not None:
-        return early_outcome
-    occurrence_signals = evaluated_block.signals + _milling_spindle_signals(block, words, codes.all_m)
-    block_diagnostics: list[Diagnostic] = []
-    early_outcome = _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
-    if early_outcome is not None:
-        return early_outcome
-    rotary_start_angles = dict(ctx.state.rotary_angles)
-    early_outcome = _apply_rotary_index(ctx, block, evaluated_block, occurrence_events)
-    # Phase 4: apply tool and modal state before any program-flow transfer.
-    if early_outcome is None:
-        early_outcome = _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
-    if early_outcome is not None:
-        return early_outcome
-    _append_milling_reference_events(ctx, block, gcodes, words, occurrence_events)
-
-    # Phase 5: transfer program flow only after state changes are visible.
-    early_outcome = _dispatch_milling_program_flow(ctx, block, evaluated_block, occurrence_events, block_diagnostics)
+    evaluated_block, early_outcome = _prepare_source_dialect_block(ctx, block, evaluated_block, occurrence_events)
     if early_outcome is not None:
         return early_outcome
 
-    if 43.4 in gcodes:
-        _activate_tcp(ctx.state)
+    # Phases 3–5 validate and apply state before program-flow transfer.
+    early_outcome, prepared = _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
+    if early_outcome is not None:
+        return early_outcome
+    assert prepared is not None
 
     # Phase 6: execute geometric semantics and return everything for one commit.
-    emitted: list[TraceMotion] = []
-    cycle_signals = _emit_milling_motions(
-        block,
-        ctx.state,
-        words,
-        gcodes,
-        emitted,
-        ctx.home,
-        ctx.wcs_offsets,
-        rotary_start_angles=rotary_start_angles,
-    )
-    if ctx.state.kinematics is not None:
-        tool_orientation = effective_orientation(ctx.state.kinematics, ctx.state.rotary_angles)
-        emitted = [replace(motion, tool_orientation=tool_orientation) for motion in emitted]
-    elif ctx.state.twp.active and ctx.state.twp.tool_axis_control:
-        emitted = [replace(motion, tool_orientation=ctx.state.twp.orientation) for motion in emitted]
-    occurrence_signals += cycle_signals
-    return _BlockOutcome(
-        motions=tuple(emitted),
-        events=tuple(occurrence_events),
-        signals=occurrence_signals,
-        diagnostics=tuple(block_diagnostics),
-        words=evaluated,
-    )
+    return _finish_milling_block(ctx, block, prepared, occurrence_events)
 
 
 def execute_milling(
@@ -617,6 +735,7 @@ def execute_milling(
     g73_retract_distance: float = 1.0,
     include_instructions: bool = True,
     kinematics: MachineKinematics | None = None,
+    source_dialect: str = "fanuc",
 ):
 
     program = parse_program(source)
@@ -646,6 +765,8 @@ def execute_milling(
         wcs_offsets=wcs_offsets,
         program_start_block=program_start_block,
         program_number=program_number,
+        source_dialect=source_dialect,
+        controller_mode=SINUMERIK_MODE_SIEMENS if source_dialect == "sinumerik" else "fanuc",
     )
     contains_rotary = any(
         any(token.letter in ("A", "B", "C") for token in block.parsed_words) for block in program.blocks
@@ -660,6 +781,7 @@ def execute_milling(
                 and not state.twp.active
                 and not state.tcp_control
                 and kinematics is None
+                and source_dialect == "fanuc"
                 and _execute_simple_blocks is not None
                 and (ctx.program_started or runtime.pc != ctx.program_start_block)
             )

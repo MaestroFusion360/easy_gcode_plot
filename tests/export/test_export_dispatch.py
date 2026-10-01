@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from app.gcode.exporter import (
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
@@ -21,8 +23,14 @@ def _window_export_harness(
     export_mode: int,
     arc_mode: int = 0,
     skip_optional_blocks: bool = False,
+    kinematics: str | None = None,
 ):
-    result = execute(source, language=language, skip_optional_blocks=skip_optional_blocks)
+    result = execute(
+        source,
+        language=language,
+        skip_optional_blocks=skip_optional_blocks,
+        kinematics=kinematics,
+    )
     assert result.ok, result.diagnostics
     return SimpleNamespace(
         execution_result=result,
@@ -92,3 +100,23 @@ def test_expanded_execution_exports_the_trace_after_block_skip():
 
         assert "X10" not in exported
         assert "X20" in exported
+
+
+@pytest.mark.parametrize(
+    ("profile", "rotary_word"),
+    [("5ax_table_ac_angled", "A30 C45"), ("5ax_table_bc_angled", "B30 C45")],
+)
+def test_g43_4_gui_full_program_preserves_source_and_expanded_export_is_rejected(profile, rotary_word):
+    source = f"G90 G0 X0 Y0 Z0\nG43.4 H1\nG1 X10 Y20 Z30 {rotary_word} F100\nG49\nM30"
+    window = _window_export_harness(
+        source,
+        language="fanuc_mill",
+        export_mode=MILL_FULL_PROGRAM_MODE,
+        kinematics=profile,
+    )
+
+    assert export_pgm(window) == source
+
+    window.exportMode = EXPANDED_EXECUTION_MODE
+    with pytest.raises(ValueError, match="cannot preserve G43.4 TCP rotary commands"):
+        export_pgm(window)

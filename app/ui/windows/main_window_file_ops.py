@@ -3,23 +3,70 @@
 import logging
 import os
 import time
+from copy import deepcopy
 from pathlib import Path
 from threading import Event
 
-from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QTimer
+from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QSignalBlocker, QTimer
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
+from app.gcode.comments import SEMICOLON
 from app.gcode.dxf_exporter import export_dxf
-from app.gcode.exporter import DXF_MODE, _window_export_options, export_program
+from app.gcode.export.sinumerik import convert_full_program_to_fanuc, convert_full_program_to_sinumerik
+from app.gcode.export.source_formatting import format_full_program_source
+from app.gcode.export.validation import validate_full_program_dialect_conversion
+from app.gcode.exporter import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions, _window_export_options, export_program
+from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.kernel.io import NCTextDecodeError, read_nc_text
+from app.gcode.source_mode import (
+    SINUMERIK_MODE_SIEMENS,
+    SOURCE_DIALECT_FANUC,
+    SOURCE_DIALECT_SINUMERIK,
+    sinumerik_initial_mode,
+    source_dialect_for_path,
+)
 from app.gcode.trace_tools import format_tool_list, trace_statistics
+from app.settings import GENERATED_MOTIONS_DEFAULT
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
 from app.ui.windows.execution_worker import run_execution
 
 LOGGER = logging.getLogger(__name__)
-NC_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.tap *.txt);;STL models (*.stl);;All files (*)"
-SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.tap *.txt);;All files (*)"
+NC_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.mpf *.spf *.tap *.txt);;STL models (*.stl);;All files (*)"
+SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.mpf *.spf *.tap *.txt);;All files (*)"
+
+
+def _set_arc_action(owner, arc_type: int) -> None:
+    actions = (owner.ui.actionRelative_to_start, owner.ui.actionAbsolute, owner.ui.actionRadius_value)
+    blockers = [QSignalBlocker(action) for action in actions]
+    try:
+        selected = {1: actions[0], 2: actions[1], 3: actions[2]}.get(int(arc_type), actions[0])
+        selected.setChecked(True)
+    finally:
+        del blockers
+
+
+def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
+    """Apply MPF/SPF document defaults without persisting them as user settings."""
+    dialect = source_dialect_for_path(file_name, source)
+    setattr(owner, "_document_source_dialect", dialect)
+    setattr(owner, "_document_arc_type", None)
+    setattr(owner, "_document_comment_style", None)
+    if dialect == SOURCE_DIALECT_SINUMERIK and sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS:
+        setattr(owner, "_document_arc_type", 2)
+        setattr(owner, "_document_comment_style", SEMICOLON)
+    comment_style = getattr(owner, "_document_comment_style")
+    arc_type = getattr(owner, "_document_arc_type")
+    owner.lexer.set_comment_style(comment_style or owner.commentStyle)
+    _set_arc_action(owner, arc_type or owner.arc_type)
+
+
+def _reset_document_source_mode(owner) -> None:
+    setattr(owner, "_document_source_dialect", SOURCE_DIALECT_FANUC)
+    setattr(owner, "_document_arc_type", None)
+    setattr(owner, "_document_comment_style", None)
+    owner.lexer.set_comment_style(owner.commentStyle)
+    _set_arc_action(owner, owner.arc_type)
 
 
 def _read_editor_text(path: str, encoding: str) -> tuple[str, str]:
@@ -115,7 +162,7 @@ def _export_target(owner):
     if dxf_export and Path(path).suffix.casefold() != ".dxf":
         path = str(Path(path).with_suffix(".dxf"))
     elif not dxf_export and not Path(path).suffix:
-        path += ".nc"
+        path += ".mpf" if int(getattr(owner, "exportTargetCnc", 0)) == 2 else ".nc"
     return path, dxf_export
 
 
@@ -141,13 +188,75 @@ def _ensure_current_export_trace(owner) -> bool:
 
 
 def _text_export_snapshot(owner):
+    source = str(owner.ui.editor.text())
+    source_dialect = source_dialect_for_path(getattr(owner, "curFile", None), source)
+    inference = deepcopy(getattr(owner, "program_tool_inference", {}) or {})
+    execution_options = {
+        "current_tools": deepcopy(getattr(owner, "millingTools", {}) or {}),
+        "previous_inference": deepcopy(inference.get("millingTools", {})),
+        "correction_enabled": bool(getattr(owner, "correctionEnabled", True)),
+        "lathe_gcode_system": getattr(owner, "latheGcodeSystem", "A"),
+        "kinematics": deepcopy(getattr(owner, "rotaryKinematics", None)),
+        "source_arc_type": getattr(owner, "_document_arc_type", None) or getattr(owner, "arc_type", 1),
+        "autodetect_arc_type": getattr(owner, "autodetectArcType", True)
+        and not getattr(owner, "_manual_arc_type_override", False)
+        and getattr(owner, "_document_arc_type", None) is None,
+        "skip_optional_blocks": bool(getattr(owner, "ignoreBlockSkip", False)),
+        "arc_tolerance": float(getattr(owner, "arcTolerance", 0.01)),
+        "default_unit_scale": 25.4 if getattr(owner, "defaultUnits", "mm") == "inch" else 1.0,
+        "home_x": float(getattr(owner, "xPosMach", 0.0)),
+        "home_y": float(getattr(owner, "yPosMach", 0.0)),
+        "home_z": float(getattr(owner, "zPosMach", 0.0)),
+        "wcs_offsets": deepcopy(getattr(owner, "wcsOffsets", None)),
+        "emulate_g28_home": bool(getattr(owner, "homeConfigured", True)),
+        "include_instructions": False,
+        "limits": ExecutionLimits(
+            generated_motions=max(1, int(getattr(owner, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)))
+        ),
+    }
     return (
-        str(owner.ui.editor.text()),
+        source,
         int(owner.exportMode),
         int(owner.exportArcMode),
         _window_export_options(owner, arc_mode=0),
         getattr(owner, "fileEncoding", "utf-8"),
+        int(getattr(owner, "exportTargetCnc", 0)),
+        source_dialect,
+        execution_options,
     )
+
+
+def _convert_full_program_dialect(source, result, target_cnc, source_dialect, options, execution_options):
+    options = options or ExportOptions()
+    targets = {
+        1: (SOURCE_DIALECT_FANUC, convert_full_program_to_fanuc),
+        2: (SOURCE_DIALECT_SINUMERIK, convert_full_program_to_sinumerik),
+    }
+    try:
+        target_dialect, converter = targets[target_cnc]
+    except KeyError as exc:
+        raise ValueError("Unknown target CNC type") from exc
+    if source_dialect == target_dialect:
+        target_name = "SINUMERIK ISO-M" if target_cnc == 2 else "FANUC milling"
+        raise ValueError(f"The source is already {target_name}; choose the other CNC type or As source")
+    if target_cnc == 2:
+        unsafe_compensation = {"UNVERIFIED_CUTTER_COMPENSATION", "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION"}
+        if any(item.code in unsafe_compensation for item in result.diagnostics):
+            raise ValueError("SINUMERIK conversion requires cutter compensation to be resolved by the kernel")
+    converted = (
+        converter(source, source_result=result, execution_options=execution_options)
+        if target_cnc == 2
+        else converter(source)
+    )
+    converted_source = format_full_program_source(converted, options)
+    validate_full_program_dialect_conversion(
+        result,
+        converted_source,
+        "fanuc_mill",
+        source_dialect=target_dialect,
+        execution_options=execution_options,
+    )
+    return converted_source
 
 
 def _write_export(
@@ -173,16 +282,25 @@ def _write_export(
         )
         return None
     assert text_snapshot is not None
-    source, mode, export_arc_mode, export_options, file_encoding = text_snapshot
-    text = export_program(
-        result,
-        source,
-        mode=mode,
-        lathe_mode=lathe_mode,
-        options=export_options,
-        export_arc_mode=export_arc_mode,
-        cancelled=cancellation.is_set,
+    source, mode, export_arc_mode, export_options, file_encoding, target_cnc, source_dialect, execution_options = (
+        text_snapshot
     )
+    if target_cnc:
+        if lathe_mode or mode != MILL_FULL_PROGRAM_MODE:
+            raise ValueError("SINUMERIK/FANUC dialect conversion is available only for milling Full Program export")
+        text = _convert_full_program_dialect(
+            source, result, target_cnc, source_dialect, export_options, execution_options
+        )
+    else:
+        text = export_program(
+            result,
+            source,
+            mode=mode,
+            lathe_mode=lathe_mode,
+            options=export_options,
+            export_arc_mode=export_arc_mode,
+            cancelled=cancellation.is_set,
+        )
     if cancellation.is_set():
         return None
     _atomic_write(path, text, encoding=file_encoding)
@@ -431,6 +549,7 @@ class MainWindowFileMixin:
         if self.maybeSave():
             reset_program_setup(self)
             self._manual_arc_type_override = False
+            _reset_document_source_mode(self)
             self.curFile = ""
             self._document_disk_signature = None
             self._document_encoding = None
@@ -514,6 +633,7 @@ class MainWindowFileMixin:
 
         reset_program_setup(self)
         self._manual_arc_type_override = False
+        _configure_document_source_mode(self, fileName, content)
         LOGGER.info("file_opened path=%s encoding=%s", fileName, document_encoding)
         if hasattr(self, "resetStockToAuto"):
             self.resetStockToAuto(refresh=False)

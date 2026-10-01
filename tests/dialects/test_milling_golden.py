@@ -25,23 +25,23 @@ from app.gcode.kernel import execute
         (
             "indexed_table_a.nc",
             "4ax_table_a",
-            384,
+            382,
             6,
             6,
             2,
-            (444.0, 0.0, 0.0),
-            (-12.0, 506.0, -86.909, 86.909, -100.0, 100.0),
+            (444.0, 0.0, 500.0),
+            (-12.0, 506.0, -86.909, 86.909, -500.0, 500.0),
             {"UNSUPPORTED_M_CODE", "UNSUPPORTED_TOOL_NUMBER", "UNVERIFIED_CUTTER_COMPENSATION"},
         ),
         (
             "indexed_table_b.nc",
             "4ax_table_b",
-            1776,
-            1078,
+            1764,
+            1077,
             103,
             25,
-            (-147.22521808479436, -35.0, 0.0),
-            (-192.25233918766384, 96.41814145298089, -84.0, 73.025, -150.0, 150.0),
+            (-475.5282581475768, -35.0, 154.5084971874736),
+            (-500.51983158343245, 357.21787322572857, -84.0, 73.025, -500.0, 500.0),
             {"UNSUPPORTED_M_CODE", "UNVERIFIED_CUTTER_COMPENSATION"},
         ),
         (
@@ -80,7 +80,12 @@ def test_milling_fixture_trace_contract(
     diagnostics,
     fixture_text,
 ):
-    result = execute(fixture_text(f"milling/{name}"), language="fanuc_mill", kinematics=kinematics)
+    result = execute(
+        fixture_text(f"milling/{name}"),
+        language="fanuc_mill",
+        kinematics=kinematics,
+        home_z=500 if name in {"indexed_table_a.nc", "indexed_table_b.nc"} else 0,
+    )
 
     assert result.ok, result.diagnostics
     assert len(result.motions) == motion_count

@@ -15,9 +15,10 @@ from typing import Any, Callable, Iterable
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.io import read_nc_text
 from app.gcode.program_execution import execute_program
+from app.gcode.source_mode import source_dialect_for_path
 
 BATCH_REPORT_SCHEMA_VERSION = 2
-DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".tap", ".txt")
+DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".mpf", ".spf", ".tap", ".txt")
 _NC_HEADER_RE = re.compile(rb"(?m)^\s*O\d{1,5}(?:\b|\s*\()", re.IGNORECASE)
 _NC_BLOCK_RE = re.compile(rb"(?m)^\s*(?:N\d+\s*)?[GMT]\d+(?:\.\d+)?\b", re.IGNORECASE)
 STATUS_CLEAN = "CLEAN"
@@ -148,6 +149,7 @@ def execute_analysis_program(
     include_instructions: bool = True,
     kinematics: str | None = None,
     lathe_gcode_system: str = "A",
+    source_dialect: str = "fanuc",
 ) -> ExecutionResult:
     """Use the same execution options and diagnostics for single and batch analysis."""
     result, _tools, _inferred = execute_program(
@@ -157,6 +159,7 @@ def execute_analysis_program(
         autodetect_arc_type=language == "fanuc_mill",
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
+        source_dialect=source_dialect,
     )
     if language == "fanuc_turn":
         result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
@@ -225,6 +228,7 @@ def _file_report(
         include_instructions=False,
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
+        source_dialect=source_dialect_for_path(path, source),
     )
     diagnostics = result.diagnostics
     status = analysis_status(result)

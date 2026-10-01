@@ -324,9 +324,11 @@ class MainWindowExecutionMixin:
                 "language": language,
                 "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
                 "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
-                "source_arc_type": getattr(self, "arc_type", 1),
+                "source_dialect": getattr(self, "_document_source_dialect", "fanuc"),
+                "source_arc_type": getattr(self, "_document_arc_type", None) or getattr(self, "arc_type", 1),
                 "autodetect_arc_type": getattr(self, "autodetectArcType", True)
-                and not getattr(self, "_manual_arc_type_override", False),
+                and not getattr(self, "_manual_arc_type_override", False)
+                and getattr(self, "_document_arc_type", None) is None,
                 "skip_optional_blocks": getattr(self, "ignoreBlockSkip", False),
                 "arc_tolerance": arc_tolerance,
                 "default_unit_scale": default_unit_scale,
@@ -789,7 +791,7 @@ class MainWindowExecutionMixin:
             time_text = "{h:02}:{m:02}:{s:02}".format(
                 h=floor(time_min / 60), m=floor(time_min % 60), s=floor(time_sec % 60)
             )
-        style = self.commentStyle
+        style = getattr(self, "_document_comment_style", None) or self.commentStyle
         return "\n".join(
             (
                 format_comment(f"Toolpath Length: {float(stats['total_length']):.3f}", style),
@@ -811,7 +813,7 @@ class MainWindowExecutionMixin:
         if bounds is None:
             return ""
         (xmin, xmax), (ymin, ymax), (zmin, zmax) = bounds
-        style = self.commentStyle
+        style = getattr(self, "_document_comment_style", None) or self.commentStyle
         return "\n".join(
             format_comment(f"{axis} {bound}: {round(value, 3)}", style)
             for axis, bound, value in (

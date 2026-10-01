@@ -591,6 +591,7 @@ class MainWindow(
 
     def changeArcType(self):
         """Change arc mode between relative, absolute, or radius modes."""
+        self._document_arc_type = None
         if self.ui.actionRelative_to_start.isChecked():
             self.arc_type = 1
         if self.ui.actionAbsolute.isChecked():

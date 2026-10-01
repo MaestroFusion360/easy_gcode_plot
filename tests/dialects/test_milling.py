@@ -20,6 +20,7 @@ from app.gcode.kernel.milling.kinematics import (
     CATALOG_PATH,
     InvalidKinematicsProfile,
     load_catalog,
+    point_orientation,
     profile_document,
     save_profile_override,
     user_catalog_path,
@@ -106,7 +107,7 @@ def test_g10_at_rotary_index_preserves_machine_position_and_rebases_next_move():
     result = execute(source, language="fanuc_mill", kinematics="4ax_table_b")
     assert result.ok, result.diagnostics
     assert result.execution_steps[3].position == pytest.approx(result.execution_steps[2].position)
-    assert (result.motions[-1].start_x, result.motions[-1].start_z) == pytest.approx((10, 20))
+    assert (result.motions[-1].start_x, result.motions[-1].start_z) == pytest.approx((20, -10))
     assert (result.motions[-1].end_x, result.motions[-1].end_z) == pytest.approx((120, -5))
 
 
@@ -121,7 +122,9 @@ def test_rotary_angles_and_wcs_are_recorded_per_execution_step():
 
 
 def test_indexed_table_a_fixture_preserves_both_sides_and_restores_a_zero(fixture_text):
-    result = execute(fixture_text("milling/indexed_table_a.nc"), language="fanuc_mill", kinematics="4ax_table_a")
+    result = execute(
+        fixture_text("milling/indexed_table_a.nc"), language="fanuc_mill", kinematics="4ax_table_a", home_z=500
+    )
     assert result.ok and result.complete, result.diagnostics
     indices = [event for event in result.events if event.kind == "ROTARY_INDEX"]
     assert [(event.old_abc[0], event.new_abc[0]) for event in indices] == [
@@ -278,8 +281,13 @@ def test_g43_4_cancel_keeps_reference_move_contiguous_and_uses_home_z(reference,
         (retract_start.end_x, retract_start.end_y, retract_start.end_z),
         abs=1e-7,
     )
-    assert reference_move.end_z == pytest.approx(home_z)
-    assert reference_move.end_z > reference_move.start_z
+    orientation = np.asarray(point_orientation(load_catalog()["5ax_table_ac_angled"], dict(result.rotary_angles)))
+    start = np.array((reference_move.start_x, reference_move.start_y, reference_move.start_z))
+    end = np.array((reference_move.end_x, reference_move.end_y, reference_move.end_z))
+    raw_start, raw_end = orientation.T @ start, orientation.T @ end
+    assert raw_end == pytest.approx((raw_start[0], raw_start[1], home_z))
+    assert end - start == pytest.approx(orientation[:, 2] * (home_z - raw_start[2]))
+    assert reference_move.start_tool_orientation == reference_move.tool_orientation
 
 
 @pytest.mark.parametrize("name,kinematics", _MILLING_FIXTURE_CASES)
@@ -293,11 +301,30 @@ def test_fanuc_mill_fixture_motion_trace_never_teleports_between_adjacent_moves(
     assert result.ok and result.complete, result.diagnostics
     assert result.motions
 
+    steps = {step.source_block: step for step in result.execution_steps}
     for previous, current in zip(result.motions, result.motions[1:]):
+        expected = np.array((previous.end_x, previous.end_y, previous.end_z))
+        previous_step, current_step = steps[previous.source_block], steps[current.source_block]
+        if kinematics and previous.source_kind in {"g28", "g53"}:
+            # Reference return ends a trace run; the following indexed approach
+            # is independently resolved and must not be joined to the old end.
+            continue
+        actual = (current.start_x, current.start_y, current.start_z)
+        if (
+            kinematics
+            and previous_step.rotary_angles != current_step.rotary_angles
+            and not np.allclose(actual, expected, atol=1e-7, rtol=0)
+        ):
+            # An index changes the displayed table frame, not programmed XYZ.
+            # Verify the exact frame change rather than accepting arbitrary gaps.
+            catalog = load_catalog()
+            old_frame = np.asarray(point_orientation(catalog[kinematics], dict(previous_step.rotary_angles)))
+            new_frame = np.asarray(point_orientation(catalog[kinematics], dict(current_step.rotary_angles)))
+            expected = new_frame @ old_frame.T @ expected
         assert (current.start_x, current.start_y, current.start_z) == pytest.approx(
-            (previous.end_x, previous.end_y, previous.end_z),
+            expected,
             abs=1e-7,
-        ), f"{name}: trajectory gap between N{previous.source_nlabel} and N{current.source_nlabel}"
+        ), f"{name}: unexpected trajectory gap between N{previous.source_nlabel} and N{current.source_nlabel}"
 
 
 @pytest.mark.parametrize(
@@ -323,12 +350,13 @@ def test_reference_return_after_b_index_targets_machine_home_axes(reference, sou
     result = execute(source, language="fanuc_mill", kinematics="4ax_table_b", home_z=100)
     assert result.ok and result.complete, result.diagnostics
     returns = [motion for motion in result.motions if motion.source_kind == source_kind]
-    assert len(returns) == 1
-    assert (returns[0].start_x, returns[0].start_y, returns[0].start_z) == pytest.approx((10, 0, 20), abs=1e-8)
-    assert (returns[0].end_x, returns[0].end_y, returns[0].end_z) == pytest.approx((10, 0, 100), abs=1e-8)
+    assert len(returns) == 2
+    for motion, start in zip(returns, ((20, 0, -10), (10, 0, -10))):
+        assert (motion.start_x, motion.start_y, motion.start_z) == pytest.approx(start, abs=1e-8)
+        assert (motion.end_x, motion.end_y, motion.end_z) == pytest.approx((100, 0, -10), abs=1e-8)
 
 
-def test_incremental_g53_z_after_b_index_uses_machine_z():
+def test_incremental_g53_z_after_b_index_uses_oriented_machine_z():
     result = execute(
         "G90 G0 X10 Z20\nB90\nG53 G0 Z100\nG91 G53 G0 Z10\nM30",
         language="fanuc_mill",
@@ -336,8 +364,8 @@ def test_incremental_g53_z_after_b_index_uses_machine_z():
         home_z=100,
     )
     assert result.ok and result.complete, result.diagnostics
-    assert result.motions[-1].end_x == pytest.approx(10)
-    assert result.motions[-1].end_z == pytest.approx(110)
+    assert result.motions[-1].end_x == pytest.approx(110)
+    assert result.motions[-1].end_z == pytest.approx(-10)
 
 
 def test_b_index_obeys_g90_g91_on_same_block_and_modal_blocks():
@@ -1208,3 +1236,29 @@ def test_table_b_compensated_g17_arc_has_rotated_center_and_normal():
     assert arc_motion.arc.radius == pytest.approx(2.0)
     assert arc_motion.arc.center == pytest.approx((-1.0, 0.0, 0.0), abs=1e-8)
     assert arc_motion.arc.normal == pytest.approx((1.0, 0.0, 0.0), abs=1e-8)
+
+
+@pytest.mark.parametrize(
+    ("profile", "index_word"),
+    [
+        ("4ax_table_a", "A90"),
+        ("4ax_table_b", "B90"),
+        ("4ax_table_c", "C90"),
+    ],
+)
+def test_four_axis_reference_retract_follows_current_kinematics(profile, index_word):
+    result = execute(
+        f"G90 G0 X10 Y20 Z30\n{index_word}\nG91 G28 Z0\nM30",
+        language="fanuc_mill",
+        kinematics=profile,
+        home_z=500.0,
+    )
+
+    assert result.ok and result.complete, result.diagnostics
+    retract = next(motion for motion in result.motions if motion.source_kind == "g28")
+    expected = {
+        "4ax_table_a": (10, -500, 20),
+        "4ax_table_b": (500, 20, -10),
+        "4ax_table_c": (-20, 10, 500),
+    }
+    assert (retract.end_x, retract.end_y, retract.end_z) == pytest.approx(expected[profile])

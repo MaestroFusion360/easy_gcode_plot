@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.7.0 tree and explains the GUI, deterministic FANUC execution kernel, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.7.2 tree and explains the GUI, FANUC execution kernel, the supported SINUMERIK ISO-M subset, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -109,7 +109,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Which milling G functions are recognized?](#which-milling-g-functions-are-recognized)
     - [Which milling M functions are recognized?](#which-milling-m-functions-are-recognized)
     - [What basic milling motion is modeled?](#what-basic-milling-motion-is-modeled)
-    - [How is indexed rotary milling handled in 1.6.7?](#how-is-indexed-rotary-milling-handled-in-167)
+    - [How is indexed rotary milling handled?](#how-is-indexed-rotary-milling-handled)
     - [Which rotary profiles have been checked?](#which-rotary-profiles-have-been-checked)
     - [What happens when indexed geometry cannot be resolved?](#what-happens-when-indexed-geometry-cannot-be-resolved)
     - [Which milling canned cycles are modeled?](#which-milling-canned-cycles-are-modeled)
@@ -209,6 +209,10 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Can comments be removed from export?](#can-comments-be-removed-from-export)
     - [Are exports written atomically by the CLI service?](#are-exports-written-atomically-by-the-cli-service)
     - [Can CLI export overwrite the source file?](#can-cli-export-overwrite-the-source-file)
+  - [SINUMERIK 840D input](#sinumerik-840d-input)
+    - [What SINUMERIK support is included?](#what-sinumerik-support-is-included)
+    - [How are MPF and SPF files detected?](#how-are-mpf-and-spf-files-detected)
+    - [Can FANUC milling programs be converted to SINUMERIK?](#can-fanuc-milling-programs-be-converted-to-sinumerik)
   - [CLI](#cli)
     - [Does the CLI use the same kernel as the GUI?](#does-the-cli-use-the-same-kernel-as-the-gui)
     - [Which commands exist?](#which-commands-exist)
@@ -1271,7 +1275,7 @@ The milling kernel supports XYZ rapid, linear and circular/helical motion in the
 
 Resolved `TraceMotion` is full 3D geometry even though many CNC constructs are planar.
 
-### How is indexed rotary milling handled in 1.6.7?
+### How is indexed rotary milling handled?
 
 Select a profile in **Settings → Rotary kinematics** or pass `--kinematics PROFILE_ID` with `--lang fanuc_mill` in the CLI. The GUI selection is stored as `CNC/ROTARY_KINEMATICS`. The profile maps programmed A/B/C addresses to signed rotary axes. G90 assigns an absolute rotary angle; G91 adds an increment. For the checked table profiles, later XYZ motions, resolved arcs and milling cycles are transformed into the fixed WCS display frame, and playback orients the tool preview at the resolved tool-tip point. WCS axes themselves do not rotate.
 
@@ -1291,7 +1295,7 @@ If the user profile file is damaged or invalid, the GUI opens with the installed
 
 ### What happens when indexed geometry cannot be resolved?
 
-A changed A/B/C address without a selected profile or an address absent from the selected profile stops milling execution with an explicit diagnostic. Simultaneous rotary/XYZ movement and non-rapid rotary interpolation also stop for the indexed A/B profiles; the checked `4ax_table_c` planar X/C feed contour is the exception. This is the present 1.6.7 implementation, not a general FANUC restriction. A/B/C with an unsupported position-changing G-code also stops execution. Unknown M-codes and G41/G42 that cannot be verified because of missing tool or unsupported contour data produce warnings and let execution continue. G30 is not modeled as G28: its controller-specific second reference point is not inferred from the configured G28 home.
+A changed A/B/C address without a selected profile or an address absent from the selected profile stops milling execution with an explicit diagnostic. Simultaneous rotary/XYZ movement and non-rapid rotary interpolation also stop for the indexed A/B profiles; the checked `4ax_table_c` planar X/C feed contour is the exception. This is the current implementation, not a general FANUC restriction. A/B/C with an unsupported position-changing G-code also stops execution. Unknown M-codes and G41/G42 that cannot be verified because of missing tool or unsupported contour data produce warnings and let execution continue. G30 is not modeled as G28: its controller-specific second reference point is not inferred from the configured G28 home.
 
 For `4ax_table_c`, G41/G42 cutter compensation is unsupported. Execution continues, but the X/C plot shows the programmed tool-tip path without cutter-radius offset and reports `UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION`. G40 cancels the modal request. Do not treat this plot as a verified compensated contour.
 
@@ -1366,6 +1370,8 @@ For runtime work-offset programming, incremental mode updates the existing selec
 
 G68 enables coordinate rotation around the programmed center in the active plane. G69 cancels the rotation.
 
+In SINUMERIK ISO-M mode (`G291`), the modeled `G68` subset requires `G90` and has no `I/J/K` vector. `G68` with `G91` angle semantics or with any `I/J/K` 3D rotation vector is recognized but unsupported. `G69` remains supported.
+
 The active transform applies to later endpoints and I/J/K arc vectors. Enabling or cancelling the transform does not itself create a motion segment.
 
 G68.2 X/Y/Z I/J/K defines a 3+2 tilted working plane with Z-X-Z Euler angles. Select a kinematics profile with two distinct rotary axes first; supported topologies include table-table, head-head and head-table. G53.1 must be the next standalone block: it solves the selected profile's rotary angles to align the physical tool axis with functional +Z. An unreachable orientation stops with a diagnostic. G69 cancels the plane while retaining the indexed rotary position. This model applies only to `fanuc_mill`. Explicit A/B/C addresses during the tilted plane and simultaneous G68 rotation are unsupported. G53 and G28 reference motions use machine coordinates. Expanded NC export is unavailable for these programs; Full Program preserves the source.
@@ -1379,6 +1385,8 @@ Milling G51 supports:
 
 G50 cancels milling scaling.
 
+For SINUMERIK ISO-M, `G51` uses the modeled 0.001 scale-factor weighting (`P2000` means a factor of 2.0). Machine-specific alternative weighting is not modeled.
+
 The scaling center is interpreted as absolute coordinates even under G91, and omitted center axes use the current position.
 
 Axis-specific scaling of an arc can turn a circle into non-circular geometry. The kernel reports that unsupported case instead of approximating it as a circle.
@@ -1391,9 +1399,13 @@ Yes. G53 is non-modal machine-coordinate motion. It does not overwrite the activ
 
 Yes. The configured reference-return path is resolved through the execution kernel rather than handled only by the GUI. For indexed milling, the intermediate and home targets are resolved on machine axes before their trace points are transformed for display. `G91 G28 Z0` returns the Z axis to the configured home Z.
 
+With 4/5-axis table kinematics, G28/G53 use the current table orientation without resetting ABC. For example, with home Z=500 and zero WCS offset, a B-table return targets global Z=500 at B0 and Z=-500 at B180. A Z-only reference segment that crosses the WCS centre plane stops execution with an error; check machine home Z and the WCS offset. This check does not detect collisions with a part model.
+
+After G28/G53 in a 4/5-axis program, the next approach can start a separate trace segment in the new table orientation. No connecting line is drawn between those segments. Ordinary three-axis paths remain continuous, including reference returns.
+
 ### Is continuous five-axis TCP (`G43.4`) supported?
 
-For `fanuc_mill`, continuous `G0/G1` tool-center motion with simultaneous linear and rotary axes is supported on the angled AC and BC table profiles. Activating TCP and indexing rotary axes preserve the current physical point in the plotted trace. `G2/G3` rotary TCP motion and combining TCP with `G68.2` are unsupported. This is toolpath interpretation, not a complete machine or collision simulation.
+For `fanuc_mill`, continuous `G0/G1` tool-center motion with simultaneous linear and rotary axes is supported on the angled AC and BC table profiles. Activating TCP preserves the current physical point in the plotted trace. With TCP off, indexing retains programmed XYZ and changes the displayed table frame. `G2/G3` rotary TCP motion and combining TCP with `G68.2` are unsupported. This is toolpath interpretation, not a complete machine or collision simulation.
 
 ### How are milling arcs programmed?
 
@@ -1958,6 +1970,41 @@ No. Source and output must be different paths.
 
 ---
 
+## SINUMERIK 840D input
+
+### What SINUMERIK support is included?
+
+The application supports a bounded subset of SINUMERIK 840D ISO Dialect M. It routes supported G291 blocks through the milling execution kernel; it is not a native Siemens-language interpreter or a complete 840D controller model. SINUMERIK ISO Dialect T is not supported.
+
+In `G291`, common integer milling G codes, unit selection, coordinate systems, selected canned cycles and `G50/G51` are accepted. Extended work offsets use `G54 P1..P48`; source `G54.1` and other decimal G codes are rejected, though `G54 Pn` is normalized internally to the milling kernel's `G54.1 Pn` form. Ordinary `G91` incremental positioning is supported. G68 is limited to a standalone 2D form with `G90` active, only the center axes of the active plane and `R`, and no `I/J/K`; incremental-angle and 3D-vector forms are rejected. `G69` is supported. Macro B flow and unsupported ISO functions stop with diagnostics. `G51` uses the modeled `P/1000` scale weighting; machine-specific alternative weighting is not modeled.
+
+`G290` selects native Siemens language. The current application can skip MPF/SPF headers and comments in that mode, but executable native Siemens commands stop with `UNSUPPORTED_SINUMERIK_MODE`. A program must switch to `G291` before ISO-M motion can be analyzed.
+
+### How are MPF and SPF files detected?
+
+The GUI Open/Save filters include `.mpf` and `.spf`. The CLI and batch scanner include both extensions by default and select the SINUMERIK source dialect when a file contains G290/G291 or recognizable native Siemens syntax. Use `--lang fanuc_mill` for milling analysis; the language option selects the milling geometry model and does not turn on full Siemens support. Mixed folders can still use `--extensions` to control discovery.
+
+### Can FANUC milling programs be converted to SINUMERIK?
+
+Yes. Set `--lang fanuc_mill` for the milling interpreter and `--target-dialect sinumerik840d` for FANUC-to-SINUMERIK conversion. Conversion is available only with `--mode full`: it preserves every source block and adds a standalone `G291`. Converting an ISO-M `.mpf`/`.spf` to FANUC with `--mode full` removes the standalone `G291`. Only the verified three-axis ISO-M subset is supported. Programs using rotary axes with `4ax_table_a/b/c`, indexed or simultaneous 5-axis motion, TCP (`G43.4`) or tilted working-plane transforms are rejected before writing NC. The converter uses kernel execution facts and the selected kinematics, not inferred command equivalents; it never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile blocks SINUMERIK ISO conversion, including XYZ-only programs. Validation runs in the actual target ISO dialect, without a FANUC surrogate. FANUC multi-axis execution and plotting remain supported. SINUMERIK-target conversion is rejected when cutter compensation is unverified. `batch-export` follows the same full-program conversion and writes `.mpf` files for a SINUMERIK target.
+
+In the GUI, open **File → Export**, select **MILL FULL PROGRAM**, then choose **FANUC milling** or **SINUMERIK 840D ISO-M (G291)** in **Target CNC**. Sequence numbering, word spacing and Leading Zero are applied to the preserved source blocks, then the formatted program is validated before writing. Start Program Text, End Program Text and Safety Line are also checked in the final output; changes to resolved motion geometry or machine signals prevent export.
+
+For example:
+
+```powershell
+.\easy_gcode_plot_cli.exe analyze part.mpf --lang fanuc_mill
+.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o part.mpf
+.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode full -o part_fanuc.nc
+.\easy_gcode_plot_cli.exe batch-export C:\Fanuc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o C:\Siemens
+```
+
+This full-program conversion changes only the standalone dialect switch; it does not translate controller-specific commands or validate machine configuration. It fails if target-dialect analysis reports diagnostics, changes the resolved motion trace or machine signals, or cutter compensation cannot be verified. Review and verify the result on the target control before machining. Expanded Execution remains available for trace export, but it is not the dialect converter.
+
+For SINUMERIK input, `export --mode full` removes the standalone `G291` switch to produce a FANUC milling program after target-dialect validation. DXF exports resolved geometry. The converter does not translate FANUC turning or emit arbitrary native Siemens cycles and machine-specific commands; successful analysis is not machine validation.
+
+---
+
 ## CLI
 
 ### Does the CLI use the same kernel as the GUI?
@@ -2044,6 +2091,8 @@ fanuc_turn
 fanuc_mill
 ```
 
+There is no separate `sinumerik` `--lang` value. SINUMERIK MPF/SPF input is detected from its extension and source signature, then the milling kernel is selected with `--lang fanuc_mill`.
+
 ### What are the exit codes?
 
 Normal successful/acceptable CLI execution returns zero. Failed/incomplete single execution, batch `ERRORS`, batch `NO_FILES` and export failures return a nonzero code (currently 2 for the command-level error states).
@@ -2108,6 +2157,8 @@ NO_FILES
 .nc
 .cnc
 .ptp
+.mpf
+.spf
 .tap
 .txt
 ```
@@ -2309,7 +2360,7 @@ No. Explicit sequence start, increment or spacing requires `--sequence-numbers`.
 
 ### Are there preset batch-export scripts?
 
-The 1.6.7 development tree includes Windows/Linux batch-export presets for milling and turning under the same `scripts/ps1/batch` and `scripts/sh/batch` areas as batch analysis.
+The development tree includes Windows/Linux batch-export presets for milling and turning under the same `scripts/ps1/batch` and `scripts/sh/batch` areas as batch analysis.
 
 They are intended to run the built CLI, not to rebuild the application.
 

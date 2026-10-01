@@ -75,5 +75,7 @@ def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
         start_program=str(window.startPgmExp or ""),
         end_program=str(window.endPgmExp or ""),
         safety_line=bool(window.safLine),
-        comment_style=normalize_comment_style(getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE)),
+        comment_style=normalize_comment_style(
+            getattr(window, "_document_comment_style", None) or getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE)
+        ),
     )

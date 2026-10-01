@@ -374,6 +374,37 @@ def test_batch_dxf_preserves_tree_and_honors_discovery_options(tmp_path):
     assert report["files"][0]["output_relative_path"] == "top.dxf"
 
 
+def test_batch_export_can_target_sinumerik_mpf(tmp_path):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "part.nc").write_text("G21 G90 G17\nG0 X0 Y0 Z5\nG1 X10 Y0 F100\nM30\n", encoding="utf-8")
+    output = tmp_path / "siemens"
+
+    assert (
+        main(
+            [
+                "batch-export",
+                str(root),
+                "--lang",
+                "fanuc_mill",
+                "--target-dialect",
+                "sinumerik840d",
+                "--mode",
+                "full",
+                "-o",
+                str(output),
+            ]
+        )
+        == 0
+    )
+
+    converted = output / "part.mpf"
+    assert converted.exists()
+    assert "G291" in converted.read_text(encoding="utf-8")
+    report = json.loads((output / "batch_export_report.json").read_text(encoding="utf-8"))
+    assert report["files"][0]["output_relative_path"] == "part.mpf"
+
+
 def test_batch_export_recognizes_fanuc_programs_named_as_part_numbers(tmp_path):
     root = tmp_path / "source"
     root.mkdir()

@@ -21,6 +21,7 @@ from app.gcode.export.service import ExportRequest, export_file, validate_export
 from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.program_execution import execute_program
+from app.gcode.source_mode import source_dialect_for_path
 from app.gcode.trace_tools import format_trace_statistics, trace_statistics
 
 
@@ -37,6 +38,11 @@ class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 def _add_export_options(command: argparse.ArgumentParser) -> None:
     command.add_argument("--format", choices=("nc", "dxf"), default="nc", help="Output format")
+    command.add_argument(
+        "--target-dialect",
+        choices=("sinumerik840d",),
+        help="Postprocess milling geometry for SINUMERIK 840D",
+    )
     command.add_argument("--mode", choices=("expanded", "full", "cycles"), default="expanded", help="NC export mode")
     command.add_argument("--units", choices=("auto", "mm", "inch"), default="auto", help="Output units")
     command.add_argument(
@@ -86,6 +92,7 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
     )
     return ExportRequest(
         language=args.lang,
+        target_dialect=getattr(args, "target_dialect", None),
         lathe_gcode_system=args.lathe_gcode_system,
         kinematics=args.kinematics,
         encoding=args.encoding,
@@ -199,11 +206,19 @@ def _load(
     source = read_nc_text(path, encoding=encoding)
     if for_analysis:
         result = execute_analysis_program(
-            source, language=language, kinematics=kinematics, lathe_gcode_system=lathe_gcode_system
+            source,
+            language=language,
+            kinematics=kinematics,
+            lathe_gcode_system=lathe_gcode_system,
+            source_dialect=source_dialect_for_path(path, source),
         )
     else:
         result, _tools, _inferred = execute_program(
-            source, language=language, kinematics=kinematics, lathe_gcode_system=lathe_gcode_system
+            source,
+            language=language,
+            kinematics=kinematics,
+            lathe_gcode_system=lathe_gcode_system,
+            source_dialect=source_dialect_for_path(path, source),
         )
     return source, result
 

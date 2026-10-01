@@ -64,6 +64,7 @@ __all__ = (
 )
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
+SUPPORTED_SOURCE_DIALECTS = frozenset({"fanuc", "sinumerik"})
 
 
 def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
@@ -311,6 +312,38 @@ def _steps_with_emitted_counts(steps, emitted_counts):
     )
 
 
+def _invalid_execution_request(language: str, source_dialect: str) -> ExecutionResult | None:
+    if source_dialect not in SUPPORTED_SOURCE_DIALECTS:
+        diagnostic = Diagnostic(
+            code="UNSUPPORTED_SOURCE_DIALECT",
+            message=f"Unsupported source dialect: {source_dialect}",
+        )
+    elif source_dialect == "sinumerik" and language != "fanuc_mill":
+        diagnostic = Diagnostic(
+            code="UNSUPPORTED_SINUMERIK_ISO_T",
+            message=("SINUMERIK ISO Dialect T is not modeled yet; G291 currently supports milling ISO Dialect M only"),
+            severity="error",
+            status="unsupported",
+        )
+    elif language not in SUPPORTED_LANGUAGES:
+        diagnostic = Diagnostic(
+            code="UNSUPPORTED_LANGUAGE",
+            message=f"Unsupported G-code language: {language}",
+        )
+    else:
+        return None
+    return ExecutionResult(
+        ok=False,
+        program=None,
+        instructions=(),
+        motions=(),
+        diagnostics=(diagnostic,),
+        executed_blocks=(),
+        complete=False,
+        language=language,
+    )
+
+
 def _execute_impl(
     source: str,
     language: str = "fanuc_turn",
@@ -331,27 +364,16 @@ def _execute_impl(
     emulate_g28_home: bool = False,
     include_instructions: bool = True,
     kinematics=None,
+    source_dialect: str = "fanuc",
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
     Unsupported position-changing commands fail closed at that block while
     preserving every trustworthy motion produced before it.
     """
-    if language not in SUPPORTED_LANGUAGES:
-        return ExecutionResult(
-            ok=False,
-            program=None,
-            instructions=(),
-            motions=(),
-            diagnostics=(
-                Diagnostic(
-                    code="UNSUPPORTED_LANGUAGE",
-                    message=f"Unsupported G-code language: {language}",
-                ),
-            ),
-            executed_blocks=(),
-            complete=False,
-        )
+    invalid_request = _invalid_execution_request(language, source_dialect)
+    if invalid_request is not None:
+        return invalid_request
 
     if language == "fanuc_mill":
         if isinstance(kinematics, str):
@@ -387,6 +409,7 @@ def _execute_impl(
                 g73_retract_distance=milling_g73_retract_distance,
                 include_instructions=include_instructions,
                 kinematics=kinematics,
+                source_dialect=source_dialect,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
             extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),

@@ -8,33 +8,63 @@ from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.home import reference_return
 from .cycles import execute_milling_cycle
 from .kinematics import TCP_TABLE_PROFILES, effective_orientation, point_orientation, transform_point
-from .state import MillState, _coordinate_transform, _machine, _orient_point, _orient_vector, _wcs_offset, _xyz
+from .state import MillState, _coordinate_transform, _machine, _orient_vector, _wcs_offset, _xyz
+
+
+def _reference_orientation(state: MillState):
+    """Current rotary frame around WCS for reference motion, including after G49.
+
+    Resolve reference coordinates in that frame, then display the return using
+    the same orientation as the approach instead of an implicit ABC=0 frame.
+    """
+    if state.kinematics is None:
+        return None
+    return point_orientation(state.kinematics, state.rotary_angles)
 
 
 def _raw_machine_position(state: MillState, wcs_offsets) -> tuple[float, float, float]:
-    """Current XYZ before indexed display orientation, in machine coordinates."""
-    if state.twp.active:
-        return _machine((state.x, state.y, state.z), state, wcs_offsets)
-    work = _coordinate_transform(state).apply((state.x, state.y, state.z))
-    offset = _wcs_offset(wcs_offsets, state.active_wcs)
-    return tuple(work[i] + offset[i] for i in range(3))
+    position = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    return _reference_machine_position(position, state, wcs_offsets)
 
 
-def _display_machine_position(position, state: MillState, wcs_offsets) -> tuple[float, float, float]:
-    if state.twp.active:
+def _reference_machine_position(position, state: MillState, wcs_offsets) -> tuple[float, float, float]:
+    orientation = _reference_orientation(state)
+    if orientation is None:
         return tuple(position)
     offset = _wcs_offset(wcs_offsets, state.active_wcs)
     work = tuple(position[i] - offset[i] for i in range(3))
-    oriented = _orient_point(work, state)
+    unrotated = tuple(sum(orientation[j][i] * work[j] for j in range(3)) for i in range(3))
+    return tuple(unrotated[i] + offset[i] for i in range(3))
+
+
+def _display_machine_position(position, state: MillState, wcs_offsets) -> tuple[float, float, float]:
+    orientation = _reference_orientation(state)
+    if orientation is None:
+        return tuple(position)
+    offset = _wcs_offset(wcs_offsets, state.active_wcs)
+    work = tuple(position[i] - offset[i] for i in range(3))
+    oriented = transform_point(orientation, work)
     return tuple(oriented[i] + offset[i] for i in range(3))
 
 
+def _validate_reference_retract(state: MillState, start, end, words, wcs_offsets) -> None:
+    """Do not synthesize a table Z return through the WCS centre plane."""
+    if state.kinematics is None or "Z" not in words or "X" in words or "Y" in words:
+        return
+    centre_z = _wcs_offset(wcs_offsets, state.active_wcs)[2]
+    start_distance, end_distance = start[2] - centre_z, end[2] - centre_z
+    if abs(start_distance) > 1e-8 and start_distance * end_distance <= 0:
+        raise ValueError("Unsafe reference retract crosses the WCS centre plane; check machine home Z and WCS offset")
+
+
+def _validate_reference_path(state: MillState, segments, words, wcs_offsets) -> None:
+    # Validate the complete path before emitting any portion of an unsafe return.
+    for start, end in segments:
+        _validate_reference_retract(state, start, end, words, wcs_offsets)
+
+
 def _set_raw_machine_position(state: MillState, position, wcs_offsets) -> None:
-    offset = _wcs_offset(wcs_offsets, state.active_wcs)
-    work = tuple(position[i] - offset[i] for i in range(3))
-    if state.twp.active:
-        work = state.twp.inverse(work)
-    state.x, state.y, state.z = _coordinate_transform(state).inverse(work)
+    _set_machine_position(state, _display_machine_position(position, state, wcs_offsets), wcs_offsets)
 
 
 def _set_machine_position(state: MillState, position, wcs_offsets) -> None:
@@ -170,7 +200,7 @@ def _motion(
 
 def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offsets) -> TraceMotion | None:
     """Execute G53 in machine coordinates, mapping absolute zero to configured home."""
-    start_machine = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    start_machine = _raw_machine_position(state, wcs_offsets)
     end_machine = list(start_machine)
     for index, letter in enumerate(("X", "Y", "Z")):
         if letter not in words:
@@ -181,22 +211,28 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
         else:
             end_machine[index] = start_machine[index] + value
 
-    _set_machine_position(state, end_machine, wcs_offsets)
+    _validate_reference_retract(state, start_machine, end_machine, words, wcs_offsets)
+    _set_raw_machine_position(state, end_machine, wcs_offsets)
     if start_machine == tuple(end_machine):
         return None
+    start_trace = _display_machine_position(start_machine, state, wcs_offsets)
+    end_trace = _display_machine_position(end_machine, state, wcs_offsets)
     return TraceMotion(
         move=state.move,
-        start_x=start_machine[0],
-        start_y=start_machine[1],
-        start_z=start_machine[2],
-        end_x=end_machine[0],
-        end_y=end_machine[1],
-        end_z=end_machine[2],
+        start_x=start_trace[0],
+        start_y=start_trace[1],
+        start_z=start_trace[2],
+        end_x=end_trace[0],
+        end_y=end_trace[1],
+        end_z=end_trace[2],
         feed=(None if state.move == 0 else state.feed),
         source_block=block.index,
         source_nlabel=block.nlabel,
         source_raw=block.raw,
         source_kind="g53",
+        start_tool_orientation=(
+            effective_orientation(state.kinematics, state.rotary_angles) if state.kinematics else None
+        ),
         plane=state.plane,
         compensation_mode=state.cutter_comp,
         compensation_applied=False,
@@ -212,7 +248,7 @@ def _g53_home_axes(
     wcs_offsets,
 ) -> tuple[str, ...]:
     """Return addressed G53 axes that deterministically target configured home."""
-    start_m = _machine((state.x, state.y, state.z), state, wcs_offsets)
+    start_m = _raw_machine_position(state, wcs_offsets)
     axes: list[str] = []
     for index, letter in enumerate(("X", "Y", "Z")):
         if letter not in words:
@@ -287,15 +323,18 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
             motions.append(m)
     elif 28 in gcodes:
         mid = _xyz(words, state)
-        start_machine = _machine((state.x, state.y, state.z), state, wcs_offsets)
-        intermediate_machine = _machine(mid, state, wcs_offsets)
+        start_machine = _raw_machine_position(state, wcs_offsets)
+        intermediate_machine = _reference_machine_position(_machine(mid, state, wcs_offsets), state, wcs_offsets)
         path = reference_return(
             start_machine,
             intermediate_machine,
             home,
             tuple(axis in words for axis in ("X", "Y", "Z")),
         )
-        for segment_start, segment_end in path.segments:
+        _validate_reference_path(state, path.segments, words, wcs_offsets)
+        for machine_start, machine_end in path.segments:
+            segment_start = _display_machine_position(machine_start, state, wcs_offsets)
+            segment_end = _display_machine_position(machine_end, state, wcs_offsets)
             checkpoint("generated_motions")
             motions.append(
                 TraceMotion(
@@ -311,10 +350,13 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
                     source_nlabel=block.nlabel,
                     source_raw=block.raw,
                     source_kind="g28",
+                    start_tool_orientation=(
+                        effective_orientation(state.kinematics, state.rotary_angles) if state.kinematics else None
+                    ),
                     tool=state.active_tool,
                 )
             )
-        _set_machine_position(state, path.target, wcs_offsets)
+        _set_raw_machine_position(state, path.target, wcs_offsets)
     elif state.cycle == 80 and (
         any(k in words for k in ("X", "Y", "Z"))
         or any(g in (0, 1, 2, 3) for g in gcodes)

@@ -296,3 +296,16 @@ def test_full_mill_export_rejects_wcs_change_after_motion():
     assert result.ok, result.diagnostics
     with pytest.raises(ValueError, match="changes WCS offsets after motion"):
         export_full_mill_program(result, source.splitlines())
+
+
+@pytest.mark.parametrize(
+    ("profile", "rotary_word"),
+    [("5ax_table_ac_angled", "A30 C45"), ("5ax_table_bc_angled", "B30 C45")],
+)
+def test_flattened_mill_export_rejects_g43_4_tcp_motion(profile, rotary_word):
+    source = f"G90 G0 X0 Y0 Z0\nG43.4 H1\nG1 X10 Y20 Z30 {rotary_word} F100\nG49\nM30"
+    result = execute(source, language="fanuc_mill", kinematics=profile)
+    assert result.ok and result.complete, result.diagnostics
+
+    with pytest.raises(ValueError, match="cannot preserve G43.4 TCP rotary commands"):
+        export_full_mill_program(result, source.splitlines())

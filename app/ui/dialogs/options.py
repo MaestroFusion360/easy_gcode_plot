@@ -128,7 +128,7 @@ def _apply_cnc_options(window, ui):
     window.ignoreBlockSkip = ui.ignoreBlockSkipCheck.isChecked()
     window.commentStyle = SEMICOLON if ui.commentStyleCombo.currentIndex() else DEFAULT_COMMENT_STYLE
     window.co, window.ci = comment_markers(window.commentStyle)
-    window.lexer.set_comment_style(window.commentStyle)
+    window.lexer.set_comment_style(getattr(window, "_document_comment_style", None) or window.commentStyle)
 
 
 def _apply_editor_display_options(window):

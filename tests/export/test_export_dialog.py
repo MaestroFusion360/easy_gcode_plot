@@ -35,6 +35,41 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     assert dialog.ui.arcOutputCmbBox.count() == 4
     assert dialog.ui.incrCmbBox.itemText(0) == "G90 Absolute"
     assert dialog.ui.incrCmbBox.itemText(1) == "G91 Incremental"
+    assert dialog.targetCncCombo.count() == 3
+    assert dialog.targetCncCombo.itemText(0) == "As source (no conversion)"
+    assert dialog.targetCncCombo.itemText(1) == "FANUC milling"
+    assert dialog.targetCncCombo.itemText(2) == "SINUMERIK 840D ISO-M (G291)"
+    target_row = dialog.ui.gridLayout.getItemPosition(
+        next(
+            index
+            for index in range(dialog.ui.gridLayout.count())
+            if dialog.ui.gridLayout.itemAt(index).widget() is dialog.targetCncCombo
+        )
+    )[0]
+    export_type_row = dialog.ui.gridLayout.getItemPosition(
+        next(
+            index
+            for index in range(dialog.ui.gridLayout.count())
+            if dialog.ui.gridLayout.itemAt(index).widget() is dialog.ui.langCmbBox
+        )
+    )[0]
+    assert target_row < export_type_row
+    dialog.ui.langCmbBox.setCurrentIndex(MILL_FULL_PROGRAM_MODE)
+    assert dialog.targetCncCombo.isEnabled()
+    assert not dialog.targetCncCombo.model().item(1).isEnabled()
+    assert dialog.targetCncCombo.model().item(2).isEnabled()
+
+    dialog.targetCncCombo.setCurrentIndex(2)
+    assert dialog.ui.seqNumCmbBox.isEnabled()
+    assert dialog.ui.seqStartSpinBox.isEnabled()
+    assert dialog.ui.delimCmbBox.isEnabled()
+    assert dialog.ui.leadingZeroCmbBox.isEnabled()
+    assert dialog.ui.safLineCmbBox.isEnabled()
+    assert dialog.ui.startLineEdit.isEnabled()
+    assert dialog.ui.endLineEdit.isEnabled()
+    dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+    assert not dialog.targetCncCombo.isEnabled()
+    dialog.ui.langCmbBox.setCurrentIndex(MILL_FULL_PROGRAM_MODE)
 
     window.ui.actionLatheMode.setChecked(True)
     qt_app.processEvents()
@@ -95,6 +130,21 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     window.deleteLater()
 
 
+def test_export_dialog_disables_conversion_to_detected_sinumerik_source(qt_app, tmp_path):
+    window = MainWindow()
+    dialog = window.exportDlg
+    window.curFile = str(tmp_path / "part.mpf")
+    window.ui.editor.setText("G291\nG21 G17 G90\nG0 X0 Y0\nM30\n")
+    window.exportTargetCnc = 2
+
+    dialog.loadSettings()
+
+    assert dialog.targetCncCombo.model().item(1).isEnabled()
+    assert not dialog.targetCncCombo.model().item(2).isEnabled()
+    assert dialog.targetCncCombo.currentIndex() == 0
+    window.deleteLater()
+
+
 def test_export_dialog_cancel_discards_all_pending_values(qt_app):
     window = MainWindow()
     dialog = window.exportDlg
@@ -104,6 +154,7 @@ def test_export_dialog_cancel_discards_all_pending_values(qt_app):
         window.forceAdr,
         window.startPgmExp,
         window.seqNumStart,
+        window.exportTargetCnc,
     )
     dialog.show()
     dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
@@ -111,6 +162,7 @@ def test_export_dialog_cancel_discards_all_pending_values(qt_app):
     dialog.ui.forceCmbBox.setCurrentIndex(1)
     dialog.ui.startLineEdit.setText("O9999")
     dialog.ui.seqStartSpinBox.setValue(900)
+    dialog.targetCncCombo.setCurrentIndex(2)
     dialog.reject()
 
     assert (
@@ -119,5 +171,6 @@ def test_export_dialog_cancel_discards_all_pending_values(qt_app):
         window.forceAdr,
         window.startPgmExp,
         window.seqNumStart,
+        window.exportTargetCnc,
     ) == original
     window.deleteLater()

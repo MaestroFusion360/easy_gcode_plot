@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+from threading import Event
 from types import SimpleNamespace
 
 import ezdxf
@@ -9,8 +10,9 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 from app import main_window
-from app.gcode.exporter import DXF_MODE
+from app.gcode.exporter import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions
 from app.gcode.kernel import execute
+from app.gcode.source_mode import SOURCE_DIALECT_FANUC, SOURCE_DIALECT_SINUMERIK
 from app.gcode.trace_tools import render_trace
 from app.ui.windows import main_window_file_ops
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
@@ -206,7 +208,10 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     )
     MainWindowFileMixin.openFile(window)
     assert calls[-1][1:4] == ("Open", str(tmp_path), main_window_file_ops.NC_FILE_FILTER)
-    assert "*.ptp" in main_window_file_ops.NC_FILE_FILTER.split(";;", 1)[0]
+    nc_filter = main_window_file_ops.NC_FILE_FILTER.split(";;", 1)[0]
+    assert "*.ptp" in nc_filter
+    assert "*.mpf" in nc_filter
+    assert "*.spf" in nc_filter
 
     saved = []
     monkeypatch.setattr(
@@ -217,6 +222,169 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     window = SimpleNamespace(curFile="", saveFile=lambda path: saved.append(path) or True)
     assert MainWindowFileMixin.saveAs(window) is True
     assert saved == [str(save_target) + ".nc"]
+
+
+@pytest.mark.parametrize(
+    ("source", "target_cnc", "source_dialect", "expected"),
+    [
+        (
+            "O0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n",
+            2,
+            SOURCE_DIALECT_FANUC,
+            "G291\nO0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
+        ),
+        (
+            "G291\nO0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n",
+            1,
+            SOURCE_DIALECT_SINUMERIK,
+            "O0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
+        ),
+    ],
+)
+def test_full_program_export_converts_target_dialect_without_expanding(
+    source, target_cnc, source_dialect, expected, tmp_path
+):
+    result = execute(source, language="fanuc_mill", source_dialect=source_dialect)
+    assert result.ok and result.complete
+    output = tmp_path / "converted.nc"
+
+    main_window_file_ops._write_export(
+        None,
+        dxf_export=False,
+        path=str(output),
+        result=result,
+        render_points=(),
+        lathe_mode=False,
+        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, None, "utf-8", target_cnc, source_dialect, {}),
+        cancellation=Event(),
+    )
+
+    assert output.read_text(encoding="utf-8") == expected
+
+
+@pytest.mark.parametrize(
+    ("source", "target_cnc", "source_dialect"),
+    [
+        ("G21 G17 G90\nG0 X0 Y0\nM30\n", 1, SOURCE_DIALECT_FANUC),
+        ("G291\nG21 G17 G90\nG0 X0 Y0\nM30\n", 2, SOURCE_DIALECT_SINUMERIK),
+    ],
+)
+def test_full_program_export_rejects_same_source_and_target_dialect(source, target_cnc, source_dialect, tmp_path):
+    result = execute(source, language="fanuc_mill", source_dialect=source_dialect)
+    output = tmp_path / "same-dialect.nc"
+
+    with pytest.raises(ValueError, match="already"):
+        main_window_file_ops._write_export(
+            None,
+            dxf_export=False,
+            path=str(output),
+            result=result,
+            render_points=(),
+            lathe_mode=False,
+            text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, None, "utf-8", target_cnc, source_dialect, {}),
+            cancellation=Event(),
+        )
+
+    assert not output.exists()
+
+
+def test_full_program_conversion_applies_formatting_without_changing_geometry(tmp_path):
+    source = "O0001\nN5 G21 G17 G90\nN10 G0 X0 Y0\nN20 G1 X10 F100\nM30\n"
+    result = execute(source, language="fanuc_mill")
+    output = tmp_path / "formatted.mpf"
+    options = ExportOptions(
+        sequence_numbers=True,
+        sequence_start=100,
+        sequence_increment=10,
+        delimiter=True,
+        leading_zero=True,
+    )
+
+    main_window_file_ops._write_export(
+        None,
+        dxf_export=False,
+        path=str(output),
+        result=result,
+        render_points=(),
+        lathe_mode=False,
+        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, options, "utf-8", 2, SOURCE_DIALECT_FANUC, {}),
+        cancellation=Event(),
+    )
+
+    assert output.read_text(encoding="utf-8") == (
+        "N100 G291\nO0001\nN110 G21 G17 G90\nN120 G00 X0 Y0\nN130 G01 X10 F100\nN140 M30\n"
+    )
+
+
+def test_full_program_conversion_applies_start_end_and_safety_options(tmp_path):
+    source = "O0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
+    result = execute(source, language="fanuc_mill")
+    output = tmp_path / "program-wrappers.mpf"
+    options = ExportOptions(start_program="O0002", end_program="M30", safety_line=True, delimiter=True)
+
+    main_window_file_ops._write_export(
+        None,
+        dxf_export=False,
+        path=str(output),
+        result=result,
+        render_points=(),
+        lathe_mode=False,
+        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, options, "utf-8", 2, SOURCE_DIALECT_FANUC, {}),
+        cancellation=Event(),
+    )
+
+    assert output.read_text(encoding="utf-8") == (
+        "G291\nO0002\nG80\nG0 G17 G40 G49 G90\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
+    )
+
+
+def test_full_program_conversion_can_remove_frame_numbers_and_spaces(tmp_path):
+    source = "G291\nO0001\nN5 G21 G17 G90\nN10 G0 X0 Y0\nN20 G1 X10 F100\nM30\n"
+    result = execute(source, language="fanuc_mill", source_dialect=SOURCE_DIALECT_SINUMERIK)
+    output = tmp_path / "compact.nc"
+    options = ExportOptions(sequence_numbers=False, delimiter=False)
+
+    main_window_file_ops._write_export(
+        None,
+        dxf_export=False,
+        path=str(output),
+        result=result,
+        render_points=(),
+        lathe_mode=False,
+        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, options, "utf-8", 1, SOURCE_DIALECT_SINUMERIK, {}),
+        cancellation=Event(),
+    )
+
+    assert output.read_text(encoding="utf-8") == "O0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n"
+
+
+def test_full_program_conversion_validates_with_the_gui_wcs_offsets(tmp_path):
+    source = "G21 G17 G90\nG54\nG0 X0 Y0\nG1 X10 F100\nM30\n"
+    execution_options = {"wcs_offsets": {54: (125.0, -40.0, 0.0)}}
+    result = execute(source, language="fanuc_mill", **execution_options)
+    output = tmp_path / "wcs.mpf"
+
+    main_window_file_ops._write_export(
+        None,
+        dxf_export=False,
+        path=str(output),
+        result=result,
+        render_points=(),
+        lathe_mode=False,
+        text_snapshot=(
+            source,
+            MILL_FULL_PROGRAM_MODE,
+            0,
+            ExportOptions(delimiter=True),
+            "utf-8",
+            2,
+            SOURCE_DIALECT_FANUC,
+            execution_options,
+        ),
+        cancellation=Event(),
+    )
+
+    assert output.read_text(encoding="utf-8").startswith("G291\n")
 
 
 def test_cp1251_ptp_opens_and_saves_in_original_encoding(qt_app, tmp_path, monkeypatch):
@@ -328,3 +496,36 @@ def test_successful_open_remembers_file_directory(qt_app, tmp_path, monkeypatch)
 
     assert window.settings.value("FILE/LAST_OPEN_DIRECTORY") == str(tmp_path)
     window.deleteLater()
+
+
+def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, tmp_path, monkeypatch):
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    try:
+        native = tmp_path / "native.mpf"
+        native.write_text("%_N_NATIVE_MPF\n; native source\nN10 G290\nCYCLE800(1,2,3)\n", encoding="utf-8")
+        window.loadFile(str(native))
+        assert window._document_source_dialect == "sinumerik"
+        assert window._document_arc_type == 2
+        assert window._document_comment_style == "semicolon"
+        assert window.lexer.comment_style == "semicolon"
+        assert window.ui.actionAbsolute.isChecked()
+
+        iso = tmp_path / "iso.spf"
+        iso.write_text("%_N_ISO_SPF\nN10 G291\nN20 G90 G54\nN30 G0 X10\n", encoding="utf-8")
+        window.loadFile(str(iso))
+        assert window._document_source_dialect == "sinumerik"
+        assert window._document_arc_type is None
+        assert window._document_comment_style is None
+        assert window.lexer.comment_style == window.commentStyle
+
+        fanuc = tmp_path / "ordinary_fanuc.mpf"
+        fanuc.write_text("G21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n", encoding="utf-8")
+        window.loadFile(str(fanuc))
+        assert window._document_source_dialect == "fanuc"
+        assert window._document_arc_type is None
+        assert window._document_comment_style is None
+        assert window.lexer.comment_style == window.commentStyle
+    finally:
+        window.deleteLater()
