@@ -143,6 +143,7 @@ class Export(QDialog):
                 QCoreApplication.translate("ExportOptDlg", "As source (no conversion)"),
                 QCoreApplication.translate("ExportOptDlg", "FANUC milling"),
                 QCoreApplication.translate("ExportOptDlg", "SINUMERIK 840D ISO-M (G291)"),
+                QCoreApplication.translate("ExportOptDlg", "SINUMERIK 840D native"),
             )
         )
         grid = self.ui.gridLayout
@@ -199,7 +200,10 @@ class Export(QDialog):
     def _apply_and_export(self):
         self.exportMode()
         self.parent().exportTargetCnc = (
-            self.targetCncCombo.currentIndex() if self.ui.langCmbBox.currentIndex() == MILL_FULL_PROGRAM_MODE else 0
+            self.targetCncCombo.currentIndex()
+            if self.ui.langCmbBox.currentIndex() in (MILL_FULL_PROGRAM_MODE, EXPANDED_EXECUTION_MODE)
+            and not self.parent().latheMode
+            else 0
         )
         self.arcMode()
         self.forceAdr(self.ui.forceCmbBox.currentIndex())
@@ -227,8 +231,11 @@ class Export(QDialog):
         """Enable only options consumed by the selected exporter."""
         dxf = self.ui.langCmbBox.currentIndex() == DXF_MODE
         full_mill = self.ui.langCmbBox.currentIndex() == MILL_FULL_PROGRAM_MODE
-        self.targetCncLabel.setEnabled(full_mill)
-        self.targetCncCombo.setEnabled(full_mill)
+        resolved_mill = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE and not self.parent().latheMode
+        resolved_conversion = resolved_mill and self.targetCncCombo.currentIndex() != 0
+        self.targetCncLabel.setEnabled(full_mill or resolved_mill)
+        self.targetCncCombo.setEnabled(full_mill or resolved_mill)
+        self._sync_target_cnc_choices()
         source_editing_controls = (
             (self.ui.label_StartText, self.ui.startLineEdit),
             (self.ui.label_EndText, self.ui.endLineEdit),
@@ -242,20 +249,30 @@ class Export(QDialog):
             (self.ui.labelLeadingZero, self.ui.leadingZeroCmbBox),
         )
         for label, control in source_editing_controls:
-            label.setEnabled(not dxf)
-            control.setEnabled(not dxf)
+            label.setEnabled(not dxf and not resolved_conversion)
+            control.setEnabled(not dxf and not resolved_conversion)
         for label, control in formatting_controls:
             label.setEnabled(not dxf)
             control.setEnabled(not dxf)
 
         converted = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
         turning_expanded = converted and bool(self.parent().latheMode)
-        self.ui.labelForce.setEnabled(converted)
-        self.ui.forceCmbBox.setEnabled(converted)
-        self.ui.label_Incr.setEnabled(converted)
-        self.ui.incrCmbBox.setEnabled(converted)
+        self.ui.labelForce.setEnabled(converted and not resolved_conversion)
+        self.ui.forceCmbBox.setEnabled(converted and not resolved_conversion)
+        self.ui.label_Incr.setEnabled(converted and not resolved_conversion)
+        self.ui.incrCmbBox.setEnabled(converted and not resolved_conversion)
         self.ui.arcOutputLabel.setEnabled(converted and not turning_expanded)
         self.ui.arcOutputCmbBox.setEnabled(converted and not turning_expanded)
+        self._sync_resolved_arc_choices(resolved_conversion)
+
+    def _sync_resolved_arc_choices(self, resolved):
+        model = self.ui.arcOutputCmbBox.model()
+        native = self.targetCncCombo.currentIndex() == 3
+        allowed = {1, 3} if native else {0, 2, 3}
+        for index in range(self.ui.arcOutputCmbBox.count()):
+            model.item(index).setEnabled(not resolved or index in allowed)
+        if resolved and self.ui.arcOutputCmbBox.currentIndex() not in allowed:
+            self.ui.arcOutputCmbBox.setCurrentIndex(1 if native else 0)
 
     def _sync_target_cnc_choices(self):
         """Disable conversion to the dialect already used by the open program."""
@@ -263,12 +280,16 @@ class Export(QDialog):
         source = str(parent.ui.editor.text())
         source_dialect = source_dialect_for_path(getattr(parent, "curFile", None), source)
         model = self.targetCncCombo.model()
+        resolved = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
         fanuc_item = model.item(1) if hasattr(model, "item") else None
         sinumerik_item = model.item(2) if hasattr(model, "item") else None
         if fanuc_item is not None:
-            fanuc_item.setEnabled(source_dialect != SOURCE_DIALECT_FANUC)
+            fanuc_item.setEnabled(resolved or source_dialect != SOURCE_DIALECT_FANUC)
         if sinumerik_item is not None:
-            sinumerik_item.setEnabled(source_dialect != SOURCE_DIALECT_SINUMERIK)
+            sinumerik_item.setEnabled(resolved or source_dialect != SOURCE_DIALECT_SINUMERIK)
+        native_item = model.item(3) if hasattr(model, "item") else None
+        if native_item is not None:
+            native_item.setEnabled(resolved)
         current_item = model.item(self.targetCncCombo.currentIndex()) if hasattr(model, "item") else None
         if current_item is not None and not current_item.isEnabled():
             self.targetCncCombo.setCurrentIndex(0)

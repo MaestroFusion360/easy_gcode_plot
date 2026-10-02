@@ -41,10 +41,12 @@ def _add_export_options(command: argparse.ArgumentParser) -> None:
     command.add_argument("--format", choices=("nc", "dxf"), default="nc", help="Output format")
     command.add_argument(
         "--target-dialect",
-        choices=("sinumerik840d",),
+        choices=("fanuc_mill", "sinumerik_iso", "sinumerik_native", "sinumerik840d"),
         help="Postprocess milling geometry for SINUMERIK 840D",
     )
-    command.add_argument("--mode", choices=("expanded", "full", "cycles"), default="expanded", help="NC export mode")
+    command.add_argument(
+        "--mode", choices=("expanded", "resolved", "full", "cycles"), default="expanded", help="NC export mode"
+    )
     command.add_argument("--units", choices=("auto", "mm", "inch"), default="auto", help="Output units")
     command.add_argument(
         "--arc-type",

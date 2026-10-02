@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import replace
 
 from ..kernel import ExecutionResult, TraceMotion
+from ..kernel.geometry.arc_segments import split_arc
 from ..kernel.runtime.events import PROGRAM_END, PROGRAM_START, SUBPROGRAM_END, SUBPROGRAM_START, TOOL_CHANGE
 from .common import (
     _check_cancelled,
@@ -105,7 +107,20 @@ def _append_expanded_motion(
     *,
     override_move: int | None = None,
     turning: bool = False,
+    cancelled=None,
 ) -> None:
+    if (
+        motion.arc is not None
+        and motion.arc.sweep > math.tau + 1e-10
+        and options.arc_mode not in (3, 4)
+        and options.resolved_target != "sinumerik_native"
+    ):
+        for segment in split_arc(motion, math.pi / 2 if options.arc_mode == 2 else math.pi):
+            _check_cancelled(cancelled)
+            _append_expanded_motion(
+                lines, segment, options, index, override_move=override_move, turning=turning, cancelled=cancelled
+            )
+        return
     motion = scale_motion(motion, options.output_unit_scale)
 
     def append_line(line: str) -> None:
@@ -209,12 +224,13 @@ def export_result(result: ExecutionResult, options: ExportOptions | None = None,
                         motion_index,
                         override_move=threading_code,
                         turning=turning,
+                        cancelled=cancelled,
                     )
                 motion_index += 1
     else:
         for motion_index, motion in enumerate(result.motions):
             _check_cancelled(cancelled)
-            _append_expanded_motion(lines, motion, options, motion_index, turning=turning)
+            _append_expanded_motion(lines, motion, options, motion_index, turning=turning, cancelled=cancelled)
 
     if options.include_execution_events:
         _append_blank_line(lines)

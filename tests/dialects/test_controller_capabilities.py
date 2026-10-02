@@ -80,7 +80,7 @@ def test_macro_b_is_rejected_before_evaluation_or_dispatch(monkeypatch):
 
 
 def test_unknown_native_syntax_cannot_be_partially_executed():
-    for operation in ("TRAORI", "CYCLE800(1,2,3)", "R1=10", "G1 X=10", "TRANS X10", "CALL PART"):
+    for operation in ("TRAORI", "CYCLE800(1,2,3)", "R1=R2+10", "G1 X=R99", "TRANS X10", "CALL PART"):
         result = _sinumerik("G0 X1\n" + operation + "\nG0 X99")
         assert not result.ok and not result.complete
         assert result.diagnostics[0].status == "unsupported"

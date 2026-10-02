@@ -179,7 +179,7 @@ _GENERAL_SETTINGS = (
 )
 
 _EXPORT_SETTINGS = (
-    _SettingSpec("TARGET_CNC", "exportTargetCnc", 0, int, lambda value: value if value in {0, 1, 2} else 0),
+    _SettingSpec("TARGET_CNC", "exportTargetCnc", 0, int, lambda value: value if value in {0, 1, 2, 3} else 0),
     _SettingSpec("FORCE_ADDRESS", "forceAdr", False, bool),
     _SettingSpec("INCREMENTAL_MODE", "incrMode", False, bool),
     _SettingSpec("START_PROGRAM", "startPgmExp", "O0001", str),

@@ -30,6 +30,7 @@ class MillState(MachineRuntimeState):
     twp: TiltedWorkPlane = field(default_factory=TiltedWorkPlane)
     cycle: int = 80
     native_cycle: object | None = None
+    siemens_parameters: dict[int, float] = field(default_factory=dict)
     cycle_z: float | None = None
     cycle_r: float | None = None
     cycle_q: float | None = None

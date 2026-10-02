@@ -15,9 +15,9 @@ from app.ui.plot.stl import read_stl, stl_face_colors, stl_feature_edges
 from app.ui.plot.stl_transform import measure_mesh
 from app.ui.plot.toolpath_vbo import ToolpathVboItem
 
-STL_FIXTURE = Path(__file__).resolve().parents[2] / "assets" / "stl" / "test.stl"
-STL_CAMERA_FIXTURE = Path(__file__).resolve().parents[2] / "assets" / "stl" / "test2.stl"
-STL_SECTION_FIXTURE = Path(__file__).resolve().parents[2] / "assets" / "stl" / "test4.stl"
+STL_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test.stl"
+STL_CAMERA_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test2.stl"
+STL_SECTION_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test4.stl"
 
 
 @pytest.fixture(scope="module")

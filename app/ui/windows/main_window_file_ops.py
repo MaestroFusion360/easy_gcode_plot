@@ -4,6 +4,7 @@ import logging
 import os
 import time
 from copy import deepcopy
+from dataclasses import replace
 from pathlib import Path
 from threading import Event
 
@@ -13,6 +14,8 @@ from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 from app.gcode.comments import SEMICOLON
 from app.gcode.export import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions, _window_export_options, export_program
 from app.gcode.export.dxf import export_dxf
+from app.gcode.export.options import EXPANDED_EXECUTION_MODE
+from app.gcode.export.resolved import convert_resolved_program
 from app.gcode.export.sinumerik import convert_full_program_to_fanuc, convert_full_program_to_sinumerik
 from app.gcode.export.source_formatting import format_full_program_source
 from app.gcode.export.validation import validate_full_program_dialect_conversion
@@ -186,7 +189,7 @@ def _export_target(owner):
     if dxf_export and Path(path).suffix.casefold() != ".dxf":
         path = str(Path(path).with_suffix(".dxf"))
     elif not dxf_export and not Path(path).suffix:
-        path += ".mpf" if int(getattr(owner, "exportTargetCnc", 0)) == 2 else ".nc"
+        path += ".mpf" if int(getattr(owner, "exportTargetCnc", 0)) in (2, 3) else ".nc"
     return path, dxf_export
 
 
@@ -311,7 +314,11 @@ def _write_export(
     source, mode, export_arc_mode, export_options, file_encoding, target_cnc, source_dialect, execution_options = (
         text_snapshot
     )
-    if target_cnc:
+    if target_cnc and not lathe_mode and mode == EXPANDED_EXECUTION_MODE:
+        target = {1: "fanuc_mill", 2: "sinumerik_iso", 3: "sinumerik_native"}[target_cnc]
+        resolved_options = replace(export_options or ExportOptions(), arc_mode=export_arc_mode)
+        text = convert_resolved_program(result, target, resolved_options, cancelled=cancellation.is_set)
+    elif target_cnc:
         if lathe_mode or mode != MILL_FULL_PROGRAM_MODE:
             raise ValueError("SINUMERIK/FANUC dialect conversion is available only for milling Full Program export")
         text = _convert_full_program_dialect(

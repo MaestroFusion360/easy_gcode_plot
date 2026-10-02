@@ -88,4 +88,5 @@ def resolve_arc(motion, *, source_arc_type=1):
         center = next((c for c in candidates if (sweep(c) <= math.pi + 1e-10) == (motion.radius >= 0)), candidates[0])
     else:
         raise SemanticError("INVALID_GEOMETRY", "Arc requires IJK or R", "invalid_geometry")
-    return replace(motion, arc=ArcGeometry(tuple(center), radius, sweep(center), motion.plane, clockwise, full))
+    total_sweep = sweep(center) + motion.additional_turns * 2 * math.pi
+    return replace(motion, arc=ArcGeometry(tuple(center), radius, total_sweep, motion.plane, clockwise, full))

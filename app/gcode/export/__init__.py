@@ -18,6 +18,7 @@ from .options import (
     ExportOptions,
     _window_export_options,
 )
+from .resolved import convert_resolved_program
 from .trace import export_result
 from .turn import export_cycle_groups, export_full_program
 
@@ -35,6 +36,7 @@ __all__ = [
     "export_pgm",
     "export_program",
     "export_result",
+    "convert_resolved_program",
     "motion_line",
 ]
 

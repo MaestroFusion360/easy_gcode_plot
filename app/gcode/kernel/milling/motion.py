@@ -147,6 +147,7 @@ def _motion(
     return TraceMotion(
         move=state.move,
         source_arc_type=state.source_arc_type,
+        additional_turns=int(words.get("TURN", 0)),
         start_x=start_m[0],
         start_y=start_m[1],
         start_z=start_m[2],

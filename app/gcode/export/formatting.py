@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 
 from ..comments import DEFAULT_COMMENT_STYLE, extract_comments, format_comment, strip_comments
@@ -88,6 +89,10 @@ def motion_line(m: TraceMotion, options: ExportOptions, *, override_move: int | 
     move = m.move if override_move is None else override_move
     x, y, z = _axis_values(m, options)
     words: list[str] = [_g(move, options.leading_zero)]
+    if options.resolved_target == "sinumerik_native" and m.arc is not None:
+        turns = max(0, math.ceil(m.arc.sweep / math.tau - 1e-10) - 1)
+        if turns:
+            words.append(f"TURN={turns}")
 
     show_y = options.force_addresses or abs(y) > 1e-12 or abs(m.start_y) > 1e-12 or abs(m.end_y) > 1e-12
     axis_words = (

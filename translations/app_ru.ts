@@ -92,12 +92,12 @@
         <translation>© 2025–2026 MaestroFusion360</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/general.py" line="41"/>
+        <location filename="../app/ui/dialogs/general.py" line="42"/>
         <source>Version: {version}</source>
         <translation>Версия: {version}</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/general.py" line="43"/>
+        <location filename="../app/ui/dialogs/general.py" line="45"/>
         <source>Easy G-code Plot is a G-code viewer, editor and analyzer for turning and milling. Supports FANUC, Macro B, turning and milling cycles, and SINUMERIK 840D three-axis CAM trajectories. Includes toolpath playback, stock removal simulation and program export.</source>
         <translation>Easy G-code Plot — просмотрщик, редактор и анализатор G-кода для точения и фрезерования. Поддерживает FANUC, Macro B, токарные и фрезерные циклы, а также трёхосевые траектории CAM для SINUMERIK 840D. Включает воспроизведение траектории, моделирование снятия материала и экспорт программ.</translation>
     </message>
@@ -304,24 +304,29 @@
         <translation>ЛИНЕАРИЗОВАНО</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/general.py" line="135"/>
+        <location filename="../app/ui/dialogs/general.py" line="137"/>
         <source>Target CNC</source>
         <translation>Целевой тип ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/general.py" line="141"/>
+        <location filename="../app/ui/dialogs/general.py" line="143"/>
         <source>As source (no conversion)</source>
         <translation>Как в исходной программе</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/general.py" line="142"/>
+        <location filename="../app/ui/dialogs/general.py" line="144"/>
         <source>FANUC milling</source>
         <translation>FANUC (фрезерная)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/general.py" line="143"/>
+        <location filename="../app/ui/dialogs/general.py" line="145"/>
         <source>SINUMERIK 840D ISO-M (G291)</source>
         <translation>SINUMERIK 840D ISO-M (G291)</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/general.py" line="146"/>
+        <source>SINUMERIK 840D native</source>
+        <translation>SINUMERIK 840D (нативный)</translation>
     </message>
 </context>
 <context>
@@ -580,12 +585,12 @@
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
         <location filename="../app/ui/windows/main_window_editor_ops.py" line="323"/>
         <location filename="../app/ui/windows/main_window_editor_ops.py" line="330"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="500"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="565"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="630"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="655"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="702"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="721"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="507"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="572"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="637"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="662"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="709"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="728"/>
         <source>Easy G-code Plot</source>
         <translation>Easy G-code Plot</translation>
     </message>
@@ -1089,8 +1094,8 @@
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="898"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="764"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="785"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="771"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="792"/>
         <source>Tool List</source>
         <translation>Список инструментов</translation>
     </message>
@@ -1250,161 +1255,161 @@
         <translation>Отмена расчёта траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="141"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="144"/>
         <source>line {0}</source>
         <translation>строка {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="146"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="149"/>
         <source>Source: {0}</source>
         <translation>Исходный блок: {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="158"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="161"/>
         <source>Export failed</source>
         <translation>Ошибка экспорта</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="161"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="164"/>
         <source>Export is unavailable because CNC execution is invalid or incomplete.</source>
         <translation>Экспорт недоступен: выполнение программы ЧПУ содержит ошибки или не завершено.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="166"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="169"/>
         <source>Correct the diagnostics below and run the export again.</source>
         <translation>Исправьте перечисленные ниже проблемы и повторите экспорт.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="169"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="172"/>
         <source>The program could not be exported.</source>
         <translation>Не удалось экспортировать программу.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="437"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="444"/>
         <source>Recent Files</source>
         <translation>Недавние файлы</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="464"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="511"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="471"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="518"/>
         <source>(Empty)</source>
         <translation>(Пусто)</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="519"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="526"/>
         <source>Clear Recent</source>
         <translation>Очистить список</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="501"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="566"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="508"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="573"/>
         <source>File not found:
 {0}</source>
         <translation>Файл не найден:
 {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="447"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="454"/>
         <source>Recent STL</source>
         <translation>Недавние STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="472"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="479"/>
         <source>Clear Recent STL</source>
         <translation>Очистить список STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="631"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="638"/>
         <source>The document has been modified.
 Do you want to save your changes?</source>
         <translation>Документ был изменён.
 Сохранить изменения?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="656"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="663"/>
         <source>Cannot read file %s:
 %s.</source>
         <translation>Не удалось прочитать файл %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="703"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="710"/>
         <source>The file was changed by another application. Overwrite those changes?</source>
         <translation>Файл был изменён другим приложением. Перезаписать эти изменения?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="396"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="403"/>
         <source>Reload file</source>
         <translation>Загрузить файл заново</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="387"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="394"/>
         <source>This file has been modified by another program.
 Do you want to reload it from disk?</source>
         <translation>Этот файл изменён другой программой.
 Загрузить его заново с диска?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="391"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="398"/>
         <source>Reloading will discard your unsaved changes.</source>
         <translation>Несохранённые изменения будут потеряны.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="722"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="729"/>
         <source>Cannot write file %s:
 %s.</source>
         <translation>Не удалось записать файл %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="749"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="756"/>
         <source>%s[*] - Easy G-code Plot</source>
         <translation>%s[*] - Easy G-code Plot</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="766"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="773"/>
         <source>Text files (*.txt);;All files (*)</source>
         <translation>Текстовые файлы (*.txt);;Все файлы (*)</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="786"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="793"/>
         <source>Cannot write tool list %s:
 %s.</source>
         <translation>Не удалось записать список инструментов %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="790"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="797"/>
         <source>Tool list exported to %s</source>
         <translation>Список инструментов экспортирован в %s</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="808"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="815"/>
         <source>No valid CNC execution result is available for export</source>
         <translation>Нет корректного результата выполнения программы ЧПУ для экспорта</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="832"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="839"/>
         <source>Export</source>
         <translation>Экспорт</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="833"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="840"/>
         <source>Exporting program…</source>
         <translation>Экспорт программы…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="834"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="841"/>
         <source>Cancelling export…</source>
         <translation>Отмена экспорта…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="837"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="844"/>
         <source>Export cancelled.</source>
         <translation>Экспорт отменён.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="846"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="853"/>
         <source>Export Execution time: {0:.3f} ms</source>
         <translation>Время экспорта: {0:.3f} мс</translation>
     </message>

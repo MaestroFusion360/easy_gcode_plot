@@ -30,6 +30,7 @@ class NativeMillingSyntax:
     supa: bool = False
     cycle_code: int | None = None
     cycle_args: tuple[str, ...] = ()
+    parameter_assignment: tuple[int, str] | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,1311 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Редактирование токарных и фрезерных управляющих программ, расчёт траекторий и просмотр перемещений инструмента в 3D. Поддерживаются FANUC и часть команд SINUMERIK 840D."
+    />
+    <meta name="theme-color" content="#151619" />
+    <title>Easy G-Code Plot — Редактор и визуализатор программ ЧПУ</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="alternate" hreflang="en" href="../index.html" />
+    <link rel="alternate" hreflang="ru" href="../ru/index.html" />
+    <script src="../downloads.js" defer></script>
+  </head>
+
+  <body>
+    <a class="skip" href="#main">К содержанию</a>
+    <header class="site-header">
+      <div class="container header-inner">
+        <a class="brand" href="../index.html"
+          ><img src="../assets/logo.svg" width="36" height="36" alt="" /><span
+            >Easy G-Code Plot</span
+          ></a
+        >
+        <nav aria-label="Основная навигация">
+          <a href="#capabilities">Поддержка команд</a
+          ><a href="#visualization">Интерфейс</a><a href="#execution">Расчёт</a
+          ><a href="#automation">CLI и экспорт</a>
+        </nav>
+      </div>
+    </header>
+    <main id="main" class="container">
+      <section class="hero" aria-labelledby="hero-title">
+        <p class="eyebrow">Windows / Linux <span>·</span> GUI / CLI</p>
+        <h1 id="hero-title">Редактор и визуализатор программ ЧПУ</h1>
+        <p class="lead">
+          Редактирование токарных и фрезерных управляющих программ, расчёт
+          траекторий и просмотр перемещений инструмента в 3D. Поддерживаются
+          FANUC и часть команд SINUMERIK 840D.
+        </p>
+        <ul class="tags">
+          <li>G-код FANUC</li>
+          <li>FANUC Macro B</li>
+          <li>SINUMERIK 840D</li>
+          <li>Модели STL и экспорт DXF</li>
+          <li>Генераторы координат карманов и отверстий</li>
+        </ul>
+        <div class="actions">
+          <a
+            class="button primary"
+            data-windows-download="gui"
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+            >Скачать для Windows</a
+          ><a
+            class="button"
+            data-windows-download="cli"
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe"
+            >Скачать CLI для Windows</a
+          ><a
+            class="button"
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
+            >Документация</a
+          ><a
+            class="text-link"
+            href="https://github.com/MaestroFusion360/easy_gcode_plot"
+            >GitHub</a
+          >
+        </div>
+        <p class="note">
+          Сборки для Linux также доступны на
+          <a
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+            >странице релиза</a
+          >.
+        </p>
+        <figure class="hero-image">
+          <img
+            src="../assets/img2.gif"
+            width="1280"
+            height="640"
+            alt="Фрезерная траектория в Easy G-Code Plot"
+            fetchpriority="high"
+            decoding="async"
+          />
+          <figcaption>
+            Редактор управляющей программы и 3D-траектория
+          </figcaption>
+        </figure>
+      </section>
+      <section id="capabilities" class="section">
+        <div class="section-heading">
+          <h2>Поддерживаемые команды и циклы</h2>
+        </div>
+        <div class="controller-reference">
+          <h3>FANUC: токарная обработка — Type A / Type B</h3>
+          <details class="code-table">
+            <summary>FANUC Turning Type A / Type B</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="FANUC Turning Type A / Type B"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Операция</th>
+                    <th scope="col">Type A</th>
+                    <th scope="col">Type B</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Быстрый ход</td>
+                    <td>G00</td>
+                    <td>G00</td>
+                  </tr>
+                  <tr>
+                    <td>Линейное движение</td>
+                    <td>G01</td>
+                    <td>G01</td>
+                  </tr>
+                  <tr>
+                    <td>Дуга по часовой</td>
+                    <td>G02</td>
+                    <td>G02</td>
+                  </tr>
+                  <tr>
+                    <td>Дуга против часовой</td>
+                    <td>G03</td>
+                    <td>G03</td>
+                  </tr>
+                  <tr>
+                    <td>Выдержка</td>
+                    <td>G04</td>
+                    <td>G04</td>
+                  </tr>
+                  <tr>
+                    <td>Нарезание резьбы</td>
+                    <td>G32</td>
+                    <td>G33</td>
+                  </tr>
+                  <tr>
+                    <td>Система координат / ограничение шпинделя</td>
+                    <td>G50</td>
+                    <td>G92</td>
+                  </tr>
+                  <tr>
+                    <td>Чистовой цикл</td>
+                    <td>G70</td>
+                    <td>G70</td>
+                  </tr>
+                  <tr>
+                    <td>Черновое точение</td>
+                    <td>G71</td>
+                    <td>G71</td>
+                  </tr>
+                  <tr>
+                    <td>Черновая подрезка торца</td>
+                    <td>G72</td>
+                    <td>G72</td>
+                  </tr>
+                  <tr>
+                    <td>Повторение контура</td>
+                    <td>G73</td>
+                    <td>G73</td>
+                  </tr>
+                  <tr>
+                    <td>Сверление торца</td>
+                    <td>G74</td>
+                    <td>G74</td>
+                  </tr>
+                  <tr>
+                    <td>Канавки OD/ID</td>
+                    <td>G75</td>
+                    <td>G75</td>
+                  </tr>
+                  <tr>
+                    <td>Многопроходная резьба</td>
+                    <td>G76</td>
+                    <td>G76</td>
+                  </tr>
+                  <tr>
+                    <td>Простой цикл точения</td>
+                    <td>G90</td>
+                    <td>G77</td>
+                  </tr>
+                  <tr>
+                    <td>Простой резьбовой цикл</td>
+                    <td>G92</td>
+                    <td>G78</td>
+                  </tr>
+                  <tr>
+                    <td>Простой цикл торцевания</td>
+                    <td>G94</td>
+                    <td>G79</td>
+                  </tr>
+                  <tr>
+                    <td>Подача в минуту</td>
+                    <td>G98</td>
+                    <td>G94</td>
+                  </tr>
+                  <tr>
+                    <td>Подача на оборот</td>
+                    <td>G99</td>
+                    <td>G95</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details class="code-table">
+            <summary>Токарные циклы</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="Токарные циклы"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Type A</th>
+                    <th scope="col">Type B</th>
+                    <th scope="col">Назначение в ядре</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>G70</td>
+                    <td>G70</td>
+                    <td>Чистовой контур P-Q</td>
+                  </tr>
+                  <tr>
+                    <td>G71</td>
+                    <td>G71</td>
+                    <td>Продольная обдирка</td>
+                  </tr>
+                  <tr>
+                    <td>G72</td>
+                    <td>G72</td>
+                    <td>Торцевая обдирка</td>
+                  </tr>
+                  <tr>
+                    <td>G73</td>
+                    <td>G73</td>
+                    <td>Обдирка повторением шаблона</td>
+                  </tr>
+                  <tr>
+                    <td>G74</td>
+                    <td>G74</td>
+                    <td>
+                      Сверление/прорезка торца с периодическим выводом по Z
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G75</td>
+                    <td>G75</td>
+                    <td>Сверление/прорезка по X с периодическим выводом</td>
+                  </tr>
+                  <tr>
+                    <td>G76</td>
+                    <td>G76</td>
+                    <td>Двухстрочная многопроходная резьба</td>
+                  </tr>
+                  <tr>
+                    <td>G83</td>
+                    <td>G83</td>
+                    <td>Осевое сверление с периодическим выводом</td>
+                  </tr>
+                  <tr>
+                    <td>G84</td>
+                    <td>G84</td>
+                    <td>Осевое нарезание резьбы метчиком</td>
+                  </tr>
+                  <tr>
+                    <td>G90</td>
+                    <td>G77</td>
+                    <td>Модальный цикл продольного точения</td>
+                  </tr>
+                  <tr>
+                    <td>G92</td>
+                    <td>G78</td>
+                    <td>Модальный цикл резьбы</td>
+                  </tr>
+                  <tr>
+                    <td>G94</td>
+                    <td>G79</td>
+                    <td>Модальный цикл торцевой обработки</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details class="code-table">
+            <summary>Поведение циклов</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="Поведение токарных циклов"
+              tabindex="0"
+            >
+              <table class="cycle-description">
+                <thead>
+                  <tr>
+                    <th scope="col">Цикл</th>
+                    <th scope="col">Описание</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row"><code>G70</code></th>
+                    <td>
+                      <p>
+                        <code>G70 P... Q...</code> строит указанный чистовой
+                        контур и подходит к нему из фактической позиции вызова
+                        G70.
+                      </p>
+                      <p>
+                        Чистовой путь основан на номинальном профиле P-Q, а не
+                        на профиле со смещением обдирки, используемом
+                        G71/G72/G73.
+                      </p>
+                      <p>
+                        Если активна компенсация радиуса при вершине резца и
+                        может быть проверена, чистовой контур использует
+                        компенсированный профиль.
+                      </p>
+                      <p>
+                        После группы чистовой обработки цикл возвращается в
+                        сохранённую позицию вызова, используя детерминированный
+                        порядок возврата точения проекта.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G71</code></th>
+                    <td>
+                      <p>Моделируется обычная двухстрочная форма FANUC:</p>
+                      <pre><code class="language-text">G71 U... R...
+G71 P... Q... U... W... F...
+</code></pre>
+                      <p>
+                        Первая строка фиксирует глубину обдирки и отвод. Вторая
+                        строка задаёт профиль P-Q, припуски на чистовую
+                        обработку и подачу.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G72</code></th>
+                    <td>
+                      <p>
+                        G72 использует ту же инфраструктуру профиля P-Q, что и
+                        G71, но выполняет торцевую обдирку в плоскостях Z.
+                      </p>
+                      <p>Типичная двухстрочная форма:</p>
+                      <pre><code class="language-text">G72 W... R...
+G72 P... Q... U... W... F...
+</code></pre>
+                      <p>
+                        Первая строка фиксирует осевую глубину и отвод. Вторая
+                        строка ссылается на профиль и припуски на чистовую
+                        обработку.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G73</code></th>
+                    <td>
+                      <p>
+                        G73 реализован как повторяющиеся смещённые копии профиля
+                        обдирки.
+                      </p>
+                      <p>
+                        Первая строка фиксирует общее смещение шаблона U/W и
+                        количество проходов R. Вторая строка задаёт P/Q,
+                        припуски на чистовую обработку и подачу.
+                      </p>
+                      <p>
+                        Знаки запрограммированных U/W сохраняются. Цикл не
+                        выводит направление смещения из того, как инструмент
+                        случайно подошёл к контуру.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G74</code></th>
+                    <td>
+                      <p>
+                        G74 поддерживает поведение периодического вывода по Z и
+                        повторение в стиле прорезки торца.
+                      </p>
+                      <p>
+                        Первый блок, содержащий только R, может установить
+                        расстояние отвода. Исполняющий блок может использовать
+                        X/U и Z/W плюс параметры P/Q/R/F.
+                      </p>
+                      <p>
+                        Если целевое значение X не задано, G74 может работать
+                        как сверление по Z в стиле периодического вывода на
+                        текущем X.
+                      </p>
+                      <p>
+                        Когда запрашивается повторение по X, P управляет шагом
+                        X, а Q управляет глубиной периодического вывода по Z.
+                        Цикл возвращается к сохранённому началу, используя явный
+                        порядок возврата сначала по Z.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G75</code></th>
+                    <td>
+                      <p>
+                        G75 выполняет периодический вывод/радиальную прорезку по
+                        X.
+                      </p>
+                      <p>
+                        P управляет радиальным шагом периодического вывода. Q
+                        может повторять канавки вдоль Z. Если Q опущен,
+                        запрограммированный Z/W выбирает одно место канавки, а
+                        не рассматривается как недопустимое повторение с нулевым
+                        шагом.
+                      </p>
+                      <p>
+                        Значение R из установочного блока управляет расстоянием
+                        отвода, а значение R исполняющего блока обрабатывается
+                        как припуск по дну, где применимо.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G76</code></th>
+                    <td>
+                      <p>
+                        Моделируемая форма — двухстрочный G76 в стиле FANUC:
+                      </p>
+                      <pre><code class="language-text">G76 P...... Q... R...
+G76 X... Z... P... Q... R... F...
+</code></pre>
+                      <p>Первый блок хранит:</p>
+                      <ul>
+                        <li>упакованные управляющие цифры P;</li>
+                        <li>минимальное радиальное приращение Q;</li>
+                        <li>необязательный припуск на чистовую обработку R.</li>
+                      </ul>
+                      <p>Второй блок задаёт:</p>
+                      <ul>
+                        <li>конечный X резьбы;</li>
+                        <li>конечный Z;</li>
+                        <li>высоту резьбы P;</li>
+                        <li>первый рез Q;</li>
+                        <li>необязательную конусность R;</li>
+                        <li>шаг F.</li>
+                      </ul>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G83</code></th>
+                    <td>
+                      <p>G83 — осевой цикл сверления по Z.</p>
+                      <ul>
+                        <li>
+                          Если задан Q, генерируются периодические выводы по Z.
+                        </li>
+                        <li>
+                          Если Q отсутствует, ядро не выдумывает глубину
+                          периодического вывода; оно выдаёт один ход подачи на
+                          глубину и ускоренный возврат.
+                        </li>
+                        <li>
+                          Необязательное позиционирование по X обрабатывается
+                          перед осевым ходом и восстанавливается после.
+                        </li>
+                      </ul>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G84</code></th>
+                    <td>
+                      <p>
+                        G84 — осевой цикл нарезания резьбы метчиком. Ход вниз и
+                        возврат являются синхронизированными движениями подачи;
+                        возврат не представлен как ускоренное перемещение.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G90</code></th>
+                    <td>
+                      <p>
+                        Да. G90 устанавливает цикл продольного прямоугольного
+                        точения. Последующие блоки только с X/U могут продолжать
+                        активный цикл на новых диаметрах до отмены другим явным
+                        кодом движения/цикла.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G92</code></th>
+                    <td>
+                      <p>Пример:</p>
+                      <pre><code class="language-text">G92 X18 Z-10 F1.5
+X17.5
+X17.0
+</code></pre>
+                      <p>
+                        Начальный G92 устанавливает конец резьбы и шаг.
+                        Последующие блоки только с X/U продолжают активный цикл
+                        G92 с новыми глубинами до отмены другим явным режимом
+                        движения/цикла.
+                      </p>
+                      <p>
+                        Каждый проход раскрывается в примитивы подхода,
+                        синхронизированного продольного резания, отвода и
+                        возврата.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G94</code></th>
+                    <td>
+                      <p>
+                        Да. G94 устанавливает цикл торцевой прямоугольной
+                        обработки. Последующие блоки только с Z/W могут
+                        продолжать активный цикл на новых положениях торца до
+                        отмены.
+                      </p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <p class="note">
+            G71 Type II поддерживает профили с карманами с учётом ограничений.
+            G72 Type II отклоняет несколько раздельных участков в одной
+            плоскости торцевания (UNSUPPORTED_G72_TYPE_II_SPANS). G76
+            поддерживает углы инструмента 0°, 29°, 30°, 55°, 60° и 80°;
+            остальные вызывают UNSUPPORTED_G76_TOOL_ANGLE.
+          </p>
+          <p class="note">
+            <a
+              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#циклы-точения"
+              >Параметры и ограничения в FAQ →</a
+            >
+          </p>
+        </div>
+        <div class="controller-reference">
+          <h3>FANUC: фрезерование</h3>
+          <details class="code-table">
+            <summary>Фрезерные G-функции</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="Фрезерные G-функции"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">G-код</th>
+                    <th scope="col">Функция в ядре</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>G00</td>
+                    <td>Быстрое позиционирование</td>
+                  </tr>
+                  <tr>
+                    <td>G01</td>
+                    <td>Линейная интерполяция</td>
+                  </tr>
+                  <tr>
+                    <td>G02 / G03</td>
+                    <td>Круговая интерполяция по / против часовой стрелки</td>
+                  </tr>
+                  <tr>
+                    <td>G04</td>
+                    <td>Сигнал выдержки времени без перемещения</td>
+                  </tr>
+                  <tr>
+                    <td>G10</td>
+                    <td>
+                      Программирование смещений WCS (<code>L2</code>,
+                      <code>L20</code>)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G15 / G16</td>
+                    <td>Отмена / включение полярных координат</td>
+                  </tr>
+                  <tr>
+                    <td>G17 / G18 / G19</td>
+                    <td>Выбор плоскости XY / XZ / YZ</td>
+                  </tr>
+                  <tr>
+                    <td>G20 / G21</td>
+                    <td>Входные единицы: дюймы / миллиметры</td>
+                  </tr>
+                  <tr>
+                    <td>G28</td>
+                    <td>Возврат в заданную опорную точку</td>
+                  </tr>
+                  <tr>
+                    <td>G40 / G41 / G42</td>
+                    <td>Отмена / левая / правая компенсация радиуса фрезы</td>
+                  </tr>
+                  <tr>
+                    <td>G43 / G49</td>
+                    <td>
+                      Учитывают / отменяют состояние коррекции длины; G43 не
+                      применяет H к траектории
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G43.4</td>
+                    <td>
+                      Непрерывные TCP-перемещения G0/G1 для включённых угловых
+                      профилей стола AC/BC; дуги с поворотом и сочетание с G68.2
+                      не поддерживаются
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G50 / G51</td>
+                    <td>Отмена / включение масштабирования координат</td>
+                  </tr>
+                  <tr>
+                    <td>G52</td>
+                    <td>Локальное смещение координат</td>
+                  </tr>
+                  <tr>
+                    <td>G53</td>
+                    <td>Немодальное движение в координатах станка</td>
+                  </tr>
+                  <tr>
+                    <td>G54–G59</td>
+                    <td>Выбор рабочей системы координат</td>
+                  </tr>
+                  <tr>
+                    <td>G54.1 P1–P99</td>
+                    <td>
+                      Разбирается и выбирается; в GUI нет настройки смещения,
+                      поэтому оно нулевое, если программа не задаёт его через
+                      G10 L20
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G65</td>
+                    <td>Вызов программы Macro B</td>
+                  </tr>
+                  <tr>
+                    <td>G68 / G69</td>
+                    <td>Включение / отмена поворота координат</td>
+                  </tr>
+                  <tr>
+                    <td>G68.2 / G53.1</td>
+                    <td>
+                      Наклонная рабочая плоскость / ориентация оси инструмента
+                      (3+2, <code>fanuc_mill</code> с двухосевой кинематикой
+                      стол-стол, голова-голова или голова-стол)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G73</td>
+                    <td>
+                      Цикл высокоскоростного сверления с периодическим выводом
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G80</td>
+                    <td>Отмена постоянного цикла</td>
+                  </tr>
+                  <tr>
+                    <td>G81</td>
+                    <td>Цикл сверления</td>
+                  </tr>
+                  <tr>
+                    <td>G82</td>
+                    <td>Цикл сверления с выдержкой</td>
+                  </tr>
+                  <tr>
+                    <td>G83</td>
+                    <td>Цикл сверления с полным выводом</td>
+                  </tr>
+                  <tr>
+                    <td>G84</td>
+                    <td>Цикл нарезания резьбы метчиком</td>
+                  </tr>
+                  <tr>
+                    <td>G85</td>
+                    <td>Цикл растачивания с возвратом на подаче</td>
+                  </tr>
+                  <tr>
+                    <td>G86</td>
+                    <td>Цикл растачивания с сигналом остановки шпинделя</td>
+                  </tr>
+                  <tr>
+                    <td>G90 / G91</td>
+                    <td>Абсолютное / инкрементальное программирование</td>
+                  </tr>
+                  <tr>
+                    <td>G94 / G95</td>
+                    <td>Подача в минуту / на оборот</td>
+                  </tr>
+                  <tr>
+                    <td>G98 / G99</td>
+                    <td>
+                      Возврат на исходную плоскость / плоскость R в постоянном
+                      цикле
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details class="code-table">
+            <summary>Фрезерные M-функции</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="Фрезерные M-функции"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">M-код</th>
+                    <th scope="col">Функция в ядре</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>M00 / M01</td>
+                    <td>Сигнал остановки / необязательной остановки</td>
+                  </tr>
+                  <tr>
+                    <td>M02 / M30</td>
+                    <td>Завершение программы</td>
+                  </tr>
+                  <tr>
+                    <td>M03 / M04 / M05</td>
+                    <td>
+                      Сигналы вращения шпинделя по / против часовой стрелки /
+                      остановки
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>M06</td>
+                    <td>Событие смены выбранного инструмента T</td>
+                  </tr>
+                  <tr>
+                    <td>M07</td>
+                    <td>
+                      Распознаётся; действие для конкретной системы охлаждения
+                      не моделируется
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>M08 / M09</td>
+                    <td>Сигналы включения / выключения охлаждения</td>
+                  </tr>
+                  <tr>
+                    <td>M19</td>
+                    <td>
+                      Сигнал ориентации шпинделя; S в этом блоке задаёт угол, а
+                      не обороты
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>M29</td>
+                    <td>
+                      Подготовка жёсткого резьбонарезания; S в этом блоке задаёт
+                      обороты для следующего G84
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>M98 / M99</td>
+                    <td>Вызов подпрограммы / возврат из неё</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <details class="code-table">
+            <summary>Поведение фрезерных циклов</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="Поведение фрезерных циклов"
+              tabindex="0"
+            >
+              <table class="cycle-description">
+                <thead>
+                  <tr>
+                    <th scope="col">Команда</th>
+                    <th scope="col">Описание</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <th scope="row"><code>G73 / G83</code></th>
+                    <td>
+                      <p>
+                        G73 — высокоскоростное сверление с периодическим выводом
+                        с коротким промежуточным отводом. G83 использует
+                        поведение сверления с полным отводом, моделируемое общим
+                        слоем сверления.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G82</code></th>
+                    <td>
+                      <p>
+                        G82 включает свою семантику выдержки, но выдержка сама
+                        по себе не создаёт пространственной геометрии.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G84</code></th>
+                    <td>
+                      <p>
+                        Нарезание резьбы G84 возвращается с глубины как
+                        синхронизированное движение подачи, а не как ускоренное
+                        перемещение.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G86</code></th>
+                    <td>
+                      <p>
+                        Цикл моделирует семантику остановки шпинделя вместе со
+                        своим поведением сверления/возврата.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <th scope="row"><code>G98 / G99</code></th>
+                    <td>
+                      <p>
+                        Для циклов фрезерования G98/G99 выбирают поведение
+                        возврата цикла. Это не значения режима подачи точения
+                        G98/G99.
+                      </p>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <p class="note">
+            <a
+              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#fanuc-фрезерование"
+              >Параметры и ограничения в FAQ →</a
+            >
+          </p>
+        </div>
+        <div class="controller-reference">
+          <h3>SINUMERIK 840D ISO-M — G291</h3>
+          <details class="code-table">
+            <summary>SINUMERIK ISO-M</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="SINUMERIK ISO-M"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Функция ISO-M</th>
+                    <th scope="col">Поддержка и ограничения</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>G290 / G291</td>
+                    <td>
+                      Отдельные кадры переключают режим SINUMERIK / ISO-M.
+                      Выполнение MPF/SPF начинается в режиме SINUMERIK.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>XYZ / G90 / G91</td>
+                    <td>
+                      Трёхосевые перемещения, включая приращения. Поворотные оси
+                      и TCP не поддерживаются.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G2 / G3 / IJK</td>
+                    <td>
+                      ISO-M использует относительные центры дуг; SINUMERIK —
+                      абсолютные. Каждая дуга рассчитывается в активном режиме
+                      контроллера.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G54 P1–P48</td>
+                    <td>
+                      Расширенные рабочие смещения. G54.1 в исходной программе и
+                      другие дробные G-коды отклоняются.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G50 / G51</td>
+                    <td>
+                      Масштабирование координат; G51 использует коэффициент
+                      P/1000.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>G68 / G69</td>
+                    <td>
+                      Отдельный кадр 2D-поворота при G90, координаты центра в
+                      активной плоскости и R. Формы с I/J/K, приращением угла и
+                      3D-вектором отклоняются.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Циклы и единицы</td>
+                    <td>
+                      В пределах ISO-M поддерживаются общие целочисленные
+                      фрезерные G-коды, выбор единиц, системы координат и
+                      отдельные стандартные циклы.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Macro B / ISO-T</td>
+                    <td>
+                      Поток управления Macro B и ISO Dialect T не
+                      поддерживаются. Неподдерживаемые ISO-функции вызывают
+                      диагностику.
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <p class="note">
+            <a
+              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#sinumerik-840d"
+              >Параметры и ограничения в FAQ →</a
+            >
+          </p>
+        </div>
+        <div class="controller-reference">
+          <h3>SINUMERIK 840D: нативный режим — G290</h3>
+          <details class="code-table">
+            <summary>SINUMERIK native</summary>
+            <div
+              class="table-wrap"
+              role="region"
+              aria-label="SINUMERIK native"
+              tabindex="0"
+            >
+              <table>
+                <thead>
+                  <tr>
+                    <th scope="col">Нативная функция</th>
+                    <th scope="col">Текущее поведение</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <code>G0/G1</code>, <code>G2/G3</code>,
+                      <code>G17/G18/G19</code>, <code>CR=</code>
+                    </td>
+                    <td>
+                      Позиционирование XYZ и дуги в выбранной плоскости;
+                      отрицательный <code>CR</code> задаёт большую дугу
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>G90/G91</code>, <code>G54</code>–<code>G59</code>,
+                      <code>G710</code>
+                    </td>
+                    <td>
+                      Абсолютные/приращённые координаты, рабочие смещения и
+                      метрические единицы
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>G40/G41/G42</code></td>
+                    <td>
+                      Моделируемая радиусная компенсация по настроенному
+                      инструменту
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>T</code>, <code>M6</code>, <code>D0/D1</code>,
+                      <code>S</code>, базовые M-команды
+                    </td>
+                    <td>
+                      Смена инструмента, выбор/отмена моделируемой режущей
+                      кромки, сигналы шпинделя и СОЖ; таблицы коррекций
+                      контроллера не моделируются
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>G0 SUPA ... D0</code></td>
+                    <td>
+                      Немодальное перемещение в машинных координатах;
+                      <code>SUPA Z0</code> означает машинный ноль независимо от
+                      home Z
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <code>G64</code>, <code>MSG(...)</code>,
+                      <code>WORKPIECE(...)</code>, комментарии <code>;</code>
+                    </td>
+                    <td>
+                      Метаданные и комментарии; сглаживание траектории и
+                      геометрия заготовки по этим объявлениям не рассчитываются
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>MCALL CYCLE81/82/83/84(...)</code></td>
+                    <td>
+                      Модальное сверление/нарезание резьбы по Z в
+                      <code>G17/G40</code>, запускаемое последующими кадрами XY;
+                      отдельный <code>MCALL</code> отменяет цикл
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>CYCLE81/82</code></td>
+                    <td>
+                      Сверление и быстрый возврат, выдержка в секундах для
+                      <code>CYCLE82</code>; безопасная плоскость
+                      <code>RFP + SDIS</code>, возврат на <code>RTP</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>CYCLE83</code></td>
+                    <td>
+                      Первая глубина, уменьшение шага на заданную величину,
+                      минимальный шаг, дробление стружки/полный отвод и зазор
+                      повторного подхода в пределах реализованных параметров
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>CYCLE84</code></td>
+                    <td>
+                      Правая метрическая резьба за один проход в
+                      <code>G94</code>: положительный явный <code>PIT</code>,
+                      <code>_PITA=0/1</code>, <code>SDAC=3</code>, ось Z,
+                      положительный <code>SST</code>, равный заданному
+                      <code>S</code>; <code>SST1</code> равен ему либо
+                      нулевой/пропущен. Подача = шаг × обороты; возврат на
+                      подаче до <code>RFP+SDIS</code>, затем быстрый ход до
+                      <code>RTP</code>, возможна выдержка в секундах
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>CYCLE800()</code></td>
+                    <td>
+                      Пустой сброс принимается только без активного поворотного
+                      преобразования; параметризованная наклонная плоскость пока
+                      не реализована
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </details>
+          <p class="note">
+            Только трёхосевые траектории XYZ. Параметризованный CYCLE800,
+            TRAORI/TRAFOOF, поворотные оси и произвольные вызовы подпрограмм
+            Siemens не поддерживаются. Для R-параметров доступны числовые
+            присваивания и прямые ссылки; арифметические выражения и поток
+            управления Siemens не поддерживаются. CYCLE84 ограничен
+            однопроходным нарезанием правой метрической резьбы; глубокое
+            нарезание, левая резьба и разные скорости входа и выхода вызывают
+            диагностику.
+          </p>
+          <p class="note">
+            <a
+              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#sinumerik-840d"
+              >Параметры и ограничения в FAQ →</a
+            >
+          </p>
+        </div>
+      </section>
+      <section id="visualization" class="section">
+        <div class="section-heading">
+          <h2>Интерфейс и инструменты</h2>
+        </div>
+        <article class="story">
+          <figure>
+            <img
+              width="1280"
+              height="720"
+              src="../assets/impeller.gif"
+              alt="Просмотр траектории и моделей STL"
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+          <div>
+            <h3>Просмотр траектории и моделей STL</h3>
+            <p>
+              Пошаговый просмотр перемещений с переходом к соответствующей
+              строке УП. Загрузка моделей STL в текстовом и бинарном формате, их
+              позиционирование, поворот, копирование и построение сечений.
+            </p>
+          </div>
+        </article>
+        <article class="story">
+          <figure>
+            <img
+              width="1280"
+              height="720"
+              src="../assets/stock_removal.gif"
+              alt="Снятие материала при точении"
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+          <div>
+            <h3>Снятие материала при точении</h3>
+            <p>
+              Снятие материала рассчитывается по геометрии инструмента и
+              траектории. Поддерживаются наружное, внутреннее и торцевое
+              точение, канавки и резьбовые профили. Доступна прокрутка вперёд и
+              назад.
+            </p>
+          </div>
+        </article>
+        <article class="story">
+          <figure>
+            <img
+              width="1280"
+              height="720"
+              src="../assets/4ax_table.gif"
+              alt="Поворотные оси"
+              loading="lazy"
+              decoding="async"
+            />
+          </figure>
+          <div>
+            <h3>Поворотные оси</h3>
+            <p>
+              Профили поворотного стола A/B/C, позиционная обработка 3+2 с
+              G68.2/G53.1 и поддерживаемое подмножество перемещений G43.4 TCP.
+              Траектория отображается с учётом выбранного профиля кинематики.
+            </p>
+          </div>
+        </article>
+        <div class="feature-grid">
+          <article>
+            <h3>Редактор</h3>
+            <p>
+              Подсветка синтаксиса, поиск и замена, нумерация кадров, пропуск
+              кадров, шаблоны кода, переходы к сменам инструмента и просмотр
+              макропеременных.
+            </p>
+          </article>
+          <article>
+            <h3>Библиотека инструментов</h3>
+            <p>
+              Геометрия токарных и фрезерных инструментов, сохраняемая
+              библиотека SQLite и отдельный набор инструментов текущей
+              программы.
+            </p>
+          </article>
+          <article>
+            <h3>Генераторы геометрии</h3>
+            <p>
+              Круговые и прямоугольные схемы отверстий и карманы с
+              предварительным просмотром.
+            </p>
+          </article>
+        </div>
+      </section>
+      <section id="execution" class="section">
+        <div class="section-heading">
+          <h2>Расчёт траектории</h2>
+        </div>
+        <div class="prose">
+          <p>
+            Ядро обрабатывает переходы, переменные, циклы, системы координат и
+            коррекции инструмента. Рассчитанные перемещения используются для
+            3D-визуализации, пошагового просмотра, статистики и экспорта.
+            Графический интерфейс и CLI используют одно расчётное ядро.
+          </p>
+          <p>
+            Если неподдерживаемая команда влияет на положение инструмента, ядро
+            выдаёт диагностическое сообщение и отмечает результат как неполный.
+            Программа моделирует геометрию траектории, а не все физические
+            процессы станка с ЧПУ.
+          </p>
+        </div>
+      </section>
+      <section id="automation" class="section">
+        <div class="section-heading">
+          <h2>Экспорт и CLI</h2>
+        </div>
+        <div class="feature-grid">
+          <article>
+            <h3>NC</h3>
+            <p>
+              Full Program сохраняет структуру исходной программы в пределах
+              поддерживаемого экспорта. Expanded Execution выводит рассчитанные
+              перемещения после раскрытия циклов, макропрограмм и подпрограмм.
+            </p>
+          </article>
+          <article>
+            <h3>DXF / Plot Data</h3>
+            <p>
+              Экспорт геометрии рассчитанной траектории в DXF или данных
+              перемещений в Plot Data.
+            </p>
+          </article>
+          <article>
+            <h3>Командная строка</h3>
+            <p>
+              Команды parse, trace, analyze и export обрабатывают отдельные
+              программы. batch и batch-export обрабатывают дерево каталогов и
+              формируют отчёты.
+            </p>
+          </article>
+        </div>
+        <p class="note">
+          <a
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/README.md#cli"
+            >Команды CLI и примеры →</a
+          >
+        </p>
+      </section>
+      <section id="documentation" class="download">
+        <div>
+          <h2>Документация</h2>
+          <p>
+            Поддерживаемые команды, параметры, ограничения и примеры
+            использования.
+          </p>
+        </div>
+        <div class="actions">
+          <a
+            class="text-link"
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md"
+            lang="en"
+            >FAQ — English</a
+          >
+          <a
+            class="text-link"
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
+            lang="ru"
+            >FAQ — Русский</a
+          >
+        </div>
+      </section>
+    </main>
+    <footer>
+      <div class="container">
+        <div class="footer-inner">
+          <div class="footer-info">
+            <a class="brand" href="#main"
+              ><img
+                src="../assets/logo.svg"
+                width="36"
+                height="36"
+                alt=""
+              /><span>Easy G-Code Plot</span></a
+            >
+            <p>Редактор и визуализатор программ ЧПУ.</p>
+          </div>
+          <div class="footer-links">
+            <a href="https://github.com/MaestroFusion360/easy_gcode_plot"
+              >GitHub</a
+            >
+            <a
+              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
+              >Документация</a
+            >
+            <a
+              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/CHANGELOG.md"
+              >История изменений</a
+            >
+            <a href="https://github.com/MaestroFusion360/easy_gcode_plot/issues"
+              >Сообщить об ошибке</a
+            >
+          </div>
+        </div>
+        <div class="footer-bottom">
+          <div class="languages" role="group" aria-label="Язык">
+            <a href="../index.html" lang="en">EN</a
+            ><a href="../ru/index.html" lang="ru" aria-current="page">RU</a>
+          </div>
+          <span>© 2025–2026 MaestroFusion360</span
+          ><a
+            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/LICENSE.md"
+            >Лицензия MIT</a
+          >
+        </div>
+      </div>
+    </footer>
+  </body>
+</html>

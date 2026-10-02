@@ -97,6 +97,8 @@ def _helix_points(
 def _add_arc_or_circle(modelspace, motion: TraceMotion, layer: str, *, turning: bool) -> bool:
     """Add a planar analytical arc; return False for a non-planar helix."""
     assert motion.arc is not None
+    if motion.arc.sweep > math.tau + 1e-10:
+        return False
     start = _motion_point(motion, end=False, turning=turning)
     end = _motion_point(motion, end=True, turning=turning)
     center = _arc_center(motion, turning=turning)

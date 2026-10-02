@@ -18,6 +18,7 @@ from app.gcode.source_mode import SOURCE_DIALECT_SINUMERIK, source_dialect_for_p
 from .dispatch import export_program
 from .dxf import export_dxf
 from .options import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE, TURN_FULL_PROGRAM_MODE, ExportOptions
+from .resolved import MILLING_TARGETS, convert_resolved_program
 from .sinumerik import (
     convert_full_program_to_fanuc,
     convert_full_program_to_sinumerik,
@@ -82,6 +83,10 @@ def _validate_export_mode(request: ExportRequest, explicit: frozenset[str]) -> N
 
 
 def _validate_target_dialect(request: ExportRequest, explicit: frozenset[str]) -> None:
+    request = _canonical_full_target(request)
+    if request.mode == "resolved" or request.target_dialect in MILLING_TARGETS:
+        _validate_resolved_target(request)
+        return
     if request.target_dialect is None:
         return
     if request.target_dialect != "sinumerik840d":
@@ -95,6 +100,21 @@ def _validate_target_dialect(request: ExportRequest, explicit: frozenset[str]) -
     unavailable = explicit & {"arc_type", "coordinates", "force_addresses", "safety_line"}
     if unavailable:
         raise ValueError("SINUMERIK 840D output does not accept: " + ", ".join(sorted(unavailable)))
+
+
+def _canonical_full_target(request):
+    if request.mode == "full" and request.target_dialect in ("fanuc_mill", "sinumerik_iso"):
+        if request.language != "fanuc_mill" or request.format != "nc":
+            raise ValueError("Full Program milling targets require --lang fanuc_mill and NC format")
+        return replace(request, target_dialect="sinumerik840d" if request.target_dialect == "sinumerik_iso" else None)
+    return request
+
+
+def _validate_resolved_target(request):
+    if request.language != "fanuc_mill" or request.format != "nc" or request.mode not in ("expanded", "resolved"):
+        raise ValueError("Resolved milling targets require NC and --mode resolved (or expanded)")
+    if request.target_dialect not in (None, *MILLING_TARGETS) or request.coordinates != "absolute":
+        raise ValueError("Resolved conversion requires a supported milling target and absolute coordinates")
 
 
 def _validate_full_export_options(request: ExportRequest, explicit: frozenset[str]) -> None:
@@ -158,6 +178,12 @@ def _options(request: ExportRequest, arc_type: str | None) -> ExportOptions:
 
 
 def _arc_type(result: ExecutionResult, request: ExportRequest) -> str | None:
+    if request.mode == "resolved" or request.target_dialect in MILLING_TARGETS and request.mode == "expanded":
+        if request.arc_type == "linearized":
+            return "linearized"
+        if request.target_dialect == "sinumerik_native":
+            return "ijk-absolute"
+        return "radius" if request.arc_type == "radius" else "ijk-relative"
     if request.format != "nc" or request.mode != "expanded":
         return None
     if request.arc_type != "auto":
@@ -224,7 +250,7 @@ def _failed_export(result: ExecutionResult, code: str, message: str, started: fl
 
 
 def _preflight_export_failure(result: ExecutionResult, request: ExportRequest, started: float):
-    if request.target_dialect == "sinumerik840d":
+    if request.target_dialect in ("sinumerik840d", "sinumerik_iso") and request.mode == "full":
         diagnostic = sinumerik_iso_export_diagnostic(result)
         if diagnostic is not None:
             return _failed_export(result, diagnostic.code, diagnostic.message, started)
@@ -238,7 +264,8 @@ def _preflight_export_failure(result: ExecutionResult, request: ExportRequest, s
     }
     checks = (
         (
-            request.target_dialect == "sinumerik840d"
+            request.target_dialect in ("sinumerik840d", "sinumerik_iso")
+            and request.mode == "full"
             and any(item.code in target_compensation_diagnostics for item in result.diagnostics),
             "UNVERIFIED_TARGET_CUTTER_COMPENSATION",
             "SINUMERIK conversion requires cutter compensation to be resolved by the kernel",
@@ -343,7 +370,7 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
     failure = _preflight_export_failure(result, request, started)
     if failure is not None:
         return failure
-    if request.target_dialect != "sinumerik840d":
+    if request.target_dialect not in ("sinumerik840d", *MILLING_TARGETS) and request.mode != "resolved":
         _check_unit_conversion(result, request)
     arc_type = _arc_type(result, request)
     if request.format == "dxf":
@@ -355,7 +382,9 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         )
     else:
         options = _options(request, arc_type)
-        if request.target_dialect == "sinumerik840d":
+        if request.mode == "resolved" or request.target_dialect in MILLING_TARGETS and request.mode == "expanded":
+            text = convert_resolved_program(result, request.target_dialect or "fanuc_mill", options)
+        elif request.target_dialect in ("sinumerik840d", "sinumerik_iso"):
             text = convert_full_program_to_sinumerik(
                 source,
                 source_result=result,

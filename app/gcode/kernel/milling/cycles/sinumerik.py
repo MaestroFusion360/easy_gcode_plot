@@ -7,12 +7,14 @@ No text conversion or FANUC canned-cycle dispatch is used for native cycles.
 """
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from ...api.resources import SemanticError, checkpoint, require_progress
 from ...api.types import MachineSignal
+from ...frontend.ast import NativeMillingSyntax
 from ...runtime.cycles import CycleOutcome
 from ...runtime.drilling import AxialMove
+from ..sinumerik_parameters import parameter_value
 from ..state import _xyz
 from .drilling import _DRILL_BEHAVIOR, _expand_drilling_cycle, _ResolvedDrillingCycle
 
@@ -34,13 +36,14 @@ class NativeDrillingCycle:
     dwell: float = 0.0
     tapping_feed: float | None = None
     tapping_rpm: float | None = None
+    parameter_syntax: NativeMillingSyntax | None = None
 
 
 def _unsupported(message):
     raise SemanticError("UNSUPPORTED_SINUMERIK_CYCLE", message, "unsupported")
 
 
-def _arguments(syntax):
+def _arguments(syntax, parameters):
     count = {83: 20, 84: 24}.get(syntax.cycle_code, 9)
     args = syntax.cycle_args
     # Older CYCLE81 calls omit DTB: (...,DPR,GMODE,DMODE,AMODE).
@@ -48,7 +51,7 @@ def _arguments(syntax):
         args = args[:5] + ("",) + args[5:]
     if syntax.cycle_code not in (81, 82, 83, 84) or not 5 <= len(args) <= count:
         _unsupported("Only native MCALL CYCLE81/82/83/84 with modeled positional arguments is supported")
-    values = tuple(float(arg) if arg else None for arg in args) + (None,) * (count - len(args))
+    values = tuple(parameter_value(arg, parameters) if arg else None for arg in args) + (None,) * (count - len(args))
     if any(value is not None and not math.isfinite(value) for value in values):
         _unsupported("Cycle arguments must be finite numeric literals")
     if any(values[index] is None for index in (0, 1, 2)):
@@ -76,7 +79,14 @@ def _mode_checks(values, code, state):
 
 def compile_native_cycle(syntax, state):
     """Validate the complete declaration before committing modal cycle state."""
-    values = _arguments(syntax)
+    cycle = _compile_native_cycle(syntax, state)
+    if any(arg.upper().startswith("R") for arg in syntax.cycle_args):
+        cycle = replace(cycle, parameter_syntax=syntax)
+    return cycle
+
+
+def _compile_native_cycle(syntax, state):
+    values = _arguments(syntax, state.siemens_parameters)
     _mode_checks(values, syntax.cycle_code, state)
     rtp, rfp, sdis = values[:3]
     depth = _depth(values, rfp)
@@ -191,6 +201,8 @@ def execute_native_cycle(context):
     cycle = state.native_cycle
     if cycle is None or not any(axis in context.words for axis in ("X", "Y")):
         return CycleOutcome()
+    if cycle.parameter_syntax is not None:
+        cycle = _compile_native_cycle(cycle.parameter_syntax, state)
     x, y, _ = _xyz(context.words, state)
     resolved = _ResolvedDrillingCycle(
         x,
@@ -230,8 +242,6 @@ def _native_axial_moves(cycle, state):
 
 
 def _first_feed_factor(motions, factor):
-    from dataclasses import replace  # pylint: disable=import-outside-toplevel
-
     result, first = [], True
     for motion in motions:
         if motion.move == 1 and first:

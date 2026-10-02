@@ -37,6 +37,7 @@ class ExportOptions:
     output_unit_scale: float = 1.0
     output_unit_code: str = ""
     synthesize_program_number: bool = True
+    resolved_target: str | None = None
 
 
 def _turn_program_options(options: ExportOptions | None) -> ExportOptions:

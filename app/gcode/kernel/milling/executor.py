@@ -675,7 +675,7 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
 
     # Phase 2: evaluate the block once and establish its modal codes.
     evaluated_block = (
-        evaluate_native_block(block, ctx.runtime.variables)
+        evaluate_native_block(block, ctx.state)
         if ctx.runtime.controller_mode == "sinumerik_native" and block.native_syntax is not None
         else ctx.runtime.evaluate_block(block)
     )

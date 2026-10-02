@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.8.0 tree and explains the GUI, FANUC execution kernel, the supported SINUMERIK native and ISO-M subsets, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.8.1 tree and explains the GUI, FANUC execution kernel, the supported SINUMERIK native and ISO-M subsets, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -177,6 +177,12 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What does Hole Calculator generate?](#what-does-hole-calculator-generate)
     - [What does Pocket Calculator generate?](#what-does-pocket-calculator-generate)
     - [Where are snippets stored?](#where-are-snippets-stored)
+  - [Options and scene configuration](#options-and-scene-configuration)
+    - [How do I change the interface language?](#how-do-i-change-the-interface-language)
+    - [How do I change the theme?](#how-do-i-change-the-theme)
+    - [Where do I set work coordinate systems and home values?](#where-do-i-set-work-coordinate-systems-and-home-values)
+    - [How do I set turning stock dimensions?](#how-do-i-set-turning-stock-dimensions)
+    - [Is Stock Removal available for milling?](#is-stock-removal-available-for-milling)
   - [Turning Stock Removal](#turning-stock-removal)
     - [What is Turning Stock Removal?](#what-is-turning-stock-removal)
     - [How is automatic stock estimated?](#how-is-automatic-stock-estimated)
@@ -1754,6 +1760,55 @@ Older text snippets can be imported once while the original files are retained a
 
 ---
 
+## Options and scene configuration
+
+### How do I change the interface language?
+
+Open **Settings → Options → General**. In **Language**, choose **English** or **Russian**, then press **OK**. Restart Easy G-Code Plot to apply the language change; the application displays a restart notice. This setting changes the interface language, not the CNC dialect used to execute a program.
+
+### How do I change the theme?
+
+Open **Settings → Options → General**, select **Light** or **Dark** in **Theme**, and press **OK**. The theme is applied immediately without restarting. Language and theme choices are saved in the application configuration.
+
+### Where do I set work coordinate systems and home values?
+
+Open **Settings → WCS**. This is a separate dialog from Options.
+
+| Setting | How to use it |
+| --- | --- |
+| G54–G59 | Enter the X/Y/Z work offsets for each system. The program selects the active system with its G54–G59 command; editing a row does not insert that command into the program. |
+| Home (G28) | Enter the configured reference-return coordinates and use the home configuration checkbox to indicate whether they are configured. These values are used by the modeled G28 return. |
+| Turning X/Z | In turning mode, X fields use diameter values; Y fields are disabled. Z is an axial coordinate. |
+| Milling X/Y/Z | In milling mode, all three coordinate fields are available and X is a linear coordinate. |
+| Inches | Switch the displayed and entered lengths between millimetres and inches. Existing physical values are converted rather than reinterpreted as another unit. |
+
+Press **OK** to apply the values and recalculate the program. **Cancel** leaves the stored values unchanged. G54.1 extended offsets have no fields in this dialog; they remain zero unless set by supported program commands such as G10 L20.
+
+### How do I set turning stock dimensions?
+
+In turning mode, open **Settings → Stock**. Enter the initial blank dimensions before starting Stock Removal.
+
+| Control | Meaning |
+| --- | --- |
+| Outside diameter | Initial outside diameter of the blank. |
+| Inside diameter | Initial bore diameter; use zero for a solid blank. |
+| Length | Axial length of the blank. |
+| Stock front Z | Absolute Z coordinate of the front face. The rear face is at `front Z − length`; this field is not just an allowance thickness. |
+| Accuracy | Stock-model resolution. Higher accuracy gives a finer model and requires more processing time. |
+| Inches | Display and enter dimensions in inches instead of millimetres, preserving their physical size. |
+| Run Stock Removal when Play is pressed | Enable material-removal playback when pressing Play. |
+| Reset to Auto | Return to dimensions estimated from the current program's cutting trace. |
+
+Press **OK** to apply manual dimensions; **Cancel** discards the dialog edits. Manual dimensions remain active until **Reset to Auto**, **New**, or opening another program restores automatic sizing. Stock Removal requires a calculated, complete turning program and configured tool geometry. See [Turning Stock Removal](#turning-stock-removal) for automatic sizing and supported tools.
+
+### Is Stock Removal available for milling?
+
+No. Material removal is currently implemented for turning only. Milling does not yet have stock-removal simulation.
+
+For milling reference geometry, load an STL model and open **Settings → STL Objects**. The panel provides model positioning, rotation, copying, arrays, sections and statistics. It displays reference models alongside the toolpath; it does not subtract milling tool motions from the STL. See the [Interface, editor and playback](#interface-editor-and-playback) section for the panel workflow.
+
+---
+
 ## Turning Stock Removal
 
 ### What is Turning Stock Removal?
@@ -1768,7 +1823,7 @@ The resolved G1/G2/G3 cutting trace provides the minimum outside diameter and le
 
 ### Can stock dimensions be overridden manually?
 
-Yes. **Settings → Stock** allows explicit outside diameter, inside diameter, stock length, front allowance and accuracy/resolution.
+Yes. **Settings → Stock** allows explicit outside diameter, inside diameter, stock length, absolute front-face Z and accuracy/resolution. See [How do I set turning stock dimensions?](#how-do-i-set-turning-stock-dimensions) for the fields and playback setting.
 
 Manual values persist until Reset to Auto, New or opening another program returns the stock model to program-derived sizing.
 
@@ -2020,7 +2075,9 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 
 Cython accelerates contiguous literal position runs, with per-block capability validation before state changes. Controller-specific declarations and G290/G291 switches interrupt the current run, after which eligible positions resume acceleration. Positions inside an active MCALL cycle stay on the Python reference path until cancellation. Metadata or a native cycle elsewhere in the file does not disable acceleration for the whole program.
 
-Cycle parameters must be numeric literals within the implemented subset. Unsupported commands, modes and parameters stop execution with diagnostics before their geometry is emitted. Native variables, expressions, control flow, general Siemens subprogram calls and other native cycles are not implemented. SPF file recognition does not imply support for calling arbitrary Siemens subprograms.
+Numeric R assignments (`R1=500`) and direct references in `F/S/XYZ/IJK=Rn`, `CR=Rn`, `TURN=Rn` and supported cycle parameters are available. Siemens R state is independent of FANUC `#` variables and is fresh for each execution. Undefined references fail before the block changes state; cycle references are validated at declaration and each hole. Arithmetic such as `R1=R2+10` or `F=R1*0.8`, arrays, system variables, Siemens control flow and arbitrary subprogram calls remain unsupported. SPF recognition does not enable subprogram execution.
+
+Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc (IJK or CR, G40, no active MCALL), according to [Siemens](https://support.industry.siemens.com/cs/attachments/104985512/802Dsl_BPF_1006_en.pdf). The trace keeps one analytical arc/helix with the total sweep. Rendering, playback and statistics retain those turns; DXF uses a sampled polyline, and FANUC/ISO exporters split arcs only during serialization. The existing stock material-removal timeline supports turning; this release does not add milling stock removal. Standalone native `G4 F...` uses seconds and leaves modal feed unchanged; spindle-revolution dwell is not modeled.
 
 SINUMERIK kinematics currently supports only three-axis XYZ trajectories. Rotary-axis motion, tilted working planes and TCP transformations are not supported. Full support for `CYCLE800` and `TRAORI`/`TRAFOOF` is planned for future development; it is not available in this version.
 
@@ -2038,17 +2095,17 @@ The GUI Open/Save filters include `.mpf` and `.spf`. The CLI and batch scanner i
 
 ### Can FANUC milling programs be converted to SINUMERIK?
 
-Only to **SINUMERIK ISO Dialect M (`G291`)**, not native Siemens (`G290`). The CLI target `sinumerik840d` means ISO-M. Full Program supports **FANUC → ISO-M** and **ISO-M → FANUC**; full **FANUC ↔ native** conversion is not implemented.
+Yes, through **Resolved Program Conversion**: any supported three-axis FANUC, SINUMERIK ISO-M or native program can target `fanuc_mill`, `sinumerik_iso` or `sinumerik_native`. Execution resolves cycles and variables before target serialization. Output uses physical XYZ coordinates in one zero-offset G54 frame, absolute endpoint coordinates, and common tool/spindle/coolant controls. ISO starts with G291; native uses absolute IJK and preserves TURN where applicable; FANUC/ISO subdivide multiple-turn arcs. R parameters and Macro B are evaluated, not translated into each other.
 
-The GUI has **no SINUMERIK Native export target**. **SINUMERIK 840D ISO-M (G291)** in **Target CNC** means ISO-M only. The resolved-toolpath example below is a CLI command, not a native GUI export option. Opening and visualizing native MPF/SPF input does not provide native program export.
+In the GUI, choose **EXPANDED EXECUTION** and the desired **Target CNC**, including **SINUMERIK 840D native**. Source-preserving **MILL FULL PROGRAM** remains limited to proven FANUC/ISO-M conversion; native is disabled there. In CLI/batch-export, use `--mode resolved --target-dialect fanuc_mill|sinumerik_iso|sinumerik_native`; the new targets also work with `--mode expanded`. The existing `sinumerik840d` target remains an ISO-M Full Program alias.
 
-Native MPF/SPF input can export its resolved toolpath to FANUC with `--mode expanded`. Supported cycles become movements; native commands and source program structure are not preserved. This is trace export, not Full Program conversion:
+Supported cycles become movements and source structure is not preserved. For example, native input to FANUC resolved output:
 
 ```powershell
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded -o native_trace.nc
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode resolved --target-dialect fanuc_mill -o native_trace.nc
 ```
 
-Yes. Set `--lang fanuc_mill` for the milling interpreter and `--target-dialect sinumerik840d` for FANUC-to-SINUMERIK conversion. Conversion is available only with `--mode full`: it preserves every source block and adds a standalone `G291`. Converting an ISO-M `.mpf`/`.spf` to FANUC with `--mode full` removes the standalone `G291`. Only the verified three-axis ISO-M subset is supported. Programs using rotary axes with `4ax_table_a/b/c`, indexed or simultaneous 5-axis motion, TCP (`G43.4`) or tilted working-plane transforms are rejected before writing NC. The converter uses kernel execution facts and the selected kinematics, not inferred command equivalents; it never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile does not block an XYZ-only program; the restriction applies when rotary commands, TCP or tilted-plane transforms are actually used. Validation runs in the actual target ISO dialect, without a FANUC surrogate. FANUC multi-axis execution and plotting remain supported. SINUMERIK-target conversion is rejected when cutter compensation is unverified. `batch-export` follows the same full-program conversion and writes `.mpf` files for a SINUMERIK target.
+Yes. Set `--lang fanuc_mill` for the milling interpreter and `--target-dialect sinumerik840d` for FANUC-to-SINUMERIK conversion. This legacy target performs source-preserving conversion with `--mode full`: it preserves every source block and adds a standalone `G291`. Converting an ISO-M `.mpf`/`.spf` to FANUC with `--mode full` removes the standalone `G291`. Only the verified three-axis ISO-M subset is supported. Programs using rotary axes with `4ax_table_a/b/c`, indexed or simultaneous 5-axis motion, TCP (`G43.4`) or tilted working-plane transforms are rejected before writing NC. The converter uses kernel execution facts and the selected kinematics, not inferred command equivalents; it never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile does not block an XYZ-only program; the restriction applies when rotary commands, TCP or tilted-plane transforms are actually used. Validation runs in the actual target ISO dialect, without a FANUC surrogate. FANUC multi-axis execution and plotting remain supported. SINUMERIK-target conversion is rejected when cutter compensation is unverified. `batch-export` follows the same full-program conversion and writes `.mpf` files for a SINUMERIK target.
 
 In the GUI, open **File → Export**, select **MILL FULL PROGRAM**, then choose **FANUC milling** or **SINUMERIK 840D ISO-M (G291)** in **Target CNC**. Sequence numbering, word spacing and Leading Zero are applied to the preserved source blocks, then the formatted program is validated before writing. Start Program Text, End Program Text and Safety Line are also checked in the final output; changes to resolved motion geometry or machine signals prevent export.
 
@@ -2061,7 +2118,7 @@ For example:
 .\easy_gcode_plot_cli.exe batch-export C:\Fanuc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o C:\Siemens
 ```
 
-This full-program conversion changes only the standalone dialect switch; it does not translate controller-specific commands or validate machine configuration. It fails if target-dialect analysis reports diagnostics, changes the resolved motion trace or machine signals, or cutter compensation cannot be verified. Review and verify the result on the target control before machining. Expanded Execution remains available for trace export, but it is not the dialect converter.
+This full-program conversion changes only the standalone dialect switch; it does not translate controller-specific commands or validate machine configuration. It fails if target-dialect analysis reports diagnostics, changes the resolved motion trace or machine signals, or cutter compensation cannot be verified. Review and verify the result on the target control before machining. Expanded Execution with an explicit milling target performs resolved conversion; its default output remains the analysis trace.
 
 For SINUMERIK ISO-M input, `export --mode full` removes the standalone `G291` switch to produce a FANUC milling program after target-dialect validation. DXF exports resolved geometry. The converter does not translate FANUC turning or emit arbitrary native Siemens cycles and machine-specific commands; successful analysis is not machine validation.
 

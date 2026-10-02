@@ -35,10 +35,11 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     assert dialog.ui.arcOutputCmbBox.count() == 4
     assert dialog.ui.incrCmbBox.itemText(0) == "G90 Absolute"
     assert dialog.ui.incrCmbBox.itemText(1) == "G91 Incremental"
-    assert dialog.targetCncCombo.count() == 3
+    assert dialog.targetCncCombo.count() == 4
     assert dialog.targetCncCombo.itemText(0) == "As source (no conversion)"
     assert dialog.targetCncCombo.itemText(1) == "FANUC milling"
     assert dialog.targetCncCombo.itemText(2) == "SINUMERIK 840D ISO-M (G291)"
+    assert dialog.targetCncCombo.itemText(3) == "SINUMERIK 840D native"
     target_row = dialog.ui.gridLayout.getItemPosition(
         next(
             index
@@ -68,8 +69,10 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     assert dialog.ui.startLineEdit.isEnabled()
     assert dialog.ui.endLineEdit.isEnabled()
     dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
-    assert not dialog.targetCncCombo.isEnabled()
+    assert dialog.targetCncCombo.isEnabled()
+    assert dialog.targetCncCombo.model().item(3).isEnabled()
     dialog.ui.langCmbBox.setCurrentIndex(MILL_FULL_PROGRAM_MODE)
+    assert not dialog.targetCncCombo.model().item(3).isEnabled()
 
     window.ui.actionLatheMode.setChecked(True)
     qt_app.processEvents()
@@ -118,6 +121,7 @@ def test_export_dialog_has_five_logical_modes_and_separate_representation_option
     )
 
     dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+    dialog.targetCncCombo.setCurrentIndex(0)
     assert dialog.ui.startLineEdit.isEnabled()
     assert dialog.ui.seqNumCmbBox.isEnabled()
     assert dialog.ui.forceCmbBox.isEnabled()
@@ -136,6 +140,7 @@ def test_export_dialog_disables_conversion_to_detected_sinumerik_source(qt_app, 
     window.curFile = str(tmp_path / "part.mpf")
     window.ui.editor.setText("G291\nG21 G17 G90\nG0 X0 Y0\nM30\n")
     window.exportTargetCnc = 2
+    window.exportMode = MILL_FULL_PROGRAM_MODE
 
     dialog.loadSettings()
 

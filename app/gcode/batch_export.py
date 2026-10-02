@@ -24,7 +24,13 @@ def _destination(
     path: Path, root: Path, output_root: Path, request: ExportRequest, source_extensions: Iterable[str]
 ) -> Path:
     destination = output_root / path.relative_to(root)
-    suffix = ".dxf" if request.format == "dxf" else ".mpf" if request.target_dialect == "sinumerik840d" else ".nc"
+    suffix = (
+        ".dxf"
+        if request.format == "dxf"
+        else ".mpf"
+        if request.target_dialect in ("sinumerik840d", "sinumerik_iso", "sinumerik_native")
+        else ".nc"
+    )
     if path.suffix.lower() in source_extensions:
         return destination.with_suffix(suffix)
     return destination.with_name(destination.name + suffix)

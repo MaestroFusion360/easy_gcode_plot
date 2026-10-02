@@ -40,7 +40,8 @@ htmlcov/
 data/
 
 # IDE / tooling
-.vscode/
+.vscode/*
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo
@@ -66,3 +67,4 @@ builds/
 
 tmp/
 .omx/
+.playwright-mcp/

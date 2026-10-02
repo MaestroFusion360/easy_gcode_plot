@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.1 - 2026-10-02
+
+- Redesigned the bilingual landing page with separate language controls, sticky section navigation, visible impeller/STL playback GIFs, expanded feature descriptions, a 1.0.0-to-1.8.0 comparison and a full resource footer.
+- Consolidated screenshots and animations under docs/assets/ and moved sample STL models to the root stl/ directory; updated README links and rendering fixture paths.
+- Added an English/Russian static project landing page under docs/, with shared CSS, existing screenshots, release/documentation links and explicit SINUMERIK limits. Includes GitHub Pages branch publishing instructions without a framework or custom workflow.
+- Added a bounded native SINUMERIK R-parameter subset: finite numeric assignments and R references in F/S/XYZ/IJK, CR, TURN and supported cycle parameters. Siemens state is separate from FANUC Macro B and resets per execution; MCALL parameters are revalidated at each hole. Undefined parameters, arithmetic, arrays, system variables and Siemens control flow fail closed.
+- Added native TURN=0..999 as additional complete revolutions on one analytical arc/helix, including all three planes. Rendering, playback and statistics consume the total sweep; DXF preserves multiple passes as a sampled polyline. FANUC/ISO trace exporters subdivide only at serialization, while the native target preserves TURN.
+- Added Resolved Program Conversion between fanuc_mill, sinumerik_iso and sinumerik_native through ExecutionResult, exposed in CLI (--mode resolved), batch-export and the GUI's Expanded Execution target selector. Outputs use physical XYZ coordinates in a zero-offset frame, resolved cycles/variables, tool/spindle/coolant controls, dwell and tapping reversal. Native dwell uses standalone G4 F seconds without changing modal feed. Full Program remains source-preserving for the proven FANUC/ISO-M subset; sinumerik840d remains a compatible ISO-M alias.
+- Updated the English/Russian references, native target translation and the release version to 1.8.1. Added dialect-matrix replay coverage and R/TURN downstream regressions; milling material-removal simulation remains outside the existing turning stock model.
+
 ## 1.8.0 - 2026-10-02
 
 - Added native MCALL CYCLE84 single-pass metric right-hand tapping for the actual CAM 24-parameter call and compatible shortened numeric calls. Derives feed from explicit pitch and spindle rpm, feeds back to RFP+SDIS, then rapids to RTP using shared cycle geometry; emits rigid-tapping, synchronization, reversal and optional dwell signals. Rejects unmodeled deep tapping, thread tables, spindle orientation, unequal/changed speeds and other unsupported modes. Added a paired FANUC G84 fixture and native trace replay coverage.
@@ -56,7 +66,7 @@
 - Add action icons to STL Objects controls, hide the selected object's pivot marker with the panel, and log load, delete, transform, array and section timings.
 - Fixed STL section cap winding for all three axes, including Y-plane handedness; a cut coincident with an outer mesh face now retains that face instead of opening the shell.
 - Triangulate section caps with nested contours as polygons with holes, preserving hollow regions in tubes and enclosed cavities.
-- Replaced the section-cap Python ear-clipping and manual hole bridging with `mapbox-earcut`; preserve holes and disconnected contours, restore collinear boundary vertices for watertight caps, and keep cap normals aligned with the selected side. On `assets/stl/test4.stl` (14,522 triangles, midplane cuts), `clip_mesh` measured X 345 ms, Y 396 ms and Z 350 ms, down from 2,577/18,906/3,651 ms.
+- Replaced the section-cap Python ear-clipping and manual hole bridging with `mapbox-earcut`; preserve holes and disconnected contours, restore collinear boundary vertices for watertight caps, and keep cap normals aligned with the selected side. On `stl/test4.stl` (14,522 triangles, midplane cuts), `clip_mesh` measured X 345 ms, Y 396 ms and Z 350 ms, down from 2,577/18,906/3,651 ms.
 - Keep the active section mesh in the plot after `loadPlot()`, and refresh both the visible cut and hidden source mesh when STL color or wireframe settings change.
 - Preserve STL undo history when importing after Clear STL or deleting the final object.
 - Reject cumulative STL scales that overflow float32 coordinates, collapse non-degenerate faces, or invalidate an originally closed mesh; report rejected GUI scaling in the status bar.

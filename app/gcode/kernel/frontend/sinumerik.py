@@ -15,8 +15,14 @@ from .model import Program
 from .program import _parse_source_blocks
 
 _NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
-_TOKEN = re.compile(rf"\s*(?:(CR)\s*=\s*({_NUMBER})|(SUPA)\b|([NOGXYZABCIJKRFSTHDPQLM])\s*({_NUMBER}))", re.I)
-_LABEL = re.compile(r"^\s*(?:N\d+\s+)?", re.I)
+_VALUE = rf"(?:{_NUMBER}|R\d+)"
+_TOKEN = re.compile(
+    rf"\s*(?:(CR|TURN)\s*=\s*({_VALUE})|(SUPA)\b|([XYZIJKFS])\s*=\s*({_VALUE})|"
+    rf"([NOGXYZABCIJKRFSTHDPQLM])\s*({_NUMBER}))",
+    re.I,
+)
+_PARAMETER = re.compile(rf"R(\d+)\s*=\s*({_NUMBER})\s*", re.I)
+_LABEL = re.compile(r"^\s*(?:N\d+\s*)?", re.I)
 _MESSAGE = re.compile(r'MSG\s*\(\s*"(?:[^"\n]|"")*"\s*\)\s*', re.I)
 _WORKPIECE = re.compile(rf'WORKPIECE\s*\((?:\s*(?:{_NUMBER}|"[^"\n]*")?\s*,)*\s*(?:{_NUMBER}|"[^"\n]*")?\s*\)\s*', re.I)
 _CYCLE = re.compile(r"MCALL\s+CYCLE(\d+)\s*\(([^()]*)\)\s*", re.I)
@@ -25,6 +31,9 @@ _CYCLE = re.compile(r"MCALL\s+CYCLE(\d+)\s*\(([^()]*)\)\s*", re.I)
 def _native_tokens(raw):
     code = raw.split(";", 1)[0].strip().lstrip("/").strip()
     body = _LABEL.sub("", code, count=1)
+    assignment = _PARAMETER.fullmatch(body)
+    if assignment is not None:
+        return (), NativeMillingSyntax("parameter_assignment", parameter_assignment=(int(assignment[1]), assignment[2]))
     cycle = _cycle_syntax(body)
     if cycle is not None:
         return (), cycle
@@ -32,19 +41,25 @@ def _native_tokens(raw):
         return (), NativeMillingSyntax("message")
     if _WORKPIECE.fullmatch(body):
         return (), NativeMillingSyntax("workpiece")
+    return _word_tokens(code)
+
+
+def _word_tokens(code):
     code = strip_comments(code)
     tokens, supa, position = [], False, 0
     while position < len(code):
         match = _TOKEN.match(code, position)
         if match is None:
             return None
-        radius, radius_value, suppress, letter, value = match.groups()
+        special, special_value, suppress, assigned_letter, assigned_value, letter, value = match.groups()
         if suppress:
             if supa:
                 return None
             supa = True
         else:
-            tokens.append(WordToken("CR" if radius else letter.upper(), radius_value if radius else value))
+            tokens.append(
+                WordToken((special or assigned_letter or letter).upper(), special_value or assigned_value or value)
+            )
         position = match.end()
     return tuple(tokens), NativeMillingSyntax(supa=supa)
 
@@ -58,7 +73,7 @@ def _cycle_syntax(body):
     if match is None:
         return None
     args = tuple(arg.strip() for arg in match.group(2).split(","))
-    if any(arg and not re.fullmatch(_NUMBER, arg) for arg in args):
+    if any(arg and not re.fullmatch(_VALUE, arg, re.I) for arg in args):
         return None
     return NativeMillingSyntax("cycle", cycle_code=int(match.group(1)), cycle_args=args)
 
