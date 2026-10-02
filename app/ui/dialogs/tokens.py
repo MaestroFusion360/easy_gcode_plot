@@ -14,8 +14,8 @@ from PyQt6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageB
 
 from app import theme
 from app.gcode.core import format_gcode_number
-from app.gcode.kernel.api_types import ExecutionResult
-from app.gcode.kernel.lang import try_literal_int
+from app.gcode.kernel.api.types import ExecutionResult
+from app.gcode.kernel.frontend.lang import try_literal_int
 from app.ui.generated.dialogs.tokens import Ui_TokensDlg
 
 TABLE_HEADINGS = (

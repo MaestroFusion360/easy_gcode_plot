@@ -39,10 +39,13 @@ def _tool_color(value) -> QColor:
 class MillingToolPreviewItem(GLGraphicsItem):
     """Translucent configured milling cutter whose tip follows playback."""
 
-    def __init__(self, color="#4d99ff", parentItem=None):
+    def __init__(self, color="#e3aa37", parentItem=None):
         super().__init__(parentItem=parentItem)
         self.setDepthValue(20)
         self._color = _tool_color(color)
+        self._body_color = QColor("#3b3b3b")
+        self._body_color.setAlphaF(0.85)
+        self._flute_length = None
         self._geometry_key = None
         self._meshes: list[GLMeshItem] = []
         self.setVisible(False)
@@ -64,8 +67,34 @@ class MillingToolPreviewItem(GLGraphicsItem):
             return
         self._color = color
         for mesh in self._meshes:
+            self._apply_part_colors(mesh.opts["meshdata"])
+            mesh.meshDataChanged()
             mesh.setColor(color)
         self.update()
+
+    def set_theme(self, theme) -> None:
+        """Contrast the non-cutting body with the plot and gray STL surfaces."""
+        color = QColor("#f0f0f0" if theme == "dark" else "#3b3b3b")
+        color.setAlphaF(0.85)
+        if color.rgba() == self._body_color.rgba():
+            return
+        self._body_color = color
+        for mesh in self._meshes:
+            self._apply_part_colors(mesh.opts["meshdata"])
+            mesh.meshDataChanged()
+        self.update()
+
+    def _apply_part_colors(self, meshdata):
+        """Assign materials at the measured flute boundary without splitting the mesh."""
+        if self._flute_length is None:
+            return
+        # Face indexing keeps a sharp material boundary with smooth normals.
+        # GLMeshItem otherwise pairs per-face colors with shared vertex indices.
+        faces = meshdata.vertexes(indexed="faces")
+        body = faces[:, :, 2].max(axis=1) > np.float32(self._flute_length)
+        colors = np.tile(self._color.getRgbF(), (len(faces), 1))
+        colors[body] = self._body_color.getRgbF()
+        meshdata.setFaceColors(colors.astype(np.float32))
 
     def show_tool(self, spec: dict[str, object] | None, position, orientation=None) -> bool:
         """Show a configured cutter with its tip at the resolved motion endpoint."""
@@ -120,6 +149,8 @@ class MillingToolPreviewItem(GLGraphicsItem):
             "length": length,
             "cornerRadius": corner_radius,
         }
+        if extra and isinstance(extra[-1], tuple):
+            spec["fluteLength"], spec["bodyLength"] = extra.pop()
         if tool_type in {"face_mill", "slot_mill"}:
             spec.update(cuttingHeight=extra[0], shankDiameter=extra[1])
         elif tool_type == "chamfer_mill":
@@ -129,7 +160,9 @@ class MillingToolPreviewItem(GLGraphicsItem):
         elif tool_type == "taper_ball_mill":
             spec["taperAngle"] = extra[0]
         profile = milling_tool_profile(spec)
+        self._flute_length = spec.get("fluteLength")
         meshdata = self._surface_of_revolution(profile)
+        self._apply_part_colors(meshdata)
         if self._meshes:
             # Keep the scene-registered GL item and its context lifecycle.
             # Replacing the child after its first paint can leave the new item

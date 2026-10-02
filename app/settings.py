@@ -6,13 +6,13 @@ import os
 import threading
 from pathlib import Path
 
-from PyQt6.QtCore import QSettings, QStandardPaths
+from PyQt6.QtCore import QSettings
 
+from app import paths
 from app.tools.definitions import DEFAULT_MILLING_TOOL, default_turning_library
 from app.tools.library import ToolLibrary
 from app.tools.validation import normalized_milling_tools, normalized_tools
 
-_APP_DIR = "easy-gcode-plot"
 _LOG_HANDLER_MARKER = "_easy_gcode_plot_handler"
 _LOG_PREVIOUS_LEVEL_MARKER = "_easy_gcode_plot_previous_level"
 _LOG_PREVIOUS_PROPAGATE_MARKER = "_easy_gcode_plot_previous_propagate"
@@ -24,11 +24,8 @@ class ToolLibraryLoadError(RuntimeError):
 
 
 def _config_dir() -> str:
-    """Return the per-user config directory (``%APPDATA%\\easy-gcode-plot``)."""
-    base = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.GenericConfigLocation)
-    path = os.path.join(base, _APP_DIR)
-    os.makedirs(path, exist_ok=True)
-    return path
+    """Return the per-user config directory (``%LOCALAPPDATA%\\easy-gcode-plot``)."""
+    return paths.config_dir()
 
 
 def config_path() -> str:

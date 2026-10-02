@@ -6,17 +6,18 @@ order, so the second joint's matrix multiplies the first on the left.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
 import os
 import tempfile
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
 
-from app import settings as app_settings
+from app import paths
 
 Vector = tuple[float, float, float]
 Matrix = tuple[Vector, Vector, Vector]
@@ -28,7 +29,7 @@ LOGGER = logging.getLogger(__name__)
 
 def user_catalog_path() -> Path:
     """Keep edited profiles beside per-user settings, outside the installation."""
-    return Path(app_settings.config_path()).with_name("rotary_profiles.json")
+    return Path(paths.config_dir()) / "rotary_profiles.json"
 
 
 class InvalidKinematicsProfile(ValueError):
@@ -52,6 +53,14 @@ class MachineKinematics:
     @property
     def addresses(self) -> frozenset[str]:
         return frozenset(j.address for j in self.table_rotary_axes + self.head_rotary_axes)
+
+
+def kinematics_snapshot(profile: MachineKinematics | None) -> tuple[str | None, str | None]:
+    """Capture the effective definition once, without rereading user overrides."""
+    if profile is None:
+        return None, None
+    definition = json.dumps(asdict(profile), sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    return definition, hashlib.sha256(definition.encode("utf-8")).hexdigest()
 
 
 def _multiply(a: Matrix, b: Matrix) -> Matrix:
@@ -161,72 +170,82 @@ def parse_catalog(document: object) -> Mapping[str, MachineKinematics]:
         raise InvalidKinematicsProfile(str(exc)) from exc
 
 
-def load_catalog(*, ignore_user_errors: bool = False) -> Mapping[str, MachineKinematics]:
-    """Load built-in profiles and optional per-user overrides.
-
-    Core callers remain strict by default. GUI callers may ignore a malformed
-    user override so a damaged configuration cannot prevent application startup.
-    """
+def _builtin_document() -> dict:
+    """Read and validate installed profiles; never recover installation errors."""
     try:
         document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
         raise InvalidKinematicsProfile(str(exc)) from exc
+    parse_catalog(document)
+    return document
 
-    built_in = parse_catalog(document)
-    overrides_path = user_catalog_path()
-    if not overrides_path.exists():
-        return built_in
 
+def _read_user_overrides(path: Path, known_ids: set[str], *, ignore_errors: bool) -> dict | None:
+    """Return valid overrides or an explicit damaged-file marker for the editor."""
+    if not path.exists():
+        return {"schema_version": 1, "profiles": []}
     try:
-        overrides = json.loads(overrides_path.read_text(encoding="utf-8"))
+        overrides = json.loads(path.read_text(encoding="utf-8"))
         parse_catalog(overrides)
-        replacements = {item["id"]: item for item in overrides["profiles"]}
-        known = {item["id"] for item in document["profiles"]}
-        document["profiles"] = [replacements.pop(item["id"], item) for item in document["profiles"]]
-        if replacements:
-            raise InvalidKinematicsProfile(f"Unknown profile override: {', '.join(sorted(replacements))}")
-        if known != {item["id"] for item in document["profiles"]}:
-            raise InvalidKinematicsProfile("Profile overrides must retain the built-in ids")
-        return parse_catalog(document)
-    except (OSError, json.JSONDecodeError, InvalidKinematicsProfile) as exc:
-        if ignore_user_errors:
-            LOGGER.warning("rotary_profile_override_invalid path=%s error=%s", overrides_path, exc)
-            return built_in
+        unknown = {item["id"] for item in overrides["profiles"]} - known_ids
+        if unknown:
+            raise InvalidKinematicsProfile(f"Unknown profile override: {', '.join(sorted(unknown))}")
+        return overrides
+    except (OSError, UnicodeError, json.JSONDecodeError, InvalidKinematicsProfile) as exc:
+        if ignore_errors:
+            LOGGER.warning("rotary_profile_override_invalid path=%s error=%s", path, exc)
+            return None
         if isinstance(exc, InvalidKinematicsProfile):
             raise
         raise InvalidKinematicsProfile(str(exc)) from exc
 
 
+def load_catalog(*, ignore_user_errors: bool = False) -> Mapping[str, MachineKinematics]:
+    """Load overrides strictly by default; startup may explicitly use built-ins."""
+    document = _builtin_document()
+    overrides = _read_user_overrides(
+        user_catalog_path(), {item["id"] for item in document["profiles"]}, ignore_errors=ignore_user_errors
+    )
+    if overrides is not None:
+        replacements = {item["id"]: item for item in overrides["profiles"]}
+        document["profiles"] = [replacements.get(item["id"], item) for item in document["profiles"]]
+    return parse_catalog(document)
+
+
 def profile_document(profile_id: str) -> dict:
-    """Return the editable JSON entry currently effective for a profile."""
-    load_catalog()
-    path = user_catalog_path()
-    if path.exists():
-        overrides = json.loads(path.read_text(encoding="utf-8"))
+    """Open valid overrides, or the built-in profile when the override is damaged."""
+    document = _builtin_document()
+    known = {item["id"] for item in document["profiles"]}
+    if profile_id not in known:
+        raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
+    overrides = _read_user_overrides(user_catalog_path(), known, ignore_errors=True)
+    if overrides is not None:
         for item in overrides["profiles"]:
             if item["id"] == profile_id:
                 return item
-    document = json.loads(CATALOG_PATH.read_text(encoding="utf-8"))
     return next(item for item in document["profiles"] if item["id"] == profile_id)
 
 
+def _backup_invalid_override(path: Path) -> None:
+    """Keep the exact damaged bytes before replacing the user's override file."""
+    contents = path.read_bytes()
+    fd, name = tempfile.mkstemp(prefix=path.name + ".invalid-", suffix=".bak", dir=path.parent)
+    with os.fdopen(fd, "wb") as stream:
+        stream.write(contents)
+    LOGGER.warning("rotary_profile_override_recovered path=%s backup=%s", path, name)
+
+
 def save_profile_override(profile_id: str, edited: dict) -> None:
-    """Validate and atomically persist one user profile override."""
+    """Validate and atomically save; recover damaged overrides with a backup."""
     if edited.get("id") != profile_id:
         raise InvalidKinematicsProfile("Profile id cannot be changed")
-    current = load_catalog()
-    if profile_id not in current:
+    built_in = _builtin_document()
+    known = {item["id"] for item in built_in["profiles"]}
+    if profile_id not in known:
         raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
     path = user_catalog_path()
-    overrides = (
-        json.loads(path.read_text(encoding="utf-8"))
-        if path.exists()
-        else {
-            "schema_version": 1,
-            "profiles": [],
-        }
-    )
-    entries = [item for item in overrides["profiles"] if item["id"] != profile_id]
+    overrides = _read_user_overrides(path, known, ignore_errors=True)
+    entries = [] if overrides is None else [item for item in overrides["profiles"] if item["id"] != profile_id]
     entries.append(edited)
     document = {"schema_version": 1, "profiles": entries}
     parse_catalog(document)
@@ -236,6 +255,8 @@ def save_profile_override(profile_id: str, edited: dict) -> None:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
             json.dump(document, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
+        if overrides is None:
+            _backup_invalid_override(path)
         os.replace(temporary_name, path)
     finally:
         Path(temporary_name).unlink(missing_ok=True)

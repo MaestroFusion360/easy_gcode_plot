@@ -431,7 +431,7 @@ def test_custom_extensions_limit_batch_discovery(tmp_path):
     (root / "part.mpf").write_text("O31\nG0 X0\nM30\n", encoding="utf-8")
     output = tmp_path / "output"
 
-    assert main(["batch-export", str(root), "--extensions", ".mpf", "-o", str(output)]) == 0
+    assert main(["batch-export", str(root), "--lang", "fanuc_mill", "--extensions", ".mpf", "-o", str(output)]) == 0
     report = json.loads((output / "batch_export_report.json").read_text(encoding="utf-8"))
     assert [item["input_relative_path"] for item in report["files"]] == ["part.mpf"]
 

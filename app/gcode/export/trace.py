@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from ..kernel import ExecutionResult, TraceMotion
-from ..kernel.events import PROGRAM_END, PROGRAM_START, SUBPROGRAM_END, SUBPROGRAM_START, TOOL_CHANGE
+from ..kernel.runtime.events import PROGRAM_END, PROGRAM_START, SUBPROGRAM_END, SUBPROGRAM_START, TOOL_CHANGE
 from .common import (
     _check_cancelled,
     _execution_slices,
@@ -37,7 +37,8 @@ def _expanded_step_control(step, options: ExportOptions) -> tuple[str, bool]:
         return "", False
 
     gcodes = {code for letter, value in step.words if letter == "G" and (code := _integer_code(value)) is not None}
-    home_or_machine_move = bool(gcodes & {28, 30, 53})
+    native_supa = any(event.kind == "SINUMERIK_NATIVE_OPERATION" and event.code == "SUPA" for event in step.events)
+    home_or_machine_move = bool(gcodes & {28, 30, 53}) and not native_supa
     dwell = 4 in gcodes
     tokens: list[str] = []
 
@@ -163,11 +164,7 @@ def _initial_lines(result: ExecutionResult, options: ExportOptions) -> list[str]
         lines.append(_format_comment("EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY", options.comment_style))
     if options.safety_line:
         rapid = "G00" if options.leading_zero else "G0"
-        codes = (
-            (rapid, "G18", "G40", "G80")
-            if result.language == "fanuc_turn"
-            else (rapid, "G17", "G40", "G49", "G80", "G90")
-        )
+        codes = (rapid, "G18", "G40", "G80") if result.language == "fanuc_turn" else ("G17", "G40", "G49", "G80", "G90")
         lines.append((" " if options.delimiter else "").join(codes))
     if options.output_unit_code:
         lines.append(options.output_unit_code)

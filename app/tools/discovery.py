@@ -9,7 +9,7 @@ import re
 from copy import deepcopy
 from io import StringIO
 
-from app.gcode.kernel.lang import lex_words, strip_comments
+from app.gcode.kernel.frontend.lang import lex_words, strip_comments
 from app.tools.definitions import (
     DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION,
     DEFAULT_MILLING_TOOL,
@@ -109,10 +109,28 @@ def _milling_spec(description, scale, operation_kind=None):
     radius = _dimension(description, "CR", 0.0, scale, allow_zero=True)
     if 0 < radius <= spec["diameter"] / 2 and spec["type"] in {"mill_flat", "mill_bull"}:
         spec.update(type="mill_bull", cornerRadius=radius)
+    lengths = _milling_comment_lengths(description, scale)
+    spec.update(lengths)
+    if "fluteLength" not in lengths:
+        spec.pop("fluteLength", None)
+        spec.pop("bodyLength", None)
     if spec["type"] == "taper_ball_mill":
-        spec["length"] = _dimension(description, "L|LENGTH", 50.0, scale)
         spec["taperAngle"] = _dimension(description, r"TAPER\s*ANGLE|ANGLE|B", 6.0, 1.0)
     return spec
+
+
+def _milling_comment_lengths(description, scale):
+    """Use explicit FL/BL pairs; a total alone retains the unsplit legacy shape."""
+    flute_names = r"FL|FLUTELENGTH|FLUTE\s+LENGTH"
+    body_names = r"BL|BODYLENGTH|BODY\s+LENGTH"
+    flute = _dimension(description, flute_names, None, scale)
+    body = _dimension(description, body_names, None, scale, allow_zero=True)
+    if flute is not None and body is not None:
+        return {"fluteLength": flute, "bodyLength": body, "length": flute + body}
+    total = _dimension(description, "L|LENGTH", None, scale)
+    if total is not None or flute is not None or body is not None:
+        return {"length": total if total is not None else 50.0}
+    return {key: DEFAULT_MILLING_TOOL[key] for key in ("fluteLength", "bodyLength", "length")}
 
 
 def _cancel_checkpoint(index, cancelled):

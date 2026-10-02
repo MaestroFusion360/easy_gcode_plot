@@ -206,7 +206,13 @@ class ToolLibraryDialog(QDialog):
             diameter = float(spec.get("diameter", 0.0))
             radius = float(spec.get("cornerRadius", 0.0))
             length = float(spec.get("length", 0.0))
-            return f"D{diameter:g}  R{radius:g}  L{length:g}"
+            split = ""
+            if "fluteLength" in spec and "bodyLength" in spec:
+                flute = float(spec["fluteLength"])
+                body = float(spec["bodyLength"])
+                length = flute + body
+                split = f"FL{flute:g}  BL{body:g}  "
+            return f"D{diameter:g}  R{radius:g}  {split}L{length:g}"
         tool_type = str(spec.get("type", ""))
         if tool_type in {"drill", "tap"}:
             return f"D{float(spec.get('diameter', 0.0)):g}  L{float(spec.get('length', 0.0)):g}"

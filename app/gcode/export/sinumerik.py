@@ -14,6 +14,7 @@ from .validation import (
 )
 
 _G291_BLOCK_RE = re.compile(r"^\s*(?:N\d+\s*)?G\s*291(?:\s*;.*)?\s*$", re.IGNORECASE)
+_PROGRAM_NUMBER_RE = re.compile(r"^(\s*)(O\d+)(?=\s|\(|;|$)", re.IGNORECASE)
 
 
 def convert_full_program_to_sinumerik(
@@ -34,9 +35,14 @@ def convert_full_program_to_sinumerik(
     validate_sinumerik_iso_export(source_result)
     if not source_result.ok or not source_result.complete:
         raise ValueError("Full Program dialect conversion requires successful complete source execution")
-    if not has_iso_mode:
-        newline = "\r\n" if "\r\n" in source else "\n"
-        lines.insert(_full_program_mode_insertion(lines), f"G291{newline}")
+    lines = [_PROGRAM_NUMBER_RE.sub(r"\1(\2)", line, count=1) for line in lines if line.strip() != "%"]
+    newline = "\r\n" if "\r\n" in source else "\n"
+    if has_iso_mode:
+        mode_index = next(index for index, line in enumerate(lines) if _is_g291_block(line))
+        mode_line = lines.pop(mode_index).rstrip("\r\n") + newline
+    else:
+        mode_line = f"G291{newline}"
+    lines.insert(_full_program_mode_insertion(lines), mode_line)
     converted = "".join(lines)
     validate_full_program_dialect_conversion(
         source_result,
@@ -58,10 +64,6 @@ def _is_g291_block(line: str) -> bool:
     return _G291_BLOCK_RE.fullmatch(line.rstrip("\r\n")) is not None
 
 
-def _full_program_mode_insertion(lines: list[str]) -> int:
-    for index, line in enumerate(lines):
-        code = line.strip()
-        if not code or code.startswith(("%", ";", "(")):
-            continue
-        return index
-    return len(lines)
+def _full_program_mode_insertion(_lines: list[str]) -> int:
+    """Activate ISO before any header, blank line or ISO-style comment."""
+    return 0

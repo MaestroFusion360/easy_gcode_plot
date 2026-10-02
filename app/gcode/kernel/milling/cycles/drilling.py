@@ -133,6 +133,8 @@ def _expand_drilling_cycle(
     context: CycleContext,
     state: MillState,
     resolved: _ResolvedDrillingCycle,
+    *,
+    axial_moves=None,
 ) -> tuple[TraceMotion, ...]:
     """Build drilling geometry without committing the machine position."""
     block = context.block
@@ -171,17 +173,22 @@ def _expand_drilling_cycle(
     x, y = resolved.x, resolved.y
     add(0, start, (x, y, start[2]))
     add(0, (x, y, start[2]), (x, y, resolved.retract_z))
-    for segment in axial_cycle_moves(
-        resolved.retract_z,
-        resolved.target_z,
-        step=resolved.step,
-        retract_distance=state.g73_retract_distance,
-        full_retract=not resolved.behavior.high_speed_peck,
-        retract_after_final=False,
-        return_to=resolved.return_z,
-        return_feed=resolved.behavior.feed_return,
-        tolerance=1e-9,
-    ):
+    segments = (
+        axial_moves
+        if axial_moves is not None
+        else axial_cycle_moves(
+            resolved.retract_z,
+            resolved.target_z,
+            step=resolved.step,
+            retract_distance=state.g73_retract_distance,
+            full_retract=not resolved.behavior.high_speed_peck,
+            retract_after_final=False,
+            return_to=resolved.return_z,
+            return_feed=resolved.behavior.feed_return,
+            tolerance=1e-9,
+        )
+    )
+    for segment in segments:
         add(
             segment.move,
             (x, y, segment.start),

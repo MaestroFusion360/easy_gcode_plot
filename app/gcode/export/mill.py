@@ -6,7 +6,7 @@ import re
 from dataclasses import replace
 
 from ..kernel import ExecutionResult, TraceMotion
-from ..kernel.events import HOME_RETURN, PROGRAM_START, SUBPROGRAM_START, event_blocks
+from ..kernel.runtime.events import HOME_RETURN, PROGRAM_START, SUBPROGRAM_START, event_blocks
 from .common import (
     _cancellable,
     _event_kinds,
@@ -216,6 +216,8 @@ def export_full_mill_program(
         "Expanded mill program export requires a valid and complete milling execution result",
         cancelled,
     )
+    if any(event.kind == "SINUMERIK_NATIVE_OPERATION" for event in result.events):
+        raise ValueError("Native SINUMERIK Full Program export is not supported; use trace export")
     if any(event.kind == "SINUMERIK_ISO_MODE" for event in result.events):
         validate_sinumerik_iso_export(result)
     if any(event.kind == "TCP_CONTROL_ON" for event in result.events):

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPointF
+from PyQt6.QtCore import QPointF, QRectF
 from PyQt6.QtGui import QColor, QPainter, QPainterPath, QPalette, QPen
 from PyQt6.QtWidgets import QSizePolicy, QWidget
 
@@ -73,6 +73,16 @@ class ToolLibraryPreview(QWidget):
             path.lineTo(point)
         path.closeSubpath()
         painter.drawPath(path)
+        if "fluteLength" in self.spec and float(self.spec.get("bodyLength", 0.0)) > 0:
+            flute_height = float(self.spec["fluteLength"]) * scale
+            painter.save()
+            painter.setClipRect(
+                QRectF(-radius * scale - 2, -height - 2, radius * scale * 2 + 4, height - flute_height + 2)
+            )
+            painter.setPen(QPen(QColor("#555b62"), 2))
+            painter.setBrush(QColor("#94999f"))
+            painter.drawPath(path)
+            painter.restore()
         self._paint_trace_point(painter, QPointF(0.0, 0.0))
 
     def _paint_turning(self, painter: QPainter) -> None:

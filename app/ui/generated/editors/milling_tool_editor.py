@@ -73,58 +73,83 @@ class Ui_MillingToolEditor(object):
 
         self.formLayout.setWidget(3, QFormLayout.ItemRole.FieldRole, self.cornerRadius)
 
+        self.fluteLengthLabel = QLabel(MillingToolEditor)
+        self.fluteLengthLabel.setObjectName(u"fluteLengthLabel")
+
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.LabelRole, self.fluteLengthLabel)
+
+        self.fluteLength = QDoubleSpinBox(MillingToolEditor)
+        self.fluteLength.setObjectName(u"fluteLength")
+        self.fluteLength.setDecimals(3)
+        self.fluteLength.setMaximum(10000.000000000000000)
+
+        self.formLayout.setWidget(4, QFormLayout.ItemRole.FieldRole, self.fluteLength)
+
+        self.bodyLengthLabel = QLabel(MillingToolEditor)
+        self.bodyLengthLabel.setObjectName(u"bodyLengthLabel")
+
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.LabelRole, self.bodyLengthLabel)
+
+        self.bodyLength = QDoubleSpinBox(MillingToolEditor)
+        self.bodyLength.setObjectName(u"bodyLength")
+        self.bodyLength.setDecimals(3)
+        self.bodyLength.setMaximum(10000.000000000000000)
+
+        self.formLayout.setWidget(5, QFormLayout.ItemRole.FieldRole, self.bodyLength)
+
         self.lengthLabel = QLabel(MillingToolEditor)
         self.lengthLabel.setObjectName(u"lengthLabel")
 
-        self.formLayout.setWidget(4, QFormLayout.ItemRole.LabelRole, self.lengthLabel)
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.LabelRole, self.lengthLabel)
 
         self.length = QDoubleSpinBox(MillingToolEditor)
         self.length.setObjectName(u"length")
+        self.length.setReadOnly(True)
         self.length.setDecimals(3)
-        self.length.setMaximum(10000.000000000000000)
+        self.length.setMaximum(20000.000000000000000)
 
-        self.formLayout.setWidget(4, QFormLayout.ItemRole.FieldRole, self.length)
+        self.formLayout.setWidget(6, QFormLayout.ItemRole.FieldRole, self.length)
 
         self.cuttingHeightLabel = QLabel(MillingToolEditor)
         self.cuttingHeightLabel.setObjectName(u"cuttingHeightLabel")
 
-        self.formLayout.setWidget(5, QFormLayout.ItemRole.LabelRole, self.cuttingHeightLabel)
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.LabelRole, self.cuttingHeightLabel)
 
         self.cuttingHeight = QDoubleSpinBox(MillingToolEditor)
         self.cuttingHeight.setObjectName(u"cuttingHeight")
         self.cuttingHeight.setDecimals(3)
         self.cuttingHeight.setMaximum(10000.000000000000000)
 
-        self.formLayout.setWidget(5, QFormLayout.ItemRole.FieldRole, self.cuttingHeight)
+        self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.cuttingHeight)
 
         self.shankDiameterLabel = QLabel(MillingToolEditor)
         self.shankDiameterLabel.setObjectName(u"shankDiameterLabel")
 
-        self.formLayout.setWidget(6, QFormLayout.ItemRole.LabelRole, self.shankDiameterLabel)
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.shankDiameterLabel)
 
         self.shankDiameter = QDoubleSpinBox(MillingToolEditor)
         self.shankDiameter.setObjectName(u"shankDiameter")
         self.shankDiameter.setDecimals(3)
         self.shankDiameter.setMaximum(10000.000000000000000)
 
-        self.formLayout.setWidget(6, QFormLayout.ItemRole.FieldRole, self.shankDiameter)
+        self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.shankDiameter)
 
         self.tipDiameterLabel = QLabel(MillingToolEditor)
         self.tipDiameterLabel.setObjectName(u"tipDiameterLabel")
 
-        self.formLayout.setWidget(7, QFormLayout.ItemRole.LabelRole, self.tipDiameterLabel)
+        self.formLayout.setWidget(9, QFormLayout.ItemRole.LabelRole, self.tipDiameterLabel)
 
         self.tipDiameter = QDoubleSpinBox(MillingToolEditor)
         self.tipDiameter.setObjectName(u"tipDiameter")
         self.tipDiameter.setDecimals(3)
         self.tipDiameter.setMaximum(10000.000000000000000)
 
-        self.formLayout.setWidget(7, QFormLayout.ItemRole.FieldRole, self.tipDiameter)
+        self.formLayout.setWidget(9, QFormLayout.ItemRole.FieldRole, self.tipDiameter)
 
         self.chamferAngleLabel = QLabel(MillingToolEditor)
         self.chamferAngleLabel.setObjectName(u"chamferAngleLabel")
 
-        self.formLayout.setWidget(8, QFormLayout.ItemRole.LabelRole, self.chamferAngleLabel)
+        self.formLayout.setWidget(10, QFormLayout.ItemRole.LabelRole, self.chamferAngleLabel)
 
         self.chamferAngle = QDoubleSpinBox(MillingToolEditor)
         self.chamferAngle.setObjectName(u"chamferAngle")
@@ -132,12 +157,12 @@ class Ui_MillingToolEditor(object):
         self.chamferAngle.setMinimum(1.000000000000000)
         self.chamferAngle.setMaximum(179.000000000000000)
 
-        self.formLayout.setWidget(8, QFormLayout.ItemRole.FieldRole, self.chamferAngle)
+        self.formLayout.setWidget(10, QFormLayout.ItemRole.FieldRole, self.chamferAngle)
 
         self.tipAngleLabel = QLabel(MillingToolEditor)
         self.tipAngleLabel.setObjectName(u"tipAngleLabel")
 
-        self.formLayout.setWidget(9, QFormLayout.ItemRole.LabelRole, self.tipAngleLabel)
+        self.formLayout.setWidget(11, QFormLayout.ItemRole.LabelRole, self.tipAngleLabel)
 
         self.tipAngle = QDoubleSpinBox(MillingToolEditor)
         self.tipAngle.setObjectName(u"tipAngle")
@@ -145,20 +170,26 @@ class Ui_MillingToolEditor(object):
         self.tipAngle.setMinimum(1.000000000000000)
         self.tipAngle.setMaximum(179.000000000000000)
 
-        self.formLayout.setWidget(9, QFormLayout.ItemRole.FieldRole, self.tipAngle)
+        self.formLayout.setWidget(11, QFormLayout.ItemRole.FieldRole, self.tipAngle)
 
         self.descriptionLabel = QLabel(MillingToolEditor)
         self.descriptionLabel.setObjectName(u"descriptionLabel")
 
-        self.formLayout.setWidget(10, QFormLayout.ItemRole.LabelRole, self.descriptionLabel)
+        self.formLayout.setWidget(12, QFormLayout.ItemRole.LabelRole, self.descriptionLabel)
 
         self.description = QLineEdit(MillingToolEditor)
         self.description.setObjectName(u"description")
 
-        self.formLayout.setWidget(10, QFormLayout.ItemRole.FieldRole, self.description)
+        self.formLayout.setWidget(12, QFormLayout.ItemRole.FieldRole, self.description)
 
 
         self.verticalLayout.addLayout(self.formLayout)
+
+        self.lengthsHint = QLabel(MillingToolEditor)
+        self.lengthsHint.setObjectName(u"lengthsHint")
+        self.lengthsHint.setWordWrap(True)
+
+        self.verticalLayout.addWidget(self.lengthsHint)
 
         self.buttonLayout = QHBoxLayout()
         self.buttonLayout.setObjectName(u"buttonLayout")
@@ -191,13 +222,16 @@ class Ui_MillingToolEditor(object):
         self.toolTypeLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Type", None))
         self.diameterLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Diameter, mm", None))
         self.cornerRadiusLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Corner radius, mm", None))
-        self.lengthLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Length, mm", None))
+        self.fluteLengthLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Flute length, mm", None))
+        self.bodyLengthLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Body length, mm", None))
+        self.lengthLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Length to holder, mm", None))
         self.cuttingHeightLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Cutting height, mm", None))
         self.shankDiameterLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Shank diameter, mm", None))
         self.tipDiameterLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Tip diameter, mm", None))
         self.chamferAngleLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Chamfer angle, deg", None))
         self.tipAngleLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Tip angle, deg", None))
         self.descriptionLabel.setText(QCoreApplication.translate("MillingToolEditor", u"Description", None))
+        self.lengthsHint.setText(QCoreApplication.translate("MillingToolEditor", u"Legacy tool: cutting and body lengths are not set. Enter both lengths to define the split.", None))
         self.inchesCheck.setText(QCoreApplication.translate("MillingToolEditor", u"Inches", None))
         pass
     # retranslateUi

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ast import ProgramAst
+from .ast import NativeMillingSyntax, ProgramAst, build_program_ast
 from .lang import FlowNode, WordToken
 
 
@@ -113,9 +113,30 @@ class Block:
     nlabel: int | None
     olabel: int | None
     optional_skip: bool
+    native_syntax: NativeMillingSyntax | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class Program:
     blocks: tuple[Block, ...]
     ast: ProgramAst | None = None
+
+    def __post_init__(self):
+        blocks = tuple(self.blocks)
+        canonical = build_program_ast(blocks)
+        if self.ast is not None and self.ast != canonical:
+            raise ValueError("Program AST does not match its parsed blocks")
+        object.__setattr__(self, "blocks", blocks)
+        object.__setattr__(self, "ast", canonical)
+
+    @classmethod
+    def _from_canonical_ast(cls, blocks: tuple[Block, ...], ast: ProgramAst) -> Program:
+        """Parser-only path: AST must have just been derived from these blocks.
+
+        Public construction still checks supplied ASTs. Keeping this path private
+        avoids constructing another graph merely to verify the parser's own view.
+        """
+        program = object.__new__(cls)
+        object.__setattr__(program, "blocks", blocks)
+        object.__setattr__(program, "ast", ast)
+        return program

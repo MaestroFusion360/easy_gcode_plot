@@ -17,6 +17,7 @@ from .twp import TiltedWorkPlane, solve_table_orientation, supports_twp_kinemati
 
 @dataclass
 class MillState(MachineRuntimeState):
+    source_arc_type: int | None = None
     kinematics: MachineKinematics | None = None
     rotary_angles: dict[str, float] = field(default_factory=lambda: {"A": 0.0, "B": 0.0, "C": 0.0})
     x: float = 0.0
@@ -28,6 +29,7 @@ class MillState(MachineRuntimeState):
     transform: TransformState = field(default_factory=TransformState)
     twp: TiltedWorkPlane = field(default_factory=TiltedWorkPlane)
     cycle: int = 80
+    native_cycle: object | None = None
     cycle_z: float | None = None
     cycle_r: float | None = None
     cycle_q: float | None = None

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import gc
 import math
 from collections.abc import Iterable
 
 from ..api.resources import checkpoint, checkpointed
-from .ast import build_program_ast
 from .lang import (
     WordToken,
     evaluate_expression,
@@ -187,16 +185,7 @@ def _parse_fallback_block(index: int, raw: str) -> Block:
 
 
 def _parse_program_python(lines: Iterable[str]) -> Program:
-    blocks: list[Block] = []
-
-    def collect_blocks():
-        for block in _parse_blocks(lines):
-            blocks.append(block)
-            yield block
-
-    # Build the existing AST while parsing instead of walking every Block again.
-    ast = build_program_ast(collect_blocks())
-    return Program(blocks=tuple(blocks), ast=ast)
+    return Program(blocks=tuple(_parse_blocks(lines)))
 
 
 def parse_program(lines: Iterable[str] | str) -> Program:
@@ -206,17 +195,19 @@ def parse_program(lines: Iterable[str] | str) -> Program:
             from ._native_parser import parse_source  # pylint: disable=import-outside-toplevel
         except ImportError:
             return _parse_program_python(lines.splitlines(keepends=True))
-        # The parser creates a large acyclic immutable graph.  Deferring cyclic
-        # collections avoids repeatedly scanning millions of live objects.
-        gc_was_enabled = gc.isenabled()
-        if gc_was_enabled:
-            gc.disable()
-        try:
-            return parse_source(lines, _parse_fallback_block, checkpoint)
-        finally:
-            if gc_was_enabled:
-                gc.enable()
+        return parse_source(lines, _parse_fallback_block, checkpoint)
     return _parse_program_python(lines)
+
+
+def _parse_source_blocks(source: Iterable[str] | str) -> tuple[Block, ...]:
+    """Internal blocks-only parser for dialect augmentation before AST creation."""
+    if isinstance(source, str):
+        try:
+            from ._native_parser import parse_source_blocks  # pylint: disable=import-outside-toplevel
+        except ImportError:
+            return tuple(_parse_blocks(source.splitlines(keepends=True)))
+        return parse_source_blocks(source, _parse_fallback_block, checkpoint)
+    return tuple(_parse_blocks(source))
 
 
 def eval_words(tokens: tuple[WordToken, ...], variables: dict[str, float]) -> EvaluatedWords:

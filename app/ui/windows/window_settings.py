@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app import theme
 from app.gcode.comments import DEFAULT_COMMENT_STYLE, comment_markers, normalize_comment_style
-from app.gcode.exporter import (
+from app.gcode.export import (
     DXF_MODE,
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
@@ -450,7 +450,7 @@ class MainWindowSettingsMixin:
             self.settings.value("PLOT/CURRENT_COLOR", "#00b7ff"), "current", self.uiTheme
         )
         self.plotToolColor = theme.themed_plot_value(
-            self.settings.value("PLOT/TOOL_COLOR", "#4d99ff"), "tool", self.uiTheme
+            self.settings.value("PLOT/TOOL_COLOR", "#e3aa37"), "tool", self.uiTheme
         )
         self.plotBackground = theme.themed_plot_value(
             self.settings.value("PLOT/BACKGROUND", "#ffffff"), "background", self.uiTheme

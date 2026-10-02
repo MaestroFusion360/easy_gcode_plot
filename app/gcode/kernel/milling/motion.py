@@ -124,6 +124,11 @@ def _motion(
     end_m = _machine(end, state, wcs_offsets)
     arc_vector = (0.0, 0.0, 0.0)
     plane_scales = (1.0, 1.0)
+    absolute_center_axes = (
+        {17: ("I", "J"), 18: ("I", "K"), 19: ("J", "K")}[state.plane]
+        if state.source_arc_type == 2 and any(axis in words for axis in ("I", "J", "K"))
+        else ()
+    )
     if state.move in (2, 3):
         transform = _coordinate_transform(state)
         arc_vector = _orient_vector(
@@ -133,11 +138,15 @@ def _motion(
         if abs(plane_scales[0] - plane_scales[1]) > 1e-12:
             raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
     state.x, state.y, state.z = end
+    if state.source_arc_type == 2:
+        offset = _wcs_offset(wcs_offsets, state.active_wcs)
+        arc_vector = tuple(arc_vector[i] + offset[i] for i in range(3))
     has_arc_definition = state.move in (2, 3) and any(key in words for key in ("I", "J", "K", "R"))
     if start_m == end_m and not has_arc_definition and not tcp_rotary:
         return None
     return TraceMotion(
         move=state.move,
+        source_arc_type=state.source_arc_type,
         start_x=start_m[0],
         start_y=start_m[1],
         start_z=start_m[2],
@@ -150,18 +159,21 @@ def _motion(
             arc_vector[0]
             if ((state.kinematics is not None or state.twp.active) and any(a in words for a in ("I", "J", "K")))
             or "I" in words
+            or "I" in absolute_center_axes
             else None
         ),
         j=(
             arc_vector[1]
             if ((state.kinematics is not None or state.twp.active) and any(a in words for a in ("I", "J", "K")))
             or "J" in words
+            or "J" in absolute_center_axes
             else None
         ),
         k=(
             arc_vector[2]
             if ((state.kinematics is not None or state.twp.active) and any(a in words for a in ("I", "J", "K")))
             or "K" in words
+            or "K" in absolute_center_axes
             else None
         ),
         source_block=block.index,
@@ -202,11 +214,14 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
     """Execute G53 in machine coordinates, mapping absolute zero to configured home."""
     start_machine = _raw_machine_position(state, wcs_offsets)
     end_machine = list(start_machine)
+    supa = block.native_syntax is not None and block.native_syntax.supa
     for index, letter in enumerate(("X", "Y", "Z")):
         if letter not in words:
             continue
         value = words[letter] * state.unit_scale
-        if state.absolute:
+        if supa:
+            end_machine[index] = value
+        elif state.absolute:
             end_machine[index] = home[index] if value == 0.0 else value
         else:
             end_machine[index] = start_machine[index] + value
@@ -229,7 +244,7 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
         source_block=block.index,
         source_nlabel=block.nlabel,
         source_raw=block.raw,
-        source_kind="g53",
+        source_kind="supa" if supa else "g53",
         start_tool_orientation=(
             effective_orientation(state.kinematics, state.rotary_angles) if state.kinematics else None
         ),

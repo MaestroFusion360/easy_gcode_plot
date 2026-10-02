@@ -22,7 +22,14 @@ DEFAULT_TURNING_TOOL = {
     "tipOrientation": 3,
     "insertLength": 12.0,
 }
-DEFAULT_MILLING_TOOL = {"type": "mill_flat", "diameter": 10.0, "cornerRadius": 0.0, "length": 50.0}
+DEFAULT_MILLING_TOOL = {
+    "type": "mill_flat",
+    "diameter": 10.0,
+    "cornerRadius": 0.0,
+    "fluteLength": 30.0,
+    "bodyLength": 20.0,
+    "length": 50.0,
+}
 
 MILLING_TOOL_LABELS = {
     "mill_flat": "Flat Mill",

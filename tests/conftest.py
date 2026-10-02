@@ -16,6 +16,7 @@ FIXTURES = TESTS / "fixtures"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(TESTS))
 
+from app import paths  # noqa: E402  # pylint: disable=wrong-import-position
 from app import settings as app_settings  # noqa: E402  # pylint: disable=wrong-import-position
 
 
@@ -25,6 +26,7 @@ def isolate_application_settings(tmp_path, monkeypatch):
     config_file = tmp_path / "config.ini"
     log_file = tmp_path / "main.log"
     config_file.touch()
+    monkeypatch.setattr(paths, "config_dir", lambda: str(tmp_path))
     monkeypatch.setattr(app_settings, "config_path", lambda: str(config_file))
     monkeypatch.setattr(app_settings, "log_path", lambda: str(log_file))
 

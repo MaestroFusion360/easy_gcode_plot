@@ -13,7 +13,8 @@ from time import perf_counter
 from typing import Any, Callable, Iterable
 
 from app.gcode.kernel import Diagnostic, ExecutionResult
-from app.gcode.kernel.io import read_nc_text
+from app.gcode.kernel.frontend.io import read_nc_text
+from app.gcode.kinematics_report import kinematics_report_fields
 from app.gcode.program_execution import execute_program
 from app.gcode.source_mode import source_dialect_for_path
 
@@ -93,11 +94,18 @@ def _looks_like_nc_program(path: Path) -> bool:
 def _unsupported_codes(diagnostics: Iterable[Diagnostic], diagnostic_code: str) -> tuple[str, ...]:
     codes: set[str] = set()
     for diagnostic in diagnostics:
-        if diagnostic.code != diagnostic_code:
-            continue
-        for match in _UNSUPPORTED_CODE_RE.findall(diagnostic.message):
-            codes.add(match.upper())
+        codes.update(_diagnostic_cnc_codes(asdict(diagnostic), diagnostic_code))
     return tuple(sorted(codes, key=_code_sort_key))
+
+
+def _diagnostic_cnc_codes(diagnostic, expected_code):
+    """Use structured SINUMERIK codes; retain legacy FANUC aggregation."""
+    if diagnostic["code"] == expected_code:
+        return tuple(code.upper() for code in _UNSUPPORTED_CODE_RE.findall(diagnostic["message"]))
+    if not diagnostic["code"].startswith("UNSUPPORTED_SINUMERIK_"):
+        return ()
+    letter = "G" if expected_code == "UNSUPPORTED_G_CODE" else "M"
+    return tuple(code for code in diagnostic.get("cnc_codes", ()) if code.startswith(letter))
 
 
 def _code_sort_key(code: str) -> tuple[str, float, str]:
@@ -175,6 +183,7 @@ def analysis_status(result: ExecutionResult) -> str:
 def analysis_diagnostic_summary(result: ExecutionResult) -> dict[str, object]:
     diagnostics = result.diagnostics
     return {
+        "source_dialect": result.source_dialect,
         "diagnostic_count": len(diagnostics),
         "error_count": sum(item.severity == "error" for item in diagnostics),
         "warning_count": sum(item.severity != "error" for item in diagnostics),
@@ -205,6 +214,7 @@ def _file_report(
         )
         return {
             "path": path.relative_to(root).as_posix(),
+            "source_dialect": source_dialect_for_path(path),
             "status": STATUS_ERRORS,
             "ok": False,
             "complete": False,
@@ -244,6 +254,7 @@ def _file_report(
         **analysis_diagnostic_summary(result),
         "diagnostics": [asdict(item) for item in diagnostics],
         "kinematics_profile": result.kinematics_profile,
+        **kinematics_report_fields(result),
         "rotary_axes": list(result.rotary_axes),
     }
     report["elapsed_ms"] = round((perf_counter() - started) * 1000.0, 3)
@@ -257,9 +268,7 @@ def _aggregate_unsupported(files: Iterable[dict[str, object]], key: str) -> list
         path = str(file_report["path"])
         for diagnostic in file_report["diagnostics"]:  # type: ignore[union-attr]
             expected_code = "UNSUPPORTED_G_CODE" if key == "unsupported_g_codes" else "UNSUPPORTED_M_CODE"
-            if diagnostic["code"] != expected_code:
-                continue
-            for code in _UNSUPPORTED_CODE_RE.findall(str(diagnostic["message"])):
+            for code in _diagnostic_cnc_codes(diagnostic, expected_code):
                 normalized = code.upper()
                 occurrences[normalized] += 1
                 affected_files[normalized].add(path)
@@ -397,7 +406,10 @@ def write_batch_reports(
         "diagnostic_codes",
         "diagnostics",
         "kinematics_profile",
+        "kinematics_fingerprint",
+        "kinematics_definition",
         "elapsed_ms",
+        "source_dialect",
     )
     with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
@@ -407,6 +419,7 @@ def write_batch_reports(
             writer.writerow(
                 {
                     **{name: file_report.get(name) for name in fieldnames},
+                    "kinematics_definition": json.dumps(file_report.get("kinematics_definition"), sort_keys=True),
                     "unsupported_g_codes": ";".join(file_report["unsupported_g_codes"]),
                     "unsupported_m_codes": ";".join(file_report["unsupported_m_codes"]),
                     "diagnostic_codes": ";".join(str(item["code"]) for item in diagnostics),

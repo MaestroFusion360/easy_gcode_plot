@@ -129,6 +129,26 @@ def motion_from_primitive(primitive: TurningPrimitive) -> Motion:
     )
 
 
+def _nose_compensation_parameters(tool, tool_code):
+    if str(tool.get("type", "")).lower() not in {
+        "diamond_80",
+        "diamond_35",
+        "square",
+        "round",
+        "triangle",
+        "groove",
+    }:
+        raise ToolCompensationError(f"G41/G42 requires a turning tool, got {tool.get('type')!r}.")
+    try:
+        radius = float(tool["noseRadius"])
+        orientation = int(tool["tipOrientation"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise ToolCompensationError(f"{tool_code} requires noseRadius and tipOrientation 1-9.") from exc
+    if radius <= 0.0:
+        raise ToolCompensationError(f"{tool_code} nose radius must be positive.")
+    return radius, orientation
+
+
 def apply_tool_nose_compensation(motions: list[Motion], tools: dict[str, dict[str, object]]) -> list[Motion]:
     """Apply configured G41/G42 geometry to the authoritative Motion Trace."""
     if not motions or not tools:
@@ -165,22 +185,7 @@ def apply_tool_nose_compensation(motions: list[Motion], tools: dict[str, dict[st
             result.extend(run)
             index = end
             continue
-        if str(tool.get("type", "")).lower() not in {
-            "diamond_80",
-            "diamond_35",
-            "square",
-            "round",
-            "triangle",
-            "groove",
-        }:
-            raise ToolCompensationError(f"G41/G42 requires a turning tool, got {tool.get('type')!r}.")
-        try:
-            radius = float(tool["noseRadius"])
-            orientation = int(tool["tipOrientation"])
-        except (KeyError, TypeError, ValueError) as exc:
-            raise ToolCompensationError(f"{motion.tool} requires noseRadius and tipOrientation 1-9.") from exc
-        if radius <= 0.0:
-            raise ToolCompensationError(f"{motion.tool} nose radius must be positive.")
+        radius, orientation = _nose_compensation_parameters(tool, motion.tool)
 
         primitives = [offset_motion(item, radius, orientation) for item in run]
         entry_transition = index == 0 or motions[index - 1].compensation_mode not in (41, 42)

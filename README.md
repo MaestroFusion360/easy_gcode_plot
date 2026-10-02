@@ -50,7 +50,7 @@ Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter f
 ## Highlights
 
 - FANUC turning and milling with Macro B expressions, conditions, loops, `G65` custom-macro calls and `M98/M99` subprograms.
-- SINUMERIK 840D MPF/SPF input with a bounded G291 ISO Dialect M subset routed through the milling kernel; native Siemens language and unsupported ISO-M functions stop with diagnostics.
+- SINUMERIK 840D native three-axis milling, modal `MCALL CYCLE81/82/83/84` and a bounded G291 ISO Dialect M subset; see [SINUMERIK 840D](#sinumerik-840d).
 - Turning G70–G76 cycles, G32/G33/G92 threading, tool-nose compensation and direct A/C/corner-R programming.
 - Milling canned cycles, helical arcs, `G15/G16` polar-coordinate programming, cutter-radius compensation and G10/G50/G51/G52/G54.1/G68/G69 coordinate operations.
 - Indexed 3+2 milling with `G68.2/G53.1` and continuous five-axis TCP motion with `G43.4` on the angled AC/BC table profiles; FANUC milling fixtures are checked for trace continuity.
@@ -69,6 +69,30 @@ Easy G-Code Plot is a desktop editor, analyzer, backplotter and trace exporter f
 - Native Cython acceleration with a compatible Python fallback.
 
 Detailed controller behavior, limitations, configuration and troubleshooting are documented in [FAQ.md](FAQ.md), also available through **Help → FAQ**.
+
+## SINUMERIK 840D
+
+The CLI target `--target-dialect sinumerik840d` means **ISO Dialect M (`G291`)**, not native Siemens. `--mode full` converts **FANUC ↔ ISO-M** only. **FANUC ↔ native** Full Program conversion is not implemented; native input can export its resolved FANUC trace with `--mode expanded`.
+
+The GUI has **no SINUMERIK Native export target**; its **SINUMERIK 840D ISO-M (G291)** choice exports ISO-M only. CLI trace export does not imply a native GUI export option.
+
+Support is intended for **toolpath visualization of native commands and cycles emitted by CAM postprocessors**. The complex internal Siemens macro language is outside the project scope: implementing it fully is not feasible for a project maintained by one person. Executing subprograms from SDI mode is also currently unavailable. Recognizing an SPF file does not enable Siemens subprogram calls.
+
+For recognized MPF/SPF documents, the GUI sets **Rotary kinematics = None** and disables other profiles in both Settings and Options. Opening a FANUC document or creating a new document restores the previous profile; the saved preference is retained.
+
+Every MPF/SPF file opens as SINUMERIK and starts in native mode. Standalone `G290` selects native Siemens syntax; `G291` selects ISO Dialect M. Use `--lang fanuc_mill` for the milling geometry model in CLI commands.
+
+Native support includes XYZ positioning and arcs (`G0/G1/G2/G3`, `CR=`), plane and absolute/incremental selection, metric `G710`, work offsets, `G40/G41/G42` compensation, `D0/D1`, tool/spindle/coolant commands and machine-coordinate `G0 SUPA` moves. `MSG`, `WORKPIECE`, `G64` and semicolon comments are handled without generating phantom geometry. Modal `MCALL CYCLE81/82/83` expands supported numeric parameters into drilling motions; bare `MCALL` cancels the cycle. Empty `CYCLE800()` is accepted only without an active rotary frame.
+
+`MCALL CYCLE84` supports the CAM single-pass, metric right-hand tapping subset: `G17/G40/G94`, explicit positive `PIT`, pitch units `_PITA=0/1`, `SDAC=3`, Z tool axis and positive `SST` matching programmed `S`; `SST1` must match or be zero/omitted. Feed is pitch × rpm, with synchronized feed withdrawal to `RFP+SDIS` and rapid return to `RTP`. The 24-argument CAM call and shortened numeric calls are supported, including seconds-based dwell and compatibility or absolute-depth `AMODE=2/1001002`. Deep tapping, thread tables/`MPIT`, other pitch units, spindle orientation/technology options, left-hand tapping and different entry/return speeds are rejected. This is trajectory visualization with logical spindle signals, without spindle-angle simulation. See [Siemens cycle parameter definitions, section 1.7](https://m3.tuc.gr/EQUIPMENT/CTX310/840D%20G-CODE.pdf). Regression coverage includes `tapping_sin840d.mpf` / `tapping_fanuc.nc` and exported trace replay.
+
+SINUMERIK kinematics currently works only for **three-axis XYZ trajectories**. Full support for **CYCLE800 and TRAORI/TRAFOOF** is planned for future development. Parameterized tilted planes, rotary motion and TCP transformations are currently unsupported and stop with diagnostics.
+
+SINUMERIK acceleration processes contiguous literal position blocks through Cython, with the Python capability gate applied before each block changes state. Native declarations, G290/G291 switches and other controller operations interrupt the current run; subsequent eligible positions resume acceleration. Positions under an active native cycle remain on the Python reference path until bare MCALL cancels it. A metadata or cycle declaration does not disable acceleration for the rest of the file.
+
+Resolved native trace can be exported to FANUC and re-executed; native **Full Program** conversion is not implemented. Existing Full Program dialect conversion applies to the verified ISO-M subset. Regression pairs in `tests/fixtures/milling` cover `contur_2d_sin840d.mpf` / `contur_2d.nc` and `cycles_sin840d.mpf` / `cycles_fanuc.nc`; rounding and actual CAM peck/retract differences are explicit in the comparisons.
+
+See [English reference](FAQ.md#sinumerik-840d-input) and [Русская документация](FAQ_RU.md#sinumerik-840d) for command coverage, cycle limits and export behavior.
 
 ## Quick start
 
@@ -190,14 +214,14 @@ The CLI uses the same execution kernel as the GUI. In PowerShell, run the Window
 .\easy_gcode_plot_cli.exe analyze indexed.nc --lang fanuc_mill --kinematics 4ax_table_b
 .\easy_gcode_plot_cli.exe batch-export .\indexed --lang fanuc_mill --mode full --kinematics-map .\profiles.json -o .\indexed-output
 .\easy_gcode_plot_cli.exe analyze part.mpf --lang fanuc_mill
-.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode full -o part_copy.nc
+.\easy_gcode_plot_cli.exe export siemens_part.mpf --lang fanuc_mill --mode full -o part_copy.nc
 .\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode expanded -o part_geometry.nc
 .\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o siemens_part.mpf
 .\easy_gcode_plot_cli.exe export siemens_part.mpf --lang fanuc_mill --mode full -o fanuc_part_roundtrip.nc
 .\easy_gcode_plot_cli.exe batch-export .\fanuc_parts --lang fanuc_mill --target-dialect sinumerik840d --mode full -o .\siemens_parts
 ```
 
-In the GUI, choose **File → Export → MILL FULL PROGRAM** and select the target in **Target CNC**. For SINUMERIK input, the CLI recognizes `.mpf`/`.spf` programs containing G290/G291 or native Siemens syntax; use `--lang fanuc_mill` for ISO Dialect M analysis. Dialect conversion is available only with `--mode full`: it preserves all source blocks and adds or removes the standalone `G291` mode switch. Only the verified three-axis ISO-M subset is converted and analyzed in the target dialect. Rotary 4-axis programs, 5-axis/TCP (`G43.4`) programs and tilted working-plane transforms are unsupported for SINUMERIK ISO export. The converter rejects these programs before writing NC and never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile also blocks SINUMERIK ISO export, even for XYZ-only source. Export fails if diagnostics appear, motion geometry or machine signals change, or SINUMERIK-target cutter compensation cannot be verified. Expanded Execution is an analysis representation, not a dialect conversion. DXF exports resolved geometry. This is not full 840D validation; see [FAQ.md](FAQ.md#sinumerik-840d-input) for supported behavior and limits.
+In the GUI, choose **File → Export → MILL FULL PROGRAM** and select the target in **Target CNC**. For SINUMERIK input, the CLI recognizes every `.mpf`/`.spf` as SINUMERIK; use `--lang fanuc_mill` for native or ISO-M analysis. Native Full Program conversion is unsupported; export its resolved trace with `--mode expanded`. Dialect conversion is available only with `--mode full`: it preserves all source blocks and adds or removes the standalone `G291` mode switch. Only the verified three-axis ISO-M subset is converted and analyzed in the target dialect. Rotary 4-axis programs, 5-axis/TCP (`G43.4`) programs and tilted working-plane transforms are unsupported for SINUMERIK ISO export. The converter rejects these programs before writing NC and never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile does not block XYZ-only ISO-M conversion; actual rotary/TCP/tilted-plane operations remain unsupported. Export fails if diagnostics appear, motion geometry or machine signals change, or SINUMERIK-target cutter compensation cannot be verified. Expanded Execution is an analysis representation, not a dialect conversion. DXF exports resolved geometry. This is not full 840D validation; see [FAQ.md](FAQ.md#sinumerik-840d-input) for supported behavior and limits.
 
 From the repository root, use `.\dist\easy_gcode_plot_cli.exe` instead. When running from source, replace `.\easy_gcode_plot_cli.exe` with `uv run --no-dev python -m app`.
 
@@ -232,7 +256,7 @@ bash scripts/sh/batch/batch_export_turn.sh
 The scripts use UTF-8, read `tests/fixtures/milling` or `tests/fixtures/turning`, and write reports under the system temporary directory in `easy_gcode_plot/batch/milling` or `easy_gcode_plot/batch/turning`. They run the executable in `dist/` directly without building or running tests. Both `analyze` and `batch` detect Arc Type per program from IJK arcs in milling and turning. When no arc identifies the type unambiguously, relative IJK is used.
 The terminal shows each batch file as it is processed, its diagnostics, and the final result. All CLI commands print a readable execution result in the terminal. `trace` and `analyze` write detailed JSON only when `-o` is supplied; `batch` writes JSON and CSV reports to its output directory. For the same program and language, `analyze` and `batch` use the same execution settings and report matching status, diagnostics, motion and executed-block counts, and unsupported G/M codes. Their JSON layouts differ because `analyze` also includes detailed trace statistics while `batch` aggregates files.
 
-Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input. The `batch` and `batch-export` commands scan `.nc`, `.cnc`, `.ptp`, `.mpf`, `.spf`, `.tap` and `.txt` recursively by default. SINUMERIK MPF/SPF files are selected by their G290/G291 or native Siemens signature. Batch analysis writes `batch_report.json` plus an Excel-friendly `batch_report.csv`. File status is `CLEAN` (no diagnostics), `WARNINGS` (review needed) or `ERRORS` (analysis or input failed); an empty scan has overall status `NO_FILES`. `CLEAN` is not machine validation. The summary includes diagnostic frequencies and unknown/unsupported G/M codes. Use `--extensions .nc,.mpf` to override the file set or `--top-level-only` to disable recursive scanning.
+Use `--lang fanuc_mill` for milling and `--encoding cp1251` for Windows-1251 input. The `batch` and `batch-export` commands scan `.nc`, `.cnc`, `.ptp`, `.mpf`, `.spf`, `.tap` and `.txt` recursively by default. Every MPF/SPF file is treated as a SINUMERIK container; standalone G290/G291 blocks select its execution mode. Batch analysis writes `batch_report.json` plus an Excel-friendly `batch_report.csv`. File status is `CLEAN` (no diagnostics), `WARNINGS` (review needed) or `ERRORS` (analysis or input failed); an empty scan has overall status `NO_FILES`. `CLEAN` is not machine validation. The summary includes diagnostic frequencies and unknown/unsupported G/M codes. Use `--extensions .nc,.mpf` to override the file set or `--top-level-only` to disable recursive scanning.
 
 CLI execution discovers temporary tool geometry from literal `T` selections and source comments, as the GUI does for a newly opened program. This lets G41/G42 use geometry described in the NC file. Manually assigned Current Program tools and Saved Library entries in the GUI are not imported into CLI runs; verify inferred dimensions before relying on compensated output.
 

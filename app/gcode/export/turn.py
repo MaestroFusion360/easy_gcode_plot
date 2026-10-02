@@ -6,7 +6,7 @@ import re
 from dataclasses import replace
 
 from ..kernel import ExecutionResult, TraceMotion
-from ..kernel.events import HOME_RETURN, PROGRAM_START, SUBPROGRAM_START, event_blocks
+from ..kernel.runtime.events import HOME_RETURN, PROGRAM_START, SUBPROGRAM_START, event_blocks
 from .common import (
     _cancellable,
     _event_kinds,

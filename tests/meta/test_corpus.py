@@ -32,6 +32,11 @@ EXPECTED_FIXTURES = {
     "milling/radius_arc_ramp.nc",
     "milling/ramped_surface.nc",
     "milling/subprogram.nc",
+    "milling/contur_2d_sin840d.mpf",
+    "milling/cycles_fanuc.nc",
+    "milling/cycles_sin840d.mpf",
+    "milling/tapping_fanuc.nc",
+    "milling/tapping_sin840d.mpf",
     "milling/terraced_ramp.nc",
     "milling/toolchange.nc",
     "milling/wcs_test.nc",
@@ -57,7 +62,7 @@ def test_fixture_corpus_is_explicit_unique_and_uses_supported_program_files_only
     files = sorted(path for path in FIXTURES.rglob("*") if path.is_file())
     actual = {path.relative_to(FIXTURES).as_posix() for path in files}
     assert actual == EXPECTED_FIXTURES
-    assert {path.suffix.lower() for path in files} == {".nc", ".ptp"}
+    assert {path.suffix.lower() for path in files} == {".nc", ".ptp", ".mpf"}
 
     hashes = [
         hashlib.sha256(_normalized(path.read_text(encoding="utf-8-sig")).encode("utf-8")).hexdigest() for path in files
@@ -69,7 +74,7 @@ def test_compact_gcode_samples_do_not_duplicate_fixture_programs():
     fixture_programs = {
         _normalized(path.read_text(encoding="utf-8-sig"))
         for path in FIXTURES.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".nc", ".ptp"}
+        if path.is_file() and path.suffix.lower() in {".nc", ".ptp", ".mpf"}
     }
     compact_programs = {
         _normalized(value)

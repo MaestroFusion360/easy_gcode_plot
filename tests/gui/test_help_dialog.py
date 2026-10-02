@@ -2,16 +2,35 @@ from __future__ import annotations
 
 # pylint: disable=protected-access  # Search matches are inspected to verify wraparound.
 import pytest
-from PyQt6.QtCore import QFile, QSize, Qt, QUrl
+from PyQt6.QtCore import QFile, QSize, Qt, QTranslator, QUrl
 from PyQt6.QtGui import QColor, QIcon, QTextFormat
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 
+from app import get_version
 from app.main_window import MainWindow
+from app.ui.dialogs.general import About
 
 
 @pytest.fixture(scope="module")
 def qt_app():
     return QApplication.instance() or QApplication([])
+
+
+def test_about_russian_catalog_translates_runtime_metadata(qt_app):
+    translator = QTranslator()
+    assert translator.load(":/resource/translations/app_ru.qm")
+    qt_app.installTranslator(translator)
+    parent = QWidget()
+    try:
+        dialog = About(parent)
+        assert dialog.windowTitle() == "О программе Easy G-code Plot"
+        assert dialog.ui.versionLabel.text() == f"Версия: {get_version()}"
+        assert "трёхосевые траектории CAM для SINUMERIK 840D" in dialog.ui.descriptionLabel.text()
+        assert "Свободное ПО" in dialog.ui.licenseLabel.text()
+        assert "Supports" not in dialog.ui.descriptionLabel.text()
+    finally:
+        qt_app.removeTranslator(translator)
+        parent.deleteLater()
 
 
 def test_faq_is_packaged_and_listed_below_about_without_changing_f1(qt_app):

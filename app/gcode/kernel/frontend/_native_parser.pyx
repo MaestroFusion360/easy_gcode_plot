@@ -7,19 +7,151 @@ are tokenized and materialized here in one compiled loop.
 """
 
 from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_GET_SIZE
+from cpython.object cimport PyObject_GenericSetAttr
+from libc.math cimport fabs, isfinite, round as c_round
 
 from .ast import (
-    AstNode,
-    AstWord,
-    ControlAstNode,
-    CycleAstNode,
-    MetaAstNode,
-    MotionAstNode,
-    ProgramAst,
+    AstNode, AstWord, ControlAstNode, CycleAstNode, FlowAstNode, MetaAstNode,
+    MotionAstNode, ProgramAst, WORD_CACHE_LIMIT,
     build_ast_node,
 )
+
 from .lang import WordToken
 from .model import Block, CycleNode, ModalSnapshot, MotionNode, Program
+
+
+cdef object _ast_int_code(object expr):
+    cdef double value, rounded
+    if expr is None:
+        return None
+    try:
+        value = float(expr)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    if not isfinite(value):
+        return None
+    rounded = c_round(value)
+    return int(rounded) if fabs(value - rounded) <= 1e-9 else None
+
+
+cdef tuple _ast_words(tuple tokens, dict cache):
+    cdef list words = []
+    cdef object token, letter, expr, key, word
+    for token in tokens:
+        letter, expr = token.letter.upper(), token.expr
+        key = (letter, expr)
+        word = cache.get(key) if letter != "N" and letter != "O" else None
+        if word is None:
+            word = object.__new__(AstWord)
+            PyObject_GenericSetAttr(word, "letter", letter)
+            PyObject_GenericSetAttr(word, "expr", expr)
+            PyObject_GenericSetAttr(word, "int_code", _ast_int_code(expr))
+            if letter != "N" and letter != "O":
+                if len(cache) >= WORD_CACHE_LIMIT:
+                    cache.clear()
+                cache[key] = word
+        words.append(word)
+    return tuple(words)
+
+
+cdef object _common_ast(object cls, str kind, object block, tuple words):
+    # Populate immutable dataclass slots before exposing the node. GenericSetAttr
+    # avoids Python frozen-dataclass __init__/__setattr__ calls for every field.
+    cdef object node = object.__new__(cls)
+    PyObject_GenericSetAttr(node, "kind", kind)
+    PyObject_GenericSetAttr(node, "block_index", block.index)
+    PyObject_GenericSetAttr(node, "raw", block.raw)
+    PyObject_GenericSetAttr(node, "nlabel", block.nlabel)
+    PyObject_GenericSetAttr(node, "olabel", block.olabel)
+    PyObject_GenericSetAttr(node, "words", words)
+    PyObject_GenericSetAttr(node, "native_syntax", block.native_syntax)
+    return node
+
+
+cdef object _motion_ast(object block, tuple words, dict cache):
+    cdef object motion = block.motion_node
+    cdef object node = _common_ast(MotionAstNode, "motion", block, words)
+    cdef object g_word = cache.get(("G", motion.g_expr))
+    cdef object code = g_word.int_code if g_word is not None else _ast_int_code(motion.g_expr)
+    PyObject_GenericSetAttr(node, "g_code", code)
+    PyObject_GenericSetAttr(node, "x_expr", motion.x_expr)
+    PyObject_GenericSetAttr(node, "z_expr", motion.z_expr)
+    PyObject_GenericSetAttr(node, "u_expr", motion.u_expr)
+    PyObject_GenericSetAttr(node, "w_expr", motion.w_expr)
+    PyObject_GenericSetAttr(node, "i_expr", motion.i_expr)
+    PyObject_GenericSetAttr(node, "k_expr", motion.k_expr)
+    PyObject_GenericSetAttr(node, "r_expr", motion.r_expr)
+    PyObject_GenericSetAttr(node, "f_expr", motion.f_expr)
+    PyObject_GenericSetAttr(node, "a_expr", motion.a_expr)
+    PyObject_GenericSetAttr(node, "c_expr", motion.c_expr)
+    PyObject_GenericSetAttr(node, "y_expr", motion.y_expr)
+    PyObject_GenericSetAttr(node, "v_expr", motion.v_expr)
+    PyObject_GenericSetAttr(node, "j_expr", motion.j_expr)
+    PyObject_GenericSetAttr(node, "b_expr", motion.b_expr)
+    return node
+
+
+cdef object _control_or_meta_ast(object block, tuple words):
+    cdef list g_codes = [], m_codes = []
+    cdef object word, node
+    for word in words:
+        if word.int_code is not None:
+            if word.letter == "G":
+                g_codes.append(word.int_code)
+            elif word.letter == "M":
+                m_codes.append(word.int_code)
+    if g_codes or m_codes:
+        node = _common_ast(ControlAstNode, "control", block, words)
+        PyObject_GenericSetAttr(node, "g_codes", tuple(g_codes))
+        PyObject_GenericSetAttr(node, "m_codes", () if 65 in g_codes else tuple(m_codes))
+    elif words:
+        node = _common_ast(MetaAstNode, "meta", block, words)
+        PyObject_GenericSetAttr(node, "letters", tuple(word.letter for word in words))
+    else:
+        node = _common_ast(AstNode, "empty", block, words)
+    return node
+
+
+cdef object _ast_node(object block, dict cache):
+    if block.native_syntax is not None:
+        return build_ast_node(block, _word_cache=cache)
+    cdef tuple words = _ast_words(block.parsed_words, cache)
+    cdef object node, flow = block.flow_node, cycle = block.cycle_node
+    if flow is not None:
+        node = _common_ast(FlowAstNode, "flow", block, words)
+        PyObject_GenericSetAttr(node, "flow_kind", flow.kind)
+        PyObject_GenericSetAttr(node, "condition", flow.condition)
+        PyObject_GenericSetAttr(node, "target_label", flow.target_label)
+        PyObject_GenericSetAttr(node, "loop_id", flow.loop_id)
+        PyObject_GenericSetAttr(node, "var_key", flow.var_key)
+        PyObject_GenericSetAttr(node, "value_expr", flow.value_expr)
+        return node
+    if cycle is not None:
+        node = _common_ast(CycleAstNode, "cycle", block, words)
+        PyObject_GenericSetAttr(node, "cycle", cycle.cycle)
+        PyObject_GenericSetAttr(node, "params", words)
+        return node
+    if block.motion_node is not None:
+        return _motion_ast(block, words, cache)
+    return _control_or_meta_ast(block, words)
+
+
+def build_program_ast_native(tuple blocks, object checkpoint):
+    """Compiled Block -> AST pass, including first-occurrence N/O label maps."""
+    cdef list nodes = []
+    cdef dict nlabels = {}, olabels = {}, cache = {}
+    cdef object block
+    cdef Py_ssize_t position = 0
+    for block in blocks:
+        if position % 256 == 0:
+            checkpoint()
+        nodes.append(_ast_node(block, cache))
+        if isinstance(block.nlabel, int):
+            nlabels.setdefault(block.nlabel, block.index)
+        if isinstance(block.olabel, int):
+            olabels.setdefault(block.olabel, block.index)
+        position += 1
+    return ProgramAst(tuple(nodes), nlabels, olabels)
 
 
 cdef inline bint _alpha(unsigned char ch) noexcept:
@@ -99,7 +231,7 @@ cdef bint _requires_fallback(bytes clean):
     return False
 
 
-cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
+cdef object _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef const unsigned char* data = <const unsigned char*>PyBytes_AS_STRING(clean)
     cdef Py_ssize_t size = PyBytes_GET_SIZE(clean)
     cdef Py_ssize_t pos = 0
@@ -113,9 +245,6 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef unsigned char ch
     cdef bint optional_skip = False
     cdef list tokens = []
-    cdef list ast_words = []
-    cdef list g_codes = []
-    cdef list m_codes = []
     cdef object letter
     cdef bytes expr_bytes
     cdef object expr
@@ -123,7 +252,6 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef object token
     cdef object last_g_expr = None
     cdef object motion_expr = None
-    cdef object motion_code = None
     cdef object cycle_expr = None
     cdef object cycle_code = None
     cdef object x_expr = None
@@ -147,9 +275,7 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
     cdef object motion = None
     cdef object cycle = None
     cdef object block
-    cdef object node
     cdef tuple token_tuple
-    cdef tuple ast_tuple
 
     while pos < size and data[pos] <= 32:
         pos += 1
@@ -198,21 +324,16 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
         int_code = _literal_int(expr_bytes)
         token = WordToken(letter, expr)
         tokens.append(token)
-        ast_words.append(AstWord(letter, expr, int_code))
         if letter == "G":
             last_g_expr = expr
             if int_code is not None:
-                g_codes.append(int_code)
                 if int_code == 65:
                     g65_call = True
                 if int_code in (0, 1, 2, 3, 32, 33):
                     motion_expr = expr
-                    motion_code = int_code
                 if int_code in (70, 71, 72, 73, 74, 75, 76, 80, 83, 84):
                     cycle_expr = expr
                     cycle_code = int_code
-        elif letter == "M" and int_code is not None:
-            m_codes.append(int_code)
         elif letter == "N" and nlabel is None and int_code is not None:
             nlabel = int_code
         elif letter == "O" and olabel is None and int_code is not None:
@@ -266,34 +387,15 @@ cdef tuple _native_block(Py_ssize_t index, str raw, bytes clean):
             y_expr, v_expr, j_expr, b_expr,
         )
     token_tuple = tuple(tokens)
-    ast_tuple = tuple(ast_words)
     if not g65_call and cycle_expr is not None:
         cycle = CycleNode("G" + str(cycle_code), token_tuple)
 
     block = Block(index, raw, token_tuple, modal, motion, cycle, None, nlabel, olabel, optional_skip)
-    if cycle is not None:
-        node = CycleAstNode("cycle", index, raw, nlabel, olabel, ast_tuple, "G" + str(cycle_code), ast_tuple)
-    elif motion is not None:
-        node = MotionAstNode(
-            "motion", index, raw, nlabel, olabel, ast_tuple,
-            motion_code,
-            x_expr, z_expr, u_expr, w_expr,
-            i_expr, k_expr, r_expr, f_expr, a_expr, c_expr,
-            y_expr, v_expr, j_expr, b_expr,
-        )
-    elif g_codes or m_codes:
-        node = ControlAstNode(
-            "control", index, raw, nlabel, olabel, ast_tuple, tuple(g_codes), () if g65_call else tuple(m_codes)
-        )
-    elif ast_tuple:
-        node = MetaAstNode("meta", index, raw, nlabel, olabel, ast_tuple, tuple(word.letter for word in ast_tuple))
-    else:
-        node = AstNode("empty", index, raw, nlabel, olabel, ())
-    return block, node
+    return block
 
 
-def parse_source(str source, object fallback_block, object checkpoint):
-    """Parse one complete source string and return the existing Program graph."""
+def _parse_source_blocks(str source, object fallback_block, object checkpoint):
+    """Compiled tokenization seam, shared by parsing and relative benchmarks."""
     cdef bytes encoded = source.encode("utf-8")
     cdef const unsigned char* data = <const unsigned char*>PyBytes_AS_STRING(encoded)
     cdef Py_ssize_t size = PyBytes_GET_SIZE(encoded)
@@ -304,12 +406,8 @@ def parse_source(str source, object fallback_block, object checkpoint):
     cdef bytes clean
     cdef str raw
     cdef object block
-    cdef object node
     cdef object parsed
     cdef list blocks = []
-    cdef list nodes = []
-    cdef dict nlabels = {}
-    cdef dict olabels = {}
 
     while line_start < size:
         if index % 256 == 0:
@@ -322,21 +420,26 @@ def parse_source(str source, object fallback_block, object checkpoint):
         clean = raw_bytes
         if _requires_fallback(clean):
             block = fallback_block(index, raw)
-            node = build_ast_node(block)
         else:
             parsed = _native_block(index, raw, clean)
             if parsed is None:
                 block = fallback_block(index, raw)
-                node = build_ast_node(block)
             else:
-                block, node = parsed
+                block = parsed
         blocks.append(block)
-        nodes.append(node)
-        if node.nlabel is not None and node.nlabel not in nlabels:
-            nlabels[node.nlabel] = node.block_index
-        if node.olabel is not None and node.olabel not in olabels:
-            olabels[node.olabel] = node.block_index
         index += 1
         line_start = line_end + 1
 
-    return Program(tuple(blocks), ProgramAst(tuple(nodes), nlabels, olabels))
+    return tuple(blocks)
+
+
+def parse_source(str source, object fallback_block, object checkpoint):
+    """Derive the AST from parsed blocks once, without public revalidation."""
+    blocks = _parse_source_blocks(source, fallback_block, checkpoint)
+    ast = build_program_ast_native(blocks, checkpoint)
+    return Program._from_canonical_ast(blocks, ast)
+
+
+def parse_source_blocks(str source, object fallback_block, object checkpoint):
+    """Internal blocks-only entry point; canonical AST is built after augmentation."""
+    return _parse_source_blocks(source, fallback_block, checkpoint)

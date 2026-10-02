@@ -5,6 +5,8 @@ import math
 
 from ..api.resources import checkpoint
 from ..api.types import ExecutionStep, TraceMotion
+from ..frontend.program import EvaluatedWords
+from ..runtime.capabilities import common_iso_fast_block
 
 
 def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs_offsets):
@@ -32,6 +34,9 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
     cdef object i_value
     cdef object j_value
     cdef object k_value
+    cdef bint controller_checked = runtime.controller_mode != "fanuc"
+    cdef object checked_words
+    cdef object syntax
 
     while 0 <= runtime.pc < len(program.blocks):
         block = program.blocks[runtime.pc]
@@ -39,6 +44,7 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
             block.flow_node is not None
             or block.optional_skip
             or state.cycle != 80
+            or state.native_cycle is not None
             or state.twp.active
             or state.polar_active
             or state.unknown_axes
@@ -48,10 +54,15 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
         ):
             break
 
+        syntax = block.native_syntax
+        if controller_checked and syntax is not None and (syntax.kind != "words" or syntax.supa):
+            break
+
         all_values = {}
         latest = {}
         values = []
         has_position = False
+        checked_words = EvaluatedWords() if controller_checked else None
         for token in block.parsed_words:
             letter = token.letter
             if letter not in ("N", "X", "Y", "Z", "I", "J", "K", "R"):
@@ -64,11 +75,16 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                 return processed
             all_values.setdefault(letter, []).append(value)
             latest[letter] = value
+            if controller_checked:
+                checked_words.add(token, value)
             if letter == "X" or letter == "Y" or letter == "Z":
                 has_position = True
         for letter, letter_values in all_values.items():
             for value in letter_values:
                 values.append((letter, value))
+
+        if controller_checked and not common_iso_fast_block(block, runtime, state, checked_words):
+            break
 
         runtime.next_block(program.blocks)
         motion = None
@@ -102,6 +118,20 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                 j_value *= scale
             if k_value is not None:
                 k_value *= scale
+            if state.source_arc_type == 2:
+                if i_value is not None or j_value is not None or k_value is not None:
+                    if state.plane in (17, 18):
+                        i_value = i_value or 0.0
+                    if state.plane in (17, 19):
+                        j_value = j_value or 0.0
+                    if state.plane in (18, 19):
+                        k_value = k_value or 0.0
+                if i_value is not None:
+                    i_value += offsets[0]
+                if j_value is not None:
+                    j_value += offsets[1]
+                if k_value is not None:
+                    k_value += offsets[2]
             if (
                 (start_x, start_y, start_z) != (end_x, end_y, end_z)
                 or (state.move in (2, 3) and (i_value is not None or j_value is not None or k_value is not None or radius is not None))
@@ -131,6 +161,8 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                     feed_mode=state.feed_mode,
                     spindle_rpm=state.spindle_rpm,
                     compensation_status="UNVERIFIED" if state.cutter_comp in (41, 42) else "NOT_APPLIED",
+                    source_arc_type=state.source_arc_type,
+                    orientation_offset=tuple(offsets),
                 )
                 checkpoint("generated_motions")
                 motions.append(motion)

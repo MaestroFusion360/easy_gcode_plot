@@ -83,7 +83,7 @@ def _option_snapshot(window):
         "linear_color": getattr(window, "plotLineColor", "#0000ff"),
         "arc_color": getattr(window, "plotArcColor", "#008000"),
         "current_color": getattr(window, "plotCurrentColor", "#00b7ff"),
-        "tool_color": getattr(window, "plotToolColor", "#4d99ff"),
+        "tool_color": getattr(window, "plotToolColor", "#e3aa37"),
         "background_color": getattr(window, "plotBackground", "#ffffff"),
         "stl_color": getattr(window, "stlColor", "#b0b0b0"),
         "stl_wireframe": getattr(window, "stlWireframe", False),
@@ -280,9 +280,11 @@ class OptionsDialog(QDialog):
         finally:
             combo.blockSignals(blocked)
         self.ui.rotaryKinematicsEditButton.setEnabled(combo.currentData() is not None)
+        combo.setEnabled(not getattr(self.parent(), "_document_rotary_restricted", False))
 
     def sync_rotary_kinematics(self, profile_id):
         combo = self.ui.rotaryKinematicsCombo
+        combo.setEnabled(not getattr(self.parent(), "_document_rotary_restricted", False))
         index = combo.findData(profile_id)
         if index < 0:
             self._reload_rotary_kinematics_combo(profile_id)
@@ -356,7 +358,7 @@ class OptionsDialog(QDialog):
         self.ui.linearColorEdit.setText(window.plotLineColor)
         self.ui.arcColorEdit.setText(getattr(window, "plotArcColor", "#008000"))
         self.ui.currentColorEdit.setText(getattr(window, "plotCurrentColor", "#00b7ff"))
-        self.ui.toolColorEdit.setText(getattr(window, "plotToolColor", "#4d99ff"))
+        self.ui.toolColorEdit.setText(getattr(window, "plotToolColor", "#e3aa37"))
         self.ui.backgroundColorEdit.setText(window.plotBackground)
         self.ui.backgroundGradientCheck.setChecked(getattr(window, "plotBackgroundGradient", False))
         self.ui.stlColorEdit.setText(getattr(window, "stlColor", "#b0b0b0"))
@@ -699,7 +701,7 @@ class OptionsDialog(QDialog):
             (self.ui.linearColorEdit, "#0000ff"),
             (self.ui.arcColorEdit, "#008000"),
             (self.ui.currentColorEdit, "#00b7ff"),
-            (self.ui.toolColorEdit, "#4d99ff"),
+            (self.ui.toolColorEdit, "#e3aa37"),
             (self.ui.backgroundColorEdit, "#ffffff"),
             (self.ui.stlColorEdit, "#b0b0b0"),
         ):

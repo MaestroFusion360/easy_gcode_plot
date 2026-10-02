@@ -7,7 +7,7 @@ import re
 from ..comments import DEFAULT_COMMENT_STYLE, extract_comments, format_comment, strip_comments
 from ..core import format_gcode_number
 from ..kernel import TraceMotion
-from ..kernel.events import PROGRAM_END, SUBPROGRAM_END, SUBPROGRAM_START
+from ..kernel.runtime.events import PROGRAM_END, SUBPROGRAM_END, SUBPROGRAM_START
 from ..trace_tools import arc_geometry, sample_motion
 from .options import ExportOptions
 

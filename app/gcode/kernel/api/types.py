@@ -15,6 +15,7 @@ class Diagnostic:
     status: str = "verified"
     line: int | None = None
     raw: str | None = None
+    cnc_codes: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -68,6 +69,7 @@ class TraceMotion:
     orientation_offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
     tool_orientation: tuple[tuple[float, float, float], ...] | None = None
     start_tool_orientation: tuple[tuple[float, float, float], ...] | None = None
+    source_arc_type: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -163,3 +165,6 @@ class ExecutionResult:
     rotary_angles: tuple[tuple[str, float], ...] = ()
     kinematics_profile: str | None = None
     rotary_axes: tuple[str, ...] = ()
+    kinematics_definition: str | None = None
+    kinematics_fingerprint: str | None = None
+    source_dialect: str = "fanuc"

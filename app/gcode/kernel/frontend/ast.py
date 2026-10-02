@@ -1,8 +1,18 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+import math
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import TYPE_CHECKING
 
-from ..api.resources import checkpointed
+from ..api.resources import checkpoint, checkpointed
+
+if TYPE_CHECKING:
+    from .lang import WordToken
+    from .model import Block
+
+WORD_CACHE_LIMIT = 4096
 
 
 @dataclass(frozen=True, slots=True)
@@ -13,6 +23,16 @@ class AstWord:
 
 
 @dataclass(frozen=True, slots=True)
+class NativeMillingSyntax:
+    """Immutable SINUMERIK source facts, shared by Block and canonical AST."""
+
+    kind: str = "words"
+    supa: bool = False
+    cycle_code: int | None = None
+    cycle_args: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class AstNode:
     kind: str
     block_index: int
@@ -20,6 +40,12 @@ class AstNode:
     nlabel: int | None = None
     olabel: int | None = None
     words: tuple[AstWord, ...] = ()
+    native_syntax: NativeMillingSyntax | None = field(default=None, kw_only=True)
+
+
+@dataclass(frozen=True, slots=True)
+class SinumerikAstNode(AstNode):
+    """Native declaration/metadata node; the source syntax is never lowered."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,8 +98,13 @@ class MetaAstNode(AstNode):
 @dataclass(frozen=True, slots=True)
 class ProgramAst:
     nodes: tuple[AstNode, ...]
-    nlabel_to_index: dict[int, int]
-    olabel_to_index: dict[int, int]
+    nlabel_to_index: Mapping[int, int]
+    olabel_to_index: Mapping[int, int]
+
+    def __post_init__(self):
+        object.__setattr__(self, "nodes", tuple(self.nodes))
+        object.__setattr__(self, "nlabel_to_index", MappingProxyType(dict(self.nlabel_to_index)))
+        object.__setattr__(self, "olabel_to_index", MappingProxyType(dict(self.olabel_to_index)))
 
 
 def _int_code(expr: str | None) -> int | None:
@@ -81,144 +112,125 @@ def _int_code(expr: str | None) -> int | None:
         return None
     try:
         val = float(expr)
-    except Exception:
+    except (TypeError, ValueError, OverflowError):
         return None
-    if abs(val - round(val)) > 1e-9:
+    if not math.isfinite(val):
         return None
-    return int(round(val))
+    rounded = round(val)
+    return int(rounded) if abs(val - rounded) <= 1e-9 else None
 
 
-def _build_ast_words(parsed_words: tuple[object, ...]) -> tuple[AstWord, ...]:
-    out: list[AstWord] = []
-    for w in parsed_words:
-        letter = str(getattr(w, "letter", "")).upper()
-        expr = str(getattr(w, "expr", ""))
-        out.append(AstWord(letter=letter, expr=expr, int_code=_int_code(expr)))
+def _build_ast_words(parsed_words: tuple[WordToken, ...], cache: dict) -> tuple[AstWord, ...]:
+    """Intern immutable repeated words in a bounded, construction-local cache."""
+    out = []
+    for token in parsed_words:
+        letter, expr = token.letter.upper(), token.expr
+        key = (letter, expr)
+        word = cache.get(key) if letter not in {"N", "O"} else None
+        if word is None:
+            word = AstWord(letter, expr, _int_code(expr))
+            if letter not in {"N", "O"}:
+                if len(cache) >= WORD_CACHE_LIMIT:
+                    cache.clear()
+                cache[key] = word
+        out.append(word)
     return tuple(out)
 
 
-def build_ast_node(block: object) -> AstNode:
-    """Build the public AST node for one parsed block."""
-    idx = int(getattr(block, "index"))
-    raw = str(getattr(block, "raw", ""))
-    nlabel = getattr(block, "nlabel", None)
-    olabel = getattr(block, "olabel", None)
-    flow = getattr(block, "flow_node", None)
-    cycle = getattr(block, "cycle_node", None)
-    motion = getattr(block, "motion_node", None)
-    words = tuple(getattr(block, "parsed_words", ()))
-    ast_words = _build_ast_words(words)
+def _motion_code(expr, cache):
+    word = cache.get(("G", expr))
+    return word.int_code if word is not None else _int_code(expr)
 
+
+def build_ast_node(block: Block, *, _word_cache: dict | None = None) -> AstNode:
+    """Derive an AST node directly from a concrete authoritative Block."""
+    cache = {} if _word_cache is None else _word_cache
+    words = _build_ast_words(block.parsed_words, cache)
+    common = (block.index, block.raw, block.nlabel, block.olabel, words)
+    if block.native_syntax is not None:
+        return _build_native_ast_node(block, common, cache)
+    return _build_address_ast_node(block, common, cache)
+
+
+def _build_address_ast_node(block, common, cache):
+    words = common[-1]
+    flow, cycle, motion = block.flow_node, block.cycle_node, block.motion_node
     if flow is not None:
         return FlowAstNode(
-            kind="flow",
-            block_index=idx,
-            raw=raw,
-            nlabel=nlabel,
-            olabel=olabel,
-            words=ast_words,
-            flow_kind=str(getattr(flow, "kind", "")),
-            condition=getattr(flow, "condition", None),
-            target_label=getattr(flow, "target_label", None),
-            loop_id=getattr(flow, "loop_id", None),
-            var_key=getattr(flow, "var_key", None),
-            value_expr=getattr(flow, "value_expr", None),
+            "flow",
+            *common,
+            flow.kind,
+            flow.condition,
+            flow.target_label,
+            flow.loop_id,
+            flow.var_key,
+            flow.value_expr,
         )
-
     if cycle is not None:
-        return CycleAstNode(
-            kind="cycle",
-            block_index=idx,
-            raw=raw,
-            nlabel=nlabel,
-            olabel=olabel,
-            words=ast_words,
-            cycle=str(getattr(cycle, "cycle", "")),
-            params=ast_words,
-        )
-
+        return CycleAstNode("cycle", *common, cycle.cycle, words)
     if motion is not None:
         return MotionAstNode(
-            kind="motion",
-            block_index=idx,
-            raw=raw,
-            nlabel=nlabel,
-            olabel=olabel,
-            words=ast_words,
-            g_code=_int_code(getattr(motion, "g_expr", None)),
-            x_expr=getattr(motion, "x_expr", None),
-            z_expr=getattr(motion, "z_expr", None),
-            u_expr=getattr(motion, "u_expr", None),
-            w_expr=getattr(motion, "w_expr", None),
-            i_expr=getattr(motion, "i_expr", None),
-            k_expr=getattr(motion, "k_expr", None),
-            r_expr=getattr(motion, "r_expr", None),
-            f_expr=getattr(motion, "f_expr", None),
-            a_expr=getattr(motion, "a_expr", None),
-            b_expr=getattr(motion, "b_expr", None),
-            c_expr=getattr(motion, "c_expr", None),
-            y_expr=getattr(motion, "y_expr", None),
-            v_expr=getattr(motion, "v_expr", None),
-            j_expr=getattr(motion, "j_expr", None),
+            "motion",
+            *common,
+            _motion_code(motion.g_expr, cache),
+            motion.x_expr,
+            motion.z_expr,
+            motion.u_expr,
+            motion.w_expr,
+            motion.i_expr,
+            motion.k_expr,
+            motion.r_expr,
+            motion.f_expr,
+            motion.a_expr,
+            motion.c_expr,
+            motion.y_expr,
+            motion.v_expr,
+            motion.j_expr,
+            motion.b_expr,
         )
+    return _control_or_meta_node(block, words)
 
-    g_codes: list[int] = []
-    m_codes: list[int] = []
-    for word in words:
-        letter = str(getattr(word, "letter", ""))
-        code = _int_code(getattr(word, "expr", None))
-        if code is None:
-            continue
-        if letter == "G":
-            g_codes.append(code)
-        elif letter == "M":
-            m_codes.append(code)
+
+def _build_native_ast_node(block, common, cache):
+    """Retain native declarations and syntax without lowering source commands."""
+    from dataclasses import replace  # pylint: disable=import-outside-toplevel
+
+    syntax = block.native_syntax
+    if syntax.kind != "words":
+        return SinumerikAstNode("sinumerik", *common, native_syntax=syntax)
+    # Reuse the common motion/control builder for shared address semantics.
+    node = _build_address_ast_node(block, common, cache)
+    return replace(node, native_syntax=syntax)
+
+
+def _control_or_meta_node(block, words):
+    """Reuse parsed integer codes rather than evaluating each control word twice."""
+    g_codes = tuple(word.int_code for word in words if word.letter == "G" and word.int_code is not None)
+    m_codes = tuple(word.int_code for word in words if word.letter == "M" and word.int_code is not None)
+    common = (block.index, block.raw, block.nlabel, block.olabel, words)
     if g_codes or m_codes:
-        return ControlAstNode(
-            kind="control",
-            block_index=idx,
-            raw=raw,
-            nlabel=nlabel,
-            olabel=olabel,
-            words=ast_words,
-            g_codes=tuple(g_codes),
-            m_codes=() if 65 in g_codes else tuple(m_codes),
-        )
-
-    if ast_words:
-        return MetaAstNode(
-            kind="meta",
-            block_index=idx,
-            raw=raw,
-            nlabel=nlabel,
-            olabel=olabel,
-            words=ast_words,
-            letters=tuple(word.letter for word in ast_words),
-        )
-    return AstNode(
-        kind="empty",
-        block_index=idx,
-        raw=raw,
-        nlabel=nlabel,
-        olabel=olabel,
-        words=(),
-    )
+        return ControlAstNode("control", *common, g_codes, () if 65 in g_codes else m_codes)
+    if words:
+        return MetaAstNode("meta", *common, tuple(word.letter for word in words))
+    return AstNode("empty", *common)
 
 
-def build_program_ast(blocks: tuple[object, ...]) -> ProgramAst:
-    nodes: list[AstNode] = []
-    nlabel_to_index: dict[int, int] = {}
-    olabel_to_index: dict[int, int] = {}
+def _build_program_ast_python(blocks: tuple[Block, ...]) -> ProgramAst:
+    """Portable reference builder; nodes and both label maps share one pass."""
+    nodes, nlabels, olabels, cache = [], {}, {}, {}
     for _position, block in checkpointed(blocks):
-        node = build_ast_node(block)
-        nodes.append(node)
-        if isinstance(node.nlabel, int) and node.nlabel not in nlabel_to_index:
-            nlabel_to_index[node.nlabel] = node.block_index
-        if isinstance(node.olabel, int) and node.olabel not in olabel_to_index:
-            olabel_to_index[node.olabel] = node.block_index
+        nodes.append(build_ast_node(block, _word_cache=cache))
+        if isinstance(block.nlabel, int):
+            nlabels.setdefault(block.nlabel, block.index)
+        if isinstance(block.olabel, int):
+            olabels.setdefault(block.olabel, block.index)
+    return ProgramAst(tuple(nodes), nlabels, olabels)
 
-    return ProgramAst(
-        nodes=tuple(nodes),
-        nlabel_to_index=nlabel_to_index,
-        olabel_to_index=olabel_to_index,
-    )
+
+def build_program_ast(blocks: tuple[Block, ...]) -> ProgramAst:
+    """Build the immutable view in Cython when available, with a portable fallback."""
+    try:
+        from ._native_parser import build_program_ast_native  # pylint: disable=import-outside-toplevel
+    except ImportError:
+        return _build_program_ast_python(blocks)
+    return build_program_ast_native(blocks, checkpoint)

@@ -6,8 +6,8 @@ import re
 from dataclasses import replace
 
 from ..kernel import ExecutionResult, TraceMotion
-from ..kernel.events import PROGRAM_END, PROGRAM_START
 from ..kernel.geometry.coordinates import extended_wcs_id
+from ..kernel.runtime.events import PROGRAM_END, PROGRAM_START
 from .options import ExportOptions
 
 

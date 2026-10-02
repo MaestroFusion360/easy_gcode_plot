@@ -259,7 +259,7 @@ def test_options_defaults_and_color_picker(qt_app, monkeypatch):
     assert dialog.ui.autodetectArcTypeCheck.isChecked()
     assert not dialog.ui.ignoreBlockSkipCheck.isChecked()
     assert dialog.ui.linearColorEdit.text() == "#0000ff"
-    assert dialog.ui.toolColorEdit.text() == "#4d99ff"
+    assert dialog.ui.toolColorEdit.text() == "#e3aa37"
     assert dialog.ui.stlColorEdit.text() == "#b0b0b0"
     assert not dialog.ui.backgroundGradientCheck.isChecked()
     assert not dialog.ui.stlWireframeCheck.isChecked()

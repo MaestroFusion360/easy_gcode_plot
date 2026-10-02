@@ -90,7 +90,8 @@ def test_iso_m_g68_rejects_words_outside_the_modeled_xy_contract(extra):
     result = _iso(f"G291\nG90\nG68 X0 Y0 R90 {extra}\nM30")
 
     assert not result.ok and not result.complete
-    assert any(item.code == "INVALID_SINUMERIK_ISO_G68" for item in result.diagnostics)
+    expected = "UNSUPPORTED_SINUMERIK_ROTARY" if extra == "A10" else "INVALID_SINUMERIK_ISO_G68"
+    assert any(item.code == expected for item in result.diagnostics)
 
 
 def test_iso_m_g68_rotates_xy_motion_about_absolute_center():

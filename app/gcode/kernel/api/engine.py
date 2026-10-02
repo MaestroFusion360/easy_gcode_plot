@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import gc
 import math
 from dataclasses import replace
 
@@ -156,6 +155,8 @@ def _autodetect_arc_type(
 
 
 def _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type):
+    if result.source_dialect == "sinumerik":
+        return source_arc_type
     if language not in ("fanuc_mill", "fanuc_turn") or not autodetect_arc_type:
         return source_arc_type
     return _autodetect_arc_type(
@@ -291,18 +292,6 @@ def _motion_with_step_metadata(motion, step, language, threading):
         compensation_status=compensation_status,
         threading=threading,
     )
-
-
-def _defer_gc() -> bool:
-    was_enabled = gc.isenabled()
-    if was_enabled:
-        gc.disable()
-    return was_enabled
-
-
-def _restore_gc(was_enabled: bool) -> None:
-    if was_enabled:
-        gc.enable()
 
 
 def _steps_with_emitted_counts(steps, emitted_counts):
@@ -539,6 +528,21 @@ def _partial_steps_after_geometry_failure(steps, owners, failing_index):
     return tuple(partial)
 
 
+def _resolve_geometry_motion(motion, program, language, arc_type, tolerance):
+    """Resolve one motion and attach source location to geometry diagnostics."""
+    try:
+        arc_type = motion.source_arc_type or arc_type
+        if language == "fanuc_turn":
+            _validate_turning_arc_source(motion, arc_type, tolerance)
+        return resolve_arc(motion, source_arc_type=arc_type), None
+    except SemanticError as exc:
+        diagnostic = _diagnostic_from_exception(exc, program)
+        if diagnostic.line is None and motion.source_block is not None:
+            block = program.blocks[motion.source_block] if program is not None else None
+            diagnostic = replace(diagnostic, line=motion.source_block + 1, raw=None if block is None else block.raw)
+        return None, diagnostic
+
+
 def execute(
     source,
     language="fanuc_turn",
@@ -553,9 +557,9 @@ def execute(
     """Execute once; resolve geometry and publish a self-contained immutable result."""
     token = active_budget.set(ExecutionBudget(limits or ExecutionLimits(), cancelled))
     milling_tools = options.pop("milling_tools", None)
-    gc_was_enabled = _defer_gc()
     try:
         result = _execute_impl(source, language, **options)
+        result = replace(result, source_dialect=options.get("source_dialect", "fanuc"))
         effective_arc_type = _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type)
         motions, motion_step_owners, geometry_diagnostics, cursor = [], [], [], 0
         invalid_cycles = (
@@ -579,19 +583,10 @@ def execute(
                 for motion in result.motions[cursor : cursor + step.emitted_count]:
                     threading = threading_steps[step_index] and motion.move == 1
                     motion = _motion_with_step_metadata(motion, step, language, threading)
-                    try:
-                        if language == "fanuc_turn":
-                            _validate_turning_arc_source(motion, effective_arc_type, arc_tolerance)
-                        resolved = resolve_arc(motion, source_arc_type=effective_arc_type)
-                    except SemanticError as exc:
-                        diagnostic = _diagnostic_from_exception(exc, result.program)
-                        if diagnostic.line is None and motion.source_block is not None:
-                            block = result.program.blocks[motion.source_block] if result.program is not None else None
-                            diagnostic = replace(
-                                diagnostic,
-                                line=motion.source_block + 1,
-                                raw=None if block is None else block.raw,
-                            )
+                    resolved, diagnostic = _resolve_geometry_motion(
+                        motion, result.program, language, effective_arc_type, arc_tolerance
+                    )
+                    if diagnostic is not None:
                         geometry_diagnostics.append(diagnostic)
                         continue
                     motions.append(resolved)
@@ -642,7 +637,16 @@ def execute(
         )
     except Exception as exc:
         diagnostic = _diagnostic_from_exception(exc, None)
-        return ExecutionResult(False, None, (), (), (diagnostic,), (), complete=False, language=language)
+        return ExecutionResult(
+            False,
+            None,
+            (),
+            (),
+            (diagnostic,),
+            (),
+            complete=False,
+            language=language,
+            source_dialect=options.get("source_dialect", "fanuc"),
+        )
     finally:
         active_budget.reset(token)
-        _restore_gc(gc_was_enabled)

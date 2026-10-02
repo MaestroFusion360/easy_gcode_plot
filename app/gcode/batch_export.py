@@ -13,6 +13,8 @@ from typing import Callable, Iterable
 
 from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, _normalize_extensions, discover_nc_files
 from app.gcode.export.service import ExportRequest, export_file, request_document
+from app.gcode.kinematics_report import kinematics_report_fields
+from app.gcode.source_mode import source_dialect_for_path
 
 REPORT_BASENAME = "batch_export_report"
 REPORT_SCHEMA_VERSION = 1
@@ -35,6 +37,7 @@ def _file_report(
     relative = path.relative_to(root).as_posix()
     report: dict[str, object] = {
         "input_path": str(path),
+        "source_dialect": source_dialect_for_path(path),
         "input_relative_path": relative,
         "output_path": None,
         "output_relative_path": None,
@@ -61,6 +64,7 @@ def _file_report(
         execution = exported.execution
         diagnostics = execution.diagnostics
         report.update(
+            source_dialect=execution.source_dialect,
             ok=execution.ok,
             complete=execution.complete,
             motion_count=len(execution.motions),
@@ -68,6 +72,7 @@ def _file_report(
             diagnostics=[asdict(item) for item in diagnostics],
             effective_units=exported.effective_units,
             effective_arc_type=exported.effective_arc_type,
+            **kinematics_report_fields(execution),
         )
         if execution.ok and execution.complete:
             report["status"] = "WARNINGS" if diagnostics else "EXPORTED"
@@ -172,12 +177,16 @@ def write_export_reports(report: dict[str, object], output_root: str | Path) -> 
         "effective_units",
         "effective_arc_type",
         "kinematics_profile",
+        "kinematics_fingerprint",
+        "kinematics_definition",
+        "source_dialect",
     )
     with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fieldnames)
         writer.writeheader()
         for item in report["files"]:
             row = {name: item.get(name) for name in fieldnames}
+            row["kinematics_definition"] = json.dumps(item.get("kinematics_definition"), sort_keys=True)
             row["diagnostics"] = "; ".join(f"{entry['code']}: {entry['message']}" for entry in item["diagnostics"])
             writer.writerow(row)
     return json_path, csv_path

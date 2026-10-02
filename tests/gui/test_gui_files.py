@@ -231,7 +231,7 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
             "O0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n",
             2,
             SOURCE_DIALECT_FANUC,
-            "G291\nO0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
+            "G291\n(O0001)\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
         ),
         (
             "G291\nO0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n",
@@ -312,7 +312,7 @@ def test_full_program_conversion_applies_formatting_without_changing_geometry(tm
     )
 
     assert output.read_text(encoding="utf-8") == (
-        "N100 G291\nO0001\nN110 G21 G17 G90\nN120 G00 X0 Y0\nN130 G01 X10 F100\nN140 M30\n"
+        "G291\n(O0001)\nN100 G21 G17 G90\nN110 G00 X0 Y0\nN120 G01 X10 F100\nN130 M30\n"
     )
 
 
@@ -334,7 +334,7 @@ def test_full_program_conversion_applies_start_end_and_safety_options(tmp_path):
     )
 
     assert output.read_text(encoding="utf-8") == (
-        "G291\nO0002\nG80\nG0 G17 G40 G49 G90\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
+        "G291\n(O0002)\nG80\nG0 G17 G40 G49 G90\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
     )
 
 
@@ -502,15 +502,28 @@ def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, t
     window = main_window.MainWindow()
     window.autoUpdateEnabled = False
     monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    actions = (window.ui.actionRelative_to_start, window.ui.actionAbsolute, window.ui.actionRadius_value)
+    main_window_file_ops._set_arc_action(window, 1)
+    window.arc_type = 1
+    window.rotaryKinematics = "4ax_table_b"
     try:
         native = tmp_path / "native.mpf"
         native.write_text("%_N_NATIVE_MPF\n; native source\nN10 G290\nCYCLE800(1,2,3)\n", encoding="utf-8")
         window.loadFile(str(native))
         assert window._document_source_dialect == "sinumerik"
+        assert window.rotaryKinematics is None
+        assert window._rotary_kinematics_actions[None].isChecked()
+        assert not window._rotary_kinematics_actions["4ax_table_b"].isEnabled()
+        assert not window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
+        window._select_rotary_kinematics("4ax_table_b")
+        assert window.rotaryKinematics is None
         assert window._document_arc_type == 2
         assert window._document_comment_style == "semicolon"
         assert window.lexer.comment_style == "semicolon"
         assert window.ui.actionAbsolute.isChecked()
+        assert [action.isChecked() for action in actions] == [False, True, False]
+        assert window.ui.actionGroupArcType.checkedAction() is window.ui.actionAbsolute
+        assert window.arc_type == 1
 
         iso = tmp_path / "iso.spf"
         iso.write_text("%_N_ISO_SPF\nN10 G291\nN20 G90 G54\nN30 G0 X10\n", encoding="utf-8")
@@ -519,13 +532,22 @@ def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, t
         assert window._document_arc_type is None
         assert window._document_comment_style is None
         assert window.lexer.comment_style == window.commentStyle
+        assert [action.isChecked() for action in actions] == [True, False, False]
+        assert window.ui.actionGroupArcType.checkedAction() is window.ui.actionRelative_to_start
 
-        fanuc = tmp_path / "ordinary_fanuc.mpf"
+        fanuc = tmp_path / "ordinary_fanuc.nc"
         fanuc.write_text("G21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n", encoding="utf-8")
         window.loadFile(str(fanuc))
         assert window._document_source_dialect == "fanuc"
+        assert window.rotaryKinematics == "4ax_table_b"
+        assert window._rotary_kinematics_actions["4ax_table_b"].isEnabled()
+        assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
         assert window._document_arc_type is None
         assert window._document_comment_style is None
         assert window.lexer.comment_style == window.commentStyle
+        monkeypatch.setattr(window, "updateData", lambda: None)
+        window.ui.actionRadius_value.trigger()
+        assert [action.isChecked() for action in actions] == [False, False, True]
+        assert window.arc_type == 3
     finally:
         window.deleteLater()

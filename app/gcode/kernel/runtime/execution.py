@@ -134,6 +134,7 @@ class EvaluatedBlock:
     values: tuple[tuple[str, float], ...]
     signals: tuple[object, ...]
     source_gcodes: tuple[int | float, ...] = ()
+    native_payload: object | None = None
 
 
 @dataclass(frozen=True)
@@ -192,6 +193,7 @@ class ProgramRuntime:
     guard: int = 0
     gcode_system: str = "A"
     distance_absolute: bool = True
+    controller_mode: str = "fanuc"
     _cached_variable_snapshot: tuple[tuple[str, float], ...] = field(default=(), init=False, repr=False)
 
     @property

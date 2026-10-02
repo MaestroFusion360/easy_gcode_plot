@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import math
 
+from app.tools.milling_lengths import milling_lengths
+
 SUPPORTED_MILLING_GEOMETRIES = frozenset(
     {"mill_flat", "mill_bull", "mill_ball", "taper_ball_mill", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
 )
@@ -30,6 +32,23 @@ def default_drill_tip_angle() -> float:
     return 118.0
 
 
+def _stepped_geometry(spec, lengths, tool_type, diameter):
+    """Use flute length for new heads and retain legacy cutting-height geometry."""
+    length = lengths["length"]
+    try:
+        cutting_height = float(
+            lengths.get("fluteLength", spec.get("cuttingHeight", default_cutting_height(tool_type, diameter, length)))
+        )
+        shank_diameter = float(spec.get("shankDiameter", default_shank_diameter(diameter)))
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(value) for value in (cutting_height, shank_diameter)):
+        return None
+    if "fluteLength" not in lengths:
+        cutting_height = min(max(cutting_height, 0.1), length)
+    return {"cuttingHeight": cutting_height, "shankDiameter": min(max(shank_diameter, 0.1), diameter)}
+
+
 def milling_geometry(  # pylint: disable=too-many-return-statements
     spec: dict[str, object] | None,
 ) -> dict[str, float | str] | None:
@@ -41,13 +60,13 @@ def milling_geometry(  # pylint: disable=too-many-return-statements
         return None
     try:
         diameter = float(spec.get("diameter", 0.0))
-        length = float(spec.get("length", 0.0))
         corner_radius = float(spec.get("cornerRadius", 0.0))
     except (TypeError, ValueError):
         return None
-    if not all(math.isfinite(value) for value in (diameter, length, corner_radius)):
+    lengths = milling_lengths(spec)
+    if lengths is None or not all(math.isfinite(value) for value in (diameter, corner_radius)):
         return None
-    if diameter <= 0.0 or length <= 0.0:
+    if diameter <= 0.0:
         return None
 
     radius = diameter * 0.5
@@ -61,21 +80,15 @@ def milling_geometry(  # pylint: disable=too-many-return-statements
     result: dict[str, float | str] = {
         "type": tool_type,
         "diameter": diameter,
-        "length": length,
+        **lengths,
         "cornerRadius": corner_radius,
     }
 
     if tool_type in {"face_mill", "slot_mill"}:
-        try:
-            cutting_height = float(spec.get("cuttingHeight", default_cutting_height(tool_type, diameter, length)))
-            shank_diameter = float(spec.get("shankDiameter", default_shank_diameter(diameter)))
-        except (TypeError, ValueError):
+        stepped = _stepped_geometry(spec, lengths, tool_type, diameter)
+        if stepped is None:
             return None
-        if not all(math.isfinite(value) for value in (cutting_height, shank_diameter)):
-            return None
-        cutting_height = min(max(cutting_height, 0.1), length)
-        shank_diameter = min(max(shank_diameter, 0.1), diameter)
-        result.update(cuttingHeight=cutting_height, shankDiameter=shank_diameter)
+        result.update(stepped)
 
     if tool_type == "chamfer_mill":
         try:
@@ -130,10 +143,12 @@ def milling_geometry_key(spec: dict[str, object] | None) -> tuple | None:
         key.append(float(geometry["tipAngle"]))
     elif tool_type == "taper_ball_mill":
         key.append(float(geometry["taperAngle"]))
+    if "fluteLength" in geometry:
+        key.append((float(geometry["fluteLength"]), float(geometry["bodyLength"])))
     return tuple(key)
 
 
-def milling_tool_profile(  # pylint: disable=too-many-return-statements
+def milling_tool_profile(
     spec: dict[str, object] | None,
 ) -> tuple[tuple[float, float], ...]:
     """Return a radial ``(z, radius)`` profile with the programmed tip at ``z=0``."""
@@ -141,56 +156,36 @@ def milling_tool_profile(  # pylint: disable=too-many-return-statements
     if geometry is None:
         return ()
 
+    if "fluteLength" not in geometry:
+        return _cutting_tool_profile(geometry)
+    total = float(geometry["length"])
+    geometry["length"] = geometry["fluteLength"]
+    profile = _cutting_tool_profile(geometry)
+    if float(geometry["bodyLength"]) > 0:
+        profile += ((total, profile[-1][1]),)
+    return profile
+
+
+def _cutting_tool_profile(geometry):  # pylint: disable=too-many-return-statements
+    """Construct the cutter; explicit body length is appended by the caller."""
+
     tool_type = str(geometry["type"])
     diameter = float(geometry["diameter"])
     length = float(geometry["length"])
     corner_radius = float(geometry["cornerRadius"])
     radius = diameter * 0.5
 
-    if tool_type == "drill":
-        half_angle = math.radians(float(geometry["tipAngle"]) * 0.5)
-        cone_height = min(length, radius / max(math.tan(half_angle), 1.0e-9))
-        return ((0.0, 0.0), (cone_height, radius), (length, radius))
+    if tool_type in {"drill", "tap", "chamfer_mill"}:
+        return _axial_tool_profile(geometry, tool_type, length, radius)
 
-    if tool_type == "tap":
-        cone_height = min(length, radius / math.sqrt(3.0))
-        return ((0.0, 0.0), (cone_height, radius), (length, radius))
-
-    if tool_type == "chamfer_mill":
-        tip_radius = float(geometry["tipDiameter"]) * 0.5
-        half_angle = math.radians(float(geometry["chamferAngle"]) * 0.5)
-        cone_height = (radius - tip_radius) / max(math.tan(half_angle), 1.0e-9)
-        cone_height = min(max(cone_height, 0.0), length)
-        return ((0.0, tip_radius), (cone_height, radius), (length, radius))
-
-    if tool_type == "face_mill":
-        cutting_height = float(geometry["cuttingHeight"])
-        shank_radius = float(geometry["shankDiameter"]) * 0.5
-        edge = min(max(diameter * 0.04, 0.25), radius * 0.25, cutting_height)
-        face_radius = max(0.0, radius - edge)
-        return (
-            (0.0, face_radius),
-            (edge, radius),
-            (cutting_height, radius),
-            (cutting_height, shank_radius),
-            (length, shank_radius),
-        )
-
-    if tool_type == "slot_mill":
-        cutting_height = float(geometry["cuttingHeight"])
-        shank_radius = float(geometry["shankDiameter"]) * 0.5
-        return (
-            (0.0, radius),
-            (cutting_height, radius),
-            (cutting_height, shank_radius),
-            (length, shank_radius),
-        )
+    if tool_type in {"face_mill", "slot_mill"}:
+        return _stepped_tool_profile(geometry, tool_type, length, diameter, radius)
 
     if tool_type == "mill_ball":
         profile = [
             (
-                radius * step / 12.0,
-                math.sqrt(max(0.0, radius**2 - (radius * step / 12.0 - radius) ** 2)),
+                min(length, radius) * step / 12.0,
+                math.sqrt(max(0.0, radius**2 - (min(length, radius) * step / 12.0 - radius) ** 2)),
             )
             for step in range(13)
         ]
@@ -222,9 +217,11 @@ def milling_tool_profile(  # pylint: disable=too-many-return-statements
         base_radius = radius - corner_radius
         profile = [
             (
-                corner_radius * step / 12.0,
+                min(length, corner_radius) * step / 12.0,
                 base_radius
-                + math.sqrt(max(0.0, corner_radius**2 - (corner_radius - corner_radius * step / 12.0) ** 2)),
+                + math.sqrt(
+                    max(0.0, corner_radius**2 - (corner_radius - min(length, corner_radius) * step / 12.0) ** 2)
+                ),
             )
             for step in range(13)
         ]
@@ -233,3 +230,46 @@ def milling_tool_profile(  # pylint: disable=too-many-return-statements
         return tuple(profile)
 
     return ((0.0, radius), (length, radius))
+
+
+def _axial_tool_profile(geometry, tool_type, length, radius):
+    """Build point geometry for drills, taps and chamfer mills."""
+    if tool_type == "drill":
+        half_angle = math.radians(float(geometry["tipAngle"]) * 0.5)
+        cone_height = min(length, radius / max(math.tan(half_angle), 1.0e-9))
+        return ((0.0, 0.0), (cone_height, radius), (length, radius))
+
+    if tool_type == "tap":
+        cone_height = min(length, radius / math.sqrt(3.0))
+        return ((0.0, 0.0), (cone_height, radius), (length, radius))
+
+    tip_radius = float(geometry["tipDiameter"]) * 0.5
+    half_angle = math.radians(float(geometry["chamferAngle"]) * 0.5)
+    cone_height = (radius - tip_radius) / max(math.tan(half_angle), 1.0e-9)
+    cone_height = min(max(cone_height, 0.0), length)
+    return ((0.0, tip_radius), (cone_height, radius), (length, radius))
+
+
+def _stepped_tool_profile(geometry, tool_type, length, diameter, radius):
+    """Build a cutting head followed by the narrower body radius."""
+    if tool_type == "face_mill":
+        cutting_height = float(geometry["cuttingHeight"])
+        shank_radius = float(geometry["shankDiameter"]) * 0.5
+        edge = min(max(diameter * 0.04, 0.25), radius * 0.25, cutting_height)
+        face_radius = max(0.0, radius - edge)
+        return (
+            (0.0, face_radius),
+            (edge, radius),
+            (cutting_height, radius),
+            (cutting_height, shank_radius),
+            (length, shank_radius),
+        )
+
+    cutting_height = float(geometry["cuttingHeight"])
+    shank_radius = float(geometry["shankDiameter"]) * 0.5
+    return (
+        (0.0, radius),
+        (cutting_height, radius),
+        (cutting_height, shank_radius),
+        (length, shank_radius),
+    )

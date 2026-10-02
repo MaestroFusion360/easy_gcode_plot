@@ -160,6 +160,7 @@ class MainWindow(
             action = menu.addAction(text)
             action.setCheckable(True)
             action.setChecked(profile_id == self.rotaryKinematics)
+            action.setEnabled(profile_id is None or not getattr(self, "_document_rotary_restricted", False))
             group.addAction(action)
             action.triggered.connect(
                 lambda _checked=False, selected=profile_id: self._select_rotary_kinematics(selected)
@@ -170,6 +171,11 @@ class MainWindow(
         self._rotary_kinematics_actions = actions
 
     def _select_rotary_kinematics(self, profile_id, *, force_refresh=False):
+        if getattr(self, "_document_rotary_restricted", False):
+            return
+        self._apply_rotary_kinematics(profile_id, force_refresh=force_refresh)
+
+    def _apply_rotary_kinematics(self, profile_id, *, force_refresh=False):
         catalog = load_catalog(ignore_user_errors=True)
         if profile_id is not None and (profile_id not in catalog or not catalog[profile_id].enabled):
             profile_id = None

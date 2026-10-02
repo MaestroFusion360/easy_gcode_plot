@@ -1,9 +1,7 @@
-"""SINUMERIK 840D ISO-Dialect-M compatibility checks for the FANUC mill core.
+"""Supported SINUMERIK ISO-M subset and syntax normalization.
 
-The module deliberately does not implement a second milling executor.  G291
-blocks are validated/normalized here and then delegated to the existing
-``fanuc_mill`` semantics.  Native Siemens language selected by G290 remains
-fail-closed until it has its own execution model.
+Numeric controller policy calls these checks before the shared milling core.
+Native mode shares basic ISO operations but does not use ISO-M aliases/cycles.
 """
 
 from __future__ import annotations
@@ -35,6 +33,7 @@ ISO_M_EXECUTABLE_G_CODES = frozenset(
         70,
         71,
         40,
+        43,
         49,
         50,
         51,
@@ -67,7 +66,7 @@ ISO_M_EXECUTABLE_G_CODES = frozenset(
 _ISO_M_UNIT_ALIASES = {70: 20, 71: 21}
 
 
-def _diag(block, code: str, message: str, *, status: str = "unsupported") -> Diagnostic:
+def _diag(block, code: str, message: str, *, status: str = "unsupported", cnc_codes=()) -> Diagnostic:
     return Diagnostic(
         code=code,
         message=message,
@@ -75,6 +74,7 @@ def _diag(block, code: str, message: str, *, status: str = "unsupported") -> Dia
         status=status,
         line=int(getattr(block, "index", 0)) + 1,
         raw=str(getattr(block, "raw", "")),
+        cnc_codes=tuple(cnc_codes),
     )
 
 
@@ -115,7 +115,7 @@ def unsupported_siemens_mode_diagnostic(block) -> Diagnostic:
     return _diag(
         block,
         "UNSUPPORTED_SINUMERIK_MODE",
-        "G290 selects native SINUMERIK language, which is not modeled yet",
+        "Native SINUMERIK syntax is outside the supported common ISO subset",
     )
 
 
@@ -132,6 +132,7 @@ def _unsupported_iso_g_diagnostic(block, gcode: int | float) -> Diagnostic:
         block,
         "UNSUPPORTED_SINUMERIK_ISO_G_CODE",
         f"G{gcode:g} is not in the executable SINUMERIK ISO Dialect M whitelist",
+        cnc_codes=(f"G{gcode:g}",),
     )
 
 

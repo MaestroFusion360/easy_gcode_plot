@@ -19,7 +19,8 @@ from app.gcode.batch import (
 from app.gcode.batch_export import export_directory, write_export_reports
 from app.gcode.export.service import ExportRequest, export_file, validate_export_request
 from app.gcode.kernel import ExecutionResult
-from app.gcode.kernel.io import SUPPORTED_NC_ENCODINGS, read_nc_text
+from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
+from app.gcode.kinematics_report import kinematics_report_fields
 from app.gcode.program_execution import execute_program
 from app.gcode.source_mode import source_dialect_for_path
 from app.gcode.trace_tools import format_trace_statistics, trace_statistics
@@ -225,6 +226,7 @@ def _load(
 
 def _result_document(result: ExecutionResult, *, include_motions: bool) -> dict[str, object]:
     doc: dict[str, object] = {
+        "source_dialect": result.source_dialect,
         "ok": result.ok,
         "complete": result.complete,
         "instructions": [asdict(item) for item in result.instructions],
@@ -234,6 +236,7 @@ def _result_document(result: ExecutionResult, *, include_motions: bool) -> dict[
         "events": [asdict(item) for item in result.events],
         "program_end": result.program_end,
         "kinematics_profile": result.kinematics_profile,
+        **kinematics_report_fields(result),
         "rotary_angles": dict(result.rotary_angles),
     }
     if include_motions:
@@ -245,6 +248,7 @@ def _analysis_document(result: ExecutionResult) -> dict[str, object]:
     stats = trace_statistics(result)
     summary = {k: v for k, v in stats.items() if k not in {"lengths", "times"}}
     return {
+        "source_dialect": result.source_dialect,
         "ok": result.ok,
         "complete": result.complete,
         "status": analysis_status(result),
@@ -257,6 +261,7 @@ def _analysis_document(result: ExecutionResult) -> dict[str, object]:
         "events": [asdict(item) for item in result.events],
         "program_end": result.program_end,
         "kinematics_profile": result.kinematics_profile,
+        **kinematics_report_fields(result),
         "rotary_angles": dict(result.rotary_angles),
     }
 

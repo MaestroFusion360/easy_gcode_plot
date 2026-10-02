@@ -1077,8 +1077,9 @@ class MainWindowPlotMixin:
             self.ui.graphicsView.addItem(self._cursor_item)
 
         if getattr(self, "_milling_tool_item", None) is None:
-            self._milling_tool_item = MillingToolPreviewItem(getattr(self, "plotToolColor", "#4d99ff"))
-        self._milling_tool_item.set_color(getattr(self, "plotToolColor", "#4d99ff"))
+            self._milling_tool_item = MillingToolPreviewItem(getattr(self, "plotToolColor", "#e3aa37"))
+        self._milling_tool_item.set_color(getattr(self, "plotToolColor", "#e3aa37"))
+        self._milling_tool_item.set_theme(getattr(self, "uiTheme", "light"))
         if self._milling_tool_item not in self.ui.graphicsView.items:
             self.ui.graphicsView.addItem(self._milling_tool_item)
         if hasattr(self, "_update_stock_outline"):

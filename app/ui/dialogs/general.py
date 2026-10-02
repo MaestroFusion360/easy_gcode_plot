@@ -4,7 +4,7 @@ from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtWidgets import QComboBox, QDialog, QLabel
 
 from app import get_version
-from app.gcode.exporter import (
+from app.gcode.export import (
     DXF_MODE,
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
@@ -38,13 +38,16 @@ class About(QDialog):
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
         version = get_version()
-        self.ui.versionLabel.setText(f"Version: {version}")
+        self.ui.versionLabel.setText(
+            QCoreApplication.translate("AboutDlg", "Version: {version}").format(version=version)
+        )
         self.ui.descriptionLabel.setText(
-            "Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier "
-            f"for turning and milling. Version {version} includes a shared native Python CNC "
-            "kernel, authoritative logical Motion Trace, Macro B/control flow, turning cycles, "
-            "native XYZ milling, trajectory playback/picking and source-aware expanded program "
-            "export for both machine modes."
+            QCoreApplication.translate(
+                "AboutDlg",
+                "Easy G-code Plot is a G-code viewer, editor and analyzer for turning and milling. "
+                "Supports FANUC, Macro B, turning and milling cycles, and SINUMERIK 840D three-axis CAM trajectories. "
+                "Includes toolpath playback, stock removal simulation and program export.",
+            )
         )
 
 

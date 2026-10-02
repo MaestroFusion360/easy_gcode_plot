@@ -55,7 +55,7 @@ PLOT_DEFAULTS = {
         "linear": "#0000ff",
         "arc": "#008000",
         "current": "#00b7ff",
-        "tool": "#4d99ff",
+        "tool": "#e3aa37",
         "stl": "#b0b0b0",
     },
     "dark": {
@@ -65,7 +65,7 @@ PLOT_DEFAULTS = {
         "linear": "#6fa8ff",
         "arc": "#5fd38a",
         "current": "#4fd2ff",
-        "tool": "#7fb2ff",
+        "tool": "#f1c75b",
         "stl": "#9aa0a6",
     },
 }
@@ -180,6 +180,8 @@ def plot_defaults(theme) -> dict[str, str]:
 def themed_plot_value(current, key: str, theme) -> str:
     """Return the theme default unless *current* is a user-customized color."""
     known = {PLOT_DEFAULTS["light"][key].lower(), PLOT_DEFAULTS["dark"][key].lower()}
+    if key == "tool":
+        known.update({"#4d99ff", "#7fb2ff"})
     if str(current).strip().lower() not in known:
         return current
     return PLOT_DEFAULTS[normalize_theme(theme)][key]

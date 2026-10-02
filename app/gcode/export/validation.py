@@ -81,12 +81,19 @@ def _motion_trace_signature(result: ExecutionResult) -> tuple:
 def sinumerik_iso_export_diagnostic(result: ExecutionResult) -> Diagnostic | None:
     """Reject unverified rotary/TCP conversion using authoritative kernel facts.
 
-    Selected multi-axis profiles and executed rotary/TCP state are unsupported.
-    Use the existing kernel profile/axis facts, including rejected blocks.
+    A selected profile alone does not make an XYZ-only program multi-axis.
+    Use executed rotary/TCP facts, including rejected blocks; profile addresses
+    distinguish four- and five-axis operation only when rotary motion is used.
     No rotary or native Siemens command equivalences are implemented here.
     """
     words = tuple(word for step in result.execution_steps for word in step.words)
-    used_rotary = {letter for letter, _value in words if letter in {"A", "B", "C"}}
+    used_rotary = {
+        letter
+        for step in result.execution_steps
+        if ("G", 65.0) not in step.words
+        for letter, _value in step.words
+        if letter in {"A", "B", "C"}
+    }
     tcp_or_twp = any(letter == "G" and value in {43.4, 68.2, 53.1} for letter, value in words) or any(
         event.kind in {"TCP_CONTROL_ON", "TILTED_WORK_PLANE_ON", "TOOL_AXIS_ORIENT"} for event in result.events
     )
@@ -96,14 +103,15 @@ def sinumerik_iso_export_diagnostic(result: ExecutionResult) -> Diagnostic | Non
             _NATIVE_TRANSFORM_RE.search(strip_comments(block.raw)) for block in result.program.blocks
         )
     rotary_events = any(event.kind in {"ROTARY_INDEX", "ROTARY_MOTION"} for event in result.events)
-    if tcp_or_twp or len(result.rotary_axes) > 1 or len(used_rotary) > 1:
+    has_rotary = bool(used_rotary) or rotary_events
+    if tcp_or_twp or (has_rotary and (len(result.rotary_axes) > 1 or len(used_rotary) > 1)):
         return Diagnostic(
             "UNSUPPORTED_SINUMERIK_ISO_5AX_EXPORT",
             "SINUMERIK ISO export for 5-axis / TCP programs is not supported yet",
             "error",
             "unsupported",
         )
-    if result.rotary_axes or used_rotary or rotary_events:
+    if has_rotary:
         return Diagnostic(
             "UNSUPPORTED_SINUMERIK_ISO_4AX_EXPORT",
             "SINUMERIK ISO export for 4-axis programs is not supported yet",

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import dataclass, field, replace
 
 from ...api.types import TraceMotion
 from ..common import EPS
@@ -42,6 +42,95 @@ def _fallback_active_motion(current: TraceMotion, previous: TraceMotion | None) 
     return (carried, True) if carried is not None else (_mark_unverified(current), False)
 
 
+@dataclass
+class _CompensationRun:
+    motions: list[TraceMotion]
+    tools: dict[str, dict[str, object]]
+    geometry_tolerance: float
+    output: list[TraceMotion] = field(default_factory=list)
+    owners: list[int] = field(default_factory=list)
+    previous_steady: _ProjectedMotion | None = None
+    previous_index: int = -1
+    align_entry: bool = False
+    radius: float = 0.0
+    mode: int = 0
+
+    def append(self, motion, owner):
+        self.output.append(motion)
+        self.owners.append(owner)
+
+    def reset_steady(self):
+        self.previous_steady = None
+        self.previous_index = -1
+
+    def enter(self, index, current, owner, mode):
+        self.mode = mode
+        self.radius = _tool_radius(self.tools.get(current.tool or "")) or 0.0
+        self.reset_steady()
+        self.align_entry = False
+        if self.radius <= EPS:
+            self.append(_mark_unverified(current), owner)
+            return
+        reference = _find_entry_reference(self.motions, index, self.mode) or current
+        entry = _solve_entry(current, reference, self.mode, self.radius, self.geometry_tolerance)
+        if entry is None:
+            self.radius = 0.0
+            self.append(_mark_unverified(current), owner)
+            return
+        self.append(entry, owner)
+        self.align_entry = True
+
+    def exit(self, current, owner):
+        self.append(_solve_exit(current, self.output[-1]) if self.output else current, owner)
+        self.reset_steady()
+        self.align_entry = False
+        self.radius = 0.0
+        self.mode = 0
+
+    def join(self, solved, mode):
+        if self.align_entry and self.output:
+            previous = _project_motion(self.output[-1])
+            if previous is not None:
+                solved = _retarget_start(solved, previous.end, previous.end_w)
+            self.align_entry = False
+        elif self.previous_steady is not None:
+            joined = _join_steady_motion(self.previous_steady, solved, mode, self.radius, self.geometry_tolerance)
+            if joined is not None:
+                previous, solved, transition = joined
+                self.output[self.previous_index] = _projected_to_motion(previous, comp_mode=mode)
+                if transition is not None:
+                    self.append(transition, self.owners[self.previous_index])
+        return solved
+
+    def steady(self, current, owner, mode):
+        if self.radius <= EPS or mode != self.mode:
+            self.append(_mark_unverified(current), owner)
+            self.reset_steady()
+            return
+        solved = _solve_standalone(current, mode, self.radius, self.geometry_tolerance)
+        if solved is None:
+            fallback, self.align_entry = _fallback_active_motion(current, self.output[-1] if self.output else None)
+            self.append(fallback, owner)
+            self.previous_steady = None
+            return
+        solved = self.join(solved, mode)
+        self.append(_projected_to_motion(solved, comp_mode=mode), owner)
+        self.previous_steady = solved
+        self.previous_index = len(self.output) - 1
+
+    def process(self, index, current, owner):
+        previous = _normalize_comp_mode(self.motions[index - 1].compensation_mode) if index > 0 else 0
+        mode = _normalize_comp_mode(current.compensation_mode)
+        if mode != 0 and previous != mode:
+            self.enter(index, current, owner, mode)
+        elif mode == 0 and previous != 0:
+            self.exit(current, owner)
+        elif mode == 0:
+            self.append(current, owner)
+        else:
+            self.steady(current, owner, mode)
+
+
 def _apply_milling_cutter_compensation(
     motions: list[TraceMotion],
     tools: dict[str, dict[str, object]],
@@ -49,123 +138,15 @@ def _apply_milling_cutter_compensation(
     *,
     geometry_tolerance: float = _GEOMETRY_TOLERANCE,
 ) -> tuple[list[TraceMotion], list[int]]:
-    """Apply Fanuc-style cutter compensation using configured milling tool diameters.
-
-    G41/G42 is treated as a state machine.  The command block is an entry
-    transition, following line/arc/helix motions are offset and stitched, and
-    the first G40 motion is retargeted from the final compensated endpoint.
-    """
+    """Resolve entry, steady joins and exit with state local to one execution."""
     if len(motion_owners) != len(motions):
         raise ValueError("Each compensated milling motion must have one owner")
     if not motions:
         return motions, []
-
-    output: list[TraceMotion] = []
-    output_owners: list[int] = []
-    previous_steady: _ProjectedMotion | None = None
-    previous_steady_output_index = -1
-    align_next_active_to_entry = False
-    active_tool_radius = 0.0
-    active_comp_mode = 0
-
-    for index, current in enumerate(motions):
-        current_owner = motion_owners[index]
-        previous_comp = _normalize_comp_mode(motions[index - 1].compensation_mode) if index > 0 else 0
-        current_comp = _normalize_comp_mode(current.compensation_mode)
-        current_active = current_comp != 0
-        entry_event = current_active and previous_comp != current_comp
-        exit_event = current_comp == 0 and previous_comp != 0
-
-        if entry_event:
-            active_comp_mode = current_comp
-            active_tool_radius = _tool_radius(tools.get(current.tool or "")) or 0.0
-            previous_steady = None
-            previous_steady_output_index = -1
-            align_next_active_to_entry = False
-            if active_tool_radius <= EPS:
-                output.append(_mark_unverified(current))
-                output_owners.append(current_owner)
-                continue
-
-            reference = _find_entry_reference(motions, index, active_comp_mode) or current
-            solved_entry = _solve_entry(
-                current,
-                reference,
-                active_comp_mode,
-                active_tool_radius,
-                geometry_tolerance,
-            )
-            if solved_entry is None:
-                active_tool_radius = 0.0
-                output.append(_mark_unverified(current))
-                output_owners.append(current_owner)
-                continue
-
-            output.append(solved_entry)
-            output_owners.append(current_owner)
-            align_next_active_to_entry = True
-            continue
-
-        if exit_event:
-            output.append(_solve_exit(current, output[-1]) if output else current)
-            output_owners.append(current_owner)
-            previous_steady = None
-            previous_steady_output_index = -1
-            align_next_active_to_entry = False
-            active_tool_radius = 0.0
-            active_comp_mode = 0
-            continue
-
-        if not current_active:
-            output.append(current)
-            output_owners.append(current_owner)
-            continue
-
-        if active_tool_radius <= EPS or current_comp != active_comp_mode:
-            output.append(_mark_unverified(current))
-            output_owners.append(current_owner)
-            previous_steady = None
-            previous_steady_output_index = -1
-            continue
-
-        solved_steady = _solve_standalone(current, current_comp, active_tool_radius, geometry_tolerance)
-        if solved_steady is None:
-            fallback, align_next_active_to_entry = _fallback_active_motion(current, output[-1] if output else None)
-            output.append(fallback)
-            output_owners.append(current_owner)
-            previous_steady = None
-            continue
-
-        if align_next_active_to_entry and output:
-            previous_output = _project_motion(output[-1])
-            if previous_output is not None:
-                solved_steady = _retarget_start(solved_steady, previous_output.end, previous_output.end_w)
-            align_next_active_to_entry = False
-        elif previous_steady is not None:
-            joined = _join_steady_motion(
-                previous_steady,
-                solved_steady,
-                current_comp,
-                active_tool_radius,
-                geometry_tolerance,
-            )
-            if joined is not None:
-                stitched_previous, solved_steady, transition = joined
-                output[previous_steady_output_index] = _projected_to_motion(
-                    stitched_previous,
-                    comp_mode=current_comp,
-                )
-                if transition is not None:
-                    output.append(transition)
-                    output_owners.append(output_owners[previous_steady_output_index])
-
-        solved_trace = _projected_to_motion(solved_steady, comp_mode=current_comp)
-        output.append(solved_trace)
-        output_owners.append(current_owner)
-        previous_steady = solved_steady
-        previous_steady_output_index = len(output) - 1
-
-    return output, output_owners
+    run = _CompensationRun(motions, tools, geometry_tolerance)
+    for index, (current, owner) in enumerate(zip(motions, motion_owners)):
+        run.process(index, current, owner)
+    return run.output, run.owners
 
 
 def apply_milling_cutter_compensation(

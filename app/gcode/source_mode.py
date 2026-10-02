@@ -14,29 +14,16 @@ SINUMERIK_MODE_ISO = "iso"
 
 _SINUMERIK_SUFFIXES = frozenset({".mpf", ".spf"})
 _MODE_RE = re.compile(r"(?<![A-Z0-9_])G\s*(290|291)(?![0-9.])", re.IGNORECASE)
-_SIEMENS_SYNTAX_RE = re.compile(
-    r"(?im)(?:^\s*%_N_[A-Z0-9_]+_(?:MPF|SPF)|\b(?:CYCLE\d+|TRAORI|TRANS|ROT|AROT|DEF|MIRROR|SCALE)\s*(?:\(|\b))"
-)
 
 
 def source_dialect_for_path(path: str | Path | None, source: str | None = None) -> str:
-    """Return the dialect implied by a path and, when available, its contents.
+    """Select the source container; MPF/SPF always starts in native mode.
 
-    MPF/SPF is also used for ordinary ISO G-code by other CAM systems. In
-    analysis, export, and GUI flows pass contents and require a SINUMERIK
-    signature before selecting the Siemens executor. Without source text, the
-    MPF/SPF extension remains an initial hint for native SINUMERIK documents.
+    Contents never override the container. G290/G291 are runtime switches.
     """
-    if not path:
-        return SOURCE_DIALECT_FANUC
-    if Path(str(path)).suffix.lower() not in _SINUMERIK_SUFFIXES:
-        return SOURCE_DIALECT_FANUC
-    if source is not None:
-        uncommented = "\n".join(strip_comments(line) for line in source.splitlines())
-        if _MODE_RE.search(uncommented) or _SIEMENS_SYNTAX_RE.search(uncommented):
-            return SOURCE_DIALECT_SINUMERIK
-        return SOURCE_DIALECT_FANUC
-    return SOURCE_DIALECT_SINUMERIK
+    if path and Path(str(path)).suffix.lower() in _SINUMERIK_SUFFIXES:
+        return SOURCE_DIALECT_SINUMERIK
+    return SOURCE_DIALECT_FANUC
 
 
 def sinumerik_initial_mode(source: str) -> str:

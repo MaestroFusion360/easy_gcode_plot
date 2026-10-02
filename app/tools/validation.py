@@ -18,6 +18,7 @@ from app.tools.milling_geometry import (
     default_shank_diameter,
     default_tip_diameter,
 )
+from app.tools.milling_lengths import milling_lengths
 
 
 def _migrate_turning_type(value: object) -> tuple[str, str | None]:  # pylint: disable=too-many-return-statements
@@ -205,7 +206,9 @@ def _normalize_face_slot_extras(raw_spec, spec, tool_type, diameter, length):
     if tool_type not in {"face_mill", "slot_mill"}:
         return True
     try:
-        cutting_height = float(raw_spec.get("cuttingHeight", default_cutting_height(tool_type, diameter, length)))
+        cutting_height = float(
+            spec.get("fluteLength", raw_spec.get("cuttingHeight", default_cutting_height(tool_type, diameter, length)))
+        )
         shank_diameter = float(raw_spec.get("shankDiameter", default_shank_diameter(diameter)))
     except (TypeError, ValueError):
         return False
@@ -213,7 +216,9 @@ def _normalize_face_slot_extras(raw_spec, spec, tool_type, diameter, length):
         return False
     if not 0.0 < cutting_height <= length or not 0.0 < shank_diameter < diameter:
         return False
-    spec.update(cuttingHeight=cutting_height, shankDiameter=shank_diameter)
+    spec["shankDiameter"] = shank_diameter
+    if "fluteLength" not in spec:
+        spec["cuttingHeight"] = cutting_height
     return True
 
 
@@ -257,13 +262,13 @@ def _milling_base_spec(raw_spec):
         return None
     try:
         diameter = float(raw_spec.get("diameter", 0.0))
-        length = float(raw_spec.get("length", 0.0))
         radius = max(0.0, float(raw_spec.get("cornerRadius", 0.0)))
     except (TypeError, ValueError):
         return None
-    if not all(math.isfinite(value) for value in (diameter, length, radius)):
+    lengths = milling_lengths(raw_spec)
+    if lengths is None or not all(math.isfinite(value) for value in (diameter, radius)):
         return None
-    if diameter <= 0.0 or length <= 0.0:
+    if diameter <= 0.0:
         return None
     if tool_type == "mill_ball":
         radius = diameter / 2.0
@@ -271,7 +276,7 @@ def _milling_base_spec(raw_spec):
         return None
     elif tool_type != "mill_bull":
         radius = 0.0
-    return {"type": tool_type, "diameter": diameter, "cornerRadius": radius, "length": length}
+    return {"type": tool_type, "diameter": diameter, "cornerRadius": radius, **lengths}
 
 
 def _turning_base_spec(raw_key, raw_spec):

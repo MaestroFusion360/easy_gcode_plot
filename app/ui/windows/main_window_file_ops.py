@@ -7,17 +7,17 @@ from copy import deepcopy
 from pathlib import Path
 from threading import Event
 
-from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QSignalBlocker, QTimer
+from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QTimer
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
 from app.gcode.comments import SEMICOLON
-from app.gcode.dxf_exporter import export_dxf
+from app.gcode.export import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions, _window_export_options, export_program
+from app.gcode.export.dxf import export_dxf
 from app.gcode.export.sinumerik import convert_full_program_to_fanuc, convert_full_program_to_sinumerik
 from app.gcode.export.source_formatting import format_full_program_source
 from app.gcode.export.validation import validate_full_program_dialect_conversion
-from app.gcode.exporter import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions, _window_export_options, export_program
 from app.gcode.kernel.api.resources import ExecutionLimits
-from app.gcode.kernel.io import NCTextDecodeError, read_nc_text
+from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
 from app.gcode.source_mode import (
     SINUMERIK_MODE_SIEMENS,
     SOURCE_DIALECT_FANUC,
@@ -38,18 +38,23 @@ SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.mpf *.spf *.tap *.txt);;All 
 
 def _set_arc_action(owner, arc_type: int) -> None:
     actions = (owner.ui.actionRelative_to_start, owner.ui.actionAbsolute, owner.ui.actionRadius_value)
-    blockers = [QSignalBlocker(action) for action in actions]
+    # QActionGroup needs action signals to maintain its exclusive selection.
+    # Suspend only the settings handler while applying document defaults.
+    for action in actions:
+        action.toggled.disconnect(owner.changeArcType)
     try:
         selected = {1: actions[0], 2: actions[1], 3: actions[2]}.get(int(arc_type), actions[0])
         selected.setChecked(True)
     finally:
-        del blockers
+        for action in actions:
+            action.toggled.connect(owner.changeArcType)
 
 
 def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
     """Apply MPF/SPF document defaults without persisting them as user settings."""
     dialect = source_dialect_for_path(file_name, source)
     setattr(owner, "_document_source_dialect", dialect)
+    _configure_document_kinematics(owner, dialect)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
     if dialect == SOURCE_DIALECT_SINUMERIK and sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS:
@@ -63,10 +68,29 @@ def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
 
 def _reset_document_source_mode(owner) -> None:
     setattr(owner, "_document_source_dialect", SOURCE_DIALECT_FANUC)
+    _configure_document_kinematics(owner, SOURCE_DIALECT_FANUC)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
     owner.lexer.set_comment_style(owner.commentStyle)
     _set_arc_action(owner, owner.arc_type)
+
+
+def _configure_document_kinematics(owner, dialect):
+    """Restrict SINUMERIK documents without overwriting the user's profile."""
+    restricted = dialect == SOURCE_DIALECT_SINUMERIK
+    if restricted:
+        if not getattr(owner, "_document_rotary_restricted", False):
+            setattr(owner, "_rotary_before_sinumerik", getattr(owner, "rotaryKinematics", None))
+        owner.rotaryKinematics = None
+    elif getattr(owner, "_document_rotary_restricted", False):
+        owner.rotaryKinematics = getattr(owner, "_rotary_before_sinumerik", None)
+    setattr(owner, "_document_rotary_restricted", restricted)
+    refresh = getattr(owner, "_refresh_rotary_kinematics_menu", None)
+    if refresh is not None:
+        refresh()
+    options = getattr(owner, "optionsDlg", None)
+    if options is not None:
+        options.sync_rotary_kinematics(getattr(owner, "rotaryKinematics", None))
 
 
 def _read_editor_text(path: str, encoding: str) -> tuple[str, str]:
@@ -244,11 +268,13 @@ def _convert_full_program_dialect(source, result, target_cnc, source_dialect, op
         if any(item.code in unsafe_compensation for item in result.diagnostics):
             raise ValueError("SINUMERIK conversion requires cutter compensation to be resolved by the kernel")
     converted = (
-        converter(source, source_result=result, execution_options=execution_options)
+        converter(
+            format_full_program_source(source, options), source_result=result, execution_options=execution_options
+        )
         if target_cnc == 2
         else converter(source)
     )
-    converted_source = format_full_program_source(converted, options)
+    converted_source = converted if target_cnc == 2 else format_full_program_source(converted, options)
     validate_full_program_dialect_conversion(
         result,
         converted_source,
@@ -698,6 +724,7 @@ class MainWindowFileMixin:
             return False
 
         LOGGER.info("file_saved path=%s encoding=%s", fileName, encoding)
+        _configure_document_source_mode(self, fileName, self.ui.editor.text())
         self.setCurrentFile(fileName)
         self._document_disk_signature = _file_signature(fileName)
         self._document_encoding = encoding

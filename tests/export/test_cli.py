@@ -427,7 +427,7 @@ def test_cli_full_program_adds_and_removes_sinumerik_mode_without_expanding(tmp_
         == 0
     )
     converted = sinumerik_output.read_text(encoding="utf-8")
-    assert converted == "G291\n" + original
+    assert converted == "G291\n(O1234)\n" + original.split("\n", 1)[1]
     assert "ANALYSIS ONLY" not in converted
     capsys.readouterr()
 
@@ -446,7 +446,7 @@ def test_cli_full_program_adds_and_removes_sinumerik_mode_without_expanding(tmp_
         )
         == 0
     )
-    assert fanuc_output.read_text(encoding="utf-8") == original
+    assert fanuc_output.read_text(encoding="utf-8") == original.replace("O1234", "(O1234)", 1)
     capsys.readouterr()
 
 

@@ -13,6 +13,7 @@ from app.tools.definitions import (
     AUTO_TIP_ORIENTATIONS_BY_TOOL_DIRECTION,
     DEFAULT_AUTO_TIP_ORIENTATION,
     DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION,
+    DEFAULT_MILLING_TOOL,
     MILLING_TOOL_LABELS,
     TURNING_APPLICATIONS,
     TURNING_INSERT_TYPES,
@@ -25,6 +26,7 @@ from app.tools.milling_geometry import (
     default_shank_diameter,
     default_tip_diameter,
 )
+from app.tools.milling_lengths import milling_lengths
 from app.ui.generated.editors.milling_tool_editor import Ui_MillingToolEditor
 from app.ui.generated.editors.turning_tool_editor import Ui_TurningToolEditor
 from app.ui.support.units import metric_value, register_length_spinboxes, set_length_units, set_metric_value
@@ -429,7 +431,7 @@ class _MillingToolEditor(QDialog):
         _initialize_tool_editor(self, parent, tool_code)
         self.ui = Ui_MillingToolEditor()
         self.ui.setupUi(self)
-        spec = spec or {}
+        spec = spec or dict(DEFAULT_MILLING_TOOL)
         self.setWindowTitle(
             QCoreApplication.translate("ToolLibraryDialog", "Edit Milling Tool")
             if tool_code
@@ -442,6 +444,8 @@ class _MillingToolEditor(QDialog):
         self.diameter = self.ui.diameter
         self.cornerRadius = self.ui.cornerRadius
         self.length = self.ui.length
+        self.fluteLength = self.ui.fluteLength
+        self.bodyLength = self.ui.bodyLength
         self.cuttingHeight = self.ui.cuttingHeight
         self.shankDiameter = self.ui.shankDiameter
         self.tipDiameter = self.ui.tipDiameter
@@ -454,6 +458,8 @@ class _MillingToolEditor(QDialog):
             self.diameter,
             self.cornerRadius,
             self.length,
+            self.fluteLength,
+            self.bodyLength,
             self.cuttingHeight,
             self.shankDiameter,
             self.tipDiameter,
@@ -462,7 +468,9 @@ class _MillingToolEditor(QDialog):
         self._length_labels = {
             self.ui.diameterLabel: "Diameter",
             self.ui.cornerRadiusLabel: "Corner radius",
-            self.ui.lengthLabel: "Length",
+            self.ui.lengthLabel: QCoreApplication.translate("MillingToolEditor", "Length to holder"),
+            self.ui.fluteLengthLabel: QCoreApplication.translate("MillingToolEditor", "Flute length"),
+            self.ui.bodyLengthLabel: QCoreApplication.translate("MillingToolEditor", "Body length"),
             self.ui.cuttingHeightLabel: "Cutting height",
             self.ui.shankDiameterLabel: "Shank diameter",
             self.ui.tipDiameterLabel: "Tip diameter",
@@ -475,7 +483,15 @@ class _MillingToolEditor(QDialog):
         self.toolType.setCurrentIndex(max(0, type_index))
         self.diameter.setValue(float(spec.get("diameter", 10.0)))
         self.cornerRadius.setValue(float(spec.get("cornerRadius", 0.0)))
-        self.length.setValue(float(spec.get("length", 50.0)))
+        lengths = milling_lengths(spec)
+        if lengths is None:
+            raise ValueError("Invalid milling tool lengths.")
+        self._legacy_length = lengths["length"] if "fluteLength" not in lengths else None
+        self._lengths_edited = False
+        self.length.setValue(lengths["length"])
+        self.fluteLength.setValue(lengths.get("fluteLength", 0.0))
+        self.bodyLength.setValue(lengths.get("bodyLength", 0.0))
+        self.ui.lengthsHint.setVisible(self._legacy_length is not None)
 
         tool_type = str(spec.get("type", "mill_flat"))
         diameter = self.diameter.value()
@@ -502,6 +518,8 @@ class _MillingToolEditor(QDialog):
         self.buttonBox.rejected.connect(self.reject)
         self.toolType.currentIndexChanged.connect(self.updateRadiusField)
         self.diameter.valueChanged.connect(self.updateBallRadius)
+        self.fluteLength.valueChanged.connect(self._update_total_length)
+        self.bodyLength.valueChanged.connect(self._update_total_length)
         self._last_shape_type = tool_type
         self.updateRadiusField()
         self.toolCode.selectAll()
@@ -509,9 +527,22 @@ class _MillingToolEditor(QDialog):
 
     def _set_units(self, inches: bool):
         set_length_units(self._length_controls, bool(inches), suffix=False)
+        if self._uses_split_lengths():
+            set_metric_value(self.length, metric_value(self.fluteLength) + metric_value(self.bodyLength))
         unit = "in" if inches else "mm"
         for label, text in self._length_labels.items():
             label.setText(f"{text}, {unit}")
+
+    def _update_total_length(self, *_args):
+        """Keep the compatibility total derived from the two editable lengths."""
+        self._lengths_edited = True
+        set_metric_value(self.length, metric_value(self.fluteLength) + metric_value(self.bodyLength))
+        self.ui.lengthsHint.setVisible(False)
+        self.updateRadiusField()
+
+    def _uses_split_lengths(self):
+        """Distinguish measured split lengths from an untouched legacy total."""
+        return self._legacy_length is None or self._lengths_edited
 
     def currentType(self):
         """Return the stable milling tool type key."""
@@ -536,9 +567,10 @@ class _MillingToolEditor(QDialog):
         stepped = tool_type in {"face_mill", "slot_mill"}
         chamfer = tool_type == "chamfer_mill"
         taper_ball = tool_type == "taper_ball_mill"
-        for field in (self.cuttingHeight, self.shankDiameter):
-            field.setVisible(stepped)
-            self._shapeRows[field].setVisible(stepped)
+        self.shankDiameter.setVisible(stepped)
+        self._shapeRows[self.shankDiameter].setVisible(stepped)
+        self.cuttingHeight.setVisible(stepped and not self._uses_split_lengths())
+        self._shapeRows[self.cuttingHeight].setVisible(stepped and not self._uses_split_lengths())
         for field in (self.tipDiameter, self.chamferAngle):
             visible = chamfer or (taper_ball and field is self.chamferAngle)
             field.setVisible(visible)
@@ -562,7 +594,7 @@ class _MillingToolEditor(QDialog):
         if tool_type == "mill_bull" and self.cornerRadius.value() > self.diameter.value() / 2.0:
             message = "Bull corner radius cannot exceed half the diameter."
         elif tool_type in {"face_mill", "slot_mill"}:
-            if not 0.0 < self.cuttingHeight.value() <= self.length.value():
+            if not self._uses_split_lengths() and not 0.0 < self.cuttingHeight.value() <= self.length.value():
                 message = "Cutting height must be within the total tool length."
             elif not 0.0 < self.shankDiameter.value() < self.diameter.value():
                 message = "Shank diameter must be smaller than cutter diameter."
@@ -600,6 +632,13 @@ class _MillingToolEditor(QDialog):
                 QCoreApplication.translate("ToolLibraryDialog", "Diameter and length must be greater than zero."),
             )
             return
+        if self._uses_split_lengths() and self.fluteLength.value() <= 0.0:
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
+                QCoreApplication.translate("MillingToolEditor", "Flute length must be greater than zero."),
+            )
+            return
         tool_type = self.currentType()
         if not self._valid_shape_dimensions(tool_type):
             return
@@ -623,11 +662,13 @@ class _MillingToolEditor(QDialog):
             "cornerRadius": radius,
             "length": metric_value(self.length),
         }
+        if self._uses_split_lengths():
+            spec.update(fluteLength=metric_value(self.fluteLength), bodyLength=metric_value(self.bodyLength))
+            spec["length"] = spec["fluteLength"] + spec["bodyLength"]
         if tool_type in {"face_mill", "slot_mill"}:
-            spec.update(
-                cuttingHeight=metric_value(self.cuttingHeight),
-                shankDiameter=metric_value(self.shankDiameter),
-            )
+            spec["shankDiameter"] = metric_value(self.shankDiameter)
+            if not self._uses_split_lengths():
+                spec["cuttingHeight"] = metric_value(self.cuttingHeight)
         elif tool_type == "chamfer_mill":
             spec.update(
                 tipDiameter=metric_value(self.tipDiameter),

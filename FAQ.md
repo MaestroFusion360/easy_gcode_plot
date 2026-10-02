@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.7.2 tree and explains the GUI, FANUC execution kernel, the supported SINUMERIK ISO-M subset, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current 1.8.0 tree and explains the GUI, FANUC execution kernel, the supported SINUMERIK native and ISO-M subsets, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -150,6 +150,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Are macro T expressions discovered as literal tools?](#are-macro-t-expressions-discovered-as-literal-tools)
     - [Which turning tool geometries are stored?](#which-turning-tool-geometries-are-stored)
     - [Which milling tools can be previewed?](#which-milling-tools-can-be-previewed)
+    - [How are milling tool lengths defined?](#how-are-milling-tool-lengths-defined)
     - [Does CLI execution load the GUI Saved Library?](#does-cli-execution-load-the-gui-saved-library)
   - [Interface, editor and playback](#interface-editor-and-playback)
     - [What are the two main GUI panels?](#what-are-the-two-main-gui-panels)
@@ -1291,7 +1292,7 @@ The catalog also contains head, mixed head/table and other two-rotary-axis profi
 
 The JSON editor validates a profile and saves it to `rotary_profiles.json` beside the user's `config.ini`. It does not change the installed catalog. A selected profile defines the table/head axis and sign explicitly; the software cannot infer those properties from an A, B or C word. Execution steps retain the selected WCS and the configured rotary angles. G10 L2 and WCS changes preserve the current machine position after a table index.
 
-If the user profile file is damaged or invalid, the GUI opens with the installed profiles. Kernel and CLI loads remain strict and report the invalid file until it is corrected.
+If the user profile file is damaged or invalid, the GUI and JSON editor open with the installed profiles. Saving a valid edit recovers the override file and preserves its original bytes in a neighboring `rotary_profiles.json.invalid-*.bak` file. Valid edits retain the other valid overrides. Kernel and CLI loads remain strict until the file is repaired.
 
 ### What happens when indexed geometry cannot be resolved?
 
@@ -1511,7 +1512,7 @@ That limitation is intentional and should not be interpreted as a simulated tool
 Turning and milling tools are stored in:
 
 ```text
-%APPDATA%\easy-gcode-plot\tools.db
+%LOCALAPPDATA%\easy-gcode-plot\tools.db
 ```
 
 This SQLite database is authoritative for Saved Library tools.
@@ -1586,7 +1587,24 @@ OD, ID and Face are application flags rather than different geometry classes.
 
 ### Which milling tools can be previewed?
 
-The milling tool model includes common flat, bull-nose, ball, face, slot, chamfer, drill and tap geometry.
+The milling tool model includes flat, bull-nose, ball, tapered ball, face, slot, chamfer, drill and tap geometry.
+
+### How are milling tool lengths defined?
+
+The milling editor stores two metric lengths:
+
+- `fluteLength`: cutting length measured from the tip; must be greater than zero.
+- `bodyLength`: non-cutting length from the end of the cutting portion to the holder; may be zero.
+
+Length to holder is `fluteLength + bodyLength` and is read-only in the editor. The compatibility field `length` is derived from this sum; there is no `shaftLength`. The Inches switch changes display units; SQLite and JSON/CSV exports retain millimetres.
+
+For face and slot mills, `fluteLength` sets the cutting head height; `cuttingHeight` is retained only for legacy records. For tapered ball mills, the taper ends at `fluteLength`, followed by a cylindrical body extending to the holder. Both library and playback previews use this geometry.
+
+The library preview shows the cutting part in gold and the non-cutting body in gray. In 3D, the default cutting color is yellow; the body is near-white in the dark theme and dark gray in the light theme to distinguish it from gray STL models. The tool color option changes only the cutting part. Tools without an explicit length split use one color.
+
+Existing tools with only `length` keep their total and preview without an inferred split. The editor identifies these records as legacy. Editing unrelated fields keeps the unsplit record; entering cutting/body lengths defines the new partition. Loading the library does not rewrite the database.
+
+Tool comments can supply both dimensions, for example `(FLAT END MILL D10 FL25 BL15)`. Comment dimensions follow the units active at tool selection. A comment providing only `L`/`LENGTH` retains an unsplit total. Automatically discovered tools without length dimensions use editable defaults, not measured dimensions.
 
 ### Does CLI execution load the GUI Saved Library?
 
@@ -1972,21 +1990,65 @@ No. Source and output must be different paths.
 
 ## SINUMERIK 840D input
 
+Arc-center interpretation follows the executed controller mode: native uses absolute IJK centers, ISO-M (`G291`) uses relative IJK centers. Mixed `G290/G291` input resolves each arc in its active mode; document arc settings and automatic detection do not override these semantics. Rotary A/B/C is rejected by the kernel in both modes, even if an API/CLI caller supplies a rotary profile.
+
+Structured execution and CLI/batch reports include `source_dialect` (`fanuc` or `sinumerik`) independently of the shared `fanuc_mill` geometry language. This identifies the source family, not one controller mode for the entire mixed program. Unsupported SINUMERIK G/M diagnostics contribute concrete codes to batch summaries; unsupported syntax and features do not become fabricated G/M entries.
+
+The SINUMERIK scope is **visualization of trajectories using native commands and cycles emitted by CAM postprocessors**. Full support for the complex internal Siemens macro language is outside scope; implementing it is not feasible for a project maintained by one person. Executing subprograms from SDI mode is currently unavailable. Opening an SPF file is supported as a document, but arbitrary Siemens subprogram invocation is not.
+
+For all recognized MPF/SPF documents, including ISO-M input, the GUI forces **Rotary kinematics = None** and disables other profiles in Settings and Options. The previous profile is restored when opening a FANUC file or creating a new document, without overwriting the saved preference.
+
 ### What SINUMERIK support is included?
 
-The application supports a bounded subset of SINUMERIK 840D ISO Dialect M. It routes supported G291 blocks through the milling execution kernel; it is not a native Siemens-language interpreter or a complete 840D controller model. SINUMERIK ISO Dialect T is not supported.
+The application supports a bounded native Siemens milling subset (`G290`, also the initial mode of MPF/SPF files) and ISO Dialect M (`G291`). Both use the shared milling kernel and resolved trace. SINUMERIK ISO Dialect T is not supported.
+
+| Native function | Current behavior |
+| --- | --- |
+| `G0/G1`, `G2/G3`, `G17/G18/G19` | XYZ positioning, linear moves and arcs in the selected plane; `CR=` radius arcs, including negative radius for a major arc |
+| `G90/G91`, `G54`?`G59`, `G710` | Absolute/incremental coordinates, work offsets and metric units |
+| `G40/G41/G42` | Modeled cutter-radius compensation using the configured tool |
+| `T`, `M6`, `D0/D1`, `S`, basic M codes | Tool change, modeled cutting-edge selection/cancellation, spindle and coolant signals; controller-specific offset tables are not simulated |
+| `G0 SUPA ... D0` | Nonmodal machine-coordinate positioning; `SUPA Z0` means machine zero, independently of the configured home Z |
+| `G64`, `MSG(...)`, `WORKPIECE(...)`, `;` comments | Path-control/display metadata and comments; no blending or stock geometry is generated from these declarations |
+| `MCALL CYCLE81/82/83/84(...)` | Modal Z drilling/tapping in `G17/G40`, triggered by subsequent XY blocks; bare `MCALL` cancels the cycle |
+| `CYCLE81/82` | Drilling and rapid return, with modeled seconds-based dwell for `CYCLE82`; safety plane is `RFP + SDIS`, return plane is `RTP` |
+| `CYCLE83` | Modeled first depth, amount degression, minimum peck depth, chip-breaking/full-retract options and reentry clearance |
+| `CYCLE84` | Single-pass metric right-hand tapping in `G94`: explicit positive `PIT`, `_PITA=0/1`, `SDAC=3`, Z axis and positive `SST` equal to programmed `S`; equal `SST1` or zero/omitted. Feed = pitch × rpm; feed withdrawal to `RFP+SDIS`, rapid return to `RTP`, optional dwell in seconds |
+| `CYCLE800()` | Empty reset accepted only when no rotary frame is active; parameterized tilted-plane transformation is not implemented |
+
+`CYCLE84` accepts the 24-argument CAM call and shortened numeric declarations. Depth uses `DP` or positive relative `DPR` in compatibility mode; explicit absolute-depth `AMODE=2/1001002` requires `DP`. Deep tapping, `MPIT`/thread tables, nonmetric pitch units, spindle orientation/technology options, left-hand tapping and unequal entry/withdrawal speeds are outside this subset and produce diagnostics. Spindle synchronization/reversal is represented by logical signals, without angular spindle simulation. The parameters follow [Siemens section 1.7](https://m3.tuc.gr/EQUIPMENT/CTX310/840D%20G-CODE.pdf); paired fixtures `tapping_sin840d.mpf` / `tapping_fanuc.nc` verify G84 geometry and native trace replay.
+
+Cython accelerates contiguous literal position runs, with per-block capability validation before state changes. Controller-specific declarations and G290/G291 switches interrupt the current run, after which eligible positions resume acceleration. Positions inside an active MCALL cycle stay on the Python reference path until cancellation. Metadata or a native cycle elsewhere in the file does not disable acceleration for the whole program.
+
+Cycle parameters must be numeric literals within the implemented subset. Unsupported commands, modes and parameters stop execution with diagnostics before their geometry is emitted. Native variables, expressions, control flow, general Siemens subprogram calls and other native cycles are not implemented. SPF file recognition does not imply support for calling arbitrary Siemens subprograms.
+
+SINUMERIK kinematics currently supports only three-axis XYZ trajectories. Rotary-axis motion, tilted working planes and TCP transformations are not supported. Full support for `CYCLE800` and `TRAORI`/`TRAFOOF` is planned for future development; it is not available in this version.
+
+Regression fixtures are `tests/fixtures/milling/contur_2d_sin840d.mpf` / `contur_2d.nc` and `cycles_sin840d.mpf` / `cycles_fanuc.nc`. Comparisons account for CAM rounding and actual differences in retract commands and peck parameters. A native `CYCLE83` with a decreasing step is not identical to FANUC `G83 Q1`. Native trace export to FANUC is tested by re-executing the exported geometry. Native SINUMERIK **Full Program** conversion is not implemented.
+
+Conversion places G291 in the first frame, before all comments and headers. It preserves G43/H and G49. O0001 becomes (O0001); standalone % delimiters are removed. Actual rotary/TCP/TWP programs remain unsupported. Controller H-table offsets are not applied to plotted geometry.
 
 In `G291`, common integer milling G codes, unit selection, coordinate systems, selected canned cycles and `G50/G51` are accepted. Extended work offsets use `G54 P1..P48`; source `G54.1` and other decimal G codes are rejected, though `G54 Pn` is normalized internally to the milling kernel's `G54.1 Pn` form. Ordinary `G91` incremental positioning is supported. G68 is limited to a standalone 2D form with `G90` active, only the center axes of the active plane and `R`, and no `I/J/K`; incremental-angle and 3D-vector forms are rejected. `G69` is supported. Macro B flow and unsupported ISO functions stop with diagnostics. `G51` uses the modeled `P/1000` scale weighting; machine-specific alternative weighting is not modeled.
 
-`G290` selects native Siemens language. The current application can skip MPF/SPF headers and comments in that mode, but executable native Siemens commands stop with `UNSUPPORTED_SINUMERIK_MODE`. A program must switch to `G291` before ISO-M motion can be analyzed.
+`G290` selects the native subset above; `G291` selects ISO-M. Switches must occupy standalone blocks. Cancel native cutter compensation and `MCALL` before `G291`; cancel incompatible ISO cycles, transforms and extended offsets before `G290`.
 
 ### How are MPF and SPF files detected?
 
-The GUI Open/Save filters include `.mpf` and `.spf`. The CLI and batch scanner include both extensions by default and select the SINUMERIK source dialect when a file contains G290/G291 or recognizable native Siemens syntax. Use `--lang fanuc_mill` for milling analysis; the language option selects the milling geometry model and does not turn on full Siemens support. Mixed folders can still use `--extensions` to control discovery.
+The GUI Open/Save filters include `.mpf` and `.spf`. The CLI and batch scanner include both extensions by default and select SINUMERIK for every `.mpf`/`.spf` file independently of its contents; execution starts in native mode and processes standalone `G290/G291` switches. Use `--lang fanuc_mill` for milling analysis; the language option selects the milling geometry model and does not turn on full Siemens support. Mixed folders can still use `--extensions` to control discovery.
 
 ### Can FANUC milling programs be converted to SINUMERIK?
 
-Yes. Set `--lang fanuc_mill` for the milling interpreter and `--target-dialect sinumerik840d` for FANUC-to-SINUMERIK conversion. Conversion is available only with `--mode full`: it preserves every source block and adds a standalone `G291`. Converting an ISO-M `.mpf`/`.spf` to FANUC with `--mode full` removes the standalone `G291`. Only the verified three-axis ISO-M subset is supported. Programs using rotary axes with `4ax_table_a/b/c`, indexed or simultaneous 5-axis motion, TCP (`G43.4`) or tilted working-plane transforms are rejected before writing NC. The converter uses kernel execution facts and the selected kinematics, not inferred command equivalents; it never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile blocks SINUMERIK ISO conversion, including XYZ-only programs. Validation runs in the actual target ISO dialect, without a FANUC surrogate. FANUC multi-axis execution and plotting remain supported. SINUMERIK-target conversion is rejected when cutter compensation is unverified. `batch-export` follows the same full-program conversion and writes `.mpf` files for a SINUMERIK target.
+Only to **SINUMERIK ISO Dialect M (`G291`)**, not native Siemens (`G290`). The CLI target `sinumerik840d` means ISO-M. Full Program supports **FANUC → ISO-M** and **ISO-M → FANUC**; full **FANUC ↔ native** conversion is not implemented.
+
+The GUI has **no SINUMERIK Native export target**. **SINUMERIK 840D ISO-M (G291)** in **Target CNC** means ISO-M only. The resolved-toolpath example below is a CLI command, not a native GUI export option. Opening and visualizing native MPF/SPF input does not provide native program export.
+
+Native MPF/SPF input can export its resolved toolpath to FANUC with `--mode expanded`. Supported cycles become movements; native commands and source program structure are not preserved. This is trace export, not Full Program conversion:
+
+```powershell
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded -o native_trace.nc
+```
+
+Yes. Set `--lang fanuc_mill` for the milling interpreter and `--target-dialect sinumerik840d` for FANUC-to-SINUMERIK conversion. Conversion is available only with `--mode full`: it preserves every source block and adds a standalone `G291`. Converting an ISO-M `.mpf`/`.spf` to FANUC with `--mode full` removes the standalone `G291`. Only the verified three-axis ISO-M subset is supported. Programs using rotary axes with `4ax_table_a/b/c`, indexed or simultaneous 5-axis motion, TCP (`G43.4`) or tilted working-plane transforms are rejected before writing NC. The converter uses kernel execution facts and the selected kinematics, not inferred command equivalents; it never generates `TRAORI`, `TRAFOOF`, `CYCLE800` or Siemens/ISO switching sequences. Selecting a 4-axis or 5-axis profile does not block an XYZ-only program; the restriction applies when rotary commands, TCP or tilted-plane transforms are actually used. Validation runs in the actual target ISO dialect, without a FANUC surrogate. FANUC multi-axis execution and plotting remain supported. SINUMERIK-target conversion is rejected when cutter compensation is unverified. `batch-export` follows the same full-program conversion and writes `.mpf` files for a SINUMERIK target.
 
 In the GUI, open **File → Export**, select **MILL FULL PROGRAM**, then choose **FANUC milling** or **SINUMERIK 840D ISO-M (G291)** in **Target CNC**. Sequence numbering, word spacing and Leading Zero are applied to the preserved source blocks, then the formatted program is validated before writing. Start Program Text, End Program Text and Safety Line are also checked in the final output; changes to resolved motion geometry or machine signals prevent export.
 
@@ -1994,14 +2056,14 @@ For example:
 
 ```powershell
 .\easy_gcode_plot_cli.exe analyze part.mpf --lang fanuc_mill
-.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o part.mpf
-.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode full -o part_fanuc.nc
+.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o iso_part.mpf
+.\easy_gcode_plot_cli.exe export iso_part.mpf --lang fanuc_mill --mode full -o part_fanuc.nc
 .\easy_gcode_plot_cli.exe batch-export C:\Fanuc --lang fanuc_mill --target-dialect sinumerik840d --mode full -o C:\Siemens
 ```
 
 This full-program conversion changes only the standalone dialect switch; it does not translate controller-specific commands or validate machine configuration. It fails if target-dialect analysis reports diagnostics, changes the resolved motion trace or machine signals, or cutter compensation cannot be verified. Review and verify the result on the target control before machining. Expanded Execution remains available for trace export, but it is not the dialect converter.
 
-For SINUMERIK input, `export --mode full` removes the standalone `G291` switch to produce a FANUC milling program after target-dialect validation. DXF exports resolved geometry. The converter does not translate FANUC turning or emit arbitrary native Siemens cycles and machine-specific commands; successful analysis is not machine validation.
+For SINUMERIK ISO-M input, `export --mode full` removes the standalone `G291` switch to produce a FANUC milling program after target-dialect validation. DXF exports resolved geometry. The converter does not translate FANUC turning or emit arbitrary native Siemens cycles and machine-specific commands; successful analysis is not machine validation.
 
 ---
 
@@ -2091,7 +2153,7 @@ fanuc_turn
 fanuc_mill
 ```
 
-There is no separate `sinumerik` `--lang` value. SINUMERIK MPF/SPF input is detected from its extension and source signature, then the milling kernel is selected with `--lang fanuc_mill`.
+There is no separate `sinumerik` `--lang` value. SINUMERIK MPF/SPF input is detected from its extension independently of its contents, then the milling kernel is selected with `--lang fanuc_mill`.
 
 ### What are the exit codes?
 
@@ -2133,6 +2195,8 @@ Per-file reports include:
 - unsupported M-codes;
 - full diagnostic records;
 - elapsed time.
+
+For rotary milling, JSON reports also include `kinematics_definition` and `kinematics_fingerprint` (SHA-256). They capture the effective profile used by that execution, including normalized table/head axis vectors and their order. CSV reports store the same definition as JSON text. A profile ID alone is not enough to reproduce a calculation when user overrides differ. Reporting does not reload the current catalog after execution.
 
 ### Which batch statuses exist?
 
@@ -2371,8 +2435,8 @@ They are intended to run the built CLI, not to rebuild the application.
 ### Where is application configuration stored on Windows?
 
 ```text
-%APPDATA%\easy-gcode-plot\config.ini
-%APPDATA%\easy-gcode-plot\tools.db
+%LOCALAPPDATA%\easy-gcode-plot\config.ini
+%LOCALAPPDATA%\easy-gcode-plot\tools.db
 ```
 
 Snippets use their own SQLite store under Local AppData.
@@ -2405,7 +2469,7 @@ No. `tools.db` is authoritative. Legacy tool JSON in configuration is not used a
 When logging is enabled:
 
 ```text
-%APPDATA%\easy-gcode-plot\main.log
+%LOCALAPPDATA%\easy-gcode-plot\main.log
 ```
 
 ### What does DEBUG logging add?
@@ -2593,6 +2657,10 @@ The project builds native extensions for:
 The Python contract remains authoritative. Native and Python paths are regression-tested for parity where applicable.
 
 ### How are execution results represented publicly?
+
+The kernel imports no Qt bindings: per-user profile paths come from `app.paths`, while GUI settings remain in `app.settings`. Execution and parsing do not change process-global garbage-collection settings; execution budgets remain local to their context.
+
+Parsed `Block` objects are authoritative. A compiled Block-to-AST builder accelerates the same contract as the portable Python builder: AST nodes and first-occurrence N/O label maps are built in one pass. Repeated immutable words share a bounded construction-local cache. The native parser installs its freshly derived canonical AST through a private constructor without rebuilding it; public `Program(blocks, ast)` construction still rejects disagreement. AST nodes and words remain frozen, and label maps remain immutable defensive copies. Parsing never changes process-global GC settings. Relative synthetic performance guards compare compiled and portable AST construction and their complete parsing pipelines; run them with `pytest tests/core/test_ast_acceleration.py -m performance` after building the native extension. Application code imports canonical frontend/API/runtime modules; historical aliases remain available for external compatibility.
 
 The core immutable public types include:
 

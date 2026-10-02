@@ -11,7 +11,7 @@ from time import perf_counter
 from app.gcode.batch import _turning_unmodeled_m_diagnostics
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.api.engine import _autodetect_arc_type
-from app.gcode.kernel.io import read_nc_text
+from app.gcode.kernel.frontend.io import read_nc_text
 from app.gcode.program_execution import execute_program
 from app.gcode.source_mode import SOURCE_DIALECT_SINUMERIK, source_dialect_for_path
 
