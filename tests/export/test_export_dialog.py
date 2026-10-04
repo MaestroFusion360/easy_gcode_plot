@@ -150,6 +150,18 @@ def test_export_dialog_disables_conversion_to_detected_sinumerik_source(qt_app, 
     window.deleteLater()
 
 
+def test_export_dialog_allows_native_source_formatting_in_full_mode(qt_app, tmp_path):
+    window = MainWindow()
+    window.curFile = str(tmp_path / "part.mpf")
+    window.ui.editor.setText("G710 G17 G90\nG0 X0 Y0\nM30\n")
+    window.exportMode = MILL_FULL_PROGRAM_MODE
+    window.exportTargetCnc = 3
+    window.exportDlg.loadSettings()
+    assert window.exportDlg.targetCncCombo.model().item(3).isEnabled()
+    assert window.exportDlg.targetCncCombo.currentIndex() == 3
+    window.deleteLater()
+
+
 def test_export_dialog_cancel_discards_all_pending_values(qt_app):
     window = MainWindow()
     dialog = window.exportDlg

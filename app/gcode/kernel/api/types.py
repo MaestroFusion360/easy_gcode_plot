@@ -145,6 +145,7 @@ class ExecutionStep:
     twp_origin: tuple[float, float, float] | None = None
     twp_orientation: tuple[tuple[float, float, float], ...] | None = None
     tool_axis_control: bool = False
+    programmed_position: tuple[float, float, float] | None = None
 
 
 @dataclass(frozen=True, slots=True)

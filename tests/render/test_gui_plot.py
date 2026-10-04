@@ -234,9 +234,11 @@ def test_turning_stock_removal_uses_play_stop_and_rebuilds_after_update(qt_app):
     assert window._stock_animation_active  # pylint: disable=protected-access
     assert window._stock_item in window.ui.graphicsView.items  # pylint: disable=protected-access
     assert window._toolpath_item not in window.ui.graphicsView.items  # pylint: disable=protected-access
+    assert window._stock_tail_item in window.ui.graphicsView.items  # pylint: disable=protected-access
 
     window.ui.horizontalSlider.setValue(2)
     assert window._stock_timeline.motion_count == 2  # pylint: disable=protected-access
+    assert len(window._stock_tail_item.pos) > 0  # pylint: disable=protected-access
 
     window.applyStockSettings(
         {

@@ -1,0 +1,40 @@
+O1004
+(PIN-001 STANDARD PROGRAM)
+(X0Z0 - CENTERLINE AND FRONT FINISHED FACE)
+(BAR PROJECTION FROM CHUCK FACE = PART LG + 5 MM)
+
+#8  = SQRT[256]        (BASE 16)
+#9  = #8*1.5           (24)
+#10 = #9-1             (23)
+#11 = #8*2.875         (46)
+#12 = #10+#9           (47)
+#13 = ABS[-3]          (3)
+#14 = ROUND[1.6]       (2)
+
+#1 = #8                (SMALL DIAMETER)
+#2 = #9                (FRONT CHAMFER DIAMETER)
+#3 = #10               (SMALL DIAMETER LENGTH)
+#4 = #11               (LARGE DIAMETER)
+#5 = #12               (TOTAL PART LENGTH)
+#6 = #13               (INNER RADIUS)
+#7 = #14               (OUTER RADIUS)
+
+N1 G21 T0100
+N2 G96 S100 M03
+N3 G00 X53.0 Z0 T0101 M08
+N4 G01 X-1.8 F0.1
+N5 G00 Z3.0
+N6 G42 X51.0
+N7 G71 U2.5 R1.0
+N8 G71 P9 Q14 U1.5 W0.125 F0.3
+
+N9  G00 X#1
+N10 G01 X#2 Z-1.0 F0.1
+N11 Z-#3 R#6 F0.15
+N12 X#4 R-#7
+N13 Z-#5
+N14 X54.0 F0.3
+
+N15 G70 P9 Q14 S125
+N16 G00 G40 X100.0 Z50.0 T0100 M09
+N17 M30

@@ -171,5 +171,11 @@ def build_g72_facing(
     # matching the preview style expected from longitudinal roughing behavior.
     _append_facing_contour(motions, profile, stock_x, tool, feed, type_ii)
 
+    end = motions[-1].end
+    retreat = Point2(
+        end.x + (-retract_dia if boring_mode else retract_dia),
+        end.z + retract_z_signed,
+    )
+    add_motion(motions, 0, end, retreat)
     ensure_cycle_return(motions, Point2(stock_x, stock_z), first_axis="z")
     return motions

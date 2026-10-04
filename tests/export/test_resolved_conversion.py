@@ -16,7 +16,7 @@ SOURCES = (
     ("sinumerik", "G291\nT1 M6\nS500 M3\nG17 G0 X10\nG3 X0 Y10 I-10 J0 F100\nM9 M5 M30"),
     (
         "sinumerik",
-        "R1=500\nT1 M6\nS=R1 M3\nG17 G0 X10\nG3 X0 Y10 Z-6 I0 J0 TURN=2 F100\n"
+        "R1=500\nT1 M6\nS=R1 M3\nG17 G0 X10\nG3 X0 Y10 Z-6 I=AC(0) J=AC(0) TURN=2 F100\n"
         "MCALL CYCLE84(5,0,2,-9,,0,3,,1.25,0,500,500)\nX2 Y3\nMCALL\nM9 M5 M30",
     ),
 )
@@ -25,7 +25,7 @@ SOURCES = (
 @pytest.mark.parametrize("target", MILLING_TARGETS)
 @pytest.mark.parametrize("scale", [1.0, 25.4])
 def test_resolved_conversion_preserves_planes_units_dwell_and_feed(target, scale):
-    source = "G1 X10 F100\nG4 F2\nG18 G3 X0 Z10 I0 K0 TURN=2\nG19 G3 Y10 Z0 J0 K0\nM30"
+    source = "G1 X10 F100\nG4 F2\nG18 G3 X0 Z10 I=AC(0) K=AC(0) TURN=2\nG19 G3 Y10 Z0 J=AC(0) K=AC(0)\nM30"
     result = execute(source, language="fanuc_mill", source_dialect="sinumerik")
     assert result.ok
     output = convert_resolved_program(result, target, ExportOptions(output_unit_scale=scale))

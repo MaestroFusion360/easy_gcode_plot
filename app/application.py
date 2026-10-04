@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app import i18n, theme
 from app.main_window import MainWindow
+from app.native import require_packaged_native
 from app.settings import ui_language, ui_theme
 from app.ui.support.numeric_input import install_decimal_separator_filter
 
@@ -26,6 +27,7 @@ def _fit_visible_lathe_stock(window) -> None:
 
 def run() -> int:
     """Create the Qt application, show the main window, and run the event loop."""
+    require_packaged_native()
     app = QApplication(sys.argv)
     theme.apply_application_theme(app, ui_theme())
     i18n.install_translator(app, ui_language())

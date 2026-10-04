@@ -17,7 +17,7 @@ def convert_resolved_program(result, target="fanuc_mill", options=None, *, cance
     Coordinates use one G54 frame with zero offsets; controller offset tables
     and source structure are deliberately absent from this resolved program.
     """
-    _require_valid_trace_export(result)
+    _require_valid_trace_export(result, allow_inverse_time=target == "sinumerik_native")
     if result.language != "fanuc_mill" or target not in MILLING_TARGETS:
         raise ValueError("Resolved conversion requires milling and a supported milling target")
     if result.rotary_axes or any(m.orientation is not None for m in result.motions):
@@ -80,7 +80,7 @@ def _append_step_motions(lines, step, motions, options, motion_index, feed_mode,
             lines.append(f"G{motion.plane}")
             plane = motion.plane
         if motion.feed_mode != feed_mode:
-            lines.append("G95" if motion.feed_mode == "per_revolution" else "G94")
+            lines.append({"per_revolution": "G95", "inverse_time": "G93", "per_minute": "G94"}[motion.feed_mode])
             feed_mode = motion.feed_mode
         if motion.move == 1 and reverse and feeds == 1:
             lines.append("M4" if direction == 3 else "M3")

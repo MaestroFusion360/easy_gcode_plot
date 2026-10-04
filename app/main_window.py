@@ -3,7 +3,7 @@
 import logging
 from time import perf_counter
 
-from PyQt6.QtCore import QBasicTimer, QCoreApplication, QSize, Qt, QTimer
+from PyQt6.QtCore import QBasicTimer, QCoreApplication, QEvent, QSize, Qt, QTimer
 from PyQt6.QtGui import (
     QAction,
     QActionGroup,
@@ -160,7 +160,6 @@ class MainWindow(
             action = menu.addAction(text)
             action.setCheckable(True)
             action.setChecked(profile_id == self.rotaryKinematics)
-            action.setEnabled(profile_id is None or not getattr(self, "_document_rotary_restricted", False))
             group.addAction(action)
             action.triggered.connect(
                 lambda _checked=False, selected=profile_id: self._select_rotary_kinematics(selected)
@@ -171,8 +170,6 @@ class MainWindow(
         self._rotary_kinematics_actions = actions
 
     def _select_rotary_kinematics(self, profile_id, *, force_refresh=False):
-        if getattr(self, "_document_rotary_restricted", False):
-            return
         self._apply_rotary_kinematics(profile_id, force_refresh=force_refresh)
 
     def _apply_rotary_kinematics(self, profile_id, *, force_refresh=False):
@@ -211,7 +208,6 @@ class MainWindow(
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
-        self._configure_wcs_icon()
         self.ui.actionStock = QAction(
             QIcon(":/resource/icons/stock.png"), QCoreApplication.translate("MainWindow", "Stock"), self
         )
@@ -440,6 +436,11 @@ class MainWindow(
     def showEvent(self, event):
         super().showEvent(event)
         self._schedule_document_disk_check()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
+            self._schedule_document_disk_check()
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""

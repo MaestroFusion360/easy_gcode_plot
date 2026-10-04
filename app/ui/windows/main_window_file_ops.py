@@ -17,7 +17,7 @@ from app.gcode.export.dxf import export_dxf
 from app.gcode.export.options import EXPANDED_EXECUTION_MODE
 from app.gcode.export.resolved import convert_resolved_program
 from app.gcode.export.sinumerik import convert_full_program_to_fanuc, convert_full_program_to_sinumerik
-from app.gcode.export.source_formatting import format_full_program_source
+from app.gcode.export.source_formatting import format_full_program_source, is_native_full_program
 from app.gcode.export.validation import validate_full_program_dialect_conversion
 from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
@@ -35,8 +35,10 @@ from app.tools.setup import reset_program_setup
 from app.ui.windows.execution_worker import run_execution
 
 LOGGER = logging.getLogger(__name__)
-NC_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.mpf *.spf *.tap *.txt);;STL models (*.stl);;All files (*)"
-SAVE_FILE_FILTER = "NC programs (*.nc *.cnc *.ptp *.mpf *.spf *.tap *.txt);;All files (*)"
+NC_PROGRAM_FILTER = "NC Programs (*.nc *.cnc *.ptp *.tap *.txt)"
+SINUMERIK_FILE_FILTER = "SINUMERIK (*.mpf *.spf)"
+SAVE_FILE_FILTER = f"{NC_PROGRAM_FILTER};;{SINUMERIK_FILE_FILTER};;All files (*)"
+NC_FILE_FILTER = f"{NC_PROGRAM_FILTER};;{SINUMERIK_FILE_FILTER};;STL models (*.stl);;All files (*)"
 
 
 def _set_arc_action(owner, arc_type: int) -> None:
@@ -57,11 +59,10 @@ def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
     """Apply MPF/SPF document defaults without persisting them as user settings."""
     dialect = source_dialect_for_path(file_name, source)
     setattr(owner, "_document_source_dialect", dialect)
-    _configure_document_kinematics(owner, dialect)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
     if dialect == SOURCE_DIALECT_SINUMERIK and sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS:
-        setattr(owner, "_document_arc_type", 2)
+        setattr(owner, "_document_arc_type", 1)
         setattr(owner, "_document_comment_style", SEMICOLON)
     comment_style = getattr(owner, "_document_comment_style")
     arc_type = getattr(owner, "_document_arc_type")
@@ -71,29 +72,10 @@ def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
 
 def _reset_document_source_mode(owner) -> None:
     setattr(owner, "_document_source_dialect", SOURCE_DIALECT_FANUC)
-    _configure_document_kinematics(owner, SOURCE_DIALECT_FANUC)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
     owner.lexer.set_comment_style(owner.commentStyle)
     _set_arc_action(owner, owner.arc_type)
-
-
-def _configure_document_kinematics(owner, dialect):
-    """Restrict SINUMERIK documents without overwriting the user's profile."""
-    restricted = dialect == SOURCE_DIALECT_SINUMERIK
-    if restricted:
-        if not getattr(owner, "_document_rotary_restricted", False):
-            setattr(owner, "_rotary_before_sinumerik", getattr(owner, "rotaryKinematics", None))
-        owner.rotaryKinematics = None
-    elif getattr(owner, "_document_rotary_restricted", False):
-        owner.rotaryKinematics = getattr(owner, "_rotary_before_sinumerik", None)
-    setattr(owner, "_document_rotary_restricted", restricted)
-    refresh = getattr(owner, "_refresh_rotary_kinematics_menu", None)
-    if refresh is not None:
-        refresh()
-    options = getattr(owner, "optionsDlg", None)
-    if options is not None:
-        options.sync_rotary_kinematics(getattr(owner, "rotaryKinematics", None))
 
 
 def _read_editor_text(path: str, encoding: str) -> tuple[str, str]:
@@ -180,16 +162,30 @@ def _show_export_error(owner, error, result) -> None:
     dialog.exec()
 
 
+def _export_file_defaults(owner, dxf_export):
+    source = Path(owner.curFile) if getattr(owner, "curFile", None) else None
+    target = int(getattr(owner, "exportTargetCnc", 0))
+    source_suffix = source.suffix.casefold() if source else ""
+    siemens = target in (2, 3) or (target == 0 and source_suffix in (".mpf", ".spf"))
+    suffix = ".dxf" if dxf_export else ".mpf" if siemens else ".nc"
+    if target == 0 and siemens and not dxf_export:
+        suffix = source_suffix
+    selected = "DXF (*.dxf)" if dxf_export else SINUMERIK_FILE_FILTER if siemens else NC_PROGRAM_FILTER
+    suggested = source.with_name(source.stem + "_export" + suffix) if source else Path("program_export" + suffix)
+    return str(suggested), selected, suffix
+
+
 def _export_target(owner):
     dxf_export = int(owner.exportMode) == DXF_MODE
     file_filter = "DXF (*.dxf)" if dxf_export else SAVE_FILE_FILTER
-    path, _ = QFileDialog.getSaveFileName(owner, "Export", "", file_filter)
+    suggested, initial_filter, suffix = _export_file_defaults(owner, dxf_export)
+    path, selected_filter = QFileDialog.getSaveFileName(owner, "Export", suggested, file_filter, initial_filter)
     if not path:
         return None
     if dxf_export and Path(path).suffix.casefold() != ".dxf":
         path = str(Path(path).with_suffix(".dxf"))
     elif not dxf_export and not Path(path).suffix:
-        path += ".mpf" if int(getattr(owner, "exportTargetCnc", 0)) in (2, 3) else ".nc"
+        path += {NC_PROGRAM_FILTER: ".nc", SINUMERIK_FILE_FILTER: ".mpf"}.get(selected_filter, suffix)
     return path, dxf_export
 
 
@@ -255,6 +251,8 @@ def _text_export_snapshot(owner):
 
 def _convert_full_program_dialect(source, result, target_cnc, source_dialect, options, execution_options):
     options = options or ExportOptions()
+    if target_cnc == 3 and is_native_full_program(result):
+        return format_full_program_source(source, options, native=True)
     targets = {
         1: (SOURCE_DIALECT_FANUC, convert_full_program_to_fanuc),
         2: (SOURCE_DIALECT_SINUMERIK, convert_full_program_to_sinumerik),
@@ -275,9 +273,9 @@ def _convert_full_program_dialect(source, result, target_cnc, source_dialect, op
             format_full_program_source(source, options), source_result=result, execution_options=execution_options
         )
         if target_cnc == 2
-        else converter(source)
+        else converter(source, source_result=result, execution_options=execution_options, export_options=options)
     )
-    converted_source = converted if target_cnc == 2 else format_full_program_source(converted, options)
+    converted_source = converted
     validate_full_program_dialect_conversion(
         result,
         converted_source,
@@ -300,7 +298,7 @@ def _write_export(
     cancellation,
 ):
     if cancellation.is_set():
-        return None
+        return False
     if dxf_export:
         export_dxf(
             result,
@@ -309,7 +307,7 @@ def _write_export(
             render_points=render_points,
             cancelled=cancellation.is_set,
         )
-        return None
+        return True
     assert text_snapshot is not None
     source, mode, export_arc_mode, export_options, file_encoding, target_cnc, source_dialect, execution_options = (
         text_snapshot
@@ -335,9 +333,9 @@ def _write_export(
             cancelled=cancellation.is_set,
         )
     if cancellation.is_set():
-        return None
+        return False
     _atomic_write(path, text, encoding=file_encoding)
-    return None
+    return True
 
 
 class MainWindowFileMixin:
@@ -367,7 +365,9 @@ class MainWindowFileMixin:
         path = Path(file_name).resolve()
         if path.parent.is_dir():
             watcher.addPath(str(path.parent))
-        if path.is_file():
+        # Qt's Windows file handle can prevent atomic replacement by an editor.
+        # The directory watcher reports both writes and replacement saves.
+        if path.is_file() and os.name != "nt":
             watcher.addPath(str(path))
 
     def _schedule_document_disk_check(self, _path=None):
@@ -381,7 +381,7 @@ class MainWindowFileMixin:
             return
         path = Path(file_name).resolve()
         watcher = self._document_watcher
-        if path.is_file() and str(path) not in watcher.files():
+        if os.name != "nt" and path.is_file() and str(path) not in watcher.files():
             watcher.addPath(str(path))
         signature = _file_signature(path)
         if signature is None or signature in (
@@ -611,10 +611,10 @@ class MainWindowFileMixin:
 
     def saveAs(self):
         """Prompt for a file path and save the document there."""
-        fileName, _ = QFileDialog.getSaveFileName(self, "Save As", self.curFile or "", SAVE_FILE_FILTER)
+        fileName, selected_filter = QFileDialog.getSaveFileName(self, "Save As", self.curFile or "", SAVE_FILE_FILTER)
         if fileName:
             if not Path(fileName).suffix:
-                fileName += ".nc"
+                fileName += ".mpf" if selected_filter == SINUMERIK_FILE_FILTER else ".nc"
             return self.saveFile(fileName)
         return False
 
@@ -822,7 +822,7 @@ class MainWindowFileMixin:
         result = self.execution_result
         cancellation = Event()
         try:
-            run_execution(
+            written = run_execution(
                 self,
                 _write_export,
                 None,
@@ -840,8 +840,15 @@ class MainWindowFileMixin:
                 status_text=QCoreApplication.translate("MainWindow", "Exporting program…"),
                 cancelling_text=QCoreApplication.translate("MainWindow", "Cancelling export…"),
             )
+            if written is False:
+                raise InterruptedError
         except InterruptedError:
             self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "Export cancelled."), 5000)
+            QMessageBox.information(
+                self,
+                QCoreApplication.translate("MainWindow", "Export"),
+                QCoreApplication.translate("MainWindow", "Export cancelled."),
+            )
             return
         except Exception as exc:  # Export/file-system errors are surfaced to the GUI.
             LOGGER.exception("export_failed path=%s", path)
@@ -851,4 +858,9 @@ class MainWindowFileMixin:
         LOGGER.info("export_completed path=%s duration_ms=%.3f", path, elapsed_ms)
         self.ui.statusbar.showMessage(
             QCoreApplication.translate("MainWindow", "Export Execution time: {0:.3f} ms").format(elapsed_ms), 10000
+        )
+        QMessageBox.information(
+            self,
+            QCoreApplication.translate("MainWindow", "Export"),
+            QCoreApplication.translate("MainWindow", "Program exported successfully:\n{0}").format(path),
         )

@@ -41,13 +41,14 @@ def test_rotary_is_rejected_in_both_modes_and_fanuc_still_executes():
 
 def test_mixed_arc_modes_are_resolved_per_motion_with_wcs_and_helix():
     source = (
-        "G17 G90 G0 X10 Y0 Z0\nG3 X0 Y10 Z-1 I0 J0 F100\nG291\nG3 X-10 Y0 Z-2 I0 J-10\nG290\nG3 X0 Y-10 Z-3 I0 J0\nM30"
+        "G17 G90 G0 X10 Y0 Z0\nG3 X0 Y10 Z-1 I=AC(0) J=AC(0) F100\nG291\n"
+        "G3 X-10 Y0 Z-2 I0 J-10\nG290\nG3 X0 Y-10 Z-3 I=AC(0) J=AC(0)\nM30"
     )
     for legacy_mode in (1, 2, 3):
         result = _native(source, source_arc_type=legacy_mode, autodetect_arc_type=True, wcs_offsets={54: (20, 30, 40)})
         assert result.ok and result.complete and not result.diagnostics
         arcs = [motion for motion in result.motions if motion.arc]
-        assert [motion.source_arc_type for motion in arcs] == [2, 1, 2]
+        assert [motion.source_arc_type for motion in arcs] == [1, 1, 1]
         assert [motion.arc.radius for motion in arcs] == pytest.approx([10, 10, 10])
         assert [(motion.arc.center[0], motion.arc.center[1]) for motion in arcs] == [(20, 30)] * 3
         assert result.source_dialect == "sinumerik"
@@ -134,7 +135,7 @@ def test_common_native_execution_uses_compiled_path_with_reference_parity(monkey
         consumed.append(count)
         return count
 
-    source = "G17 G90 G0 X10 Y0 Z0\nG3 X0 Y10 I0 J0 F100\nX-10 Y0 I0 J0\nG91\nG1 X2\nX3\nM30"
+    source = "G17 G90 G0 X10 Y0 Z0\nG3 X0 Y10 I-10 J0 F100\nX-10 Y0 I0 J-10\nG91\nG1 X2\nX3\nM30"
     monkeypatch.setattr(executor, "_execute_simple_blocks", instrumented)
     native = _native(source, wcs_offsets={54: (20, 30, 40)})
     assert sum(consumed) >= 2
@@ -221,9 +222,9 @@ def test_compiled_runs_follow_mixed_native_iso_arc_modes(monkeypatch):
         return count
 
     source = (
-        "G17 G90 G0 X10 Y0\nG3 X0 Y10 I0 J0 F100\nX-10 Y0 I0 J0\n"
+        "G17 G90 G0 X10 Y0\nG3 X0 Y10 I-10 J0 F100\nX-10 Y0 I0 J-10\n"
         "G291\nG0 X10 Y0\nG3 X0 Y10 I-10 J0\nX-10 Y0 I0 J-10\n"
-        "G290\nG0 X10 Y0\nG3 X0 Y10 I0 J0\nX-10 Y0 I0 J0\nM30"
+        "G290\nG0 X10 Y0\nG3 X0 Y10 I-10 J0\nX-10 Y0 I0 J-10\nM30"
     )
     monkeypatch.setattr(executor, "_execute_simple_blocks", instrumented)
     accelerated = _native(source, wcs_offsets={54: (20, 30, 40)})
@@ -278,7 +279,7 @@ def test_native_parse_fallback_and_cancellation_preserve_source_contract(monkeyp
 
 
 def test_native_absolute_centers_preserve_vertical_planes_and_missing_address():
-    for plane, position, move in ((18, "X10 Y0 Z0", "X0 Z10 I0"), (19, "X0 Y10 Z0", "Y0 Z10 J0")):
+    for plane, position, move in ((18, "X10 Y0 Z0", "X0 Z10 I=AC(0)"), (19, "X0 Y10 Z0", "Y0 Z10 J=AC(0)")):
         result = _native(f"G{plane} G90 G0 {position}\nG2 {move} F100\nM30", wcs_offsets={54: (20, 30, 40)})
         assert result.ok and not result.diagnostics
         assert result.motions[-1].arc.plane == plane

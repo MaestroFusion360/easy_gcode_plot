@@ -56,8 +56,12 @@ try {
         '--workpath', (Join-Path $projectRoot 'build\pyinstaller\work'),
         '--distpath', $distPath,
         '--collect-submodules', 'app.gcode.export',
+        '--hidden-import', 'app.gcode.kernel.frontend._native_parser',
+        '--hidden-import', 'app.tools._native_discovery',
+        '--hidden-import', 'app.gcode.kernel.milling._native_executor',
         '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}.",
-        '--add-data', "$(Join-Path $projectRoot 'app\gcode\kernel\milling\rotary_profiles.json')${separator}app/gcode/kernel/milling"
+        '--add-data', "$(Join-Path $projectRoot 'app\gcode\kernel\milling\rotary_profiles.json')${separator}app/gcode/kernel/milling",
+        '--add-data', "$(Join-Path $projectRoot 'app\gcode\templates')${separator}app/gcode/templates"
     )
 
     if ($Console) {
@@ -67,7 +71,8 @@ try {
         exit 0
     }
 
-    & $python @arguments --name easy_gcode_plot --windowed (Join-Path $projectRoot 'main.py')
+    & $python @arguments --collect-submodules OpenGL.platform --collect-submodules OpenGL.arrays `
+        --name easy_gcode_plot --windowed (Join-Path $projectRoot 'main.py')
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     Write-ExeChecksum -ExeName 'easy_gcode_plot.exe'
     & $python @arguments --name easy_gcode_plot_cli --console (Join-Path $projectRoot 'cli_main.py')

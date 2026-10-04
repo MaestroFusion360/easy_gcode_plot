@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
 
 import ezdxf
 import pytest
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from app import main_window
@@ -123,6 +125,8 @@ def test_file_export_writes_selected_dxf_from_current_trace(monkeypatch, tmp_pat
         "app.ui.windows.main_window_file_ops.QFileDialog.getSaveFileName",
         lambda *args: (str(target_without_suffix), "DXF (*.dxf)"),
     )
+    notices = []
+    monkeypatch.setattr("app.ui.windows.main_window_file_ops.QMessageBox.information", lambda *a: notices.append(a))
 
     class Window(MainWindowFileMixin):
         exportMode = DXF_MODE
@@ -145,6 +149,39 @@ def test_file_export_writes_selected_dxf_from_current_trace(monkeypatch, tmp_pat
     output = target_without_suffix.with_suffix(".dxf")
     assert output.exists()
     assert [entity.dxftype() for entity in ezdxf.readfile(output).modelspace()] == ["LINE", "LINE"]
+    assert len(notices) == 1 and str(output) in notices[0][2]
+
+
+@pytest.mark.parametrize("cancelled", [False, True])
+def test_program_export_failure_or_cancellation_never_reports_success(monkeypatch, tmp_path, cancelled):
+    result = execute("G1 X10 F100\nM30")
+    monkeypatch.setattr(main_window_file_ops, "_export_target", lambda _owner: (str(tmp_path / "out.nc"), False))
+    monkeypatch.setattr(main_window_file_ops, "_ensure_current_export_trace", lambda _owner: True)
+    monkeypatch.setattr(main_window_file_ops, "_text_export_snapshot", lambda _owner: None)
+    notices, errors = [], []
+    monkeypatch.setattr(main_window_file_ops.QMessageBox, "information", lambda *a: notices.append(a))
+    monkeypatch.setattr(main_window_file_ops, "_show_export_error", lambda *a: errors.append(a))
+
+    def worker(*_a, **_kw):
+        if cancelled:
+            return False
+        raise OSError("disk write failed")
+
+    monkeypatch.setattr(main_window_file_ops, "run_execution", worker)
+
+    class Window(MainWindowFileMixin):
+        execution_result = result
+        render_points = render_trace(result)
+        latheMode = True
+        ui = SimpleNamespace(statusbar=_StatusBar())
+
+    Window().export()
+    if cancelled:
+        assert len(notices) == 1 and "cancelled" in notices[0][2]
+        assert not errors
+    else:
+        assert len(errors) == 1 and "disk write failed" in str(errors[0][1])
+        assert not notices
 
 
 def test_remove_spaces_preserves_multiple_parenthesized_comments():
@@ -210,8 +247,9 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     assert calls[-1][1:4] == ("Open", str(tmp_path), main_window_file_ops.NC_FILE_FILTER)
     nc_filter = main_window_file_ops.NC_FILE_FILTER.split(";;", 1)[0]
     assert "*.ptp" in nc_filter
-    assert "*.mpf" in nc_filter
-    assert "*.spf" in nc_filter
+    assert "*.mpf" not in nc_filter and "*.spf" not in nc_filter
+    assert "*.mpf" in main_window_file_ops.SINUMERIK_FILE_FILTER
+    assert "*.spf" in main_window_file_ops.SINUMERIK_FILE_FILTER
 
     saved = []
     monkeypatch.setattr(
@@ -222,6 +260,43 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     window = SimpleNamespace(curFile="", saveFile=lambda path: saved.append(path) or True)
     assert MainWindowFileMixin.saveAs(window) is True
     assert saved == [str(save_target) + ".nc"]
+
+
+@pytest.mark.parametrize(
+    "source_name,target,expected_name,siemens",
+    [
+        ("part.mpf", 1, "part_export.nc", False),
+        ("part.nc", 2, "part_export.mpf", True),
+        ("part.nc", 3, "part_export.mpf", True),
+        ("part.spf", 0, "part_export.spf", True),
+        ("part.nc", 0, "part_export.nc", False),
+    ],
+)
+def test_export_dialog_prefills_target_extension_directory_and_filter(
+    monkeypatch, tmp_path, source_name, target, expected_name, siemens
+):
+    calls = []
+
+    def select(*args):
+        calls.append(args)
+        return args[2], args[4]
+
+    monkeypatch.setattr(main_window_file_ops.QFileDialog, "getSaveFileName", select)
+    owner = SimpleNamespace(curFile=str(tmp_path / source_name), exportMode=1, exportTargetCnc=target)
+    assert main_window_file_ops._export_target(owner) == (str(tmp_path / expected_name), False)
+    assert calls[0][3] == main_window_file_ops.SAVE_FILE_FILTER
+    expected_filter = main_window_file_ops.SINUMERIK_FILE_FILTER if siemens else main_window_file_ops.NC_PROGRAM_FILTER
+    assert calls[0][4] == expected_filter
+
+
+def test_export_dialog_selected_group_controls_missing_extension(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        main_window_file_ops.QFileDialog,
+        "getSaveFileName",
+        lambda *_args: (str(tmp_path / "manual"), main_window_file_ops.SINUMERIK_FILE_FILTER),
+    )
+    owner = SimpleNamespace(curFile=str(tmp_path / "part.mpf"), exportMode=1, exportTargetCnc=1)
+    assert main_window_file_ops._export_target(owner) == (str(tmp_path / "manual.mpf"), False)
 
 
 @pytest.mark.parametrize(
@@ -421,7 +496,7 @@ def test_external_change_reload_replaces_editor_content(qt_app, tmp_path, monkey
     )
     try:
         window.loadFile(str(path))
-        assert str(path.resolve()) in window._document_watcher.files()
+        assert str(path.parent.resolve()) in window._document_watcher.directories()
         assert str(tmp_path.resolve()) in window._document_watcher.directories()
         window.ui.editor.setText("G0 X999\n")
         path.write_text("G1 X123\nM30\n", encoding="utf-8")
@@ -434,6 +509,52 @@ def test_external_change_reload_replaces_editor_content(qt_app, tmp_path, monkey
         window._check_document_disk_change()
         assert len(prompts) == 1
     finally:
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("atomic", [False, True])
+def test_external_save_notifies_through_filesystem_events(qt_app, tmp_path, monkeypatch, atomic):
+    path = tmp_path / "watched.nc"
+    path.write_text("G0 X0\n", encoding="utf-8")
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    prompts = []
+    monkeypatch.setattr(
+        main_window_file_ops.QMessageBox,
+        "question",
+        lambda *_args: prompts.append(_args[2]) or main_window_file_ops.QMessageBox.StandardButton.Yes,
+    )
+    try:
+        window.loadFile(str(path))
+        window.show()
+        QTest.qWait(400)
+        # Rechecking an unchanged document must not attach a Windows file
+        # handle that would block the next editor's atomic replacement.
+        window._check_document_disk_change()
+        if os.name == "nt":
+            assert not window._document_watcher.files()
+        for text in ("G1 X123\n", "G1 X4567\n"):
+            previous_count = len(prompts)
+            if atomic:
+                replacement = tmp_path / "replacement.nc"
+                replacement.write_text(text, encoding="utf-8")
+                replacement.replace(path)
+            else:
+                path.write_text(text, encoding="utf-8")
+            for _ in range(40):
+                QTest.qWait(50)
+                if len(prompts) > previous_count:
+                    break
+            assert len(prompts) == previous_count + 1
+            assert window.ui.editor.text().replace("\r\n", "\n") == text
+            if os.name == "nt":
+                assert str(path.parent.resolve()) in window._document_watcher.directories()
+                assert not window._document_watcher.files()
+            else:
+                assert str(path.resolve()) in window._document_watcher.files()
+    finally:
+        window.hide()
         window.deleteLater()
 
 
@@ -505,24 +626,23 @@ def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, t
     actions = (window.ui.actionRelative_to_start, window.ui.actionAbsolute, window.ui.actionRadius_value)
     main_window_file_ops._set_arc_action(window, 1)
     window.arc_type = 1
-    window.rotaryKinematics = "4ax_table_b"
+    window._select_rotary_kinematics("4ax_table_b")
     try:
         native = tmp_path / "native.mpf"
         native.write_text("%_N_NATIVE_MPF\n; native source\nN10 G290\nCYCLE800(1,2,3)\n", encoding="utf-8")
         window.loadFile(str(native))
         assert window._document_source_dialect == "sinumerik"
-        assert window.rotaryKinematics is None
-        assert window._rotary_kinematics_actions[None].isChecked()
-        assert not window._rotary_kinematics_actions["4ax_table_b"].isEnabled()
-        assert not window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
-        window._select_rotary_kinematics("4ax_table_b")
-        assert window.rotaryKinematics is None
-        assert window._document_arc_type == 2
+        assert window.rotaryKinematics == "4ax_table_b"
+        assert window._rotary_kinematics_actions["4ax_table_b"].isChecked()
+        assert window._rotary_kinematics_actions["5ax_table_ac_angled"].isEnabled()
+        assert window._rotary_kinematics_actions["5ax_table_bc_angled"].isEnabled()
+        assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
+        assert window._document_arc_type == 1
         assert window._document_comment_style == "semicolon"
         assert window.lexer.comment_style == "semicolon"
-        assert window.ui.actionAbsolute.isChecked()
-        assert [action.isChecked() for action in actions] == [False, True, False]
-        assert window.ui.actionGroupArcType.checkedAction() is window.ui.actionAbsolute
+        assert window.ui.actionRelative_to_start.isChecked()
+        assert [action.isChecked() for action in actions] == [True, False, False]
+        assert window.ui.actionGroupArcType.checkedAction() is window.ui.actionRelative_to_start
         assert window.arc_type == 1
 
         iso = tmp_path / "iso.spf"
@@ -549,5 +669,72 @@ def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, t
         window.ui.actionRadius_value.trigger()
         assert [action.isChecked() for action in actions] == [False, False, True]
         assert window.arc_type == 3
+    finally:
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("profile,axis", [("5ax_table_ac_angled", "A"), ("5ax_table_bc_angled", "B")])
+def test_native_rotary_selection_reaches_gui_execution_and_plot(qt_app, tmp_path, monkeypatch, profile, axis):
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    source = f"""G710 G17 G90 G94
+CYCLE800(2,"TISCH",200000,57,0,0,50,-15,0,0,0,0,0,1,,1)
+G0 X0 Y0 Z5
+CYCLE800()
+G0 X10 Y0 Z5
+TRAORI
+G1 X10 Y0 Z0 {axis}=10 C=0 F300
+G3 X0 Y10 CR=10 {axis}=20 C=IC(90)
+TRAFOOF
+M30
+"""
+    path = tmp_path / "native.mpf"
+    path.write_text(source, encoding="utf-8")
+    try:
+        window.loadFile(str(path))
+        combo = window.optionsDlg.ui.rotaryKinematicsCombo
+        assert combo.isEnabled()
+        assert window._rotary_kinematics_actions[profile].isEnabled()
+        window._rotary_kinematics_actions[profile].trigger()
+        assert window.rotaryKinematics == profile
+        assert combo.currentData() == profile
+        assert window.execution_result.ok and window.execution_result.complete, window.execution_result.diagnostics
+        assert window.execution_result.kinematics_profile == profile
+        assert window.execution_result.source_dialect == "sinumerik"
+        assert any(m.arc is not None for m in window.execution_result.motions)
+        assert {e.kind for e in window.execution_result.events} >= {"TILTED_WORK_PLANE_ON", "TCP_CONTROL_ON"}
+        other = "5ax_table_bc_angled" if axis == "A" else "5ax_table_ac_angled"
+        combo.setCurrentIndex(combo.findData(other))
+        assert window.rotaryKinematics == other
+        assert not window.execution_result.ok
+        assert window.execution_result.diagnostics[-1].code == "UNCONFIGURED_ROTARY_AXIS"
+        # Opening a different native file must retain the user's selected profile.
+        path.write_text("G710 G90\nG0 X1\nM30\n", encoding="utf-8")
+        window.loadFile(str(path))
+        assert window.rotaryKinematics == other
+        assert combo.currentData() == other
+    finally:
+        window.deleteLater()
+
+
+def test_supplied_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
+    path = Path(__file__).resolve().parents[2] / "tmp/cnc programs/5ax/smpl_sim08_5ax_sinumerik_mm.mpf"
+    if not path.exists():
+        pytest.skip("User's full CAM reference is not present")
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    try:
+        window._select_rotary_kinematics("5ax_table_ac_angled")
+        window.loadFile(str(path))
+        assert window.updateData()
+        result = window.execution_result
+        assert result.ok and result.complete, result.diagnostics
+        assert len(result.motions) == 4999
+        assert len(result.execution_steps) == 5232
+        assert window._document_arc_type == 1
+        assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
+        assert all(d.status != "unsupported" for d in result.diagnostics)
     finally:
         window.deleteLater()

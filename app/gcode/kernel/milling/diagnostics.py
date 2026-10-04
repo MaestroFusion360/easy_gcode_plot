@@ -12,7 +12,17 @@ def _execution_diagnostic(exc: Exception, program) -> Diagnostic:
 
 
 def _apply_milling_tool_change(block, state, words, codes, diagnostics, occurrence_events, call_stack):
-    if "T" in words:
+    syntax = block.native_syntax
+    if syntax is not None and syntax.named_tool is not None:
+        state.selected_tool = syntax.named_tool
+        state.selected_tool_block = block.index
+        state.selected_tool_unload = False
+    elif syntax is not None and words.get("T") == 0:
+        state.selected_tool = None
+        state.selected_tool_block = block.index
+        state.selected_tool_unload = True
+    elif "T" in words:
+        state.selected_tool_unload = False
         tool_value = words["T"]
         if float(tool_value).is_integer() and 1 <= int(tool_value) <= 99:
             state.selected_tool = f"T{int(tool_value)}"
@@ -33,7 +43,7 @@ def _apply_milling_tool_change(block, state, words, codes, diagnostics, occurren
     if 6 in codes.all_m:
         previous_tool = state.active_tool
         changed_tool = state.selected_tool
-        if changed_tool is not None:
+        if changed_tool is not None or state.selected_tool_unload:
             state.active_tool = changed_tool
         occurrence_events.append(
             ExecutionEvent(

@@ -9,7 +9,7 @@ from time import perf_counter
 import numpy as np
 from OpenGL import GL
 from PyQt6.QtCore import QCoreApplication, QSignalBlocker, Qt
-from PyQt6.QtGui import QAction, QColor, QMatrix4x4, QQuaternion, QVector3D, QVector4D
+from PyQt6.QtGui import QAction, QColor, QIcon, QMatrix4x4, QQuaternion, QVector3D, QVector4D
 from PyQt6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -159,6 +159,7 @@ class MainWindowPlotMixin:
         self.stlObjectsDock = StlObjectsPanel(self)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.stlObjectsDock)
         self._stl_panel_toggle_action = QAction(self.stlObjectsDock.windowTitle(), self)
+        self._stl_panel_toggle_action.setIcon(QIcon(":/resource/icons/stl_objects.png"))
         self._stl_panel_toggle_action.setObjectName("actionStlObjects")
         self._stl_panel_toggle_action.setCheckable(True)
         self._stl_panel_toggle_action.toggled.connect(self.stlObjectsDock.setVisible)
@@ -1052,6 +1053,7 @@ class MainWindowPlotMixin:
             )
             self._toolpath_item = toolpath_item
         if toolpath_item is not None:
+            toolpath_item.tail_only = False
             toolpath_item.set_style(
                 rapid_color=getattr(self, "plotRapidColor", RAPID_COLOR),
                 linear_color=self.plotLineColor,
@@ -1094,9 +1096,12 @@ class MainWindowPlotMixin:
         motions = result.motions if result is not None else ()
         self._toolpath_item.set_segments(
             segments := segments_from_render_points(
-                self.render_points, motions, lathe_radius_view=getattr(self, "latheMode", False)
+                self.render_points,
+                motions,
+                getattr(self, "_motion_to_playback", None),
+                lathe_radius_view=getattr(self, "latheMode", False),
             ),
-            len(motions),
+            len(getattr(self, "_playback_movements", motions)),
         )
         LOGGER.debug(
             "toolpath_geometry_packed duration_ms=%.3f motions=%d render_points=%d segments=%d",
@@ -1250,6 +1255,10 @@ class MainWindowPlotMixin:
         self.ui.actionStop.setEnabled(False)
         self.loadPlot()
 
+    def _highlight_playback_motion(self, index):
+        self._toolpath_item.set_visible_logical_count(index + 1)
+        self._toolpath_item.set_tail(index, self.plotCurrentColor)
+
     def valueHandler(self, value, *, sync_editor=True):
         """Display one logical motion and optionally synchronize the editor cursor."""
         result = self.execution_result
@@ -1268,7 +1277,7 @@ class MainWindowPlotMixin:
                 return
             if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
                 self._create_trace_items()
-            self._toolpath_item.set_visible_logical_count(0)
+            self._highlight_playback_motion(-1)
             self._cursor_item.setData(
                 pos=[(motion.start_x, motion.start_y, motion.start_z)],
                 color=QColor(self.plotCurrentColor),
@@ -1302,7 +1311,7 @@ class MainWindowPlotMixin:
             return
         if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
             self._create_trace_items()
-        self._toolpath_item.set_visible_logical_count(idx + 1)
+        self._highlight_playback_motion(playback_index)
         end = self._motion_render_end[idx] if idx < len(self._motion_render_end) else len(self.render_points)
         if end > 0:
             point = self.render_points[min(end, len(self.render_points)) - 1]

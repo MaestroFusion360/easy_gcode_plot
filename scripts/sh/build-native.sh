@@ -104,7 +104,7 @@ sync_build_environment() {
     fi
 
     if [[ "$reinstall_pyinstaller" == true ]]; then
-        arguments+=(--reinstall-package pyinstaller)
+        arguments+=(--reinstall-package pyinstaller --reinstall-package pyinstaller-hooks-contrib)
     fi
 
     (
@@ -142,14 +142,14 @@ else
     printf 'Native extensions are up to date; rebuild skipped.\n'
 fi
 
-# Repair PyInstaller only if the module is really absent. Normal builds never do this.
-if ! "$python" -c 'import PyInstaller' >/dev/null 2>&1; then
-    printf 'PyInstaller module is missing; repairing build environment once...\n'
+# A partially installed hooks package silently omits dynamic dependencies.
+if ! "$python" -c 'import PyInstaller; from _pyinstaller_hooks_contrib import get_hook_dirs' >/dev/null 2>&1; then
+    printf 'PyInstaller or contributed hooks are missing; repairing build environment once...\n'
     sync_build_environment false true
 fi
 
-if ! "$python" -c 'import PyInstaller' >/dev/null 2>&1; then
-    printf 'PyInstaller module is unavailable in build environment: %s\n' "$build_environment" >&2
+if ! "$python" -c 'import PyInstaller; from _pyinstaller_hooks_contrib import get_hook_dirs' >/dev/null 2>&1; then
+    printf 'PyInstaller or contributed hooks are unavailable in build environment: %s\n' "$build_environment" >&2
     exit 1
 fi
 

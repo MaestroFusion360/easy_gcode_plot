@@ -74,8 +74,12 @@ arguments=(
     --workpath "$project_root/build/pyinstaller/work"
     --distpath "$dist_path"
     --collect-submodules app.gcode.export
+    --hidden-import app.gcode.kernel.frontend._native_parser
+    --hidden-import app.tools._native_discovery
+    --hidden-import app.gcode.kernel.milling._native_executor
     --add-data "$project_root/pyproject.toml:."
     --add-data "$project_root/app/gcode/kernel/milling/rotary_profiles.json:app/gcode/kernel/milling"
+    --add-data "$project_root/app/gcode/templates:app/gcode/templates"
 )
 
 if [[ "$console" == true ]]; then
@@ -84,7 +88,8 @@ if [[ "$console" == true ]]; then
     exit 0
 fi
 
-"$python" "${arguments[@]}" --name easy_gcode_plot --windowed "$project_root/main.py"
+"$python" "${arguments[@]}" --collect-submodules OpenGL.platform --collect-submodules OpenGL.arrays \
+    --name easy_gcode_plot --windowed "$project_root/main.py"
 write_checksum easy_gcode_plot
 "$python" "${arguments[@]}" --name easy_gcode_plot_cli --console "$project_root/cli_main.py"
 write_checksum easy_gcode_plot_cli

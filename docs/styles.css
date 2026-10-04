@@ -313,6 +313,50 @@ tr:last-child > * {
 .prose {
   max-width: 850px;
 }
+.workflow {
+  margin-top: 36px;
+  padding-top: 28px;
+  border-top: 1px solid var(--line);
+}
+.workflow p,
+.workflow-results,
+.workflow-options {
+  color: var(--muted);
+  font-size: 15px;
+}
+.workflow-results {
+  padding-left: 22px;
+  line-height: 1.7;
+}
+.workflow-results li + li {
+  margin-top: 8px;
+}
+.command-example {
+  max-width: 100%;
+  overflow-x: auto;
+  margin: 20px 0;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.8;
+  tab-size: 2;
+}
+.workflow-options {
+  padding: 20px;
+}
+.workflow-options p:last-child {
+  margin-bottom: 0;
+}
+.workflow code,
+.workflow-options code {
+  overflow-wrap: anywhere;
+}
+.command-example code {
+  overflow-wrap: normal;
+}
 .download {
   display: flex;
   justify-content: space-between;
@@ -392,6 +436,47 @@ footer {
   }
 }
 @media (max-width: 700px) {
+  footer {
+    padding: 32px 0 24px;
+  }
+  .footer-inner {
+    display: grid;
+    gap: 24px;
+  }
+  .footer-info p {
+    max-width: 32ch;
+    line-height: 1.6;
+  }
+  .footer-links {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 20px;
+  }
+  .footer-links a {
+    display: flex;
+    align-items: center;
+    min-height: 44px;
+    line-height: 1.5;
+  }
+  .footer-bottom {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px 12px;
+    margin-top: 24px;
+    font-size: 12px;
+    line-height: 1.5;
+  }
+  .footer-bottom .languages {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+  .footer-bottom > a {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    text-align: right;
+  }
   .container {
     width: calc(100% - 32px);
   }

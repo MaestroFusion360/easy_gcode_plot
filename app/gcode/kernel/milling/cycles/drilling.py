@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from ...api.resources import checkpoint
+from ...api.resources import SemanticError, checkpoint
 from ...api.types import MachineSignal, TraceMotion
 from ...runtime.cycles import CycleContext, CycleOutcome, apply_cycle_outcome
 from ...runtime.drilling import axial_cycle_moves
@@ -47,10 +47,12 @@ _DRILL_BEHAVIOR = {
 
 
 def _update_cycle_parameters(state: MillState, words) -> None:
-    if "Z" in words:
-        state.cycle_z = words["Z"] * state.unit_scale if state.absolute else state.z + words["Z"] * state.unit_scale
     if "R" in words:
-        state.cycle_r = words["R"] * state.unit_scale if state.absolute else state.z + words["R"] * state.unit_scale
+        initial_z = state.cycle_initial_z if state.cycle_initial_z is not None else state.z
+        state.cycle_r = words["R"] * state.unit_scale if state.absolute else initial_z + words["R"] * state.unit_scale
+    if "Z" in words:
+        retract_z = state.cycle_r if state.cycle_r is not None else state.z
+        state.cycle_z = words["Z"] * state.unit_scale if state.absolute else retract_z + words["Z"] * state.unit_scale
     if "Q" in words:
         state.cycle_q = abs(words["Q"] * state.unit_scale)
     if "F" in words:
@@ -73,7 +75,9 @@ def _drilling_cycle_signals(block, state: MillState, words) -> tuple[MachineSign
             MachineSignal("spindle_reverse", block.index, "G84"),
         )
         if state.rigid_tapping_ready:
-            return (MachineSignal("rigid_tapping", block.index, "G84"),) + signals
+            signals = (MachineSignal("rigid_tapping", block.index, "G84"),) + signals
+        if state.cycle_p > 0:
+            return (MachineSignal("dwell", block.index, "G84", state.cycle_p),) + signals
         return signals
     if state.cycle == 86:
         return (MachineSignal("spindle_stop", block.index, "G86"),)
@@ -111,12 +115,15 @@ def _cycle_parameter_updates(state: MillState) -> tuple[tuple[str, object], ...]
 def _resolve_drilling_cycle(state: MillState, words) -> _ResolvedDrillingCycle | None:
     """Resolve modal cycle parameters and the programmed hole position."""
     x, y, _ = _xyz(words, state)
-    if state.cycle_z is None:
-        return None
-    retract_z = state.cycle_r if state.cycle_r is not None else state.z
+    if state.cycle_z is None or state.cycle_r is None:
+        raise SemanticError("INCOMPLETE_DRILLING_CYCLE", "Drilling requires modal Z depth and R plane", "unsupported")
+    retract_z = state.cycle_r
     feed = state.cycle_feed or state.feed
+    if feed <= 0:
+        raise SemanticError("INVALID_DRILLING_FEED", "Drilling requires a positive modal feed", "invalid_geometry")
     behavior = _DRILL_BEHAVIOR[state.cycle]
-    return_z = state.z if state.return_initial else retract_z
+    initial_z = state.cycle_initial_z if state.cycle_initial_z is not None else state.z
+    return_z = max(initial_z, retract_z) if state.return_initial else retract_z
     return _ResolvedDrillingCycle(
         x=x,
         y=y,

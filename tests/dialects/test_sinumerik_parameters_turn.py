@@ -25,9 +25,17 @@ def test_native_dwell_seconds_preserve_modal_feed_and_resolve_parameters():
     )
 
 
-@pytest.mark.parametrize("word", ["F-1", "S2"])
-def test_native_unmodeled_or_negative_dwell_fails_closed(word):
-    assert not native("G4 " + word).ok
+def test_native_negative_dwell_fails_closed():
+    assert not native("G4 F-1").ok
+
+
+def test_native_revolution_dwell_warns_without_changing_spindle_or_time():
+    result = native("S500 M3\nG1 X1 F100\nG4 S2\nX2\nM30")
+    assert result.ok and result.complete
+    assert [motion.spindle_rpm for motion in result.motions] == [500, 500]
+    assert [motion.feed for motion in result.motions] == [100, 100]
+    assert any(d.code == "UNMODELED_SINUMERIK_NATIVE" and d.severity == "warning" for d in result.diagnostics)
+    assert not any(signal.kind == "dwell" for step in result.execution_steps for signal in step.signals)
 
 
 def test_r_parameters_keep_native_ast_and_never_enter_macro_b_state():
@@ -45,7 +53,7 @@ def test_r_parameters_keep_native_ast_and_never_enter_macro_b_state():
 
 def test_r_parameters_in_centers_cycles_and_across_mode_switches():
     result = native(
-        "R1=0\nR2=500\nR3=1.25\nS=R2 M3\nG0 X10\nG3 X0 Y10 I=R1 J=R1 F=R2\nG291\nG290\n"
+        "R1=0\nR2=500\nR3=1.25\nS=R2 M3\nG0 X10\nG3 X0 Y10 I=AC(R1) J=AC(R1) F=R2\nG291\nG290\n"
         "MCALL CYCLE84(5,0,2,-9,,0,3,,R3,0,R2,R2)\nX2\nMCALL\nM30"
     )
     assert result.ok and result.complete and not result.diagnostics
@@ -70,7 +78,11 @@ def test_unmodeled_r_language_fails_closed(source):
 
 @pytest.mark.parametrize(
     "plane,position,end,center",
-    [(17, "X10", "X0 Y10 Z-6", "I0 J0"), (18, "X10", "X0 Z10 Y-6", "I0 K0"), (19, "Y10", "Y0 Z10 X-6", "J0 K0")],
+    [
+        (17, "X10", "X0 Y10 Z-6", "I=AC(0) J=AC(0)"),
+        (18, "X10", "X0 Z10 Y-6", "I=AC(0) K=AC(0)"),
+        (19, "Y10", "Y0 Z10 X-6", "J=AC(0) K=AC(0)"),
+    ],
 )
 @pytest.mark.parametrize("move", [2, 3])
 def test_turn_is_one_analytical_motion_with_total_sweep_and_trace_replay(plane, position, end, center, move):
@@ -89,20 +101,20 @@ def test_turn_is_one_analytical_motion_with_total_sweep_and_trace_replay(plane, 
 
 @pytest.mark.parametrize("turn", ["-1", "1.5", "1000"])
 def test_invalid_turn_fails_before_arc(turn):
-    result = native("G0 X10\nG3 X0 Y10 I0 J0 TURN=" + turn)
+    result = native("G0 X10\nG3 X0 Y10 I=AC(0) J=AC(0) TURN=" + turn)
     assert not result.ok and len(result.motions) == 1
     assert result.diagnostics[0].code == "UNSUPPORTED_SINUMERIK_TURN"
 
 
 def test_turn_full_circle_adds_revolutions_to_base_circle():
-    result = native("G0 X10\nG3 I0 J0 TURN=2 F100\nM30")
+    result = native("G0 X10\nG3 I=AC(0) J=AC(0) TURN=2 F100\nM30")
     assert result.ok
     assert result.motions[-1].arc.sweep == pytest.approx(3 * math.tau)
     assert result.motions[-1].arc.full_circle
 
 
 def test_turn_render_statistics_playback_and_dxf_preserve_all_revolutions():
-    result = native("G0 X10\nG3 I0 J0 TURN=2 F100\nM30")
+    result = native("G0 X10\nG3 I=AC(0) J=AC(0) TURN=2 F100\nM30")
     statistics = trace_statistics(result)
     assert statistics["feed_length"] == pytest.approx(30 * math.tau)
     assert statistics["feed_time_min"] == pytest.approx(30 * math.tau / 100)

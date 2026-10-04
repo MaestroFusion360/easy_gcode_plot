@@ -280,11 +280,9 @@ class OptionsDialog(QDialog):
         finally:
             combo.blockSignals(blocked)
         self.ui.rotaryKinematicsEditButton.setEnabled(combo.currentData() is not None)
-        combo.setEnabled(not getattr(self.parent(), "_document_rotary_restricted", False))
 
     def sync_rotary_kinematics(self, profile_id):
         combo = self.ui.rotaryKinematicsCombo
-        combo.setEnabled(not getattr(self.parent(), "_document_rotary_restricted", False))
         index = combo.findData(profile_id)
         if index < 0:
             self._reload_rotary_kinematics_combo(profile_id)

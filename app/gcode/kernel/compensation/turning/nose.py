@@ -122,7 +122,7 @@ def motion_from_primitive(primitive: TurningPrimitive) -> Motion:
         start=to_point(primitive.start),
         end=to_point(primitive.end),
         radius=None if center is not None else primitive.motion.radius,
-        i=(center.x - primitive.start.x) if center is not None else primitive.motion.i,
+        i=2.0 * (center.x - primitive.start.x) if center is not None else primitive.motion.i,
         k=(center.y - primitive.start.y) if center is not None else primitive.motion.k,
         source_kind="tool_compensation",
         compensation_applied=True,

@@ -241,6 +241,7 @@ def build_source_motion_trace_with_steps(
         point_ctor=point_ctor,
         diagnostics=diagnostics,
     )
+    execution_kwargs["ctx"].cycle_options["tools"] = tools or {}
     motions, steps = execute_trace_context_with_steps(**execution_kwargs)
     motions, steps = _apply_source_corner_direct_programming(motions, steps)
     return apply_tool_nose_compensation(motions, tools or {}), steps

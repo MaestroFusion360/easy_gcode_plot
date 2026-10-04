@@ -248,7 +248,7 @@ def test_g43_4_accepts_activation_then_continuous_rotary_linear_moves():
         assert result.motions[-1].start_tool_orientation != result.motions[-1].tool_orientation
 
 
-def test_g43_4_rejects_unsupported_profile_rotary_arcs_and_post_g49_motion():
+def test_g43_4_rejects_unsupported_profile_and_post_g49_motion_but_accepts_tcp_arc():
     unsupported = execute("G43.4 H1\nM30", language="fanuc_mill", kinematics="4ax_table_a")
     assert unsupported.diagnostics[0].code == "TCP_KINEMATICS_REQUIRED"
     arc = execute(
@@ -256,7 +256,9 @@ def test_g43_4_rejects_unsupported_profile_rotary_arcs_and_post_g49_motion():
         language="fanuc_mill",
         kinematics="5ax_table_ac_angled",
     )
-    assert arc.diagnostics[0].code == "UNSUPPORTED_TCP_ROTARY_ARC"
+    assert arc.ok and arc.complete, arc.diagnostics
+    assert arc.motions[-1].arc is not None
+    assert arc.motions[-1].start_tool_orientation != arc.motions[-1].tool_orientation
     after_cancel = execute(
         "G90 G0 X0 A0 C0\nG43.4 H1\nG1 X10 A30 C45 F100\nG49\nG1 X20 A60 C90\nM30",
         language="fanuc_mill",

@@ -28,9 +28,22 @@ def _cancellable(items, cancelled):
         yield item
 
 
-def _require_valid_trace_export(result: ExecutionResult) -> None:
+def _require_valid_trace_export(result: ExecutionResult, *, allow_inverse_time=False) -> None:
+    if not allow_inverse_time and any(m.feed_mode == "inverse_time" for m in result.motions):
+        raise ValueError("G93 export requires resolved SINUMERIK native conversion")
     if not result.ok or not result.complete:
         raise ValueError("Trace export requires a valid and complete execution result")
+    ignored_native = {
+        "IGNORED_SINUMERIK_DIAMETER_MODE",
+        "UNMODELED_SINUMERIK_CHF",
+        "UNMODELED_SINUMERIK_CHR",
+        "UNMODELED_SINUMERIK_RND",
+        "UNMODELED_SINUMERIK_RNDM",
+        "UNMODELED_SINUMERIK_FRC",
+        "UNMODELED_SINUMERIK_FRCM",
+    }
+    if any(d.code in ignored_native or d.code == "UNMODELED_SINUMERIK_NATIVE" for d in result.diagnostics):
+        raise ValueError("NC trace export cannot preserve ignored SINUMERIK diameter/corner/feed commands")
 
 
 def _motion_in_active_wcs(

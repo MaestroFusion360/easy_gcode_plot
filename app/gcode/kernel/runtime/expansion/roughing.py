@@ -27,6 +27,7 @@ class _RoughingProfileData:
     profile: list[ProfileSegment]
     compensated: bool
     type_ii: bool
+    nominal_end_x: float
 
 
 def _prepare_roughing_profile(
@@ -66,12 +67,13 @@ def _prepare_roughing_profile(
         gcode_system=gcode_system,
         distance_absolute=distance_absolute,
     )
-    profile, was_compensated = compensated_profile(profile, p_index, q_index)
+    nominal_end_x = profile[-1].end.x if profile else sx
+    profile, was_compensated = compensated_profile(profile, p_index, q_index, roughing_side=41 if finish_u < 0 else 42)
     state.last_finish_stock_x = sx
     state.last_finish_stock_z = sz
     p_letters = {str(token.letter).upper() for token in blocks[p_index].parsed_words}
     type_ii = bool(p_letters.intersection({"X", "U"}) and p_letters.intersection({"Z", "W"}))
-    return _RoughingProfileData(sx, sz, finish_u, finish_w, feed, profile, was_compensated, type_ii)
+    return _RoughingProfileData(sx, sz, finish_u, finish_w, feed, profile, was_compensated, type_ii, nominal_end_x)
 
 
 def _store_cycle_result(cycle, rough_cycles, state) -> None:
@@ -138,6 +140,7 @@ def _expand_g71(
         data.feed,
         boring_mode=boring_mode,
         type_ii=data.type_ii,
+        stock_limit_x=data.nominal_end_x,
     )
     cycle = mark_compensated(cycle, data.compensated)
     ensure_cycle_return(cycle, Point2(data.sx, data.sz), first_axis="x")

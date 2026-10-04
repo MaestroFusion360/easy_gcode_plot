@@ -6,9 +6,14 @@ import re
 
 from app.gcode.kernel import ExecutionResult
 from app.gcode.program_execution import execute_program
+from app.gcode.source_mode import SINUMERIK_MODE_SIEMENS, sinumerik_initial_mode
 
+from .native_full import normalize_native_full_program
+from .options import ExportOptions
+from .source_formatting import format_full_program_source
 from .validation import (
     validate_full_program_dialect_conversion,
+    validate_native_to_fanuc_export,
     validate_sinumerik_iso_export,
     validate_sinumerik_iso_source,
 )
@@ -54,10 +59,45 @@ def convert_full_program_to_sinumerik(
     return converted
 
 
-def convert_full_program_to_fanuc(source: str) -> str:
-    """Remove the standalone SINUMERIK ISO-mode block, preserving other text."""
-    lines = source.splitlines(keepends=True)
-    return "".join(line for line in lines if not _is_g291_block(line))
+def convert_full_program_to_fanuc(
+    source: str, *, source_result=None, execution_options=None, export_options=None
+) -> str:
+    """Normalize native semantics before emission; retain ISO-M source structure."""
+    if source_result is None:
+        options = {**(execution_options or {}), "source_dialect": "sinumerik"}
+        source_result, _tools, _inferred = execute_program(source, language="fanuc_mill", **options)
+    if (
+        not source_result.ok
+        or not source_result.complete
+        or any(d.severity == "error" for d in source_result.diagnostics)
+    ):
+        raise ValueError("Full Program dialect conversion requires successful complete source execution")
+    validate_native_to_fanuc_export(source_result)
+    has_native = sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS or any(
+        event.kind == "SINUMERIK_SIEMENS_MODE" for event in source_result.events
+    )
+    if has_native:
+        converted = normalize_native_full_program(source, source_result)
+        header = re.search(r"(?im)^\s*;?\s*%_N_(\d+)_MPF\s*$", source)
+        if header:
+            converted = re.sub(r"(?im)^\s*;?\s*%_N_\d+_MPF\s*$", "", converted)
+            converted = f"%\nO{int(header[1])}\n" + converted.strip("\r\n") + "\n%\n"
+        converted = format_full_program_source(
+            converted, export_options or ExportOptions(delimiter=True), uppercase_comments=True
+        )
+    else:
+        lines = source.splitlines(keepends=True)
+        converted = "".join(line for line in lines if not _is_g291_block(line))
+        if export_options is not None:
+            converted = format_full_program_source(converted, export_options, uppercase_comments=True)
+    validate_full_program_dialect_conversion(
+        source_result,
+        converted,
+        "fanuc_mill",
+        source_dialect="fanuc",
+        execution_options=execution_options,
+    )
+    return converted
 
 
 def _is_g291_block(line: str) -> bool:

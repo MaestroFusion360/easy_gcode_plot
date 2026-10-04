@@ -16,7 +16,8 @@ from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
 from app.gcode.kinematics_report import kinematics_report_fields
 from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import source_dialect_for_path
+from app.gcode.source_mode import language_for_path, source_dialect_for_path
+from app.gcode.statistics_report import export_execution_statistics
 
 BATCH_REPORT_SCHEMA_VERSION = 2
 DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".mpf", ".spf", ".tap", ".txt")
@@ -180,6 +181,34 @@ def analysis_status(result: ExecutionResult) -> str:
     return STATUS_WARNINGS if result.diagnostics else STATUS_CLEAN
 
 
+def analyze_file(path, *, language=None, encoding="utf-8", source=None, **options):
+    """Shared single-file analysis entry point used by CLI and directory batches."""
+    if source is None:
+        source = read_nc_text(path, encoding=encoding)
+    result = execute_analysis_program(
+        source,
+        language=language_for_path(path, language),
+        source_dialect=source_dialect_for_path(path, source),
+        **options,
+    )
+    return source, result
+
+
+def _export_file_statistics(result, path, root, html_dir, inches):
+    """Keep directory structure and source suffixes; report export failures per file."""
+    if html_dir is None:
+        return result, None
+    relative = path.relative_to(root)
+    destination = Path(html_dir) / relative.with_name(relative.name + ".html")
+    try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        export_execution_statistics(result, destination, source_path=path, inches=inches)
+    except (OSError, ValueError) as exc:
+        diagnostic = Diagnostic(code="HTML_REPORT_WRITE_ERROR", message=str(exc), severity="error", status="malformed")
+        return replace(result, ok=False, diagnostics=result.diagnostics + (diagnostic,)), None
+    return result, str(destination.resolve())
+
+
 def analysis_diagnostic_summary(result: ExecutionResult) -> dict[str, object]:
     diagnostics = result.diagnostics
     return {
@@ -196,10 +225,12 @@ def _file_report(
     path: Path,
     root: Path,
     *,
-    language: str,
+    language: str | None,
     encoding: str,
     kinematics: str | None = None,
     lathe_gcode_system: str = "A",
+    html_dir: Path | None = None,
+    inches: bool = False,
 ) -> dict[str, object]:
     started = perf_counter()
     try:
@@ -232,14 +263,15 @@ def _file_report(
             "elapsed_ms": round((perf_counter() - started) * 1000.0, 3),
         }
 
-    result = execute_analysis_program(
-        source,
+    _source, result = analyze_file(
+        path,
+        source=source,
         language=language,
         include_instructions=False,
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
-        source_dialect=source_dialect_for_path(path, source),
     )
+    result, html_path = _export_file_statistics(result, path, root, html_dir, inches)
     diagnostics = result.diagnostics
     status = analysis_status(result)
     report = {
@@ -258,6 +290,9 @@ def _file_report(
         "rotary_axes": list(result.rotary_axes),
     }
     report["elapsed_ms"] = round((perf_counter() - started) * 1000.0, 3)
+    report["language"] = result.language
+    if html_dir is not None:
+        report["html_report"] = html_path
     return report
 
 
@@ -285,14 +320,16 @@ def _aggregate_unsupported(files: Iterable[dict[str, object]], key: str) -> list
 def analyze_directory(
     root: str | Path,
     *,
-    language: str,
-    encoding: str,
+    language: str | None = None,
+    encoding: str = "utf-8",
     recursive: bool = True,
     extensions: Iterable[str] = DEFAULT_BATCH_EXTENSIONS,
     on_file: Callable[[dict[str, object]], None] | None = None,
     kinematics: str | None = None,
     kinematics_by_file: dict[str, str] | None = None,
     lathe_gcode_system: str = "A",
+    html_dir: str | Path | None = None,
+    inches: bool = False,
 ) -> dict[str, object]:
     """Execute every matching NC file and return a batch analysis report."""
     started = perf_counter()
@@ -314,6 +351,8 @@ def analyze_directory(
             encoding=encoding,
             kinematics=selected,
             lathe_gcode_system=lathe_gcode_system,
+            html_dir=Path(html_dir) if html_dir is not None else None,
+            inches=inches,
         )
         files.append(file_report)
         if on_file is not None:
@@ -339,7 +378,7 @@ def analyze_directory(
         "generated_at": datetime.now(UTC).isoformat(),
         "status": overall_status,
         "root": str(directory),
-        "language": language,
+        "language": language or "auto",
         "encoding": encoding,
         "kinematics_profile": kinematics,
         "kinematics_by_file": profiles,
@@ -410,6 +449,8 @@ def write_batch_reports(
         "kinematics_definition",
         "elapsed_ms",
         "source_dialect",
+        "language",
+        "html_report",
     )
     with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
         writer = csv.DictWriter(stream, fieldnames=fieldnames)

@@ -8,6 +8,7 @@ The two phases of this gate protect both Macro B evaluation and numeric dispatch
 import re
 
 from ...comments import strip_comments
+from ..milling.kinematics import TCP_TABLE_PROFILES
 from ..milling.sinumerik_iso import (
     _diag,
     mode_switch_code,
@@ -41,7 +42,7 @@ def _source_diagnostic(block, mode):
     return None
 
 
-def _numeric_diagnostic(block, evaluated, mode):
+def _numeric_diagnostic(block, evaluated, mode, state):
     for code in evaluated.codes.all_m:
         if code not in COMMON_ISO_M_CODES:
             return _diag(
@@ -50,8 +51,9 @@ def _numeric_diagnostic(block, evaluated, mode):
                 f"M{code:g} is not supported in {mode}",
                 cnc_codes=(f"M{code:g}",),
             )
-    if any(axis in evaluated.words for axis in ("A", "B", "C")):
-        return _diag(block, "UNSUPPORTED_SINUMERIK_ROTARY", "SINUMERIK rotary semantics are not modeled")
+    diagnostic = _rotary_diagnostic(block, evaluated.words, mode, state)
+    if diagnostic is not None:
+        return diagnostic
     if mode == "sinumerik_native":
         for code in evaluated.codes.all_g:
             if code not in COMMON_ISO_G_CODES | NATIVE_G_CODES:
@@ -61,6 +63,28 @@ def _numeric_diagnostic(block, evaluated, mode):
                     f"G{code:g} is not supported in native mode",
                     cnc_codes=(f"G{code:g}",),
                 )
+    return None
+
+
+def _rotary_diagnostic(block, words, mode, state):
+    if not any(axis in words for axis in ("A", "B", "C")):
+        return None
+    if mode != "sinumerik_native":
+        return _diag(block, "UNSUPPORTED_SINUMERIK_ROTARY", "ISO-M rotary semantics are not modeled")
+    if state.native_cycle is not None:
+        return _diag(block, "UNSUPPORTED_SINUMERIK_CYCLE", "Cancel MCALL before rotary positioning")
+    return _native_rotary_profile_diagnostic(block, words, state)
+
+
+def _native_rotary_profile_diagnostic(block, words, state):
+    if state.kinematics is None:
+        return _diag(block, "ROTARY_KINEMATICS_REQUIRED", "Native rotary addresses require a selected profile")
+    if state.kinematics.id not in TCP_TABLE_PROFILES:
+        return _diag(
+            block, "UNSUPPORTED_SINUMERIK_ROTARY", "Native rotary subset requires an angled AC/BC table profile"
+        )
+    if any(axis in words and axis not in state.kinematics.addresses for axis in ("A", "B", "C")):
+        return _diag(block, "UNCONFIGURED_ROTARY_AXIS", "Rotary address is not configured in the selected profile")
     return None
 
 
@@ -74,6 +98,15 @@ def common_iso_fast_block(block, runtime, state, words):
     mode switches and all G/M words stay on the reference execution path.
     A rejection stops the run so Python can emit the authoritative diagnostic.
     """
+    if state.feed_mode == "inverse_time":
+        return False
+    if block.native_syntax is not None and (
+        block.native_syntax.absolute_center
+        or block.native_syntax.ignored_diameter_modes
+        or block.native_syntax.ignored_native_commands
+        or block.native_syntax.incremental_linear
+    ):
+        return False
     _, diagnostic, _ = controller_capability_gate(runtime, block, state=state)
     if diagnostic is not None:
         return False
@@ -91,6 +124,8 @@ def _native_state_diagnostic(block, state):
         or transform.scaling_active
         or transform.translation != (0.0, 0.0, 0.0)
         or any(state.rotary_angles.values())
+        or state.twp.active
+        or state.tcp_control
         or state.active_wcs >= 1000
     )
     if incompatible:
@@ -99,6 +134,18 @@ def _native_state_diagnostic(block, state):
             "UNSUPPORTED_SINUMERIK_MODE",
             "Cancel ISO-M cycles, transforms, extended offsets and rotary indexing before G290",
         )
+    return None
+
+
+def _switch_state_diagnostic(block, state, switch):
+    if state.twp.active or state.tcp_control:
+        return _diag(block, "UNSUPPORTED_SINUMERIK_MODE", "Cancel tilted-frame/TCP control before G290/G291")
+    if switch == 290:
+        return _native_state_diagnostic(block, state)
+    if state.cutter_comp != 40:
+        return _diag(block, "UNSUPPORTED_SINUMERIK_ISO_G_CODE", "Cancel native G41/G42 with G40 before G291")
+    if state.native_cycle is not None:
+        return _diag(block, "UNSUPPORTED_SINUMERIK_CYCLE", "Cancel native MCALL before G291")
     return None
 
 
@@ -118,17 +165,13 @@ def controller_capability_gate(runtime, block, evaluated=None, *, state):
     switch = mode_switch_code(evaluated)
     if switch is not None:
         diagnostic = mode_switch_diagnostic(block, evaluated)
-        if diagnostic is None and switch == 290:
-            diagnostic = _native_state_diagnostic(block, state)
-        if diagnostic is None and switch == 291 and state.cutter_comp != 40:
-            diagnostic = _diag(block, "UNSUPPORTED_SINUMERIK_ISO_G_CODE", "Cancel native G41/G42 with G40 before G291")
-        if diagnostic is None and switch == 291 and state.native_cycle is not None:
-            diagnostic = _diag(block, "UNSUPPORTED_SINUMERIK_CYCLE", "Cancel native MCALL before G291")
+        if diagnostic is None:
+            diagnostic = _switch_state_diagnostic(block, state, switch)
         if diagnostic is not None:
             return evaluated, diagnostic, None
         runtime.controller_mode = "sinumerik_iso" if switch == 291 else "sinumerik_native"
         return evaluated, None, switch
-    diagnostic = _numeric_diagnostic(block, evaluated, mode)
+    diagnostic = _numeric_diagnostic(block, evaluated, mode, state)
     if diagnostic is not None or mode == "sinumerik_native":
         if diagnostic is None:
             evaluated, diagnostic = normalize_native_block(block, evaluated, state)

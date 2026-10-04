@@ -1,0 +1,86 @@
+<!doctype html>
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>$title</title>
+  <style>
+    body {
+      margin: $page_margin;
+      background: $background;
+      color: $foreground;
+      font-family: sans-serif;
+    }
+
+    body,
+    p,
+    td,
+    select {
+      font-size: $size;
+      color: $foreground;
+    }
+
+    p {
+      margin: 0;
+    }
+
+    .report-filter {
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .report-filter select {
+      max-width: 100%;
+      background: $background;
+      border: 1px solid $border;
+    }
+
+    table {
+      border-collapse: collapse;
+      margin: 0;
+    }
+
+    td {
+      padding: 7px 0;
+      border-bottom: 1px solid $border;
+    }
+
+    .metric-value {
+      font-weight: bold;
+    }
+
+    .group {
+      font-weight: bold;
+      padding-top: 16px;
+    }
+
+    .report-title {
+      font-weight: bold;
+      font-size: $heading_size;
+      padding-bottom: 10px;
+    }
+
+    .report-note {
+      font-size: $note_size;
+      font-weight: normal;
+      color: $muted;
+      margin-top: 12px;
+    }
+
+    .trajectory-preview { margin-top: 24px; }
+    .trajectory-preview h2 { font-size: $heading_size; }
+    .trajectory-preview svg { display: block; width: 100%; height: auto; border: 1px solid $border; }
+    .trajectory-preview text { fill: $foreground; font-size: 14px; }
+    .svg-cut-label { color: $accent; }
+    .svg-rapid-label { color: $warning; }
+  </style>
+</head>
+
+<body>$selector $sections <p class="report-note">$note</p> $trajectory $script</body>
+
+</html>

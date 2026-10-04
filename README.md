@@ -47,21 +47,32 @@ The GUI, playback, statistics, stock-removal tools, CLI analysis and exporters a
 
 ```text
 G-code source
-    │
-    ▼
-Parser / controller semantics
-    │
-    ▼
-CNC execution kernel
-    │
-    ▼
-Resolved execution result
-    ├── GUI rendering and playback
-    ├── statistics
-    ├── batch analysis
-    ├── trace export
-    └── NC / DXF export
+    |
+    +--> Tool discovery (preliminary scan)
+    |      |- native Cython scanner
+    |      `- Python fallback
+    |
+    `--> Parser / controller frontend
+           |- native Cython parser
+           `- per-block Python fallback where required
+                |
+                v
+             Program / AST
+                |
+                v
+          CNC execution kernel
+          (flow, cycles, compensation, geometry)
+                |
+                v
+           ExecutionResult
+                |
+                +--> GUI rendering / playback
+                +--> statistics
+                +--> batch / CLI trace
+                `--> NC / DXF export
 ```
+
+Tool discovery is a separate preliminary source scan; the parser constructs Program/AST and the kernel owns execution semantics. Rendering, statistics and export consume ExecutionResult rather than interpreting G-code independently. Python fallback is supported in source checkouts, including individual complex blocks. Packaged releases require all three native extensions; missing extensions are explicit runtime errors.
 
 Unsupported or ambiguous controller behavior is reported explicitly instead of being converted into guessed geometry.
 
@@ -69,7 +80,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 
 ### FANUC-style turning
 
-- Macro B expressions, conditions and loops.
+- Macro B expressions, conditions and loops, with bitwise AND/OR/XOR and LN/EXP.
 - `G65` custom-macro calls and `M98/M99` subprograms.
 - Turning cycles `G70`–`G76`.
 - `G32`, `G33` and `G92` threading.
@@ -96,6 +107,8 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - `G290/G291` native / ISO Dialect M switching.
 - Modal `MCALL CYCLE81/82/83/84`.
 - Native R parameters for the supported numeric subset.
+- GUI/CLI/kernel TRAORI/TRAFOOF TCP on the angled AC/BC table profiles, including G2/G3 with rotary interpolation.
+- Native CYCLE800 static frames and TRAORI/TRAFOOF TCP on angled AC/BC tables. Numeric A/B/C, direct R references and incremental IC values are supported for configured axes; DC selects the shortest absolute rotary approach; ambiguous half turns remain rejected.
 - `TURN=` multi-revolution arc handling.
 - Resolved conversion between supported FANUC, SINUMERIK ISO-M and SINUMERIK native milling geometry.
 
@@ -106,7 +119,8 @@ See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current
 - G-code editor with syntax highlighting, line numbers, search, replace and cleanup tools.
 - Interactive OpenGL toolpath.
 - Logical-motion playback with source-line synchronization.
-- Toolpath statistics.
+- Toolpath statistics: HTML summary, per-tool selector, metric/imperial display and Export HTML. Exported reports include a static SVG projection (XY milling, XZ turning) below the table. SVG uses Print page fitting and line styles, retaining every motion. CLI: `python -m app analyze program.nc --html statistics.html`.
+- HTML exports always use a light theme; the Statistics dialog follows the application theme. GUI report/program exports display their completion status. Playback highlights the current logical motion, including a whole arc, using the configured current-move color.
 - CNC editing assistants for hole patterns, pockets and reusable snippets.
 - ASCII and binary STL overlays with solid and feature-edge modes.
 - STL positioning, transforms, arrays, sections and statistics.
@@ -121,7 +135,7 @@ See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current
 - Expanded Execution export.
 - Plot Data export.
 - DXF export.
-- CLI `parse`, `trace`, `analyze`, `batch`, `export` and `batch-export`.
+- CLI `parse`, `trace`, `analyze`, `report`, `batch`, `export` and `batch-export`.
 - JSON and CSV batch reports.
 - Native Cython acceleration with compatible Python fallback.
 
@@ -137,9 +151,9 @@ Detailed controller behavior, limits, configuration and troubleshooting are docu
 | Three-axis milling | Yes | Yes |
 | Macro / variable subset | Macro B | R parameters |
 | Drilling / tapping cycles | Yes | `MCALL CYCLE81/82/83/84` |
-| Indexed rotary milling | Yes | Not yet |
-| Continuous TCP | `G43.4` | Not yet |
-| Tilted working plane | `G68.2/G53.1` | `CYCLE800` not yet |
+| Indexed rotary milling | Yes | Angled AC/BC GUI/CLI/kernel numeric subset |
+| Continuous TCP | `G43.4`, including rotary arcs | GUI/CLI/kernel `TRAORI` / `TRAFOOF`, angled AC/BC subset |
+| Tilted working plane | `G68.2/G53.1` | `CYCLE800` axis-by-axis subset (GUI/CLI/kernel) |
 | Native controller conversion | FANUC / ISO-M | Resolved native output |
 | Batch analysis | Yes | Yes |
 
@@ -158,7 +172,7 @@ Every `.mpf` / `.spf` file is treated as a SINUMERIK container.
 - Standalone `G291` selects ISO Dialect M.
 - CLI commands still use `--lang fanuc_mill` for the common milling geometry model.
 
-For recognized MPF/SPF documents, the GUI disables rotary-kinematics profiles and uses **Rotary kinematics = None**. Opening a FANUC document or creating a new document restores the previous saved profile.
+MPF/SPF documents retain the selected rotary-kinematics profile. Settings and Options expose the enabled profiles; native CYCLE800/TRAORI require a supported angled AC/BC table. The kernel rejects incompatible axes, profiles and ISO-M rotary commands.
 
 ### Native subset
 
@@ -181,7 +195,7 @@ Native support currently includes:
 
 `MSG`, `WORKPIECE`, `G64` and comments do not generate phantom geometry.
 
-Empty `CYCLE800()` is accepted only when no rotary frame is active.
+CYCLE800 uses Siemens bit-coded axis order, not FANUC Euler ZXZ. Modes 57/54/39/27/30/45, ST200000 (new)/200001 (additive), DIR-1/0/1, quoted TISCH/empty data-set names and numeric/direct R arguments are supported on angled AC/BC tables. DIR selects the principal first-table-joint branch; 0 calculates the frame without indexing. Reset uses `CYCLE800()`, bare `CYCLE800`, or a zero frame with TC="0" (ST200000 or compatibility ST110000). FR0/1/2 are accepted as logical retract requests: OEM machine retract paths are not simulated. FR_I must be empty/zero; DMODE0/1 is supported. Other options and arbitrary OEM data sets reject.
 
 ### R parameters
 
@@ -222,9 +236,9 @@ The kernel keeps a single resolved arc with the complete sweep. Rendering, playb
 
 ### Current kinematic limit
 
-Native SINUMERIK execution currently supports three-axis XYZ trajectories only.
+Native XYZ geometry and modal cycles are supported; the GUI/CLI/kernel also accepts the bounded TCP subset below.
 
-Parameterized tilted planes, rotary motion and TCP transformations are intentionally rejected with diagnostics. Full `CYCLE800` and `TRAORI/TRAFOOF` support is planned for future kernel development.
+GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91; CUT3DC and FL[] remain explicitly unsupported. GUI profile selection reaches the same kernel and plotting path.
 
 ### Native acceleration
 
@@ -260,13 +274,23 @@ Example:
 
 Cycles and variables are evaluated before serialization. Resolved output is written in a zero-offset frame.
 
-SINUMERIK native output uses absolute IJK and can preserve `TURN=`.
+SINUMERIK native output uses explicit I=AC/J=AC/K=AC absolute centers and can preserve `TURN=`.
 
 ### Full Program conversion
 
-Source-preserving `--mode full` is limited to the verified FANUC ↔ SINUMERIK ISO-M subset.
+Native SINUMERIK source can also be formatted without dialect conversion: use Milling Full Program with **As source** or **SINUMERIK native** in the GUI, or `--mode full --target-dialect sinumerik_native` in the CLI. This preserves expressions, native calls, modal commands, CYCLE800 and TRAORI, while applying numbering, address spacing, leading zeros and comment inclusion. Native comments retain semicolon syntax. XYZ/rotary geometry is not rebuilt.
 
-Native SINUMERIK Full Program conversion is not implemented.
+```powershell
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full --target-dialect sinumerik_native --sequence-numbers -o formatted.mpf
+```
+
+Source-preserving `--mode full` supports verified FANUC ↔ SINUMERIK ISO-M conversion and bounded native SINUMERIK → FANUC normalization.
+
+SINUMERIK native → FANUC milling `--mode full` uses validated kernel normalization before FANUC emission and target re-execution. Supported units (`G70/G71/G700/G710`), inverse-time feed (`G93`), evaluated parameters and radius arcs retain their executed semantics. Safe metadata warnings remain in source diagnostics without blocking conversion. Unrepresentable native cycles, frames, orientation, diameter modes and rotary/TCP semantics still block export. FANUC → native Full Program remains unavailable; FANUC → ISO-M (`G291`) is unchanged.
+
+```powershell
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full -o fanuc_part.nc
+```
 
 Programs containing unsupported rotary/TCP/tilted-plane semantics are rejected before NC output is written. The exporter does not invent `TRAORI`, `TRAFOOF`, `CYCLE800` or controller-switching sequences.
 
@@ -441,6 +465,16 @@ SINUMERIK examples:
 ### Batch analysis
 
 `batch` scans recursively by default.
+
+Without `--lang`, each `.mpf/.spf` file selects milling SINUMERIK; other files keep the turning default. An explicit `--lang` applies to all files.
+
+Use the shared single-file statistics/HTML API for every program:
+
+```powershell
+.\easy_gcode_plot_cli.exe batch .\programs --html .\reports\html -o .\reports
+```
+
+This writes one HTML report with a tool selector and XY/XZ SVG per input, alongside the JSON/CSV summary. Relative directories and complete input names are preserved (`sub/part.mpf` → `html/sub/part.mpf.html`). Add `--inches` for imperial display. Each source is executed once; failed/partial execution still produces its statistics report. An unreadable input has diagnostics in JSON/CSV. HTML write errors are reported per file without stopping the batch.
 
 Default recognized extensions:
 

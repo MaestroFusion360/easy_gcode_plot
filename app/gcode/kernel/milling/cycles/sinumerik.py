@@ -43,15 +43,18 @@ def _unsupported(message):
     raise SemanticError("UNSUPPORTED_SINUMERIK_CYCLE", message, "unsupported")
 
 
-def _arguments(syntax, parameters):
+def _arguments(syntax, parameters, variables=None):
     count = {83: 20, 84: 24}.get(syntax.cycle_code, 9)
     args = syntax.cycle_args
     # Older CYCLE81 calls omit DTB: (...,DPR,GMODE,DMODE,AMODE).
     if syntax.cycle_code == 81 and len(args) == 8:
         args = args[:5] + ("",) + args[5:]
-    if syntax.cycle_code not in (81, 82, 83, 84) or not 5 <= len(args) <= count:
+    minimum = 4 if syntax.cycle_code == 81 else 5
+    if syntax.cycle_code not in (81, 82, 83, 84) or not minimum <= len(args) <= count:
         _unsupported("Only native MCALL CYCLE81/82/83/84 with modeled positional arguments is supported")
-    values = tuple(parameter_value(arg, parameters) if arg else None for arg in args) + (None,) * (count - len(args))
+    values = tuple(parameter_value(arg, parameters, variables) if arg else None for arg in args) + (None,) * (
+        count - len(args)
+    )
     if any(value is not None and not math.isfinite(value) for value in values):
         _unsupported("Cycle arguments must be finite numeric literals")
     if any(values[index] is None for index in (0, 1, 2)):
@@ -80,13 +83,13 @@ def _mode_checks(values, code, state):
 def compile_native_cycle(syntax, state):
     """Validate the complete declaration before committing modal cycle state."""
     cycle = _compile_native_cycle(syntax, state)
-    if any(arg.upper().startswith("R") for arg in syntax.cycle_args):
+    if any(arg.upper().startswith(("R", "_")) for arg in syntax.cycle_args):
         cycle = replace(cycle, parameter_syntax=syntax)
     return cycle
 
 
 def _compile_native_cycle(syntax, state):
-    values = _arguments(syntax, state.siemens_parameters)
+    values = _arguments(syntax, state.siemens_parameters, state.siemens_variables)
     _mode_checks(values, syntax.cycle_code, state)
     rtp, rfp, sdis = values[:3]
     depth = _depth(values, rfp)

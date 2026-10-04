@@ -146,8 +146,11 @@ def apply_corner_direct_programming(
             i += 1
             continue
 
-        d_in_x, d_in_z, len1 = _normalize(vertex.x - s1.start.x, vertex.z - s1.start.z)
-        d_out_x, d_out_z, len2 = _normalize(s2.end.x - vertex.x, s2.end.z - vertex.z)
+        # R is a physical radius: find tangency in radial X/Z, then restore
+        # programmed diameter X. Keep the existing C trim convention separate.
+        x_scale = 1.0 if chamfer > 1e-9 else 0.5
+        d_in_x, d_in_z, len1 = _normalize((vertex.x - s1.start.x) * x_scale, vertex.z - s1.start.z)
+        d_out_x, d_out_z, len2 = _normalize((s2.end.x - vertex.x) * x_scale, s2.end.z - vertex.z)
         if len1 <= 1e-9 or len2 <= 1e-9:
             segments[i] = _clear_corner(s1)
             i += 1
@@ -166,8 +169,8 @@ def apply_corner_direct_programming(
                 segments[i] = _clear_corner(s1)
                 i += 1
                 continue
-            p1 = Point2(vertex.x - d_in_x * trim, vertex.z - d_in_z * trim)
-            p2 = Point2(vertex.x + d_out_x * trim, vertex.z + d_out_z * trim)
+            p1 = Point2(vertex.x - d_in_x * trim / x_scale, vertex.z - d_in_z * trim)
+            p2 = Point2(vertex.x + d_out_x * trim / x_scale, vertex.z + d_out_z * trim)
             remaining_in = max(0.0, len1 - trim)
             remaining_out = max(0.0, len2 - trim)
             replacement: list[ProfileSegment] = []
@@ -192,8 +195,8 @@ def apply_corner_direct_programming(
             i += 1
             continue
 
-        p1 = Point2(vertex.x - d_in_x * trim, vertex.z - d_in_z * trim)
-        p2 = Point2(vertex.x + d_out_x * trim, vertex.z + d_out_z * trim)
+        p1 = Point2(vertex.x - d_in_x * trim / x_scale, vertex.z - d_in_z * trim)
+        p2 = Point2(vertex.x + d_out_x * trim / x_scale, vertex.z + d_out_z * trim)
         remaining_in = max(0.0, len1 - trim)
         remaining_out = max(0.0, len2 - trim)
 

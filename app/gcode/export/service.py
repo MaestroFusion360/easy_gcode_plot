@@ -16,18 +16,29 @@ from app.gcode.program_execution import execute_program
 from app.gcode.source_mode import SOURCE_DIALECT_SINUMERIK, source_dialect_for_path
 
 from .dispatch import export_program
-from .dxf import export_dxf
 from .options import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE, TURN_FULL_PROGRAM_MODE, ExportOptions
 from .resolved import MILLING_TARGETS, convert_resolved_program
 from .sinumerik import (
     convert_full_program_to_fanuc,
     convert_full_program_to_sinumerik,
 )
+from .source_formatting import is_native_full_program
 from .turn import export_cycle_groups
 from .units import MM_PER_INCH
-from .validation import sinumerik_iso_export_diagnostic, validate_full_program_dialect_conversion
+from .validation import (
+    sinumerik_iso_export_diagnostic,
+    validate_full_program_dialect_conversion,
+)
 
 ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
+
+
+def _dxf_backend():
+    try:
+        from .dxf import export_dxf  # pylint: disable=import-outside-toplevel
+    except ImportError as error:
+        raise ValueError(f"DXF export backend is unavailable: {error}") from error
+    return export_dxf
 
 
 @dataclass(frozen=True)
@@ -111,6 +122,10 @@ def _canonical_full_target(request):
 
 
 def _validate_resolved_target(request):
+    if request.mode == "full" and request.target_dialect == "sinumerik_native":
+        if request.language != "fanuc_mill" or request.format != "nc" or request.coordinates != "absolute":
+            raise ValueError("Native Full Program formatting requires milling NC and source coordinates")
+        return
     if request.language != "fanuc_mill" or request.format != "nc" or request.mode not in ("expanded", "resolved"):
         raise ValueError("Resolved milling targets require NC and --mode resolved (or expanded)")
     if request.target_dialect not in (None, *MILLING_TARGETS) or request.coordinates != "absolute":
@@ -296,6 +311,7 @@ def _preflight_export_failure(result: ExecutionResult, request: ExportRequest, s
             request.format == "nc"
             and request.mode == "full"
             and any(event.kind == "TCP_CONTROL_ON" for event in result.events)
+            and not is_native_full_program(result)
             and _source_preserving_nc_formatting_requested(request),
             "UNSUPPORTED_TCP_FULL_EXPORT_OPTIONS",
             "G43.4 TCP NC is preserved verbatim; formatting options cannot be applied safely",
@@ -305,6 +321,7 @@ def _preflight_export_failure(result: ExecutionResult, request: ExportRequest, s
             and request.mode == "full"
             and result.kinematics_profile
             and any(event.kind == "ROTARY_INDEX" for event in result.events)
+            and not is_native_full_program(result)
             and _source_preserving_nc_formatting_requested(request),
             "UNSUPPORTED_INDEXED_MULTIAXIS_EXPORT_OPTIONS",
             "Indexed NC is preserved verbatim; formatting options cannot be applied safely",
@@ -322,6 +339,8 @@ def _preflight_export_failure(result: ExecutionResult, request: ExportRequest, s
 
 
 def _nc_output(source: str, result: ExecutionResult, request: ExportRequest, options: ExportOptions) -> str:
+    if request.target_dialect == "sinumerik_native" and not is_native_full_program(result):
+        raise ValueError("Native Full Program formatting requires a SINUMERIK native source")
     mode = (
         EXPANDED_EXECUTION_MODE
         if request.mode == "expanded"
@@ -329,10 +348,14 @@ def _nc_output(source: str, result: ExecutionResult, request: ExportRequest, opt
         if request.language == "fanuc_turn"
         else MILL_FULL_PROGRAM_MODE
     )
-    preserve_source = request.mode == "full" and (
-        any(e.kind in {"TILTED_WORK_PLANE_ON", "TCP_CONTROL_ON"} for e in result.events)
-        or result.kinematics_profile
-        and any(e.kind == "ROTARY_INDEX" for e in result.events)
+    preserve_source = (
+        request.mode == "full"
+        and not is_native_full_program(result)
+        and (
+            any(e.kind in {"TILTED_WORK_PLANE_ON", "TCP_CONTROL_ON"} for e in result.events)
+            or result.kinematics_profile
+            and any(e.kind == "ROTARY_INDEX" for e in result.events)
+        )
     )
     if preserve_source:
         return source
@@ -348,8 +371,17 @@ def _nc_output(source: str, result: ExecutionResult, request: ExportRequest, opt
     )
 
 
+def _full_fanuc_conversion_requested(request, result):
+    return (
+        request.mode == "full"
+        and result.source_dialect == SOURCE_DIALECT_SINUMERIK
+        and request.target_dialect != "sinumerik_native"
+    )
+
+
 def export_file(source_path: Path, output_path: Path, request: ExportRequest) -> ExportResult:
     """Execute once and export through the existing NC or DXF exporter."""
+    validate_export_request(request)
     started = perf_counter()
     source_path = source_path.resolve()
     output_path = output_path.resolve()
@@ -374,6 +406,7 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         _check_unit_conversion(result, request)
     arc_type = _arc_type(result, request)
     if request.format == "dxf":
+        export_dxf = _dxf_backend()
         size = _atomic_export(
             output_path,
             lambda temp: export_dxf(
@@ -391,8 +424,13 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
                 execution_options={"kinematics": request.kinematics},
             )
         else:
-            if request.mode == "full" and source_dialect == SOURCE_DIALECT_SINUMERIK:
-                text = convert_full_program_to_fanuc(source)
+            if _full_fanuc_conversion_requested(request, result):
+                text = convert_full_program_to_fanuc(
+                    source,
+                    source_result=result,
+                    execution_options={"kinematics": request.kinematics},
+                    export_options=options,
+                )
                 validate_full_program_dialect_conversion(
                     result,
                     text,

@@ -29,7 +29,7 @@ def scale_motion(motion: TraceMotion, unit_scale: float) -> TraceMotion:
         end_y=motion.end_y / unit_scale,
         end_z=motion.end_z / unit_scale,
         radius=None if motion.radius is None else motion.radius / unit_scale,
-        feed=None if motion.feed is None else motion.feed / unit_scale,
+        feed=None if motion.feed is None else motion.feed / (1.0 if motion.feed_mode == "inverse_time" else unit_scale),
         i=None if motion.i is None else motion.i / unit_scale,
         j=None if motion.j is None else motion.j / unit_scale,
         k=None if motion.k is None else motion.k / unit_scale,

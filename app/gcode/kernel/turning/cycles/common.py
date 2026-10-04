@@ -142,7 +142,7 @@ def ensure_cycle_return(motions: list[Motion], target: Point2, *, first_axis: st
     """Return a completed cycle to its saved call position in an explicit axis order.
 
     This is authoritative FANUC turning behavior in fanuc_plot, not a
-    geometric inference. G72/G74 callers use Z then X; G71/G73/G75 callers use
+    geometric inference. G71/G72/G74 callers use Z then X; G73/G75 callers use
     X then Z. G70/G76 currently use X then Z as the safe longitudinal order.
     """
     if not motions:

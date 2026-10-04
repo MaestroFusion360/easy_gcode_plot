@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Iterable
+from contextvars import ContextVar
+from dataclasses import dataclass
+
+from app.native import native_symbol, require_packaged_native
 
 from ..api.resources import checkpoint, checkpointed
 from .lang import (
@@ -15,6 +20,10 @@ from .lang import (
     try_literal_int,
 )
 from .model import Block, CycleNode, ModalSnapshot, MotionNode, Program
+
+# The compiled scanner splits LF only and uses fixed-width integer token codes.
+# Preserve Python reference semantics for uncommon separators and oversized words.
+_REFERENCE_SOURCE = re.compile(r"\r(?!\n)|[\v\f\x1c-\x1e\x85\u2028\u2029]|\d{19,}")
 
 
 def resolve_cycle_profile_indices(
@@ -190,24 +199,57 @@ def _parse_program_python(lines: Iterable[str]) -> Program:
 
 def parse_program(lines: Iterable[str] | str) -> Program:
     """Build the public Program graph, using one compiled call for string sources."""
+    require_packaged_native()
     if isinstance(lines, str):
-        try:
-            from ._native_parser import parse_source  # pylint: disable=import-outside-toplevel
-        except ImportError:
-            return _parse_program_python(lines.splitlines(keepends=True))
-        return parse_source(lines, _parse_fallback_block, checkpoint)
-    return _parse_program_python(lines)
+        native_parse = native_symbol("parser", "parse_source")
+        if native_parse is not None and not _REFERENCE_SOURCE.search(lines):
+            return _instrument_parse(native_parse, lines)
+        lines = lines.splitlines(keepends=True)
+    program = _parse_program_python(lines)
+    _last_parser_statistics.set(ParserStatistics(len(program.blocks), 0, len(program.blocks)))
+    return program
 
 
 def _parse_source_blocks(source: Iterable[str] | str) -> tuple[Block, ...]:
     """Internal blocks-only parser for dialect augmentation before AST creation."""
+    require_packaged_native()
     if isinstance(source, str):
-        try:
-            from ._native_parser import parse_source_blocks  # pylint: disable=import-outside-toplevel
-        except ImportError:
-            return tuple(_parse_blocks(source.splitlines(keepends=True)))
-        return parse_source_blocks(source, _parse_fallback_block, checkpoint)
-    return tuple(_parse_blocks(source))
+        native_parse = native_symbol("parser", "parse_source_blocks")
+        if native_parse is not None and not _REFERENCE_SOURCE.search(source):
+            return _instrument_parse(native_parse, source)
+        source = source.splitlines(keepends=True)
+    blocks = tuple(_parse_blocks(source))
+    _last_parser_statistics.set(ParserStatistics(len(blocks), 0, len(blocks)))
+    return blocks
+
+
+@dataclass(frozen=True)
+class ParserStatistics:
+    total_blocks: int = 0
+    native_blocks: int = 0
+    fallback_blocks: int = 0
+
+
+_last_parser_statistics = ContextVar("parser_statistics", default=ParserStatistics())
+
+
+def parser_statistics() -> ParserStatistics:
+    """Statistics for the most recent successful parse in the current context."""
+    return _last_parser_statistics.get()
+
+
+def _instrument_parse(parse, source):
+    fallback_count = 0
+
+    def fallback(index, raw):
+        nonlocal fallback_count
+        fallback_count += 1
+        return _parse_fallback_block(index, raw)
+
+    result = parse(source, fallback, checkpoint)
+    total = len(result.blocks) if isinstance(result, Program) else len(result)
+    _last_parser_statistics.set(ParserStatistics(total, total - fallback_count, fallback_count))
+    return result
 
 
 def eval_words(tokens: tuple[WordToken, ...], variables: dict[str, float]) -> EvaluatedWords:

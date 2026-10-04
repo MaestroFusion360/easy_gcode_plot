@@ -10,6 +10,7 @@ from copy import deepcopy
 from io import StringIO
 
 from app.gcode.kernel.frontend.lang import lex_words, strip_comments
+from app.native import native_symbol
 from app.tools.definitions import (
     DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION,
     DEFAULT_MILLING_TOOL,
@@ -17,10 +18,7 @@ from app.tools.definitions import (
 )
 from app.tools.validation import normalized_milling_tools, normalized_tools
 
-try:
-    from app.tools._native_discovery import scan_source as _native_scan_source
-except ImportError:  # Source checkouts remain usable before native extensions are built.
-    _native_scan_source = None
+_native_scan_source = native_symbol("discovery", "scan_source")
 
 _COMMENTS = re.compile(r"\(([^()]*)\)|;([^\r\n]*)")
 _COMMENT_TOOL = re.compile(r"\bT\s*(\d+)\b", re.IGNORECASE)

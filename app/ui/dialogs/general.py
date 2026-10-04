@@ -10,7 +10,13 @@ from app.gcode.export import (
     MILL_FULL_PROGRAM_MODE,
     TURN_FULL_PROGRAM_MODE,
 )
-from app.gcode.source_mode import SOURCE_DIALECT_FANUC, SOURCE_DIALECT_SINUMERIK, source_dialect_for_path
+from app.gcode.source_mode import (
+    SINUMERIK_MODE_SIEMENS,
+    SOURCE_DIALECT_FANUC,
+    SOURCE_DIALECT_SINUMERIK,
+    sinumerik_initial_mode,
+    source_dialect_for_path,
+)
 from app.ui.generated.dialogs.about import Ui_AboutDlg
 from app.ui.generated.dialogs.block_num import Ui_BlockNumberDlg
 from app.ui.generated.dialogs.export import Ui_ExportOptDlg
@@ -289,7 +295,14 @@ class Export(QDialog):
             sinumerik_item.setEnabled(resolved or source_dialect != SOURCE_DIALECT_SINUMERIK)
         native_item = model.item(3) if hasattr(model, "item") else None
         if native_item is not None:
-            native_item.setEnabled(resolved)
+            native_item.setEnabled(
+                resolved
+                or (
+                    source_dialect == SOURCE_DIALECT_SINUMERIK
+                    and sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS
+                    and self.ui.langCmbBox.currentIndex() == MILL_FULL_PROGRAM_MODE
+                )
+            )
         current_item = model.item(self.targetCncCombo.currentIndex()) if hasattr(model, "item") else None
         if current_item is not None and not current_item.isEnabled():
             self.targetCncCombo.setCurrentIndex(0)

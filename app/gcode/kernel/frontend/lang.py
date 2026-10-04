@@ -18,6 +18,9 @@ END_RE = re.compile(r"^\s*END\s*(\d+)\s*$", re.IGNORECASE)
 HASH_NUM_RE = re.compile(r"#(\d+)")
 HASH_NAME_RE = re.compile(r"#<([A-Z_][A-Z0-9_]*)>", re.IGNORECASE)
 NUMERIC_LITERAL_RE = re.compile(r"^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$")
+MAX_EXPRESSION_SIZE = 4096
+MAX_EXPRESSION_NODES = 512
+MAX_EXPRESSION_DEPTH = 64
 
 
 class UndefinedMacroVariableError(ValueError):
@@ -199,6 +202,41 @@ def lex_words(line: str) -> tuple[WordToken, ...]:
     return tuple(out)
 
 
+def _assignment_flow(text: str, condition: str | None = None) -> FlowNode | None:
+    match = ASSIGN_RE.match(text)
+    if match is None:
+        return None
+    num_key, name_key, var_expr, rhs = match.groups()
+    key = num_key if num_key is not None else (name_key or "").upper()
+    return FlowNode(
+        kind="assign" if condition is None else "if_assign",
+        condition=condition,
+        var_key=key or None,
+        var_expr=var_expr.strip() if var_expr is not None else None,
+        value_expr=rhs.strip(),
+    )
+
+
+def _conditional_flow(text: str) -> FlowNode:
+    match = IF_GOTO_RE.match(text)
+    if match:
+        cond, target = match.groups()
+        return FlowNode(kind="if_goto", condition=cond.strip(), target_label=int(target))
+    header = re.match(r"^IF\s*\[", text, re.IGNORECASE)
+    if header:
+        open_pos = header.end() - 1
+        try:
+            close_pos = _matching_square_bracket(text, open_pos)
+        except ValueError:
+            return FlowNode(kind="unsupported_if")
+        tail = re.match(r"\s*THEN\s*(.+)$", text[close_pos + 1 :], re.IGNORECASE)
+        if tail:
+            assignment = _assignment_flow(tail.group(1), text[open_pos + 1 : close_pos].strip())
+            if assignment is not None:
+                return assignment
+    return FlowNode(kind="unsupported_if")
+
+
 def parse_flow(clean: str) -> FlowNode | None:
     if not clean:
         return None
@@ -207,21 +245,11 @@ def parse_flow(clean: str) -> FlowNode | None:
     # O labels remain program/subprogram declarations and are not flow prefixes.
     flow_text = re.sub(r"^\s*N[+-]?\d+(?:\.0+)?\s*", "", clean, count=1, flags=re.IGNORECASE)
 
-    m_assign = ASSIGN_RE.match(flow_text)
-    if m_assign:
-        num_key, name_key, var_expr, rhs = m_assign.groups()
-        key = num_key if num_key is not None else (name_key or "").upper()
-        return FlowNode(
-            kind="assign",
-            var_key=key or None,
-            var_expr=var_expr.strip() if var_expr is not None else None,
-            value_expr=rhs.strip(),
-        )
-
-    m_if = IF_GOTO_RE.match(flow_text)
-    if m_if:
-        cond, target = m_if.groups()
-        return FlowNode(kind="if_goto", condition=cond.strip(), target_label=int(target))
+    assignment = _assignment_flow(flow_text)
+    if assignment is not None:
+        return assignment
+    if re.match(r"^IF\b", flow_text, re.IGNORECASE):
+        return _conditional_flow(flow_text)
 
     m_goto = GOTO_RE.match(flow_text)
     if m_goto:
@@ -362,7 +390,7 @@ def _expand_variables(expr: str, variables: dict[str, float], *, null_aware: boo
             if null_aware:
                 return str(MACRO_NULL)
             raise UndefinedMacroVariableError(f"Undefined macro variable #<{name}>")
-        return str(variables[name])
+        return str(_macro_variable_value(name, variables, null_aware=null_aware))
 
     out = HASH_NAME_RE.sub(repl_name, out)
 
@@ -382,6 +410,14 @@ def _fanuc_xor(left: float, right: float) -> float:
     return float(int(left) ^ int(right))
 
 
+def _fanuc_and(left: float, right: float) -> float:
+    return float(int(left) & int(right))
+
+
+def _fanuc_or(left: float, right: float) -> float:
+    return float(int(left) | int(right))
+
+
 SAFE_FUNCS = {
     "ABS": abs,
     "SQRT": math.sqrt,
@@ -390,12 +426,16 @@ SAFE_FUNCS = {
     "TAN": lambda x: math.tan(math.radians(x)),
     "ATAN": lambda x: math.degrees(math.atan(x)),
     "ATAN2": lambda y, x: math.degrees(math.atan2(y, x)),
-    "FIX": lambda x: math.floor(x),
-    "FUP": lambda x: math.ceil(x),
+    "FIX": math.trunc,
+    "FUP": lambda x: math.copysign(math.ceil(abs(x)), x),
     "ROUND": _fanuc_round,
     "MIN": min,
     "MAX": max,
     "XOR": _fanuc_xor,
+    "AND": _fanuc_and,
+    "OR": _fanuc_or,
+    "LN": math.log,
+    "EXP": math.exp,
 }
 SAFE_VALUES = {**SAFE_FUNCS, "NULL": MACRO_NULL}
 
@@ -413,14 +453,11 @@ SAFE_NODES = (
     ast.Sub,
     ast.Mult,
     ast.Div,
-    ast.Pow,
     ast.Mod,
-    ast.FloorDiv,
     ast.UAdd,
     ast.USub,
     ast.And,
     ast.Or,
-    ast.Not,
     ast.Eq,
     ast.NotEq,
     ast.Gt,
@@ -432,6 +469,18 @@ SAFE_NODES = (
 
 
 class _FanucExpressionTransformer(ast.NodeTransformer):
+    def visit_Constant(self, node: ast.Constant) -> ast.AST:
+        # Float arithmetic prevents Python arbitrary-precision integer growth.
+        return ast.copy_location(ast.Constant(value=float(node.value)), node)
+
+    def visit_BoolOp(self, node: ast.BoolOp) -> ast.AST:
+        node = self.generic_visit(node)
+        operation = "AND" if isinstance(node.op, ast.And) else "OR"
+        result = node.values[0]
+        for value in node.values[1:]:
+            result = ast.Call(func=ast.Name(id=operation, ctx=ast.Load()), args=[result, value], keywords=[])
+        return ast.copy_location(result, node)
+
     def visit_BinOp(self, node: ast.BinOp) -> ast.AST:
         node = self.generic_visit(node)
         if isinstance(node.op, ast.BitXor):
@@ -446,12 +495,18 @@ class _FanucExpressionTransformer(ast.NodeTransformer):
         return node
 
 
-def _safe_eval(expr: str) -> float:
-    tree = ast.parse(expr, mode="eval")
-    tree = ast.fix_missing_locations(_FanucExpressionTransformer().visit(tree))
-    for node in ast.walk(tree):
+def _validate_expression_tree(tree: ast.AST) -> None:
+    pending, count = [(tree, 0)], 0
+    while pending:
+        node, depth = pending.pop()
+        count += 1
+        if count > MAX_EXPRESSION_NODES or depth > MAX_EXPRESSION_DEPTH:
+            raise ValueError("Macro B expression complexity limit exceeded")
+        pending.extend((child, depth + 1) for child in ast.iter_child_nodes(node))
         if not isinstance(node, SAFE_NODES):
             raise ValueError(f"Unsupported expression node: {type(node).__name__}")
+        if isinstance(node, ast.Constant):
+            _validate_numeric_constant(node.value)
         if isinstance(node, ast.Call):
             if not isinstance(node.func, ast.Name):
                 raise ValueError("Unsupported call target")
@@ -460,6 +515,19 @@ def _safe_eval(expr: str) -> float:
         if isinstance(node, ast.Name) and node.id not in SAFE_VALUES:
             raise ValueError(f"Unsupported name: {node.id}")
 
+
+def _validate_numeric_constant(value) -> None:
+    if type(value) not in (int, float):
+        raise ValueError("Macro B constants must be numeric")
+    if not math.isfinite(float(value)):
+        raise ValueError("Non-finite numeric constant")
+
+
+def _safe_eval(expr: str) -> float:
+    tree = ast.parse(expr, mode="eval")
+    _validate_expression_tree(tree)
+    tree = ast.fix_missing_locations(_FanucExpressionTransformer().visit(tree))
+    _validate_expression_tree(tree)
     value = eval(compile(tree, "<expr>", "eval"), {"__builtins__": {}}, SAFE_VALUES)
     if isinstance(value, bool):
         return 1.0 if value else 0.0
@@ -471,7 +539,21 @@ def _safe_eval(expr: str) -> float:
     return value
 
 
+def _check_expression_limits(expr: str) -> None:
+    if len(expr) > MAX_EXPRESSION_SIZE:
+        raise ValueError("Macro B expression size limit exceeded")
+    depth = 0
+    for character in expr:
+        if character in "[(":
+            depth += 1
+            if depth > MAX_EXPRESSION_DEPTH:
+                raise ValueError("Macro B expression nesting limit exceeded")
+        elif character in "])":
+            depth -= 1
+
+
 def evaluate_expression(expr: str, variables: dict[str, float], *, null_aware: bool = False) -> float | _MacroNull:
+    _check_expression_limits(expr)
     raw = expr.strip()
     if not raw:
         return 0.0
@@ -487,6 +569,7 @@ def evaluate_expression(expr: str, variables: dict[str, float], *, null_aware: b
 
 def validate_expression_syntax(expr: str) -> None:
     """Validate a Macro B expression without requiring runtime variable values."""
+    _check_expression_limits(expr)
     raw = expr.strip()
     if not raw:
         raise ValueError("Empty expression")

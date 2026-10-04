@@ -1,0 +1,9 @@
+; Compact native TCP fixture; incremental C, no DC/CUT3DC/FL.
+G710 G17 G90 G94
+TRAORI
+G0 X10 Y0 Z5 A=0 C=0
+G1 Z0 A=10 F300
+G3 X0 Y10 CR=10 A=20 C=IC(90)
+G1 X-10 Y10 A=30 C=IC(90)
+TRAFOOF
+M30

@@ -1,1266 +1,1356 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta
-      name="description"
-      content="Edit turning and milling programs, calculate toolpaths and inspect tool motion in a 3D scene. Supports FANUC and a subset of SINUMERIK 840D commands."
-    />
-    <meta name="theme-color" content="#151619" />
-    <title>Easy G-Code Plot — CNC program editor and toolpath viewer</title>
-    <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="alternate" hreflang="en" href="index.html" />
-    <link rel="alternate" hreflang="ru" href="ru/index.html" />
-    <script src="downloads.js" defer></script>
-  </head>
 
-  <body>
-    <a class="skip" href="#main">Skip to content</a>
-    <header class="site-header">
-      <div class="container header-inner">
-        <a class="brand" href="index.html"
-          ><img src="assets/logo.svg" width="36" height="36" alt="" /><span
-            >Easy G-Code Plot</span
-          ></a
-        >
-        <nav aria-label="Main navigation">
-          <a href="#capabilities">Supported commands</a
-          ><a href="#visualization">Interface</a
-          ><a href="#execution">Calculation</a
-          ><a href="#automation">CLI & export</a>
-        </nav>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description"
+    content="Edit turning and milling programs, calculate toolpaths and inspect tool motion in a 3D scene. Supports FANUC and a subset of SINUMERIK 840D commands." />
+  <meta name="theme-color" content="#151619" />
+  <title>Easy G-Code Plot — CNC program editor and toolpath viewer</title>
+  <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="alternate" hreflang="en" href="index.html" />
+  <link rel="alternate" hreflang="ru" href="ru/index.html" />
+  <script src="downloads.js" defer></script>
+</head>
+
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="container header-inner">
+      <a class="brand" href="index.html"><img src="assets/logo.svg" width="36" height="36" alt="" /><span>Easy G-Code
+          Plot</span></a>
+      <nav aria-label="Main navigation">
+        <a href="#capabilities">Supported commands</a><a href="#visualization">Interface</a><a
+          href="#execution">Calculation</a><a href="#statistics">Statistics</a><a href="#automation">CLI &amp; batch</a>
+      </nav>
+    </div>
+  </header>
+  <main id="main" class="container">
+    <section class="hero" aria-labelledby="hero-title">
+      <p class="eyebrow">Windows / Linux <span>·</span> GUI / CLI</p>
+      <h1 id="hero-title">CNC program editor and toolpath viewer</h1>
+      <p class="lead">
+        Edit turning and milling programs, calculate toolpaths and inspect
+        tool motion in a 3D scene. Supports FANUC and a subset of SINUMERIK
+        840D commands.
+        Analyze folders of programs, compare tool statistics and prepare exports with the same calculation kernel.
+      </p>
+      <ul class="tags">
+        <li>FANUC G-code</li>
+        <li>FANUC Macro B</li>
+        <li>SINUMERIK 840D</li>
+        <li>HTML Statistics Reports</li>
+        <li>Batch Analysis &amp; Export</li>
+        <li>STL Models &amp; DXF Export</li>
+        <li>Pocket &amp; Hole Coordinate Generators</li>
+      </ul>
+      <div class="actions">
+        <a class="button primary" data-windows-download="gui"
+          href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">Download for Windows</a><a
+          class="button" data-windows-download="cli"
+          href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe">Download
+          CLI for Windows</a><a class="button"
+          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md">Documentation</a><a
+          class="text-link" href="https://github.com/MaestroFusion360/easy_gcode_plot">GitHub</a>
       </div>
-    </header>
-    <main id="main" class="container">
-      <section class="hero" aria-labelledby="hero-title">
-        <p class="eyebrow">Windows / Linux <span>·</span> GUI / CLI</p>
-        <h1 id="hero-title">CNC program editor and toolpath viewer</h1>
-        <p class="lead">
-          Edit turning and milling programs, calculate toolpaths and inspect
-          tool motion in a 3D scene. Supports FANUC and a subset of SINUMERIK
-          840D commands.
-        </p>
-        <ul class="tags">
-          <li>FANUC G-code</li>
-          <li>FANUC Macro B</li>
-          <li>SINUMERIK 840D</li>
-          <li>STL Models &amp; DXF Export</li>
-          <li>Pocket &amp; Hole Coordinate Generators</li>
-        </ul>
-        <div class="actions">
-          <a
-            class="button primary"
-            data-windows-download="gui"
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
-            >Download for Windows</a
-          ><a
-            class="button"
-            data-windows-download="cli"
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe"
-            >Download CLI for Windows</a
-          ><a
-            class="button"
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md"
-            >Documentation</a
-          ><a
-            class="text-link"
-            href="https://github.com/MaestroFusion360/easy_gcode_plot"
-            >GitHub</a
-          >
-        </div>
-        <p class="note">
-          Linux builds are also available on the
-          <a
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
-            >release page</a
-          >.
-        </p>
-        <figure class="hero-image">
-          <img
-            src="assets/img2.gif"
-            width="1280"
-            height="640"
-            alt="Milling toolpath in Easy G-Code Plot"
-            fetchpriority="high"
-            decoding="async"
-          />
-          <figcaption>Program editor and 3D toolpath view</figcaption>
-        </figure>
-      </section>
-      <section id="capabilities" class="section">
-        <div class="section-heading">
-          <h2>Supported commands and cycles</h2>
-        </div>
-        <div class="controller-reference">
-          <h3>FANUC Turning — Type A / Type B</h3>
-          <details class="code-table">
-            <summary>FANUC Turning Type A / Type B</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="FANUC Turning Type A / Type B"
-              tabindex="0"
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Operation</th>
-                    <th scope="col">Type A</th>
-                    <th scope="col">Type B</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Rapid</td>
-                    <td>G00</td>
-                    <td>G00</td>
-                  </tr>
-                  <tr>
-                    <td>Linear</td>
-                    <td>G01</td>
-                    <td>G01</td>
-                  </tr>
-                  <tr>
-                    <td>Arc CW</td>
-                    <td>G02</td>
-                    <td>G02</td>
-                  </tr>
-                  <tr>
-                    <td>Arc CCW</td>
-                    <td>G03</td>
-                    <td>G03</td>
-                  </tr>
-                  <tr>
-                    <td>Dwell</td>
-                    <td>G04</td>
-                    <td>G04</td>
-                  </tr>
-                  <tr>
-                    <td>Thread cutting</td>
-                    <td>G32</td>
-                    <td>G33</td>
-                  </tr>
-                  <tr>
-                    <td>Coordinate system / spindle clamp</td>
-                    <td>G50</td>
-                    <td>G92</td>
-                  </tr>
-                  <tr>
-                    <td>Finish cycle</td>
-                    <td>G70</td>
-                    <td>G70</td>
-                  </tr>
-                  <tr>
-                    <td>Rough turning</td>
-                    <td>G71</td>
-                    <td>G71</td>
-                  </tr>
-                  <tr>
-                    <td>Rough facing</td>
-                    <td>G72</td>
-                    <td>G72</td>
-                  </tr>
-                  <tr>
-                    <td>Pattern repeating</td>
-                    <td>G73</td>
-                    <td>G73</td>
-                  </tr>
-                  <tr>
-                    <td>Face peck drilling</td>
-                    <td>G74</td>
-                    <td>G74</td>
-                  </tr>
-                  <tr>
-                    <td>OD/ID grooving</td>
-                    <td>G75</td>
-                    <td>G75</td>
-                  </tr>
-                  <tr>
-                    <td>Multiple threading</td>
-                    <td>G76</td>
-                    <td>G76</td>
-                  </tr>
-                  <tr>
-                    <td>Turning canned cycle</td>
-                    <td>G90</td>
-                    <td>G77</td>
-                  </tr>
-                  <tr>
-                    <td>Threading canned cycle</td>
-                    <td>G92</td>
-                    <td>G78</td>
-                  </tr>
-                  <tr>
-                    <td>Facing canned cycle</td>
-                    <td>G94</td>
-                    <td>G79</td>
-                  </tr>
-                  <tr>
-                    <td>Feed per minute</td>
-                    <td>G98</td>
-                    <td>G94</td>
-                  </tr>
-                  <tr>
-                    <td>Feed per revolution</td>
-                    <td>G99</td>
-                    <td>G95</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <details class="code-table">
-            <summary>Turning cycles</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="Turning cycles"
-              tabindex="0"
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Type A</th>
-                    <th scope="col">Type B</th>
-                    <th scope="col">Purpose in the kernel</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>G70</td>
-                    <td>G70</td>
-                    <td>P-Q finishing contour</td>
-                  </tr>
-                  <tr>
-                    <td>G71</td>
-                    <td>G71</td>
-                    <td>Longitudinal roughing</td>
-                  </tr>
-                  <tr>
-                    <td>G72</td>
-                    <td>G72</td>
-                    <td>Facing roughing</td>
-                  </tr>
-                  <tr>
-                    <td>G73</td>
-                    <td>G73</td>
-                    <td>Pattern-repeat roughing</td>
-                  </tr>
-                  <tr>
-                    <td>G74</td>
-                    <td>G74</td>
-                    <td>Z peck / face grooving</td>
-                  </tr>
-                  <tr>
-                    <td>G75</td>
-                    <td>G75</td>
-                    <td>X peck / radial grooving</td>
-                  </tr>
-                  <tr>
-                    <td>G76</td>
-                    <td>G76</td>
-                    <td>Two-line multipass threading</td>
-                  </tr>
-                  <tr>
-                    <td>G83</td>
-                    <td>G83</td>
-                    <td>Axial peck drilling</td>
-                  </tr>
-                  <tr>
-                    <td>G84</td>
-                    <td>G84</td>
-                    <td>Axial tapping</td>
-                  </tr>
-                  <tr>
-                    <td>G90</td>
-                    <td>G77</td>
-                    <td>Modal longitudinal turning cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G92</td>
-                    <td>G78</td>
-                    <td>Modal threading cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G94</td>
-                    <td>G79</td>
-                    <td>Modal facing cycle</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <details class="code-table">
-            <summary>Cycle behavior</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="Turning cycle behavior"
-              tabindex="0"
-            >
-              <table class="cycle-description">
-                <thead>
-                  <tr>
-                    <th scope="col">Cycle</th>
-                    <th scope="col">Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row"><code>G70</code></th>
-                    <td>
-                      <p>
-                        <code>G70 P... Q...</code> builds the referenced finish
-                        contour and approaches it from the actual G70 call
-                        position.
-                      </p>
-                      <p>
-                        The finish path is based on the nominal P-Q profile, not
-                        the roughing-offset profile used by G71/G72/G73.
-                      </p>
-                      <p>
-                        If tool-nose compensation is active and can be verified,
-                        the finishing contour uses the compensated profile.
-                      </p>
-                      <p>
-                        After the finish group, the cycle returns to the saved
-                        call position using the project's deterministic turning
-                        return order.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G71</code></th>
-                    <td>
-                      <p>The common two-line FANUC form is modeled:</p>
-                      <pre><code class="language-text">G71 U... R...
+      <p class="note">
+        Linux builds are also available on the
+        <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">release page</a>.
+      </p>
+      <figure class="hero-image">
+        <img src="assets/img2.gif" width="1280" height="640" alt="Milling toolpath in Easy G-Code Plot"
+          fetchpriority="high" decoding="async" />
+        <figcaption>Program editor and 3D toolpath view</figcaption>
+      </figure>
+    </section>
+    <section id="capabilities" class="section">
+      <div class="section-heading">
+        <h2>Supported commands and cycles</h2>
+      </div>
+      <div class="controller-reference">
+        <h3>FANUC Turning — Type A / Type B</h3>
+        <details class="code-table">
+          <summary>FANUC Turning Type A / Type B</summary>
+          <div class="table-wrap" role="region" aria-label="FANUC Turning Type A / Type B" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Operation</th>
+                  <th scope="col">Type A</th>
+                  <th scope="col">Type B</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Rapid</td>
+                  <td>G00</td>
+                  <td>G00</td>
+                </tr>
+                <tr>
+                  <td>Linear</td>
+                  <td>G01</td>
+                  <td>G01</td>
+                </tr>
+                <tr>
+                  <td>Arc CW</td>
+                  <td>G02</td>
+                  <td>G02</td>
+                </tr>
+                <tr>
+                  <td>Arc CCW</td>
+                  <td>G03</td>
+                  <td>G03</td>
+                </tr>
+                <tr>
+                  <td>Dwell</td>
+                  <td>G04</td>
+                  <td>G04</td>
+                </tr>
+                <tr>
+                  <td>Thread cutting</td>
+                  <td>G32</td>
+                  <td>G33</td>
+                </tr>
+                <tr>
+                  <td>Coordinate system / spindle clamp</td>
+                  <td>G50</td>
+                  <td>G92</td>
+                </tr>
+                <tr>
+                  <td>Finish cycle</td>
+                  <td>G70</td>
+                  <td>G70</td>
+                </tr>
+                <tr>
+                  <td>Rough turning</td>
+                  <td>G71</td>
+                  <td>G71</td>
+                </tr>
+                <tr>
+                  <td>Rough facing</td>
+                  <td>G72</td>
+                  <td>G72</td>
+                </tr>
+                <tr>
+                  <td>Pattern repeating</td>
+                  <td>G73</td>
+                  <td>G73</td>
+                </tr>
+                <tr>
+                  <td>Face peck drilling</td>
+                  <td>G74</td>
+                  <td>G74</td>
+                </tr>
+                <tr>
+                  <td>OD/ID grooving</td>
+                  <td>G75</td>
+                  <td>G75</td>
+                </tr>
+                <tr>
+                  <td>Multiple threading</td>
+                  <td>G76</td>
+                  <td>G76</td>
+                </tr>
+                <tr>
+                  <td>Turning canned cycle</td>
+                  <td>G90</td>
+                  <td>G77</td>
+                </tr>
+                <tr>
+                  <td>Threading canned cycle</td>
+                  <td>G92</td>
+                  <td>G78</td>
+                </tr>
+                <tr>
+                  <td>Facing canned cycle</td>
+                  <td>G94</td>
+                  <td>G79</td>
+                </tr>
+                <tr>
+                  <td>Feed per minute</td>
+                  <td>G98</td>
+                  <td>G94</td>
+                </tr>
+                <tr>
+                  <td>Feed per revolution</td>
+                  <td>G99</td>
+                  <td>G95</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="code-table">
+          <summary>Turning cycles</summary>
+          <div class="table-wrap" role="region" aria-label="Turning cycles" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Type A</th>
+                  <th scope="col">Type B</th>
+                  <th scope="col">Purpose in the kernel</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>G70</td>
+                  <td>G70</td>
+                  <td>P-Q finishing contour</td>
+                </tr>
+                <tr>
+                  <td>G71</td>
+                  <td>G71</td>
+                  <td>Longitudinal roughing</td>
+                </tr>
+                <tr>
+                  <td>G72</td>
+                  <td>G72</td>
+                  <td>Facing roughing</td>
+                </tr>
+                <tr>
+                  <td>G73</td>
+                  <td>G73</td>
+                  <td>Pattern-repeat roughing</td>
+                </tr>
+                <tr>
+                  <td>G74</td>
+                  <td>G74</td>
+                  <td>Z peck / face grooving</td>
+                </tr>
+                <tr>
+                  <td>G75</td>
+                  <td>G75</td>
+                  <td>X peck / radial grooving</td>
+                </tr>
+                <tr>
+                  <td>G76</td>
+                  <td>G76</td>
+                  <td>Two-line multipass threading</td>
+                </tr>
+                <tr>
+                  <td>G83</td>
+                  <td>G83</td>
+                  <td>Axial peck drilling</td>
+                </tr>
+                <tr>
+                  <td>G84</td>
+                  <td>G84</td>
+                  <td>Axial tapping</td>
+                </tr>
+                <tr>
+                  <td>G90</td>
+                  <td>G77</td>
+                  <td>Modal longitudinal turning cycle</td>
+                </tr>
+                <tr>
+                  <td>G92</td>
+                  <td>G78</td>
+                  <td>Modal threading cycle</td>
+                </tr>
+                <tr>
+                  <td>G94</td>
+                  <td>G79</td>
+                  <td>Modal facing cycle</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="code-table">
+          <summary>Cycle behavior</summary>
+          <div class="table-wrap" role="region" aria-label="Turning cycle behavior" tabindex="0">
+            <table class="cycle-description">
+              <thead>
+                <tr>
+                  <th scope="col">Cycle</th>
+                  <th scope="col">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><code>G70</code></th>
+                  <td>
+                    <p>
+                      <code>G70 P... Q...</code> builds the referenced finish
+                      contour and approaches it from the actual G70 call
+                      position.
+                    </p>
+                    <p>
+                      The finish path is based on the nominal P-Q profile, not
+                      the roughing-offset profile used by G71/G72/G73.
+                    </p>
+                    <p>
+                      If tool-nose compensation is active and can be verified,
+                      the finishing contour uses the compensated profile.
+                    </p>
+                    <p>
+                      After the finish group, the cycle returns to the saved
+                      call position using the project's deterministic turning
+                      return order.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G71</code></th>
+                  <td>
+                    <p>The common two-line FANUC form is modeled:</p>
+                    <pre><code class="language-text">G71 U... R...
 G71 P... Q... U... W... F...
 </code></pre>
-                      <p>
-                        The first line captures rough depth and retract. The
-                        second line supplies the P-Q profile, finishing
-                        allowances and feed.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G72</code></th>
-                    <td>
-                      <p>
-                        G72 uses the same P-Q profile infrastructure as G71 but
-                        performs facing roughing in Z planes.
-                      </p>
-                      <p>Typical two-line form:</p>
-                      <pre><code class="language-text">G72 W... R...
+                    <p>
+                      The first line captures rough depth and retract. The
+                      second line supplies the P-Q profile, finishing
+                      allowances and feed. After the final contour pass,
+                      retract by R, return along Z, then return X to the cycle start.
+                      Curved contour sections remain analytical arcs through allowance calculation
+                      and Type I pass generation. A configured turning tool's nose radius and
+                      tip orientation are used in roughing; without a tool table, geometry is nominal.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G72</code></th>
+                  <td>
+                    <p>
+                      G72 uses the same P-Q profile infrastructure as G71 but
+                      performs facing roughing in Z planes.
+                    </p>
+                    <p>Typical two-line form:</p>
+                    <pre><code class="language-text">G72 W... R...
 G72 P... Q... U... W... F...
 </code></pre>
-                      <p>
-                        The first line captures axial depth and retract. The
-                        second line references the profile and finishing
-                        allowances.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G73</code></th>
-                    <td>
-                      <p>
-                        G73 is implemented as repeated shifted copies of the
-                        roughing profile.
-                      </p>
-                      <p>
-                        The first line captures the total U/W pattern
-                        displacement and the R pass count. The second line
-                        provides P/Q, finish allowances and feed.
-                      </p>
-                      <p>
-                        The signs of programmed U/W are preserved. The cycle
-                        does not infer displacement direction from where the
-                        tool happened to approach the contour.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G74</code></th>
-                    <td>
-                      <p>
-                        G74 supports Z-direction peck behavior and face-grooving
-                        style repetition.
-                      </p>
-                      <p>
-                        A first block containing R alone can establish the
-                        retract distance. The executing block can use X/U and
-                        Z/W plus P/Q/R/F parameters.
-                      </p>
-                      <p>
-                        If no X target is supplied, G74 can operate as a
-                        drilling-style Z peck at the current X.
-                      </p>
-                      <p>
-                        When X repetition is requested, P controls the X step
-                        and Q controls Z peck depth. The cycle returns to its
-                        saved start using an explicit Z-first return order.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G75</code></th>
-                    <td>
-                      <p>G75 performs X-direction peck/radial grooving.</p>
-                      <p>
-                        P controls the radial peck step. Q can repeat grooves
-                        along Z. If Q is omitted, a programmed Z/W selects one
-                        groove location rather than being treated as an invalid
-                        zero-step repetition.
-                      </p>
-                      <p>
-                        The R value from the setup block controls retract
-                        distance, and the executing-block R value is handled as
-                        the bottom allowance where applicable.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G76</code></th>
-                    <td>
-                      <p>The modeled form is FANUC-style two-line G76:</p>
-                      <pre><code class="language-text">G76 P...... Q... R...
+                    <p>
+                      The first line captures axial depth and retract. The
+                      second line references the profile and finishing
+                      allowances.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G73</code></th>
+                  <td>
+                    <p>
+                      G73 is implemented as repeated shifted copies of the
+                      roughing profile.
+                    </p>
+                    <p>
+                      The first line captures the total U/W pattern
+                      displacement and the R pass count. The second line
+                      provides P/Q, finish allowances and feed.
+                    </p>
+                    <p>
+                      The signs of programmed U/W are preserved. The cycle
+                      does not infer displacement direction from where the
+                      tool happened to approach the contour.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G74</code></th>
+                  <td>
+                    <p>
+                      G74 supports Z-direction peck behavior and face-grooving
+                      style repetition.
+                    </p>
+                    <p>
+                      A first block containing R alone can establish the
+                      retract distance. The executing block can use X/U and
+                      Z/W plus P/Q/R/F parameters.
+                    </p>
+                    <p>
+                      If no X target is supplied, G74 can operate as a
+                      drilling-style Z peck at the current X.
+                    </p>
+                    <p>
+                      When X repetition is requested, P controls the X step
+                      and Q controls Z peck depth. The cycle returns to its
+                      saved start using an explicit Z-first return order.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G75</code></th>
+                  <td>
+                    <p>G75 performs X-direction peck/radial grooving.</p>
+                    <p>
+                      P controls the radial peck step. Q can repeat grooves
+                      along Z. If Q is omitted, a programmed Z/W selects one
+                      groove location rather than being treated as an invalid
+                      zero-step repetition.
+                    </p>
+                    <p>
+                      The R value from the setup block controls retract
+                      distance, and the executing-block R value is handled as
+                      the bottom allowance where applicable.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G76</code></th>
+                  <td>
+                    <p>The modeled form is FANUC-style two-line G76:</p>
+                    <pre><code class="language-text">G76 P...... Q... R...
 G76 X... Z... P... Q... R... F...
 </code></pre>
-                      <p>The first block stores:</p>
-                      <ul>
-                        <li>packed P control digits;</li>
-                        <li>minimum radial increment Q;</li>
-                        <li>optional finish allowance R.</li>
-                      </ul>
-                      <p>The second block supplies:</p>
-                      <ul>
-                        <li>final thread X;</li>
-                        <li>final Z;</li>
-                        <li>thread height P;</li>
-                        <li>first cut Q;</li>
-                        <li>optional taper R;</li>
-                        <li>lead F.</li>
-                      </ul>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G83</code></th>
-                    <td>
-                      <p>G83 is an axial Z drilling cycle.</p>
-                      <ul>
-                        <li>If Q is supplied, Z pecks are generated.</li>
-                        <li>
-                          If Q is absent, the kernel does not invent peck depth;
-                          it emits one feed stroke to depth and a rapid return.
-                        </li>
-                        <li>
-                          Optional X positioning is handled before the axial
-                          stroke and restored afterward.
-                        </li>
-                      </ul>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G84</code></th>
-                    <td>
-                      <p>
-                        G84 is an axial tapping cycle. The downstroke and return
-                        are synchronized feed motions; the return is not
-                        represented as a rapid move.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G90</code></th>
-                    <td>
-                      <p>
-                        Yes. G90 establishes a longitudinal rectangular turning
-                        cycle. Subsequent X/U-only blocks can continue the
-                        active cycle at new diameters until cancellation by
-                        another explicit motion/cycle code.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G92</code></th>
-                    <td>
-                      <p>Example:</p>
-                      <pre><code class="language-text">G92 X18 Z-10 F1.5
+                    <p>The first block stores:</p>
+                    <ul>
+                      <li>packed P control digits;</li>
+                      <li>minimum radial increment Q;</li>
+                      <li>optional finish allowance R.</li>
+                    </ul>
+                    <p>The second block supplies:</p>
+                    <ul>
+                      <li>final thread X;</li>
+                      <li>final Z;</li>
+                      <li>thread height P;</li>
+                      <li>first cut Q;</li>
+                      <li>optional taper R;</li>
+                      <li>lead F.</li>
+                    </ul>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G83</code></th>
+                  <td>
+                    <p>G83 is an axial Z drilling cycle.</p>
+                    <ul>
+                      <li>If Q is supplied, Z pecks are generated.</li>
+                      <li>
+                        If Q is absent, the kernel does not invent peck depth;
+                        it emits one feed stroke to depth and a rapid return.
+                      </li>
+                      <li>
+                        Optional X positioning is handled before the axial
+                        stroke and restored afterward.
+                      </li>
+                    </ul>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G84</code></th>
+                  <td>
+                    <p>
+                      G84 is an axial tapping cycle. The downstroke and return
+                      are synchronized feed motions; the return is not
+                      represented as a rapid move.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G90</code></th>
+                  <td>
+                    <p>
+                      Yes. G90 establishes a longitudinal rectangular turning
+                      cycle. Subsequent X/U-only blocks can continue the
+                      active cycle at new diameters until cancellation by
+                      another explicit motion/cycle code.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G92</code></th>
+                  <td>
+                    <p>Example:</p>
+                    <pre><code class="language-text">G92 X18 Z-10 F1.5
 X17.5
 X17.0
 </code></pre>
-                      <p>
-                        The initial G92 establishes the thread end and lead.
-                        Subsequent X/U-only blocks continue the active G92 cycle
-                        with new depths until another explicit motion/cycle mode
-                        cancels it.
-                      </p>
-                      <p>
-                        Each pass expands to approach, synchronized longitudinal
-                        cutting, retract and return primitives.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G94</code></th>
-                    <td>
-                      <p>
-                        Yes. G94 establishes a facing rectangular cycle.
-                        Subsequent Z/W-only blocks can continue the active cycle
-                        at new face positions until cancellation.
-                      </p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <p class="note">
-            G71 Type II supports pocketed profiles conservatively. G72 Type II
-            rejects multiple disjoint spans in one facing plane
-            (UNSUPPORTED_G72_TYPE_II_SPANS). G76 supports tool angles 0°, 29°,
-            30°, 55°, 60° and 80°; other angles produce
-            UNSUPPORTED_G76_TOOL_ANGLE.
-          </p>
-          <p class="note">
-            <a
-              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#turning-cycles"
-              >Parameters and limitations in the FAQ →</a
-            >
-          </p>
-        </div>
-        <div class="controller-reference">
-          <h3>FANUC Mill</h3>
-          <details class="code-table">
-            <summary>Milling G functions</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="Milling G functions"
-              tabindex="0"
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">G code</th>
-                    <th scope="col">Function in the kernel</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>G00</td>
-                    <td>Rapid positioning</td>
-                  </tr>
-                  <tr>
-                    <td>G01</td>
-                    <td>Linear interpolation</td>
-                  </tr>
-                  <tr>
-                    <td>G02 / G03</td>
-                    <td>Clockwise / counterclockwise circular interpolation</td>
-                  </tr>
-                  <tr>
-                    <td>G04</td>
-                    <td>Dwell signal; no spatial motion</td>
-                  </tr>
-                  <tr>
-                    <td>G10</td>
-                    <td>
-                      Program WCS offsets (<code>L2</code>, <code>L20</code>)
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G15 / G16</td>
-                    <td>Cancel / enable polar coordinate programming</td>
-                  </tr>
-                  <tr>
-                    <td>G17 / G18 / G19</td>
-                    <td>Select XY / XZ / YZ plane</td>
-                  </tr>
-                  <tr>
-                    <td>G20 / G21</td>
-                    <td>Inch / millimetre input units</td>
-                  </tr>
-                  <tr>
-                    <td>G28</td>
-                    <td>Reference return using the configured home</td>
-                  </tr>
-                  <tr>
-                    <td>G40 / G41 / G42</td>
-                    <td>Cancel / left / right cutter-radius compensation</td>
-                  </tr>
-                  <tr>
-                    <td>G43 / G49</td>
-                    <td>
-                      Track / cancel tool-length state; G43 does not apply H
-                      geometry to the plotted path
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G43.4</td>
-                    <td>
-                      Continuous TCP linear and rotary motion for the enabled
-                      angled AC/BC table profiles; circular rotary arcs and
-                      combination with G68.2 are unsupported
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G50 / G51</td>
-                    <td>Cancel / enable coordinate scaling</td>
-                  </tr>
-                  <tr>
-                    <td>G52</td>
-                    <td>Local coordinate shift</td>
-                  </tr>
-                  <tr>
-                    <td>G53</td>
-                    <td>Non-modal machine-coordinate motion</td>
-                  </tr>
-                  <tr>
-                    <td>G54–G59</td>
-                    <td>Select work coordinate system</td>
-                  </tr>
-                  <tr>
-                    <td>G54.1 P1–P99</td>
-                    <td>
-                      Parsed and selected; the GUI has no offset setting, so the
-                      offset is zero unless the program sets it with G10 L20
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G65</td>
-                    <td>Call a Macro B program</td>
-                  </tr>
-                  <tr>
-                    <td>G68 / G69</td>
-                    <td>Enable / cancel coordinate rotation</td>
-                  </tr>
-                  <tr>
-                    <td>G68.2 / G53.1</td>
-                    <td>
-                      Tilted working plane / tool-axis orientation (3+2,
-                      <code>fanuc_mill</code> with two-axis table-table,
-                      head-head or head-table kinematics)
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G73</td>
-                    <td>High-speed peck drilling cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G80</td>
-                    <td>Cancel canned cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G81</td>
-                    <td>Drilling cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G82</td>
-                    <td>Drilling cycle with dwell</td>
-                  </tr>
-                  <tr>
-                    <td>G83</td>
-                    <td>Full-retract peck drilling cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G84</td>
-                    <td>Tapping cycle</td>
-                  </tr>
-                  <tr>
-                    <td>G85</td>
-                    <td>Boring cycle with feed return</td>
-                  </tr>
-                  <tr>
-                    <td>G86</td>
-                    <td>Boring cycle with spindle-stop signal</td>
-                  </tr>
-                  <tr>
-                    <td>G90 / G91</td>
-                    <td>Absolute / incremental programming</td>
-                  </tr>
-                  <tr>
-                    <td>G94 / G95</td>
-                    <td>Feed per minute / feed per revolution</td>
-                  </tr>
-                  <tr>
-                    <td>G98 / G99</td>
-                    <td>Return to initial / R plane in canned cycles</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <details class="code-table">
-            <summary>Milling M functions</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="Milling M functions"
-              tabindex="0"
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">M code</th>
-                    <th scope="col">Function in the kernel</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>M00 / M01</td>
-                    <td>Stop / optional-stop signal</td>
-                  </tr>
-                  <tr>
-                    <td>M02 / M30</td>
-                    <td>End program</td>
-                  </tr>
-                  <tr>
-                    <td>M03 / M04 / M05</td>
-                    <td>Spindle clockwise / counterclockwise / stop signals</td>
-                  </tr>
-                  <tr>
-                    <td>M06</td>
-                    <td>Tool-change event for the selected T number</td>
-                  </tr>
-                  <tr>
-                    <td>M07</td>
-                    <td>
-                      Recognized; no machine-specific coolant action is modeled
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>M08 / M09</td>
-                    <td>Coolant on / off signals</td>
-                  </tr>
-                  <tr>
-                    <td>M19</td>
-                    <td>
-                      Spindle-orientation signal; S on this block is an angle,
-                      not spindle RPM
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>M29</td>
-                    <td>
-                      Prepare rigid tapping; S on this block sets spindle RPM
-                      for the following G84
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>M98 / M99</td>
-                    <td>Call / return from subprogram</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <details class="code-table">
-            <summary>Milling cycle behavior</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="Milling cycle behavior"
-              tabindex="0"
-            >
-              <table class="cycle-description">
-                <thead>
-                  <tr>
-                    <th scope="col">Command</th>
-                    <th scope="col">Description</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <th scope="row"><code>G73 / G83</code></th>
-                    <td>
-                      <p>
-                        G73 is high-speed peck drilling with short intermediate
-                        retract behavior. G83 uses the full-retract drilling
-                        behavior modeled by the common drilling layer.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G82</code></th>
-                    <td>
-                      <p>
-                        G82 includes its dwell semantics, but dwell itself does
-                        not create spatial geometry.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G84</code></th>
-                    <td>
-                      <p>
-                        G84 tapping returns from depth as synchronized feed
-                        motion rather than rapid motion.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G86</code></th>
-                    <td>
-                      <p>
-                        The cycle models spindle-stop semantics together with
-                        its drilling motion/return behavior.
-                      </p>
-                    </td>
-                  </tr>
-                  <tr>
-                    <th scope="row"><code>G98 / G99</code></th>
-                    <td>
-                      <p>
-                        For milling canned cycles, G98/G99 select cycle return
-                        behavior. They are not the turning feed-mode meanings of
-                        G98/G99.
-                      </p>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <p class="note">
-            <a
-              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#fanuc-milling"
-              >Parameters and limitations in the FAQ →</a
-            >
-          </p>
-        </div>
-        <div class="controller-reference">
-          <h3>SINUMERIK 840D ISO-M — G291</h3>
-          <details class="code-table">
-            <summary>SINUMERIK ISO-M</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="SINUMERIK ISO-M"
-              tabindex="0"
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">ISO-M function</th>
-                    <th scope="col">Support and limitations</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>G290 / G291</td>
-                    <td>
-                      Standalone blocks select native / ISO-M mode. MPF/SPF
-                      execution starts in native mode.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>XYZ / G90 / G91</td>
-                    <td>
-                      Three-axis positioning, including incremental positioning.
-                      Rotary axes and TCP are unsupported.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G2 / G3 / IJK</td>
-                    <td>
-                      ISO-M uses relative arc centers; native uses absolute
-                      centers. Each arc follows its active controller mode.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G54 P1–P48</td>
-                    <td>
-                      Extended work offsets. Source G54.1 and other decimal G
-                      codes are rejected.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>G50 / G51</td>
-                    <td>Coordinate scaling; G51 uses P/1000 weighting.</td>
-                  </tr>
-                  <tr>
-                    <td>G68 / G69</td>
-                    <td>
-                      Standalone 2D rotation with G90, center axes of the active
-                      plane and R. I/J/K, incremental-angle and 3D-vector forms
-                      are rejected.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Cycles and units</td>
-                    <td>
-                      Common integer milling G codes, unit selection, coordinate
-                      systems and selected canned cycles are accepted within the
-                      ISO-M subset.
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>Macro B / ISO-T</td>
-                    <td>
-                      Macro B program flow and ISO Dialect T are unsupported.
-                      Unsupported ISO functions produce diagnostics.
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <p class="note">
-            <a
-              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input"
-              >Parameters and limitations in the FAQ →</a
-            >
-          </p>
-        </div>
-        <div class="controller-reference">
-          <h3>SINUMERIK 840D native — G290</h3>
-          <details class="code-table">
-            <summary>SINUMERIK native</summary>
-            <div
-              class="table-wrap"
-              role="region"
-              aria-label="SINUMERIK native"
-              tabindex="0"
-            >
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col">Native function</th>
-                    <th scope="col">Current behavior</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <code>G0/G1</code>, <code>G2/G3</code>,
-                      <code>G17/G18/G19</code>
-                    </td>
-                    <td>
-                      XYZ positioning, linear moves and arcs in the selected
-                      plane; <code>CR=</code> radius arcs, including negative
-                      radius for a major arc
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <code>G90/G91</code>, <code>G54–G59</code>,
-                      <code>G710</code>
-                    </td>
-                    <td>
-                      Absolute/incremental coordinates, work offsets and metric
-                      units
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>G40/G41/G42</code></td>
-                    <td>
-                      Modeled cutter-radius compensation using the configured
-                      tool
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <code>T</code>, <code>M6</code>, <code>D0/D1</code>,
-                      <code>S</code>, basic M codes
-                    </td>
-                    <td>
-                      Tool change, modeled cutting-edge selection/cancellation,
-                      spindle and coolant signals; controller-specific offset
-                      tables are not simulated
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>G0 SUPA ... D0</code></td>
-                    <td>
-                      Nonmodal machine-coordinate positioning;
-                      <code>SUPA Z0</code> means machine zero, independently of
-                      the configured home Z
-                    </td>
-                  </tr>
-                  <tr>
-                    <td>
-                      <code>G64</code>, <code>MSG(...)</code>,
-                      <code>WORKPIECE(...)</code>, <code>;</code> comments
-                    </td>
-                    <td>
-                      Path-control/display metadata and comments; no blending or
-                      stock geometry is generated from these declarations
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>MCALL CYCLE81/82/83/84(...)</code></td>
-                    <td>
-                      Modal Z drilling/tapping in <code>G17/G40</code>,
-                      triggered by subsequent XY blocks; bare
-                      <code>MCALL</code> cancels the cycle
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>CYCLE81/82</code></td>
-                    <td>
-                      Drilling and rapid return, with modeled seconds-based
-                      dwell for <code>CYCLE82</code>; safety plane is
-                      <code>RFP + SDIS</code>, return plane is <code>RTP</code>
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>CYCLE83</code></td>
-                    <td>
-                      Modeled first depth, amount degression, minimum peck
-                      depth, chip-breaking/full-retract options and reentry
-                      clearance
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>CYCLE84</code></td>
-                    <td>
-                      Single-pass metric right-hand tapping in <code>G94</code>:
-                      explicit positive <code>PIT</code>,
-                      <code>_PITA=0/1</code>, <code>SDAC=3</code>, Z axis and
-                      positive <code>SST</code> equal to programmed
-                      <code>S</code>; equal <code>SST1</code> or zero/omitted.
-                      Feed = pitch × rpm; feed withdrawal to
-                      <code>RFP+SDIS</code>, rapid return to <code>RTP</code>,
-                      optional dwell in seconds
-                    </td>
-                  </tr>
-                  <tr>
-                    <td><code>CYCLE800()</code></td>
-                    <td>
-                      Empty reset accepted only when no rotary frame is active;
-                      parameterized tilted-plane transformation is not
-                      implemented
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </details>
-          <p class="note">
-            Three-axis XYZ only. Parameterized CYCLE800, TRAORI/TRAFOOF, rotary
-            motion and arbitrary Siemens subprogram calls are unsupported. R
-            parameters support numeric assignments and direct references;
-            arithmetic expressions and Siemens control flow are unsupported.
-            CYCLE84 is limited to single-pass metric right-hand tapping; deep
-            tapping, left-hand tapping and unequal entry/withdrawal speeds
-            produce diagnostics.
-          </p>
-          <p class="note">
-            <a
-              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input"
-              >Parameters and limitations in the FAQ →</a
-            >
-          </p>
-        </div>
-      </section>
-      <section id="visualization" class="section">
-        <div class="section-heading">
-          <h2>Interface and tools</h2>
-        </div>
-        <article class="story">
-          <figure>
-            <img
-              width="1280"
-              height="720"
-              src="assets/impeller.gif"
-              alt="Toolpath playback and STL models"
-              loading="lazy"
-              decoding="async"
-            />
-          </figure>
-          <div>
-            <h3>Toolpath playback and STL models</h3>
-            <p>
-              Step through tool motions and navigate to the corresponding source
-              line. Load ASCII or binary STL models; position, rotate, copy and
-              section them in the same scene.
-            </p>
+                    <p>
+                      The initial G92 establishes the thread end and lead.
+                      Subsequent X/U-only blocks continue the active G92 cycle
+                      with new depths until another explicit motion/cycle mode
+                      cancels it.
+                    </p>
+                    <p>
+                      Each pass expands to approach, synchronized longitudinal
+                      cutting, retract and return primitives.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G94</code></th>
+                  <td>
+                    <p>
+                      Yes. G94 establishes a facing rectangular cycle.
+                      Subsequent Z/W-only blocks can continue the active cycle
+                      at new face positions until cancellation.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
-        </article>
-        <article class="story">
-          <figure>
-            <img
-              width="1280"
-              height="720"
-              src="assets/stock_removal.gif"
-              alt="Turning stock removal"
-              loading="lazy"
-              decoding="async"
-            />
-          </figure>
-          <div>
-            <h3>Turning stock removal</h3>
-            <p>
-              Material removal is calculated from tool geometry and the executed
-              toolpath. Supports external, internal and face turning, grooves
-              and thread profiles. Playback can move forward and backward.
-            </p>
-          </div>
-        </article>
-        <article class="story">
-          <figure>
-            <img
-              width="1280"
-              height="720"
-              src="assets/4ax_table.gif"
-              alt="Rotary axes"
-              loading="lazy"
-              decoding="async"
-            />
-          </figure>
-          <div>
-            <h3>Rotary axes</h3>
-            <p>
-              A/B/C table profiles, indexed 3+2 machining with G68.2/G53.1 and a
-              supported subset of G43.4 TCP motion. The selected kinematics
-              profile determines the displayed toolpath.
-            </p>
-          </div>
-        </article>
-        <div class="feature-grid">
-          <article>
-            <h3>Editor</h3>
-            <p>
-              Syntax highlighting, search and replace, block numbering, block
-              skip, snippets, tool-change navigation and macro variable
-              inspection.
-            </p>
-          </article>
-          <article>
-            <h3>Tool library</h3>
-            <p>
-              Turning and milling tool geometry, a saved SQLite library and a
-              separate tool set for the current program.
-            </p>
-          </article>
-          <article>
-            <h3>Geometry generators</h3>
-            <p>
-              Circular and rectangular hole patterns and pockets with a preview.
-            </p>
-          </article>
-        </div>
-      </section>
-      <section id="execution" class="section">
-        <div class="section-heading">
-          <h2>Toolpath calculation</h2>
-        </div>
-        <div class="prose">
-          <p>
-            The kernel evaluates program flow, variables, cycles, coordinate
-            systems and tool compensation. The resulting moves are used by the
-            3D view, playback, statistics and export. The desktop interface and
-            CLI use the same calculation kernel.
-          </p>
-          <p>
-            When an unsupported command affects the tool position, the kernel
-            reports a diagnostic and marks the result as incomplete. The
-            application models toolpath geometry; it does not simulate all
-            physical processes of a CNC machine.
-          </p>
-        </div>
-      </section>
-      <section id="automation" class="section">
-        <div class="section-heading">
-          <h2>Export and CLI</h2>
-        </div>
-        <div class="feature-grid">
-          <article>
-            <h3>NC</h3>
-            <p>
-              Full Program preserves the source structure within the supported
-              export scope. Expanded Execution exports calculated moves after
-              expanding cycles, macros and subprograms.
-            </p>
-          </article>
-          <article>
-            <h3>DXF / Plot Data</h3>
-            <p>
-              Export calculated toolpath geometry to DXF or motion data to Plot
-              Data.
-            </p>
-          </article>
-          <article>
-            <h3>Command line</h3>
-            <p>
-              parse, trace, analyze and export process individual programs.
-              batch and batch-export process directory trees and produce
-              reports.
-            </p>
-          </article>
-        </div>
+        </details>
         <p class="note">
-          <a
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/README.md#cli"
-            >CLI commands and examples →</a
-          >
+          G71 Type II supports pocketed profiles conservatively. G72 Type II
+          rejects multiple disjoint spans in one facing plane
+          (UNSUPPORTED_G72_TYPE_II_SPANS). G76 supports tool angles 0°, 29°,
+          30°, 55°, 60° and 80°; other angles produce
+          UNSUPPORTED_G76_TOOL_ANGLE.
         </p>
-      </section>
-      <section id="documentation" class="download">
+        <p class="note">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#turning-cycles">Parameters and
+            limitations in the FAQ →</a>
+        </p>
+      </div>
+      <div class="controller-reference">
+        <h3>FANUC Mill</h3>
+        <details class="code-table">
+          <summary>Milling G functions</summary>
+          <div class="table-wrap" role="region" aria-label="Milling G functions" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">G code</th>
+                  <th scope="col">Function in the kernel</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>G00</td>
+                  <td>Rapid positioning</td>
+                </tr>
+                <tr>
+                  <td>G01</td>
+                  <td>Linear interpolation</td>
+                </tr>
+                <tr>
+                  <td>G02 / G03</td>
+                  <td>Clockwise / counterclockwise circular interpolation</td>
+                </tr>
+                <tr>
+                  <td>G04</td>
+                  <td>Dwell signal; no spatial motion</td>
+                </tr>
+                <tr>
+                  <td>G10</td>
+                  <td>
+                    Program WCS offsets (<code>L2</code>, <code>L20</code>)
+                  </td>
+                </tr>
+                <tr>
+                  <td>G15 / G16</td>
+                  <td>Cancel / enable polar coordinate programming</td>
+                </tr>
+                <tr>
+                  <td>G17 / G18 / G19</td>
+                  <td>Select XY / XZ / YZ plane</td>
+                </tr>
+                <tr>
+                  <td>G20 / G21</td>
+                  <td>Inch / millimetre input units</td>
+                </tr>
+                <tr>
+                  <td>G28</td>
+                  <td>Reference return using the configured home</td>
+                </tr>
+                <tr>
+                  <td>G40 / G41 / G42</td>
+                  <td>Cancel / left / right cutter-radius compensation</td>
+                </tr>
+                <tr>
+                  <td>G43 / G49</td>
+                  <td>
+                    Track / cancel tool-length state; G43 does not apply H
+                    geometry to the plotted path
+                  </td>
+                </tr>
+                <tr>
+                  <td>G43.4</td>
+                  <td>
+                    TCP G0/G1/G2/G3 motion on the angled AC/BC table profiles,
+                    including Cartesian arcs with rotary interpolation;
+                    combination with G68.2 remains unsupported
+                  </td>
+                </tr>
+                <tr>
+                  <td>G50 / G51</td>
+                  <td>Cancel / enable coordinate scaling</td>
+                </tr>
+                <tr>
+                  <td>G52</td>
+                  <td>Local coordinate shift</td>
+                </tr>
+                <tr>
+                  <td>G53</td>
+                  <td>Non-modal machine-coordinate motion</td>
+                </tr>
+                <tr>
+                  <td>G54–G59</td>
+                  <td>Select work coordinate system</td>
+                </tr>
+                <tr>
+                  <td>G54.1 P1–P99</td>
+                  <td>
+                    Parsed and selected; the GUI has no offset setting, so the
+                    offset is zero unless the program sets it with G10 L20
+                  </td>
+                </tr>
+                <tr>
+                  <td>G65</td>
+                  <td>Call a Macro B program; expressions support bitwise AND/OR/XOR and LN/EXP</td>
+                </tr>
+                <tr>
+                  <td>G68 / G69</td>
+                  <td>Enable / cancel coordinate rotation</td>
+                </tr>
+                <tr>
+                  <td>G68.2 / G53.1</td>
+                  <td>
+                    Tilted working plane / tool-axis orientation (3+2,
+                    <code>fanuc_mill</code> with two-axis table-table,
+                    head-head or head-table kinematics)
+                  </td>
+                </tr>
+                <tr>
+                  <td>G73</td>
+                  <td>High-speed peck drilling cycle</td>
+                </tr>
+                <tr>
+                  <td>G80</td>
+                  <td>Cancel canned cycle</td>
+                </tr>
+                <tr>
+                  <td>G81</td>
+                  <td>Drilling cycle</td>
+                </tr>
+                <tr>
+                  <td>G82</td>
+                  <td>Drilling cycle with dwell</td>
+                </tr>
+                <tr>
+                  <td>G83</td>
+                  <td>Full-retract peck drilling cycle</td>
+                </tr>
+                <tr>
+                  <td>G84</td>
+                  <td>Tapping cycle</td>
+                </tr>
+                <tr>
+                  <td>G85</td>
+                  <td>Boring cycle with feed return</td>
+                </tr>
+                <tr>
+                  <td>G86</td>
+                  <td>Boring cycle with spindle-stop signal</td>
+                </tr>
+                <tr>
+                  <td>G90 / G91</td>
+                  <td>Absolute / incremental programming</td>
+                </tr>
+                <tr>
+                  <td>G94 / G95</td>
+                  <td>Feed per minute / feed per revolution</td>
+                </tr>
+                <tr>
+                  <td>G98 / G99</td>
+                  <td>Return to initial / R plane in canned cycles</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="code-table">
+          <summary>Milling M functions</summary>
+          <div class="table-wrap" role="region" aria-label="Milling M functions" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">M code</th>
+                  <th scope="col">Function in the kernel</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>M00 / M01</td>
+                  <td>Stop / optional-stop signal</td>
+                </tr>
+                <tr>
+                  <td>M02 / M30</td>
+                  <td>End program</td>
+                </tr>
+                <tr>
+                  <td>M03 / M04 / M05</td>
+                  <td>Spindle clockwise / counterclockwise / stop signals</td>
+                </tr>
+                <tr>
+                  <td>M06</td>
+                  <td>Tool-change event for the selected T number</td>
+                </tr>
+                <tr>
+                  <td>M07</td>
+                  <td>
+                    Recognized; no machine-specific coolant action is modeled
+                  </td>
+                </tr>
+                <tr>
+                  <td>M08 / M09</td>
+                  <td>Coolant on / off signals</td>
+                </tr>
+                <tr>
+                  <td>M19</td>
+                  <td>
+                    Spindle-orientation signal; S on this block is an angle,
+                    not spindle RPM
+                  </td>
+                </tr>
+                <tr>
+                  <td>M29</td>
+                  <td>
+                    Prepare rigid tapping; S on this block sets spindle RPM
+                    for the following G84
+                  </td>
+                </tr>
+                <tr>
+                  <td>M98 / M99</td>
+                  <td>Call / return from subprogram</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="code-table">
+          <summary>Milling cycle behavior</summary>
+          <div class="table-wrap" role="region" aria-label="Milling cycle behavior" tabindex="0">
+            <table class="cycle-description">
+              <thead>
+                <tr>
+                  <th scope="col">Command</th>
+                  <th scope="col">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><code>G73 / G83</code></th>
+                  <td>
+                    <p>
+                      G73 is high-speed peck drilling with short intermediate
+                      retract behavior. G83 uses the full-retract drilling
+                      behavior modeled by the common drilling layer.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G82</code></th>
+                  <td>
+                    <p>
+                      G82 includes its dwell semantics, but dwell itself does
+                      not create spatial geometry.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G84</code></th>
+                  <td>
+                    <p>
+                      G84 tapping returns from depth as synchronized feed
+                      motion rather than rapid motion.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G86</code></th>
+                  <td>
+                    <p>
+                      The cycle models spindle-stop semantics together with
+                      its drilling motion/return behavior.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G98 / G99</code></th>
+                  <td>
+                    <p>
+                      For milling canned cycles, G98/G99 select cycle return
+                      behavior. They are not the turning feed-mode meanings of
+                      G98/G99.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <p class="note">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#fanuc-milling">Parameters and
+            limitations in the FAQ →</a>
+        </p>
+      </div>
+      <div class="controller-reference">
+        <h3>SINUMERIK 840D ISO-M — G291</h3>
+        <details class="code-table">
+          <summary>SINUMERIK ISO-M</summary>
+          <div class="table-wrap" role="region" aria-label="SINUMERIK ISO-M" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">ISO-M function</th>
+                  <th scope="col">Support and limitations</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>G290 / G291</td>
+                  <td>
+                    Standalone blocks select native / ISO-M mode. MPF/SPF
+                    execution starts in native mode.
+                  </td>
+                </tr>
+                <tr>
+                  <td>XYZ / G90 / G91</td>
+                  <td>
+                    Three-axis positioning, including incremental positioning.
+                    Rotary axes and TCP are unsupported.
+                  </td>
+                </tr>
+                <tr>
+                  <td>G2 / G3 / IJK</td>
+                  <td>
+                    ISO-M and native use incremental IJK centers. Native
+                    I=AC(...), J=AC(...), K=AC(...) explicitly select absolute
+                    centers; G90/G91 controls endpoints.
+                  </td>
+                </tr>
+                <tr>
+                  <td>G54 P1–P48</td>
+                  <td>
+                    Extended work offsets. Source G54.1 and other decimal G
+                    codes are rejected.
+                  </td>
+                </tr>
+                <tr>
+                  <td>G50 / G51</td>
+                  <td>Coordinate scaling; G51 uses P/1000 weighting.</td>
+                </tr>
+                <tr>
+                  <td>G68 / G69</td>
+                  <td>
+                    Standalone 2D rotation with G90, center axes of the active
+                    plane and R. I/J/K, incremental-angle and 3D-vector forms
+                    are rejected.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Cycles and units</td>
+                  <td>
+                    Common integer milling G codes, unit selection, coordinate
+                    systems and selected canned cycles are accepted within the
+                    ISO-M subset.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Macro B / ISO-T</td>
+                  <td>
+                    Macro B program flow and ISO Dialect T are unsupported.
+                    Unsupported ISO functions produce diagnostics.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <p class="note">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input">Parameters
+            and limitations in the FAQ →</a>
+        </p>
+      </div>
+      <div class="controller-reference">
+        <h3>SINUMERIK 840D native — G290</h3>
+        <details class="code-table">
+          <summary>SINUMERIK native</summary>
+          <div class="table-wrap" role="region" aria-label="SINUMERIK native" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Native function</th>
+                  <th scope="col">Current behavior</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    <code>G0/G1</code>, <code>G2/G3</code>,
+                    <code>G17/G18/G19</code>
+                  </td>
+                  <td>
+                    XYZ positioning, linear moves and arcs in the selected
+                    plane; <code>CR=</code> radius arcs, including negative
+                    radius for a major arc
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>G90/G91</code>, <code>G54–G59</code>,
+                    <code>G70/G71/G700/G710</code>
+                  </td>
+                  <td>
+                    Absolute/incremental coordinates and work offsets.
+                    G70/G71 select inch/metric lengths; G700/G710 also select feed units.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>G60 / G64</code></td>
+                  <td>Exact-stop / continuous-path metadata; acceleration, stop time and blending are not simulated.
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>G500</code></td>
+                  <td>Modal deactivation of the settable work offset until the next G54–G59 call.
+                    Coordinates are rebased without motion. Default: zero G500 and base frame;
+                    API wcs_offsets[500] can supply a translation. OEM base-frame rotations,
+                    mirroring and scaling are not modeled.</td>
+                </tr>
+                <tr>
+                  <td><code>DIAMON / DIAMOF / DIAM90</code></td>
+                  <td>Parsed with warnings; execution continues using DIAMOF semantics for all coordinates.
+                    Diameter programming is not simulated.</td>
+                </tr>
+                <tr>
+                  <td><code>CHF / CHR / RND / RNDM / FRC / FRCM</code></td>
+                  <td>Parsed with warnings without changing geometry or feed. Chamfers, corner rounding,
+                    modal rounding and corner feed are not simulated; RNDM=0 is recognized but has no geometric effect.
+                    Reports retain these warnings; resolved NC export is rejected.</td>
+                </tr>
+                <tr>
+                  <td><code>G40/G41/G42</code></td>
+                  <td>
+                    Modeled cutter-radius compensation using the configured
+                    tool with TCP off. G41/G42 under active TRAORI is not
+                    modeled and stops execution with
+                    <code>UNSUPPORTED_TCP_CUTTER_COMPENSATION</code>.
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>T</code>, <code>M6</code>, <code>D0/D1</code>,
+                    <code>S</code>, basic M codes
+                  </td>
+                  <td>
+                    Tool change, modeled cutting-edge selection/cancellation,
+                    spindle and coolant signals; controller-specific offset
+                    tables are not simulated
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>G0 SUPA ... D0</code></td>
+                  <td>
+                    Nonmodal machine-coordinate positioning;
+                    <code>SUPA Z0</code> means machine zero, independently of
+                    the configured home Z
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    <code>G64</code>, <code>MSG(...)</code>,
+                    <code>WORKPIECE(...)</code>, <code>;</code> comments
+                  </td>
+                  <td>
+                    Path-control/display metadata and comments; no blending or
+                    stock geometry is generated from these declarations
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>MCALL CYCLE81/82/83/84(...)</code></td>
+                  <td>
+                    Modal Z drilling/tapping in <code>G17/G40</code>,
+                    triggered by subsequent XY blocks; bare
+                    <code>MCALL</code> cancels the cycle
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>CYCLE81/82</code></td>
+                  <td>
+                    Drilling and rapid return, with modeled seconds-based
+                    dwell for <code>CYCLE82</code>; safety plane is
+                    <code>RFP + SDIS</code>, return plane is <code>RTP</code>
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>CYCLE83</code></td>
+                  <td>
+                    Modeled first depth, amount degression, minimum peck
+                    depth, chip-breaking/full-retract options and reentry
+                    clearance
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>CYCLE84</code></td>
+                  <td>
+                    Single-pass metric right-hand tapping in <code>G94</code>:
+                    explicit positive <code>PIT</code>,
+                    <code>_PITA=0/1</code>, <code>SDAC=3</code>, Z axis and
+                    positive <code>SST</code> equal to programmed
+                    <code>S</code>; equal <code>SST1</code> or zero/omitted.
+                    Feed = pitch × rpm; feed withdrawal to
+                    <code>RFP+SDIS</code>, rapid return to <code>RTP</code>,
+                    optional dwell in seconds
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>TRAORI / TRAFOOF</code></td>
+                  <td>GUI/CLI/kernel TCP via the common angled AC/BC table profiles; G0/G1/G2/G3 with configured numeric
+                    rotary axes</td>
+                </tr>
+                <tr>
+                  <td><code>CYCLE800</code></td>
+                  <td>
+                    GUI/CLI/kernel static frames: modes 57/54/39/27/30/45,
+                    ST0/200000/200001, DIR-1/0/1; legacy 15-argument
+                    R_DATA setup and active-frame reset supported
+                  </td>
+                </tr>
+                <tr>
+                  <td><code>DEF REAL / assignments</code></td>
+                  <td>Underscore-named scalar variables default to zero; direct numeric, R and scalar assignments are
+                    supported. Arrays and compound expressions are rejected.</td>
+                </tr>
+                <tr>
+                  <td><code>I/J/K / AC(...)</code></td>
+                  <td>Plain IJK offsets are relative to arc start. AC explicitly selects absolute centers, including
+                    mixed center addresses. Source Arc Type and autodetection do not override SINUMERIK syntax.</td>
+                </tr>
+                <tr>
+                  <td><code>T=&quot;name&quot; / M6 / T0</code></td>
+                  <td>Case-sensitive named tool selection; M6 activates the selected tool and T0 with M6 unloads it.
+                    G41/G42 remains unverified without configured cutter geometry.</td>
+                </tr>
+                <tr>
+                  <td><code>D0/D1 under TRAORI</code></td>
+                  <td>Cutting-edge selection preserves the active TCP transform.</td>
+                </tr>
+                <tr>
+                  <td><code>FNORM / COMPOF / SETMS(1)</code></td>
+                  <td>Normal feed and compressor-off metadata; only main-spindle selection SETMS(1) is accepted.</td>
+                </tr>
+                <tr>
+                  <td><code>CYCLE832(...)</code></td>
+                  <td>Ignored without geometry or display events; zero to three direct arguments are accepted.</td>
+                </tr>
+                <tr>
+                  <td><code>CYCLE81(RTP,RFP,SDIS,DP)</code></td>
+                  <td>The four mandatory arguments are accepted; DPR is optional.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <p class="note">
+          GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table
+          profiles, including rotary arcs. Numeric A/B/C and direct R
+          references, incremental IC and shortest-path absolute DC require a
+          matching profile. Exact DC half turns remain rejected. CYCLE800
+          uses Siemens matrices and the common TWP core; OEM retract paths
+          are not simulated. G70/G71 select inch/metric lengths without changing feed units;
+          G700/G710 also select feed units and retain the modal numeric F.
+          G93 uses 1/F minutes per cutting motion, including rotary TCP motion; F must be positive.
+          Reprogram F on G93/G94/G95 changes. G93 cycles and cutter compensation are unsupported.
+          ORI*, TRANS/AROT, FGROUP, FL[], FGREF[], SPOS and CUT3D* are warning-only and unverified. Arbitrary Siemens
+          subprogram
+          calls are unsupported. R
+          parameters support numeric assignments and direct references;
+          arithmetic expressions and Siemens control flow are unsupported.
+          CYCLE84 is limited to single-pass metric right-hand tapping; deep
+          tapping, left-hand tapping and unequal entry/withdrawal speeds
+          produce diagnostics.
+        </p>
+        <p class="note">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input">Parameters
+            and limitations in the FAQ →</a>
+        </p>
+      </div>
+    </section>
+    <section id="visualization" class="section">
+      <div class="section-heading">
+        <h2>Interface and tools</h2>
+      </div>
+      <article class="story">
+        <figure>
+          <img width="1280" height="720" src="assets/impeller.gif" alt="Toolpath playback and STL models" loading="lazy"
+            decoding="async" />
+        </figure>
         <div>
-          <h2>Documentation</h2>
-          <p>Supported commands, settings, limitations and usage examples.</p>
+          <h3>Toolpath playback and STL models</h3>
+          <p>
+            Step through tool motions and navigate to the corresponding source
+            line. Load ASCII or binary STL models; position, rotate, copy and
+            section them in the same scene.
+          </p>
         </div>
+      </article>
+      <article class="story">
+        <figure>
+          <img width="1280" height="720" src="assets/stock_removal.gif" alt="Turning stock removal" loading="lazy"
+            decoding="async" />
+        </figure>
+        <div>
+          <h3>Turning stock removal</h3>
+          <p>
+            Material removal is calculated from tool geometry and the executed
+            toolpath. Supports external, internal and face turning, grooves
+            and thread profiles. Playback can move forward and backward.
+          </p>
+        </div>
+      </article>
+      <article class="story">
+        <figure>
+          <img width="1280" height="720" src="assets/4ax_table.gif" alt="Rotary axes" loading="lazy" decoding="async" />
+        </figure>
+        <div>
+          <h3>Rotary axes</h3>
+          <p>
+            A/B/C table profiles, indexed 3+2 machining with G68.2/G53.1 and a
+            supported subset of G43.4 TCP motion. The selected kinematics
+            profile determines the displayed toolpath.
+          </p>
+        </div>
+      </article>
+      <div class="feature-grid">
+        <article>
+          <h3>Editor</h3>
+          <p>
+            Syntax highlighting, search and replace, block numbering, block
+            skip, snippets, tool-change navigation and macro variable
+            inspection.
+          </p>
+        </article>
+        <article>
+          <h3>Tool library</h3>
+          <p>
+            Turning and milling tool geometry, a saved SQLite library and a
+            separate tool set for the current program.
+          </p>
+        </article>
+        <article>
+          <h3>Geometry generators</h3>
+          <p>
+            Circular and rectangular hole patterns and pockets with a preview.
+          </p>
+        </article>
+      </div>
+    </section>
+    <section id="execution" class="section">
+      <div class="section-heading">
+        <h2>Toolpath calculation</h2>
+      </div>
+      <div class="prose">
+        <p>
+          A separate preliminary scan discovers tools; the parser builds
+          the program model. The kernel evaluates flow, variables, cycles, coordinate
+          systems and tool compensation. The resulting moves are used by the
+          3D view, playback, statistics and export. The desktop interface and
+          CLI use the same calculation kernel.
+        </p>
+        <p>
+          When an unsupported command affects the tool position, the kernel
+          reports a diagnostic and marks the result as incomplete. The
+          application models toolpath geometry; it does not simulate all
+          physical processes of a CNC machine.
+        </p>
+      </div>
+    </section>
+    <section id="statistics" class="section">
+      <div class="section-heading">
+        <h2>Statistics and HTML reports</h2>
+      </div>
+      <p class="prose">See how much of a program was executed, where each tool travels and how cutting and rapid
+        moves contribute to length and estimated time. The desktop Statistics dialog and CLI reports use the same calculations.</p>
+      <div class="feature-grid">
+        <article>
+          <h3>Moves, time and bounds</h3>
+          <p>Grouped tables show motion counts, cutting and rapid lengths, estimated times, average feed and XYZ bounds.
+            Execution status distinguishes complete results, warnings and partial or invalid execution.</p>
+        </article>
+        <article>
+          <h3>Statistics for each tool</h3>
+          <p>Use the tool selector to switch between the whole program and an individual tool. Each tool has its own
+            lengths, times and XYZ bounds. Display measurements in millimetres or inches.</p>
+        </article>
+        <article>
+          <h3>A report you can share</h3>
+          <p>Export HTML from the Statistics dialog or CLI. The standalone report includes all tool sections and a static
+            SVG toolpath projection: XY for milling, XZ for turning. It opens in a browser without installing the application.</p>
+        </article>
+      </div>
+      <div class="workflow">
+        <h3>Analyze one program</h3>
+        <p>Generate a readable HTML report and detailed JSON in one run. For FANUC milling files, specify
+          <code>--lang fanuc_mill</code>; use <code>fanuc_turn</code> for turning.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe analyze ".\programs\part.nc" --lang fanuc_mill &#96;
+  --html ".\reports\part.html" -o ".\reports\part.json"</code></pre>
+        <p>In the GUI, open Statistics, choose a tool or units, then select <strong>Export HTML</strong>.
+          Exported reports always use a light theme; the dialog follows the application theme.</p>
         <div class="actions">
-          <a
-            class="text-link"
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md"
-            lang="en"
-            >FAQ — English</a
-          >
-          <a
-            class="text-link"
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
-            lang="ru"
-            >FAQ — Русский</a
-          >
+          <a class="button" href="assets/statistics-example.html" target="_blank" rel="noopener">Open sample HTML report</a>
         </div>
-      </section>
-    </main>
-    <footer>
-      <div class="container">
-        <div class="footer-inner">
-          <div class="footer-info">
-            <a class="brand" href="#main"
-              ><img src="assets/logo.svg" width="36" height="36" alt="" /><span
-                >Easy G-Code Plot</span
-              ></a
-            >
-            <p>CNC program editor and toolpath viewer.</p>
-          </div>
-          <div class="footer-links">
-            <a href="https://github.com/MaestroFusion360/easy_gcode_plot"
-              >GitHub</a
-            >
-            <a
-              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md"
-              >Documentation</a
-            >
-            <a
-              href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/CHANGELOG.md"
-              >Changelog</a
-            >
-            <a href="https://github.com/MaestroFusion360/easy_gcode_plot/issues"
-              >Report an issue</a
-            >
-          </div>
+        <p class="note">The example was generated from <code>plate_setup_complete.nc</code>: 377 movements and 10 tools.
+          Time is a kinematic estimate; dwell, tool changes and acceleration are not included.</p>
+      </div>
+    </section>
+    <section id="automation" class="section">
+      <div class="section-heading">
+        <h2>Batch analysis and export</h2>
+      </div>
+      <p class="prose">Process a folder in one command instead of opening each program manually. Review diagnostics
+        in a spreadsheet, produce reports for colleagues or export a complete directory tree.</p>
+      <div class="feature-grid">
+        <article>
+          <h3>NC</h3>
+          <p>
+            Full Program preserves the source structure within the supported
+            export scope. Expanded Execution exports calculated moves after
+            expanding cycles, macros and subprograms.
+          </p>
+          <p>
+            Native SINUMERIK → FANUC milling Full Program normalizes supported
+            semantics through the kernel and validates the emitted program.
+            Safe source metadata warnings remain available in diagnostics.
+            CYCLE81/82/83/84 export follows the cycle mappings below.
+            Unsupported frames and rotary/TCP semantics block conversion.
+            FANUC → native Full Program remains unavailable.
+          </p>
+          <p>
+            Native → native Full Program preserves the original commands, expressions,
+            CYCLE800 and TRAORI while applying numbering and address formatting.
+            Select As source/native in the GUI or use
+            <code>--mode full --target-dialect sinumerik_native</code> in the CLI.
+          </p>
+        </article>
+        <article>
+          <h3>DXF / Plot Data</h3>
+          <p>
+            Export calculated toolpath geometry to DXF or motion data to Plot
+            Data.
+          </p>
+        </article>
+        <article>
+          <h3>The same kernel without the GUI</h3>
+          <p>
+            Use parse, trace, analyze and export for individual programs. Use batch for directory analysis and
+            batch-export for directory export. Both batch commands reuse the single-file APIs.
+          </p>
+        </article>
+      </div>
+      <div class="workflow" id="dialect-conversion">
+        <h3>Milling dialect conversion</h3>
+        <p>In the GUI, choose <strong>MILL FULL PROGRAM</strong> and the required <strong>Target CNC</strong>.
+          The CLI and batch export use the same converter and execute the target program again before writing it.</p>
+        <div class="table-wrap" role="region" aria-label="Milling conversion directions" tabindex="0">
+          <table>
+            <thead><tr><th scope="col">Direction</th><th scope="col">Full Program output</th><th scope="col">Scope</th></tr></thead>
+            <tbody>
+              <tr><td>FANUC Mill → SINUMERIK ISO-M</td><td>Adds <code>G291</code>; preserves supported ISO source blocks
+                and milling cycles. The O number becomes a comment; standalone % delimiters are removed.</td>
+                <td>Verified three-axis ISO-M subset. Target: <code>sinumerik_iso</code>;
+                  legacy alias: <code>sinumerik840d</code>.</td></tr>
+              <tr><td>SINUMERIK native → FANUC Mill</td><td>Normalizes supported native commands and evaluated parameters;
+                retains operation order and comments. Emits FANUC motion, tool offsets and supported drilling operations.</td>
+                <td>Supported three-axis native milling. Target: <code>fanuc_mill</code>.</td></tr>
+              <tr><td>SINUMERIK lathe / ISO Dialect T</td><td colspan="2"><strong>Not supported yet.</strong>
+                Siemens turning execution and conversion to/from FANUC turning are unavailable.</td></tr>
+            </tbody>
+          </table>
         </div>
-        <div class="footer-bottom">
-          <div class="languages" role="group" aria-label="Language">
-            <a href="index.html" lang="en" aria-current="page">EN</a
-            ><a href="ru/index.html" lang="ru">RU</a>
-          </div>
-          <span>© 2025–2026 MaestroFusion360</span
-          ><a
-            href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/LICENSE.md"
-            >MIT License</a
-          >
+        <p><strong>Native drilling:</strong> CYCLE81/82 become <code>G81</code> without dwell or <code>G82 P...</code>
+          with dwell in milliseconds. CYCLE83 uses explicit local <code>G0/G1</code> pecks to preserve Siemens degression,
+          feed factor and reentry/return planes. Supported metric right-hand single-pass CYCLE84 uses
+          <code>M29</code>, <code>G99 G84</code>, feed withdrawal to the safety plane, then <code>G80</code> and rapid
+          return to RTP. Bare MCALL cancels an active target canned cycle.</p>
+        <p><strong>Conversion limits:</strong> actual rotary 4-axis, active CYCLE800 3+2 and TRAORI/TCP 5-axis programs
+          are rejected. An empty/bare CYCLE800 frame reset in an XYZ-only native program is accepted. Named tools,
+          native source control flow and unmodeled geometry-changing commands block Full Program conversion;
+          safe metadata warnings alone do not.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode full --target-dialect sinumerik_iso -o iso_part.mpf
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full --target-dialect fanuc_mill -o fanuc_part.nc</code></pre>
+        <p><strong>Resolved / Expanded Execution</strong> exports executed XYZ geometry in a zero-offset G54 frame,
+          expanding cycles and evaluating variables. It does not preserve source program structure and also rejects
+          rotary/TCP geometry. Full Program preserves the supported operation structure; CYCLE83 expansion stays local
+          to drilling holes. The original source remains unchanged.</p>
+      </div>
+      <div class="workflow" id="batch-analysis">
+        <h3>Analyze a folder and collect reports</h3>
+        <p>Scan programs and subdirectories, collect execution errors and warnings, and generate an HTML statistics
+          report for each file. CSV helps identify programs that need attention; JSON retains the detailed diagnostics.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe batch ".\programs\milling" --lang fanuc_mill &#96;
+  --html ".\reports\html" -o ".\reports"</code></pre>
+        <ul class="workflow-results">
+          <li><code>reports/batch_report.csv</code> — per-file status, counts and diagnostics, ready for a spreadsheet.</li>
+          <li><code>reports/batch_report.json</code> — summary and detailed results for further processing.</li>
+          <li><code>reports/html/…/part.nc.html</code> — one report per program; subdirectories and input suffixes are retained.</li>
+        </ul>
+        <p>Without <code>--lang</code>, analysis selects milling for MPF/SPF and turning for other extensions.
+          For a folder of FANUC milling programs, explicitly use <code>--lang fanuc_mill</code>.</p>
+      </div>
+      <div class="workflow" id="batch-export">
+        <h3>Export a folder while keeping its structure</h3>
+        <p>Apply one export configuration to every program: expanded NC, supported Full Program conversion,
+          native-source formatting or DXF. Results go to a separate directory with the same relative subdirectories.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe batch-export ".\programs\milling" --lang fanuc_mill &#96;
+  --mode expanded -o ".\exported"</code></pre>
+        <p>For DXF toolpaths, add <code>--format dxf</code>. To format existing native SINUMERIK files, use
+          <code>--mode full --target-dialect sinumerik_native</code>.</p>
+        <ul class="workflow-results">
+          <li>Exported NC or DXF files follow the input directory structure.</li>
+          <li><code>batch_export_report.csv</code> and <code>batch_export_report.json</code> record output paths,
+            status, diagnostics and effective export settings.</li>
+          <li>A failed file is reported while processing continues with the remaining files.</li>
+        </ul>
+        <p>The output directory must be outside the input tree. Choose the machine type and supported target for the
+          folder; unsupported conversion is recorded as an error rather than silently changing the program.</p>
+      </div>
+      <details class="code-table">
+        <summary>Scanning, encodings and rotary profiles</summary>
+        <div class="workflow-options">
+          <p><code>--extensions .nc,.mpf,.spf</code> limits the files processed; <code>--top-level-only</code>
+            disables recursive scanning. Use <code>--encoding cp1251</code> for legacy Cyrillic NC files.</p>
+          <p>Use <code>--kinematics</code> for a shared rotary profile or <code>--kinematics-map profiles.json</code>
+            to assign profiles by input-relative filename. Export uses the same controller and geometry limits as single-file processing.</p>
+          <p>The examples use the Windows CLI executable. On Linux, use <code>./easy_gcode_plot_cli</code> with the same arguments.</p>
+        </div>
+      </details>
+      <p class="note">
+        <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/README.md#cli">CLI commands and examples
+          →</a>
+      </p>
+    </section>
+    <section id="documentation" class="download">
+      <div>
+        <h2>Documentation</h2>
+        <p>Supported commands, settings, limitations and usage examples.</p>
+      </div>
+      <div class="actions">
+        <a class="text-link" href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md" lang="en">FAQ —
+          English</a>
+        <a class="text-link" href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
+          lang="ru">FAQ — Русский</a>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="container">
+      <div class="footer-inner">
+        <div class="footer-info">
+          <a class="brand" href="#main"><img src="assets/logo.svg" width="36" height="36" alt="" /><span>Easy G-Code
+              Plot</span></a>
+          <p>Edit G-code. Review toolpaths. Export results.</p>
+        </div>
+        <div class="footer-links">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot">GitHub</a>
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md">Documentation</a>
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/CHANGELOG.md">Changelog</a>
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/issues">Report an issue</a>
         </div>
       </div>
-    </footer>
-  </body>
+      <div class="footer-bottom">
+        <div class="languages" role="group" aria-label="Language">
+          <a href="index.html" lang="en" aria-current="page">EN</a><a href="ru/index.html" lang="ru">RU</a>
+        </div>
+        <span>© 2025–2026 MaestroFusion360</span><a
+          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/LICENSE.md">MIT License</a>
+      </div>
+    </div>
+  </footer>
+</body>
+
 </html>

@@ -188,6 +188,7 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                 state.feed_mode,
                 state.spindle_rpm,
                 variables=runtime.variable_snapshot(),
+                programmed_position=(state.x, state.y, state.z),
             )
         )
         runtime.advance()

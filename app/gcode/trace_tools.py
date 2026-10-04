@@ -395,6 +395,26 @@ def _css_time_minutes(m: TraceMotion, length: float) -> float | None:
     return integrate(0.0, 1.0, fa, fm, fb, simpson(0.0, 1.0, fa, fm, fb), 12)
 
 
+def _motion_time_minutes(m, length, rapid_feed):
+    if m.move != 0 and m.feed_mode == "inverse_time":
+        time = 1.0 / m.feed if m.feed is not None and m.feed > 0 else None
+    elif length <= 1e-15:
+        time = 0.0
+    elif m.move == 0:
+        time = length / rapid_feed if rapid_feed > 0 else None
+    elif m.feed is None or m.feed <= 0:
+        time = None
+    elif m.feed_mode == "per_revolution":
+        if m.spindle_mode == "css":
+            time = _css_time_minutes(m, length)
+        else:
+            rpm = m.spindle_rpm
+            time = length / (m.feed * rpm) if rpm is not None and rpm > 0 else None
+    else:
+        time = length / m.feed
+    return time
+
+
 def trace_statistics(
     result: ExecutionResult,
     *,
@@ -416,20 +436,7 @@ def trace_statistics(
     for m in result.motions:
         length = motion_length(m)
         lengths.append(length)
-        if length <= 1e-15:
-            time = 0.0
-        elif m.move == 0:
-            time = length / rapid_feed if rapid_feed > 0 else None
-        elif m.feed is None or m.feed <= 0:
-            time = None
-        elif m.feed_mode == "per_revolution":
-            if m.spindle_mode == "css":
-                time = _css_time_minutes(m, length)
-            else:
-                rpm = m.spindle_rpm
-                time = length / (m.feed * rpm) if rpm is not None and rpm > 0 else None
-        else:
-            time = length / m.feed
+        time = _motion_time_minutes(m, length, rapid_feed)
         times.append(time)
         if time is None:
             unknown_time_motion_count += 1
@@ -437,8 +444,10 @@ def trace_statistics(
             known_time += time
 
     coords: list[tuple[float, float, float]] = []
+    motion_bounds = []
     display_x_scale = 0.5 if lathe_radius_view else 1.0
     for m in result.motions:
+        first_coord = len(coords)
         coords.extend(
             (
                 (m.start_x * display_x_scale, m.start_y, m.start_z),
@@ -462,6 +471,8 @@ def trace_statistics(
                         # requested by the caller as the endpoint coordinates.
                         x *= display_x_scale / m.x_scale
                         coords.append((x, y, z))
+        points = coords[first_coord:]
+        motion_bounds.append(tuple((min(p[axis] for p in points), max(p[axis] for p in points)) for axis in range(3)))
 
     xs = [p[0] for p in coords]
     ys = [p[1] for p in coords]
@@ -477,6 +488,15 @@ def trace_statistics(
         feed_length = sum(lengths[i] for i in feed)
         return {
             "motion_count": len(indices),
+            "rapid_count": len(rapid),
+            "arc_count": sum(result.motions[i].move in (2, 3) for i in indices),
+            "cycle_count": sum(result.motions[i].cycle_generated for i in indices),
+            "bounds": tuple(
+                (min(motion_bounds[i][axis][0] for i in indices), max(motion_bounds[i][axis][1] for i in indices))
+                for axis in range(3)
+            )
+            if indices
+            else None,
             "z_min": min((_motion_z_min(result.motions[i]) for i in indices), default=None),
             "total_length": sum(lengths[i] for i in indices),
             "rapid_length": sum(lengths[i] for i in rapid),
@@ -495,6 +515,14 @@ def trace_statistics(
         **summarize(list(range(len(result.motions)))),
         "per_tool": {tool: summarize(indices) for tool, indices in by_tool.items()},
         "execution_complete": result.ok and result.complete,
+        "warning_count": sum(d.severity == "warning" for d in result.diagnostics),
+        "execution_status": (
+            "ERRORS"
+            if not result.ok or not result.complete
+            else "WARNINGS"
+            if any(d.severity == "warning" for d in result.diagnostics)
+            else "CLEAN"
+        ),
         "executed_step_count": len(result.execution_steps),
         "rapid_feed_mm_min": rapid_feed,
         "lengths": lengths,
@@ -587,12 +615,20 @@ def format_trace_statistics(
         f"{text['rapid_speed']}: {length(stats['rapid_feed_mm_min']):.3f} {length_unit}/min",
         text["estimate_note"],
     ]
-    if stats["bounds"] is not None:
-        lines.append(f"{text['bounds']} ({length_unit}):")
-        for axis, (low, high) in zip("XYZ", stats["bounds"]):
-            lines.append(f"{axis}: {length(low):.3f} / {length(high):.3f}")
+
+    def bounds_section(values):
+        bounds = values.get("bounds")
+        if bounds is None:
+            return []
+        return [
+            f"{text['bounds']} ({length_unit}):",
+            *[f"{axis}: {length(low):.3f} / {length(high):.3f}" for axis, (low, high) in zip("XYZ", bounds)],
+        ]
+
+    lines.extend(bounds_section(stats))
     for tool, values in stats["per_tool"].items():
         lines.extend(["", f"{text['tool']} {tool}", *section(values)])
+        lines.extend(bounds_section(values))
     return "\n".join(lines)
 
 

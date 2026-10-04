@@ -103,7 +103,10 @@ def motion_line(m: TraceMotion, options: ExportOptions, *, override_move: int | 
     words.extend(word for word in axis_words if word)
 
     if m.move in (2, 3) and move in (2, 3):
-        words.extend(_center_words(m, options))
+        centers = _center_words(m, options)
+        if options.resolved_target == "sinumerik_native" and options.arc_mode == 1 and not options.incremental:
+            centers = [f"{word[0]}=AC({word[1:]})" for word in centers]
+        words.extend(centers)
 
     if move != 0 and m.feed is not None:
         feed_word = _word("F", m.feed)

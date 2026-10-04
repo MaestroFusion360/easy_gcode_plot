@@ -92,6 +92,51 @@ def test_playback_changes_only_draw_prefix_without_dirtying_vbos():
     assert item.dirty_bits == dirty
 
 
+def test_tail_draws_the_whole_selected_motion_without_buffer_uploads(monkeypatch):
+    item = ToolpathVboItem()
+    item.set_segments(_segments(), logical_count=4)
+    item.set_visible_logical_count(2)
+    item.dirty_bits = DirtyFlag(0)
+    vertices, colors = item.packed_vertices, item.packed_colors
+    calls = []
+    monkeypatch.setattr(toolpath_vbo.GL, "glDisableVertexAttribArray", lambda *a: calls.append(("disable", a)))
+    monkeypatch.setattr(toolpath_vbo.GL, "glVertexAttrib4f", lambda *a: calls.append(("color", a)))
+    monkeypatch.setattr(toolpath_vbo.GL, "glDrawArrays", lambda *a: calls.append(("draw", a)))
+    monkeypatch.setattr(toolpath_vbo.GL, "glEnableVertexAttribArray", lambda *a: calls.append(("enable", a)))
+    item.set_tail(1, "#ff00ff")
+    assert item.tail_vertex_range == (2, 4)
+    item._paint_tail()
+    assert calls == [
+        ("disable", (1,)),
+        ("color", (1, 1.0, 0.0, 1.0, 1.0)),
+        ("draw", (toolpath_vbo.GL.GL_LINES, 2, 4)),
+        ("enable", (1,)),
+    ]
+    assert item.packed_vertices is vertices and item.packed_colors is colors
+    assert item.dirty_bits == DirtyFlag(0)
+    item.set_visible_logical_count(1)
+    assert item.tail_vertex_range == (0, 0)
+    item.set_tail(0, "#ff00ff")
+    assert item.tail_vertex_range == (0, 2)
+    item.set_visible_logical_count(0)
+    assert item.tail_vertex_range == (0, 0)
+
+
+def test_tail_follows_sampled_arc_and_disappears_for_hidden_rapid():
+    result = execute("G17\nG0 X10\nG3 X0 Y10 I-10 J0 F100", language="fanuc_mill")
+    item = ToolpathVboItem()
+    item.set_segments(segments_from_render_points(render_trace(result), result.motions), 2)
+    item.set_tail(1, "#ff00ff")
+    first, count = item.tail_vertex_range
+    assert first == 2 and count > 2
+    assert first + count == len(item.packed_vertices)
+    item.set_style(rapid_color="#ff0000", linear_color="#0000ff", arc_color="#008000", width=1.5, show_rapid=False)
+    item.set_tail(0, "#ff00ff")
+    assert item.tail_vertex_range == (0, 0)
+    item.set_tail(1, "#ff00ff")
+    assert item.tail_vertex_range == (0, len(item.packed_vertices))
+
+
 def test_style_change_dirties_color_vbo_but_not_geometry_vbo():
     item = ToolpathVboItem()
     item.set_segments(_segments(), logical_count=4)

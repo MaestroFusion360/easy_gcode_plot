@@ -39,11 +39,11 @@ def test_runtime_mode_switches_only_when_blocks_are_executed():
 def test_native_common_iso_core_matches_fanuc_geometry_and_signals():
     source = (
         "G21 G90 G17\nT1 M6\nS1200 M3\nG0 X0 Y0 Z0\nG1 X10 F100\n"
-        "G2 X20 Y0 I15 J0\nG3 X10 Y0 I15 J0\nG18\nG19\nG17\n"
+        "G2 X20 Y0 I5 J0\nG3 X10 Y0 I-5 J0\nG18\nG19\nG17\n"
         "G91\nG1 X1\nG4 P1\nM5\nM30"
     )
     native = _sinumerik(source)
-    fanuc = execute(source, language="fanuc_mill", source_arc_type=2)
+    fanuc = execute(source, language="fanuc_mill", source_arc_type=1)
     assert native.ok and native.complete, native.diagnostics
     assert tuple(replace(motion, source_arc_type=None) for motion in native.motions) == fanuc.motions
     assert native.signals == fanuc.signals
@@ -80,7 +80,7 @@ def test_macro_b_is_rejected_before_evaluation_or_dispatch(monkeypatch):
 
 
 def test_unknown_native_syntax_cannot_be_partially_executed():
-    for operation in ("TRAORI", "CYCLE800(1,2,3)", "R1=R2+10", "G1 X=R99", "TRANS X10", "CALL PART"):
+    for operation in ("TRAORI", "CYCLE800(1,2,3)", "R1=R2+10", "G1 X=R99", "ATRANS X10", "CALL PART"):
         result = _sinumerik("G0 X1\n" + operation + "\nG0 X99")
         assert not result.ok and not result.complete
         assert result.diagnostics[0].status == "unsupported"
@@ -88,7 +88,7 @@ def test_unknown_native_syntax_cannot_be_partially_executed():
 
 
 def test_switch_changes_later_blocks_without_looking_ahead():
-    result = _sinumerik("G0 X1\nG291\nG70\nG0 X2\nG290\nG1 X3 F100\nG70\nG0 X99")
+    result = _sinumerik("G0 X1\nG291\nG70\nG0 X2\nG290\nG1 X3 F100\nG699\nG0 X99")
     assert not result.ok and not result.complete
     assert [event.code for event in result.events if event.kind.startswith("SINUMERIK_")] == ["G291", "G290"]
     assert result.motions[-1].end_x == 3 * 25.4

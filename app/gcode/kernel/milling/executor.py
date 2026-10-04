@@ -6,6 +6,8 @@ import math
 from dataclasses import dataclass, replace
 from enum import Enum, auto
 
+from app.native import native_symbol
+
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, MachineSignal, TraceMotion
 from ..frontend.program import EvaluatedWords, parse_program
 from ..frontend.sinumerik import parse_sinumerik_program
@@ -18,7 +20,13 @@ from .cycles.sinumerik import execute_native_cycle
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .kinematics import TCP_TABLE_PROFILES, MachineKinematics, effective_orientation, kinematics_snapshot
 from .motion import _emit_milling_motions, _g53_home_axes
-from .sinumerik_native import apply_native_declaration, evaluate_native_block, native_operation_code
+from .sinumerik_native import (
+    apply_native_declaration,
+    apply_native_tcp_edge,
+    evaluate_native_block,
+    native_ignored_mode_warnings,
+    native_operation_code,
+)
 from .state import (
     MillState,
     _activate_tcp,
@@ -27,10 +35,7 @@ from .state import (
     _wcs_offset,
 )
 
-try:
-    from ._native_executor import execute_simple_blocks as _execute_simple_blocks
-except ImportError:
-    _execute_simple_blocks = None
+_execute_simple_blocks = native_symbol("executor", "execute_simple_blocks")
 
 
 MILLING_RECOGNIZED_G_CODES = frozenset(
@@ -81,6 +86,7 @@ MILLING_RECOGNIZED_G_CODES = frozenset(
         86,
         90,
         91,
+        93,
         94,
         95,
         98,
@@ -250,7 +256,7 @@ def _finalize_milling_block(
 def _gate_milling_block(ctx, block, occurrence_events, evaluated_block=None):
     normalized, diagnostic, switch = controller_capability_gate(ctx.runtime, block, evaluated_block, state=ctx.state)
     if ctx.source_dialect == "sinumerik":
-        ctx.state.source_arc_type = 2 if ctx.runtime.controller_mode == "sinumerik_native" else 1
+        ctx.state.source_arc_type = 1
     if diagnostic is not None:
         return normalized, _BlockOutcome(
             action=_BlockAction.STOP,
@@ -271,8 +277,12 @@ def _gate_milling_block(ctx, block, occurrence_events, evaluated_block=None):
         code = native_operation_code(block)
         if code is not None:
             occurrence_events.append(ExecutionEvent("SINUMERIK_NATIVE_OPERATION", block.index, code=code))
-        if apply_native_declaration(block, normalized, ctx.state):
-            return normalized, _BlockOutcome(events=tuple(occurrence_events), words=normalized.values)
+        if apply_native_declaration(block, normalized, ctx.state, occurrence_events):
+            return normalized, _BlockOutcome(
+                events=tuple(occurrence_events),
+                words=normalized.values,
+                diagnostics=tuple(native_ignored_mode_warnings(block)),
+            )
     return normalized, None
 
 
@@ -322,7 +332,9 @@ def _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
     gcodes = evaluated_block.codes.all_g
     evaluated = evaluated_block.values
     signals = evaluated_block.signals + _milling_spindle_signals(block, words, evaluated_block.codes.all_m)
-    diagnostics: list[Diagnostic] = []
+    diagnostics: list[Diagnostic] = (
+        native_ignored_mode_warnings(block) if ctx.runtime.controller_mode == "sinumerik_native" else []
+    )
     early_outcome = _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_events, diagnostics)
     if early_outcome is not None:
         return early_outcome, None
@@ -430,7 +442,8 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
     """Report unknown codes and fail closed for position-bearing G codes."""
     words = evaluated_block.words
     codes = evaluated_block.codes
-    unknown_g = tuple(g for g in codes.all_g if g not in MILLING_RECOGNIZED_G_CODES)
+    native_wcs = {93, 500} if ctx.runtime.controller_mode == "sinumerik_native" else set()
+    unknown_g = tuple(g for g in codes.all_g if g not in MILLING_RECOGNIZED_G_CODES | native_wcs)
     position_words = any(letter in words for letter in ("X", "Y", "Z", "A", "B", "C"))
     _report_unknown_g_codes(block_diagnostics, unknown_g, position_words, block)
     _report_unknown_m_codes(block_diagnostics, codes.all_m, MILLING_RECOGNIZED_M_CODES, block)
@@ -447,6 +460,13 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
         diagnostics=tuple(block_diagnostics),
         words=evaluated_block.values,
     )
+
+
+def _apply_native_feed(block, state, words):
+    if block.native_syntax is not None:
+        from .sinumerik_feed import apply_native_feed_state  # pylint: disable=import-outside-toplevel
+
+        apply_native_feed_state(block, state, words)
 
 
 def _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, block_diagnostics):
@@ -467,6 +487,8 @@ def _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, b
     _apply_pre_flow_modal_state(
         ctx.state, codes.all_g, codes.all_m, words, wcs_offsets=ctx.wcs_offsets, block_index=block.index
     )
+    _apply_native_feed(block, ctx.state, words)
+    apply_native_tcp_edge(block, words, ctx.state)
     if 68.2 in codes.all_g:
         occurrence_events.append(
             ExecutionEvent(
@@ -557,7 +579,7 @@ def _dispatch_milling_program_flow(ctx, block, evaluated_block, occurrence_event
     )
 
 
-def _rotary_index_error(state, words, gcodes, changed, move, continuous_c, tcp_motion):
+def _rotary_index_error(state, words, gcodes, changed, move, continuous_c, tcp_motion, machine_rapid=False):
     """Diagnose rotary semantics before applying any machine state."""
     message = ""
     if state.kinematics is None:
@@ -566,10 +588,7 @@ def _rotary_index_error(state, words, gcodes, changed, move, continuous_c, tcp_m
     elif any(axis not in state.kinematics.addresses for axis in changed):
         code = "UNCONFIGURED_ROTARY_AXIS"
         message = f"Rotary address {', '.join(changed)} is not configured in profile {state.kinematics.id}"
-    elif state.tcp_control and move in (2, 3):
-        code = "UNSUPPORTED_TCP_ROTARY_ARC"
-        message = "G43.4 rotary interpolation with G2/G3 is not modeled; use G0/G1 TCP motion"
-    elif any(axis in words for axis in ("X", "Y", "Z")) and not (continuous_c or tcp_motion):
+    elif any(axis in words for axis in ("X", "Y", "Z")) and not (continuous_c or tcp_motion or machine_rapid):
         code = "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"
         message = "Rotary and linear motion in one block is not supported"
     elif 28 not in gcodes and move != 0 and not (continuous_c and move == 1) and not tcp_motion:
@@ -615,9 +634,10 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
         and state.kinematics.id in TCP_TABLE_PROFILES
         and 28 not in gcodes
         and 53 not in gcodes
-        and move in (0, 1)
+        and move in (0, 1, 2, 3)
     )
-    code, message = _rotary_index_error(state, words, gcodes, changed, move, continuous_c, tcp_motion)
+    machine_rapid = block.native_syntax is not None and block.native_syntax.supa and move == 0
+    code, message = _rotary_index_error(state, words, gcodes, changed, move, continuous_c, tcp_motion, machine_rapid)
     if code is not None:
         return _BlockOutcome(
             action=_BlockAction.STOP,
@@ -716,12 +736,13 @@ def execute_milling(
     program_start_block, program_number = main_program_location(program)
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
     state = MillState(
+        native_feed_scale=default_unit_scale,
         kinematics=kinematics,
         x=home[0] - ox,
         y=home[1] - oy,
         z=home[2] - oz,
         unit_scale=float(default_unit_scale),
-        source_arc_type=2 if source_dialect == "sinumerik" else None,
+        source_arc_type=1 if source_dialect == "sinumerik" else None,
         g73_retract_distance=float(g73_retract_distance),
     )
     motions: list[TraceMotion] = []

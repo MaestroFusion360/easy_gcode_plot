@@ -102,6 +102,14 @@ def _tcp_rotary_changed(state: MillState, words, rotary_start_angles) -> bool:
     )
 
 
+def _arc_center_vector(block, words, state):
+    absolute = block.native_syntax.absolute_center if block.native_syntax is not None else ()
+    return tuple(
+        words.get(axis, 0.0) * state.unit_scale - (current if axis in absolute else 0.0)
+        for axis, current in zip(("I", "J", "K"), (state.x, state.y, state.z), strict=True)
+    )
+
+
 def _motion(
     block,
     state: MillState,
@@ -131,9 +139,7 @@ def _motion(
     )
     if state.move in (2, 3):
         transform = _coordinate_transform(state)
-        arc_vector = _orient_vector(
-            transform.apply_vector(tuple(words.get(axis, 0.0) * state.unit_scale for axis in ("I", "J", "K"))), state
-        )
+        arc_vector = _orient_vector(transform.apply_vector(_arc_center_vector(block, words, state)), state)
         plane_scales = transform.plane_scale_factors(state.plane)
         if abs(plane_scales[0] - plane_scales[1]) > 1e-12:
             raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
@@ -227,7 +233,8 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
         else:
             end_machine[index] = start_machine[index] + value
 
-    _validate_reference_retract(state, start_machine, end_machine, words, wcs_offsets)
+    if not supa:
+        _validate_reference_retract(state, start_machine, end_machine, words, wcs_offsets)
     _set_raw_machine_position(state, end_machine, wcs_offsets)
     if start_machine == tuple(end_machine):
         return None

@@ -91,8 +91,14 @@ def test_public_program_constructor_still_checks_supplied_ast(native):
 
 def test_python_parser_and_ast_work_without_native_extension(monkeypatch):
     # Import failure covers source installations without a compiled extension.
+    from app import native  # pylint: disable=import-outside-toplevel
+
+    monkeypatch.setitem(native._extensions, "parser", native.NativeExtension(None, "disabled for fallback regression"))
     monkeypatch.setitem(sys.modules, "app.gcode.kernel.frontend._native_parser", None)
     program = parse_program(MIXED_SOURCE)
+    from app.gcode.kernel.frontend.program import parser_statistics  # pylint: disable=import-outside-toplevel
+
+    assert parser_statistics().native_blocks == 0
     assert program == _parse_program_python(MIXED_SOURCE.splitlines())
     assert program.ast == _build_program_ast_python(program.blocks)
 

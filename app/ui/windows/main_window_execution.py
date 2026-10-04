@@ -830,6 +830,12 @@ class MainWindowExecutionMixin:
         """Display path length, machining time, and limits in the statistics window."""
         if self.execution_result is not None and self.execution_result.motions:
             stats = trace_statistics(self.execution_result, rapid_feed=self.rapidFeed)
-            self.statisticsDlg.show_statistics(stats)
+            item = getattr(self, "_toolpath_item", None)
+            segments = (
+                tuple((s.start, s.end, s.move, s.tool) for s in item.source_segments) if item is not None else None
+            )
+            self.statisticsDlg.show_statistics(
+                stats, source_path=self.curFile, execution=self.execution_result, plot_segments=segments
+            )
         else:
             self.statisticsDlg.show_report(QCoreApplication.translate("StatisticsReport", "No Data Available"))

@@ -62,14 +62,14 @@ def test_simplified_programming_uses_real_transition_motions_not_samples():
     assert any(motion.move in (2, 3) for motion in result.motions)
 
 
-def test_g71_offset_approximation_is_grouped_but_real_cycle_moves_remain():
+def test_g71_offset_arcs_remain_individual_analytical_playback_moves():
     result = execute(G71_WITH_OFFSET_ARCS)
     playback = _playback(result)
 
     assert result.ok, result.diagnostics
-    assert len(playback) < len(result.motions)
-    assert any(item.motion_end - item.motion_start > 1 for item in playback)
-    assert sum(item.motion_end - item.motion_start == 1 for item in playback) > 5
+    assert len(playback) == len(result.motions)
+    assert all(item.motion_end - item.motion_start == 1 for item in playback)
+    assert any(motion.cycle_generated and motion.move in (2, 3) for motion in result.motions)
     assert {result.motions[item.motion_end - 1].move for item in playback} >= {0, 1}
 
 
@@ -97,7 +97,38 @@ def test_only_explicit_consecutive_approximation_groups_collapse():
     assert reverse == (0, 1, 1, 2)
 
 
-def test_grouped_playback_keeps_stock_timeline_on_detailed_range_boundary():
+def test_gui_tail_uses_grouped_playback_index_and_clears_at_start():
+    # pylint: disable=protected-access
+    base = execute("G0 X10\nG1 X9 F100\nG1 X8\nG0 X20")
+    result = replace(
+        base,
+        motions=(
+            base.motions[0],
+            replace(base.motions[1], playback_group=7),
+            replace(base.motions[2], playback_group=7),
+            base.motions[3],
+        ),
+    )
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    window._finish_data_update_impl(result=result, points=render_trace(result), playback_value=2)
+    item = window._toolpath_item
+    assert item.logical_count == 3
+    assert item.visible_logical_count == 2
+    assert item.tail_logical_index == 1
+    first, count = item.tail_vertex_range
+    assert count == 4
+    assert first + count < len(item.packed_vertices)
+    window.valueHandler(1, sync_editor=False)
+    assert item.tail_logical_index == 0
+    window.valueHandler(0, sync_editor=False)
+    assert item.tail_vertex_range == (0, 0)
+    window.close()
+    window.deleteLater()
+    QT_APP.processEvents()
+
+
+def test_cycle_arc_playback_keeps_stock_timeline_on_motion_boundary():
     # pylint: disable=protected-access
     window = MainWindow()
     window.autoUpdateEnabled = False
@@ -117,12 +148,14 @@ def test_grouped_playback_keeps_stock_timeline_on_detailed_range_boundary():
     )
     window.ui.actionPlay.setChecked(True)
 
-    grouped_index = next(
-        index for index, item in enumerate(window._playback_movements) if item.motion_end - item.motion_start > 1
+    arc_index = next(
+        index
+        for index, item in enumerate(window._playback_movements)
+        if window.execution_result.motions[item.motion_end - 1].move in (2, 3)
     )
-    window.ui.horizontalSlider.setValue(grouped_index + 1)
-    assert window._stock_timeline.motion_count == window._playback_movements[grouped_index].motion_end
-    window.ui.horizontalSlider.setValue(grouped_index)
-    expected = 0 if grouped_index == 0 else window._playback_movements[grouped_index - 1].motion_end
+    window.ui.horizontalSlider.setValue(arc_index + 1)
+    assert window._stock_timeline.motion_count == window._playback_movements[arc_index].motion_end
+    window.ui.horizontalSlider.setValue(arc_index)
+    expected = 0 if arc_index == 0 else window._playback_movements[arc_index - 1].motion_end
     assert window._stock_timeline.motion_count == expected
     window.deleteLater()

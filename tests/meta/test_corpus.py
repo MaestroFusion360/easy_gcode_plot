@@ -8,6 +8,9 @@ import gcode_samples
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 EXPECTED_FIXTURES = {
     "milling/contur_2d.nc",
+    "milling/correction_fanuc.nc",
+    "milling/correction_ijk_sin840d.mpf",
+    "milling/correction_sin840d.mpf",
     "milling/flange_plate_benchmark.nc",
     "milling/g68_2_cube.nc",
     "milling/helical_bore.nc",
@@ -32,6 +35,11 @@ EXPECTED_FIXTURES = {
     "milling/radius_arc_ramp.nc",
     "milling/ramped_surface.nc",
     "milling/subprogram.nc",
+    "milling/sinumerik_traori_ac.mpf",
+    "milling/sinumerik_cycle800.mpf",
+    "milling/sinumerik_cam_setup.mpf",
+    "milling/sinumerik_guide_radius.mpf",
+    "milling/sinumerik_cut3dc_unsupported.mpf",
     "milling/contur_2d_sin840d.mpf",
     "milling/cycles_fanuc.nc",
     "milling/cycles_sin840d.mpf",
@@ -50,6 +58,10 @@ EXPECTED_FIXTURES = {
     "turning/od_rough_finish.nc",
     "turning/oem_header.nc",
     "turning/radius_profile.nc",
+    "turning/simple_programming.nc",
+    "turning/lathe_cycles_example.nc",
+    "turning/lathe_cycles_example_expanded.nc",
+    "turning/lathe_cnc_macro_test.nc",
     "turning/taper_thread.nc",
 }
 

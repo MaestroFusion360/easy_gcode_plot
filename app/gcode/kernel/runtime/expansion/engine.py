@@ -45,10 +45,14 @@ def _profile_compensation_modes(blocks, state, variables, p_index, q_index):
     return modes
 
 
-def _compensated_profile(profile, p_index, q_index, *, blocks, state, tools, variables):
+def _compensated_profile(profile, p_index, q_index, *, blocks, state, tools, variables, roughing_side=None):
     if not tools:
         return profile, False
     modes = _profile_compensation_modes(blocks, state, variables, p_index, q_index)
+    if roughing_side is not None and not any(mode in (41, 42) for mode in modes.values()):
+        tool = tools.get(state.active_tool or "", {})
+        if float(tool.get("noseRadius", 0.0)) > 0.0:
+            modes = {index: roughing_side for index in modes}
     active = any(mode in (41, 42) for mode in modes.values())
     return (
         compensate_profile_segments(

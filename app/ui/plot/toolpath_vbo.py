@@ -146,6 +146,9 @@ class ToolpathVboItem(GLLinePlotItem):
         self.show_rapid = True
         self.dashed_rapid = False
         self.color_by_tool = False
+        self.tail_logical_index = -1
+        self.tail_color = _rgba("#00b7ff")
+        self.tail_only = False
         self._dash_signature = None
         self._gl_context = None
         super().__init__(
@@ -168,6 +171,7 @@ class ToolpathVboItem(GLLinePlotItem):
     def set_segments(self, segments, logical_count: int) -> None:
         """Pack a complete sampled toolpath and mark both GPU buffers dirty."""
         self.source_segments = tuple(segments)
+        self.tail_logical_index = -1
         self._dash_signature = None
         self._repack(logical_count)
 
@@ -242,6 +246,33 @@ class ToolpathVboItem(GLLinePlotItem):
         self.visible_logical_count = clamped
         self.visible_segment_count = int(self.logical_to_exclusive_segment[clamped])
         self.update()
+
+    def set_tail(self, logical_index: int, color) -> None:
+        """Highlight one whole logical motion without uploading either VBO."""
+        self.tail_logical_index = int(logical_index)
+        self.tail_color = _rgba(color)
+        self.update()
+
+    @property
+    def tail_vertex_range(self) -> tuple[int, int]:
+        """Return first vertex and count, including every sampled arc segment."""
+        if not 0 <= self.tail_logical_index < self.visible_logical_count:
+            return (0, 0)
+        begin, end = self.segment_range_for_logical(self.tail_logical_index)
+        return begin * 2, (end - begin) * 2
+
+    def _paint_tail(self):
+        first, count = self.tail_vertex_range
+        if count:
+            GL.glDisableVertexAttribArray(1)
+            GL.glVertexAttrib4f(1, *self.tail_color)
+            GL.glDrawArrays(GL.GL_LINES, first, count)
+            GL.glEnableVertexAttribArray(1)
+
+    def _draw_visible_toolpath(self):
+        if not self.tail_only:
+            GL.glDrawArrays(GL.GL_LINES, 0, self.visible_vertex_count)
+        self._paint_tail()
 
     def update_dashes_for_view(self) -> None:
         """Pack screen-sized dashes at an explicit view change, never during paint."""
@@ -339,6 +370,7 @@ class ToolpathVboItem(GLLinePlotItem):
         self.color = self.packed_colors
         self.visible_logical_count = 0
         self.visible_segment_count = 0
+        self.tail_logical_index = -1
 
     def paint(self) -> None:
         """Draw the visible vertex prefix from the full resident VBOs."""
@@ -395,7 +427,7 @@ class ToolpathVboItem(GLLinePlotItem):
         with program:
             location = GL.glGetUniformLocation(program, "u_mvp")
             GL.glUniformMatrix4fv(location, 1, False, matrix)
-            GL.glDrawArrays(GL.GL_LINES, 0, self.visible_vertex_count)
+            self._draw_visible_toolpath()
         for location in enabled_locations:
             GL.glDisableVertexAttribArray(location)
 

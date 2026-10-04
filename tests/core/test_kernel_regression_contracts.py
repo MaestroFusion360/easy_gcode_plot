@@ -81,7 +81,7 @@ def test_turning_g71_g70_execution_path_is_stable():
     assert result.ok, result.diagnostics
     assert result.complete is True
     assert result.program_end == "M30"
-    assert len(result.motions) == 54
+    assert len(result.motions) == 71
     assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
     assert [(motion.move, round(motion.end_x, 3), round(motion.end_z, 3)) for motion in result.motions[-3:]] == [
         (1, 10.0, -20.0),

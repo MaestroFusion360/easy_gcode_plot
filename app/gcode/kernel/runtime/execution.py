@@ -59,7 +59,7 @@ _MILLING_MODAL_GROUPS = {
     "motion": frozenset({0, 1, 2, 3, 73, 80, 81, 82, 83, 84, 85, 86}),
     "polar_coordinates": frozenset({15, 16}),
     "distance_mode": frozenset({90, 91}),
-    "feed_mode": frozenset({94, 95}),
+    "feed_mode": frozenset({93, 94, 95}),
     "cycle_return": frozenset({98, 99}),
     "tool_length_compensation": frozenset({43, 43.4, 49}),
     "coordinate_scaling": frozenset({50, 51}),
@@ -615,8 +615,11 @@ def dispatch_macro_flow(
     line = int(getattr(block, "index", pc)) + 1
     raw = str(getattr(block, "raw", ""))
 
-    if flow.kind == "assign":
-        _assign_macro_variable(flow, variables, line=line, raw=raw)
+    if flow.kind == "unsupported_if":
+        raise SemanticError("UNSUPPORTED_MACRO_IF", "IF requires a supported GOTO or THEN assignment", "unsupported")
+    if flow.kind in {"assign", "if_assign"}:
+        if flow.kind == "assign" or eval_condition(flow.condition or "0", variables):
+            _assign_macro_variable(flow, variables, line=line, raw=raw)
         return FlowDispatch(True, pc + 1)
 
     if flow.kind == "goto":

@@ -31,6 +31,16 @@ class NativeMillingSyntax:
     cycle_code: int | None = None
     cycle_args: tuple[str, ...] = ()
     parameter_assignment: tuple[int, str] | None = None
+    incremental_rotary: tuple[str, ...] = ()
+    direct_rotary: tuple[str, ...] = ()
+    absolute_center: tuple[str, ...] = ()
+    real_declarations: tuple[str, ...] = ()
+    named_assignments: tuple[tuple[str, str], ...] = ()
+    named_tool: str | None = None
+    feed_normal: bool = False
+    ignored_diameter_modes: tuple[str, ...] = ()
+    ignored_native_commands: tuple[str, ...] = ()
+    incremental_linear: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -230,8 +240,9 @@ def _build_program_ast_python(blocks: tuple[Block, ...]) -> ProgramAst:
 
 def build_program_ast(blocks: tuple[Block, ...]) -> ProgramAst:
     """Build the immutable view in Cython when available, with a portable fallback."""
-    try:
-        from ._native_parser import build_program_ast_native  # pylint: disable=import-outside-toplevel
-    except ImportError:
+    from app.native import native_symbol  # pylint: disable=import-outside-toplevel
+
+    build_program_ast_native = native_symbol("parser", "build_program_ast_native")
+    if build_program_ast_native is None:
         return _build_program_ast_python(blocks)
     return build_program_ast_native(blocks, checkpoint)

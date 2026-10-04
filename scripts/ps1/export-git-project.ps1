@@ -1,5 +1,7 @@
 param(
-    [string]$OutputDirectory = ''
+    [string]$OutputDirectory = '',
+    [switch]$Full,
+    [switch]$SkipAssets
 )
 
 $ErrorActionPreference = 'Stop'
@@ -127,6 +129,13 @@ try {
                 continue
             }
 
+            if ($SkipAssets -and (
+                $RelativePath.Equals('docs/assets', [System.StringComparison]::OrdinalIgnoreCase) -or
+                $RelativePath.StartsWith('docs/assets/', [System.StringComparison]::OrdinalIgnoreCase)
+            )) {
+                continue
+            }
+
             $RelativePath = $RelativePath -replace '/', '\\'
             $SourcePath = Join-Path $ProjectRoot $RelativePath
 
@@ -155,6 +164,30 @@ try {
             }
 
             $CopiedCount++
+        }
+
+        if ($Full) {
+            $GitPath = Join-Path $ProjectRoot '.git'
+
+            if (-not (Test-Path -LiteralPath $GitPath)) {
+                Fail "-Full requested, but .git was not found in: $ProjectRoot"
+            }
+
+            $GitDestination = Join-Path $StagingDir '.git'
+            Copy-Item `
+                -LiteralPath $GitPath `
+                -Destination $GitDestination `
+                -Recurse `
+                -Force
+
+            if (Test-Path -LiteralPath $GitDestination -PathType Container) {
+                $CopiedCount += @(
+                    Get-ChildItem -LiteralPath $GitDestination -Recurse -File -Force
+                ).Count
+            }
+            else {
+                $CopiedCount++
+            }
         }
 
         if ($CopiedCount -eq 0) {

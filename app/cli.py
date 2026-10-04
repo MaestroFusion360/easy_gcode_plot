@@ -13,7 +13,7 @@ from app.gcode.batch import (
     analysis_diagnostic_summary,
     analysis_status,
     analyze_directory,
-    execute_analysis_program,
+    analyze_file,
     write_batch_reports,
 )
 from app.gcode.batch_export import export_directory, write_export_reports
@@ -22,8 +22,10 @@ from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.kinematics_report import kinematics_report_fields
 from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import source_dialect_for_path
+from app.gcode.source_mode import language_for_path, source_dialect_for_path
+from app.gcode.statistics_report import export_execution_statistics
 from app.gcode.trace_tools import format_trace_statistics, trace_statistics
+from app.native import NativeRuntimeError, require_packaged_native
 
 
 def _add_kinematics_option(command: argparse.ArgumentParser) -> None:
@@ -137,12 +139,18 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         if name in {"trace", "analyze", "export"}:
             _add_kinematics_option(command)
         command.add_argument(
-            "--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn", help="Controller dialect"
+            "--lang",
+            choices=("fanuc_turn", "fanuc_mill"),
+            default=None,
+            help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
         )
         command.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
         command.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
         if name in {"trace", "analyze"}:
             command.add_argument("-o", "--output", type=Path, help="Write detailed JSON to this file")
+        if name == "analyze":
+            command.add_argument("--html", type=Path, help="Save aggregate statistics as HTML with a tool selector")
+            command.add_argument("--inches", action="store_true", help="Display HTML statistics in inches")
         if name == "export":
             command.add_argument("-o", "--output", type=Path, required=True, help="Export destination")
             _add_export_options(command)
@@ -154,7 +162,14 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     )
     batch.add_argument("directory", type=Path, help="Directory containing NC programs")
     _add_kinematics_option(batch)
-    batch.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn", help="Controller dialect")
+    batch.add_argument(
+        "--lang",
+        choices=("fanuc_turn", "fanuc_mill"),
+        default=None,
+        help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
+    )
+    batch.add_argument("--html", type=Path, metavar="DIRECTORY", help="Save one HTML statistics/SVG report per NC file")
+    batch.add_argument("--inches", action="store_true", help="Display HTML statistics in inches")
     batch.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
     batch.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
     batch.add_argument("-o", "--output-dir", type=Path, default=Path("batch-report"), help="Report directory")
@@ -206,23 +221,22 @@ def _load(
     kinematics: str | None = None,
     lathe_gcode_system: str = "A",
 ) -> tuple[str, ExecutionResult]:
-    source = read_nc_text(path, encoding=encoding)
     if for_analysis:
-        result = execute_analysis_program(
-            source,
+        return analyze_file(
+            path,
+            encoding=encoding,
             language=language,
             kinematics=kinematics,
             lathe_gcode_system=lathe_gcode_system,
-            source_dialect=source_dialect_for_path(path, source),
         )
-    else:
-        result, _tools, _inferred = execute_program(
-            source,
-            language=language,
-            kinematics=kinematics,
-            lathe_gcode_system=lathe_gcode_system,
-            source_dialect=source_dialect_for_path(path, source),
-        )
+    source = read_nc_text(path, encoding=encoding)
+    result, _tools, _inferred = execute_program(
+        source,
+        language=language,
+        kinematics=kinematics,
+        lathe_gcode_system=lathe_gcode_system,
+        source_dialect=source_dialect_for_path(path, source),
+    )
     return source, result
 
 
@@ -278,6 +292,8 @@ def _write(path: Path | None, text: str) -> None:
 
 def _print_batch_file(file_report: dict[str, object]) -> None:
     print(f"[{file_report['status']}] {file_report['path']}", flush=True)
+    if file_report.get("html_report"):
+        print(f"  HTML statistics: {file_report['html_report']}", flush=True)
     for diagnostic in file_report["diagnostics"]:
         location = f"line {diagnostic['line']}: " if diagnostic.get("line") is not None else ""
         print(f"  {location}{diagnostic['code']}: {diagnostic['message']}", flush=True)
@@ -317,7 +333,7 @@ def _print_program_result(command: str, path: Path, result: ExecutionResult, out
 
 def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int:
     extensions = tuple(item.strip() for item in args.extensions.split(",") if item.strip())
-    print(f"Analyzing NC programs in {Path(args.directory).resolve()} ({args.lang})", flush=True)
+    print(f"Analyzing NC programs in {Path(args.directory).resolve()} ({args.lang or 'auto'})", flush=True)
     try:
         profile_map = _read_kinematics_map(args.kinematics_map)
         report = analyze_directory(
@@ -330,6 +346,8 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
             kinematics=args.kinematics,
             kinematics_by_file=profile_map,
             lathe_gcode_system=args.lathe_gcode_system,
+            html_dir=args.html,
+            inches=args.inches,
         )
         json_path, csv_path = write_batch_reports(report, args.output_dir)
     except (FileNotFoundError, NotADirectoryError, ValueError, OSError, json.JSONDecodeError) as exc:
@@ -412,13 +430,40 @@ def _run_single(args: argparse.Namespace) -> int:
             )
         _print_program_result("trace", args.file, result, args.output)
     elif args.command == "analyze":
+        if args.html is not None:
+            try:
+                export_execution_statistics(result, args.html, source_path=args.file, inches=args.inches)
+            except (OSError, ValueError) as exc:
+                print(f"HTML export error: {exc}", file=sys.stderr)
+                return 2
+            print(f"HTML statistics: {args.html}")
         if args.output is not None:
             _write(args.output, json.dumps(_analysis_document(result), ensure_ascii=False, indent=2))
         _print_program_result("analyze", args.file, result, args.output)
     return 0 if result.ok and result.complete else 2
 
 
+def _native_runtime_ready() -> bool:
+    try:
+        require_packaged_native()
+    except NativeRuntimeError as error:
+        print(f"Native runtime error: {error}", file=sys.stderr)
+        return False
+    return True
+
+
+def _validate_cli_profiles(args, parser) -> None:
+    if args.command == "batch" and args.lang is None:
+        return
+    if getattr(args, "kinematics", None) and args.lang != "fanuc_mill":
+        parser.error("--kinematics requires --lang fanuc_mill")
+    if getattr(args, "kinematics_map", None) and args.lang != "fanuc_mill":
+        parser.error("--kinematics-map requires --lang fanuc_mill")
+
+
 def main(argv: list[str] | None = None) -> int:
+    if not _native_runtime_ready():
+        return 2
     parser, commands = _parser()
     arguments = sys.argv[1:] if argv is None else argv
     if arguments in (["--help"], ["-h"]):
@@ -428,10 +473,9 @@ def main(argv: list[str] | None = None) -> int:
             command.print_help()
         return 0
     args = parser.parse_args(arguments)
-    if getattr(args, "kinematics", None) and args.lang != "fanuc_mill":
-        parser.error("--kinematics requires --lang fanuc_mill")
-    if getattr(args, "kinematics_map", None) and args.lang != "fanuc_mill":
-        parser.error("--kinematics-map requires --lang fanuc_mill")
+    if args.lang is None and args.command != "batch":
+        args.lang = language_for_path(args.file)
+    _validate_cli_profiles(args, parser)
     if args.command in {"export", "batch-export"}:
         request, explicit = _export_request(args, arguments)
         try:

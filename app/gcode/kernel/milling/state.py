@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from ..api.resources import SemanticError
@@ -12,11 +13,14 @@ from ..runtime.execution import apply_unit_mode
 from ..runtime.state import MachineRuntimeState
 from .kinematics import MachineKinematics, _transpose, point_orientation, transform_point, transform_vector
 from .polar import activate_polar, cancel_polar, resolve_polar_endpoint, select_polar_plane
-from .twp import TiltedWorkPlane, solve_table_orientation, supports_twp_kinematics
+from .twp import TiltedWorkPlane, euler_zxz, solve_table_orientation, supports_twp_kinematics
 
 
 @dataclass
 class MillState(MachineRuntimeState):
+    native_feed_scale: float = 1.0
+    native_programmed_feed: float | None = None
+    native_previous_feed_mode: str = "per_minute"
     source_arc_type: int | None = None
     kinematics: MachineKinematics | None = None
     rotary_angles: dict[str, float] = field(default_factory=lambda: {"A": 0.0, "B": 0.0, "C": 0.0})
@@ -31,6 +35,8 @@ class MillState(MachineRuntimeState):
     cycle: int = 80
     native_cycle: object | None = None
     siemens_parameters: dict[int, float] = field(default_factory=dict)
+    siemens_variables: dict[str, float | None] = field(default_factory=dict)
+    selected_tool_unload: bool = False
     cycle_z: float | None = None
     cycle_r: float | None = None
     cycle_q: float | None = None
@@ -153,21 +159,34 @@ def _set_twp(state: MillState, words, block_index: int) -> None:
     required = ("X", "Y", "Z", "I", "J", "K")
     if any(letter not in words for letter in required):
         raise SemanticError("INVALID_G68_2_WORDS", "G68.2 requires X/Y/Z origin and I/J/K Euler angles")
-    work_position = _orient_point(_coordinate_transform(state).apply((state.x, state.y, state.z)), state)
     origin = tuple(words[axis] * state.unit_scale for axis in ("X", "Y", "Z"))
     angles = tuple(float(words[axis]) for axis in ("I", "J", "K"))
-    state.twp.configure(origin, angles, block_index)
+    configure_tilted_frame(state, origin, angles, euler_zxz(*angles), block_index)
+
+
+def configure_tilted_frame(state: MillState, origin, angles, orientation, block_index: int) -> None:
+    """Install a controller-built rigid frame while preserving the current tip."""
+    if not all(math.isfinite(value) for value in origin + angles):
+        raise ValueError("Tilted working plane requires finite origin and rotation angles")
+    work_position = _orient_point(_coordinate_transform(state).apply((state.x, state.y, state.z)), state)
+    state.twp.active = True
+    state.twp.origin = origin
+    state.twp.angles = angles
+    state.twp.orientation = orientation
+    state.twp.tool_axis_control = False
+    state.twp.start_block = block_index
     state.x, state.y, state.z = _coordinate_transform(state).inverse(state.twp.inverse(work_position))
 
 
-def _orient_twp_tool_axis(state: MillState) -> None:
+def _orient_twp_tool_axis(state: MillState, *, solved=None) -> None:
     # G68.2 changes coordinates without moving the tip. G53.1 then indexes
     # the table: retain machine XYZ and express the rotated tip in the TWP.
     transform = _coordinate_transform(state)
     displayed = state.twp.apply(transform.apply((state.x, state.y, state.z)))
     old_frame = point_orientation(state.kinematics, state.rotary_angles)
     machine = transform_vector(_transpose(old_frame), displayed)
-    solved = solve_table_orientation(state.kinematics, state.twp.orientation, state.rotary_angles)
+    if solved is None:
+        solved = solve_table_orientation(state.kinematics, state.twp.orientation, state.rotary_angles)
     state.rotary_angles.update(solved)
     displayed = transform_point(point_orientation(state.kinematics, state.rotary_angles), machine)
     state.x, state.y, state.z = transform.inverse(state.twp.inverse(displayed))
@@ -314,6 +333,7 @@ def _execution_step(
         twp_origin=state.twp.origin if state.twp.active else None,
         twp_orientation=state.twp.orientation if state.twp.active else None,
         tool_axis_control=state.twp.tool_axis_control,
+        programmed_position=None if state.unknown_axes else (state.x, state.y, state.z),
     )
 
 
@@ -337,7 +357,11 @@ def _apply_coordinate_modal_state(state: MillState, g, words, *, wcs_offsets, bl
     elif g == 69:
         _cancel_g68_rotation(state)
         _cancel_twp(state)
-    elif (extended_wcs := extended_wcs_from_gcode(g, words)) is not None or (isinstance(g, int) and 54 <= g <= 59):
+    elif (
+        (extended_wcs := extended_wcs_from_gcode(g, words)) is not None
+        or (isinstance(g, int) and 54 <= g <= 59)
+        or g == 500
+    ):
         selected_wcs = extended_wcs if extended_wcs is not None else g
         transform = _coordinate_transform(state)
         work_position = _orient_point(transform.apply((state.x, state.y, state.z)), state)
@@ -367,6 +391,8 @@ def _apply_polar_modal_state(state: MillState, g, *, effective_plane: int, effec
 
 
 def _apply_milling_spindle_state(state: MillState, gcodes, all_m, words) -> None:
+    if 93 in gcodes:
+        state.feed_mode = "inverse_time"
     if 94 in gcodes:
         state.feed_mode = "per_minute"
     if 95 in gcodes:
@@ -378,7 +404,7 @@ def _apply_milling_spindle_state(state: MillState, gcodes, all_m, words) -> None
     if 5 in all_m:
         state.spindle_rpm = None
     if "F" in words:
-        state.feed = words["F"] * state.unit_scale
+        state.feed = words["F"] * (1.0 if state.feed_mode == "inverse_time" else state.unit_scale)
 
 
 def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets, block_index: int) -> None:

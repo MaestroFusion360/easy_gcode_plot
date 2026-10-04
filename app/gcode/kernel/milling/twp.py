@@ -33,7 +33,7 @@ def euler_zxz(i: float, j: float, k: float) -> Matrix:
 
 
 def solve_table_orientation(
-    profile: MachineKinematics, orientation: Matrix, current: dict[str, float]
+    profile: MachineKinematics, orientation: Matrix, current: dict[str, float], *, direction: int = 0
 ) -> dict[str, float]:
     """Solve two rotary joint angles so the physical tool axis follows +Z."""
     if not supports_twp_kinematics(profile):
@@ -97,12 +97,26 @@ def solve_table_orientation(
                 candidate,
             )
         )
-    error, _, solved = min(candidates, key=lambda item: (round(item[0], 7), item[1]))
+    error, _, solved = _select_orientation(candidates, addresses[0], direction)
     if error > 1e-5:
         raise SemanticError(
             "TWP_ORIENTATION_UNREACHABLE", "G53.1 tool axis is unreachable by the selected kinematics", "unsupported"
         )
     return solved
+
+
+def _select_orientation(candidates, first_axis: str, direction: int):
+    if direction:
+        candidates = [item for item in candidates if _direction_matches(item[2][first_axis], direction)]
+    if not candidates:
+        raise SemanticError("TWP_ORIENTATION_UNREACHABLE", "Selected swivel direction is unreachable", "unsupported")
+    return min(candidates, key=lambda item: (round(item[0], 7), item[1]))
+
+
+def _direction_matches(angle: float, direction: int) -> bool:
+    """Fixed table profiles choose the principal first-joint swivel branch."""
+    principal = (angle + 180.0) % 360.0 - 180.0
+    return principal * direction >= -1e-7
 
 
 @dataclass

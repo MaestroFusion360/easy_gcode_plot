@@ -218,7 +218,7 @@ cdef bint _requires_fallback(bytes clean):
     cdef Py_ssize_t size = PyBytes_GET_SIZE(clean)
     cdef Py_ssize_t pos
     cdef unsigned char ch
-    if b"GOTO" in clean or b"WHILE" in clean or b"END" in clean:
+    if b"IF" in clean or b"GOTO" in clean or b"WHILE" in clean or b"END" in clean:
         return True
     for pos in range(size):
         ch = data[pos]

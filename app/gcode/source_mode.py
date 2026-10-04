@@ -26,6 +26,13 @@ def source_dialect_for_path(path: str | Path | None, source: str | None = None) 
     return SOURCE_DIALECT_FANUC
 
 
+def language_for_path(path: str | Path, language: str | None = None) -> str:
+    """Respect an explicit machine type, otherwise use the source container."""
+    if language is not None:
+        return language
+    return "fanuc_mill" if source_dialect_for_path(path) == SOURCE_DIALECT_SINUMERIK else "fanuc_turn"
+
+
 def sinumerik_initial_mode(source: str) -> str:
     """Return the first explicit SINUMERIK language mode, defaulting to G290.
 

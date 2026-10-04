@@ -14,6 +14,7 @@ import pytest
 from app.gcode.export.mill import export_full_mill_program
 from app.gcode.export.options import ExportOptions
 from app.gcode.export.trace import export_result
+from app.gcode.export.validation import _motion_trace_signature
 from app.gcode.kernel import execute
 from app.gcode.program_execution import execute_program
 
@@ -151,8 +152,12 @@ def test_native_compensation_cannot_leak_through_mode_switch():
     assert not result.motions
 
 
-def test_native_full_program_export_remains_explicitly_unsupported():
+def test_native_full_program_export_preserves_native_syntax():
     source = (FIXTURES / "contur_2d_sin840d.mpf").read_text()
     result, _, _ = execute_program(source, language="fanuc_mill", source_dialect="sinumerik")
-    with pytest.raises(ValueError, match="Native SINUMERIK Full Program export is not supported"):
-        export_full_mill_program(result, source.splitlines())
+    converted = export_full_mill_program(result, source.splitlines())
+    assert "WORKPIECE(" in converted and "G710" in converted
+    assert "G43" not in converted
+    target, _, _ = execute_program(converted, language="fanuc_mill", source_dialect="sinumerik")
+    assert target.ok and target.complete
+    assert _motion_trace_signature(target) == _motion_trace_signature(result)

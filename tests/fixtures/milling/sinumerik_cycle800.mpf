@@ -1,0 +1,10 @@
+; Local Siemens CYCLE800 examples; logical retract requests, no OEM paths.
+G710 G17 G90 G94
+CYCLE800(2,"TISCH",200000,57,0,0,50,-15,0,0,0,0,0,1,,1)
+G0 X0 Y0 Z5
+G1 Z0 F100
+CYCLE800(2,"TISCH",200001,54,35,-24,0,7,0,0,0,0,0,1,,1)
+G0 X0 Y0 Z5
+G1 Z0
+CYCLE800(2,"0",200000,57,0,0,0,0,0,0,0,0,0,1,,1)
+M30

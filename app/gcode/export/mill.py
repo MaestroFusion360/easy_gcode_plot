@@ -31,6 +31,7 @@ from .formatting import (
     motion_line,
 )
 from .options import ExportOptions, _mill_program_options
+from .source_formatting import format_full_program_source, is_native_full_program
 from .validation import validate_sinumerik_iso_export
 
 
@@ -216,8 +217,8 @@ def export_full_mill_program(
         "Expanded mill program export requires a valid and complete milling execution result",
         cancelled,
     )
-    if any(event.kind == "SINUMERIK_NATIVE_OPERATION" for event in result.events):
-        raise ValueError("Native SINUMERIK Full Program export is not supported; use trace export")
+    if is_native_full_program(result):
+        return format_full_program_source("\n".join(source_lines) + "\n", options or ExportOptions(), native=True)
     if any(event.kind == "SINUMERIK_ISO_MODE" for event in result.events):
         validate_sinumerik_iso_export(result)
     if any(event.kind == "TCP_CONTROL_ON" for event in result.events):

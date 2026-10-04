@@ -333,6 +333,16 @@ class MainWindowStockMixin:
         previous_count = timeline.motion_count
         logical_count = max(0, min(int(playback_count), len(self._playback_movements)))
         count = 0 if logical_count == 0 else self._playback_movements[logical_count - 1].motion_end
+        toolpath = getattr(self, "_toolpath_item", None)
+        if toolpath is not None:
+            tail = getattr(self, "_stock_tail_item", None)
+            if tail is None:
+                tail = GLLinePlotItem(mode="lines", width=2, antialias=True)
+                self._stock_tail_item = tail
+            begin, end = toolpath.segment_range_for_logical(logical_count - 1)
+            tail.setData(pos=toolpath.packed_vertices[begin * 2 : end * 2], color=QColor(self.plotCurrentColor))
+            if tail not in self.ui.graphicsView.items:
+                self.ui.graphicsView.addItem(tail)
         update_started = perf_counter()
         timeline.set_motion_count(count)
         timeline_ms = (perf_counter() - update_started) * 1000.0

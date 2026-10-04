@@ -9,21 +9,28 @@ import math
 from dataclasses import replace
 
 from ..api.resources import SemanticError
+from ..api.types import Diagnostic, ExecutionEvent
 from ..frontend.lang import WordToken
 from ..frontend.program import EvaluatedWords
 from ..runtime.execution import EvaluatedBlock, classify_block_codes
 from ..runtime.signals import signals_for_words
 from .cycles.sinumerik import compile_native_cycle
+from .kinematics import TCP_TABLE_PROFILES
+from .sinumerik_feed import native_feed_diagnostic
 from .sinumerik_iso import _diag, _normalize_g_codes
-from .sinumerik_parameters import parameter_value
+from .sinumerik_parameters import compile_variables, parameter_value
+from .sinumerik_swivel import apply_swivel, compile_swivel
+from .state import _activate_tcp, _cancel_tcp
 
-NATIVE_G_CODES = frozenset({41, 42, 64, 710})
+IGNORED_NATIVE_G_CODES = frozenset(range(505, 600)) | {601, 641, 642, 645}
+NATIVE_G_CODES = IGNORED_NATIVE_G_CODES | frozenset({41, 42, 60, 64, 70, 71, 93, 500, 700, 710})
+IGNORED_CONTOUR_WORDS = frozenset({"CHF", "CHR", "RND", "RNDM", "FRC", "FRCM"})
 
 
 def native_operation_code(block):
     """Describe native-only semantics for execution facts and export guards."""
     syntax = block.native_syntax
-    if syntax is None:
+    if syntax is None or syntax.kind == "hsc_ignored":
         return None
     if syntax.kind != "words":
         return syntax.kind.upper()
@@ -43,18 +50,151 @@ def evaluate_native_block(block, state):
     tokens = tuple(WordToken("R" if token.letter == "CR" else token.letter, token.expr) for token in block.parsed_words)
     words = EvaluatedWords()
     for token in tokens:
-        words.add(token, parameter_value(token.expr, state.siemens_parameters))
+        if token.letter in IGNORED_CONTOUR_WORDS:
+            continue
+        words.add(token, parameter_value(token.expr, state.siemens_parameters, state.siemens_variables))
+    _resolve_incremental_rotary(block, words, state)
+    _resolve_incremental_linear(block, words, state)
+    _resolve_direct_rotary(block, words, state)
     values = tuple((letter, value) for letter, entries in words._all.items() for value in entries)  # pylint: disable=protected-access
     return EvaluatedBlock(words, classify_block_codes(words), values, signals_for_words(block.index, words))
+
+
+def native_ignored_mode_warnings(block):
+    syntax = block.native_syntax
+    if syntax is None:
+        return []
+    warnings = [
+        Diagnostic(
+            "IGNORED_SINUMERIK_DIAMETER_MODE",
+            f"{mode} is not simulated; coordinates use DIAMOF semantics",
+            "warning",
+            "unverified",
+            block.index + 1,
+            block.raw,
+        )
+        for mode in syntax.ignored_diameter_modes
+    ]
+    for letter in dict.fromkeys(token.letter for token in block.parsed_words if token.letter in IGNORED_CONTOUR_WORDS):
+        warnings.append(
+            Diagnostic(
+                f"UNMODELED_SINUMERIK_{letter}",
+                f"{letter} is parsed but not simulated; "
+                "programmed contour and feed are retained without corner treatment",
+                "warning",
+                "unverified",
+                block.index + 1,
+                block.raw,
+            )
+        )
+    commands = list(syntax.ignored_native_commands)
+    if any(t.letter == "G" and float(t.expr) == 4 for t in block.parsed_words) and any(
+        t.letter == "S" for t in block.parsed_words
+    ):
+        commands.append("G4 S (spindle-revolution dwell)")
+    commands.extend(
+        f"G{int(float(t.expr))}"
+        for t in block.parsed_words
+        if t.letter == "G" and float(t.expr) in IGNORED_NATIVE_G_CODES
+    )
+    for command in dict.fromkeys(commands):
+        warnings.append(
+            Diagnostic(
+                "UNMODELED_SINUMERIK_NATIVE",
+                f"{command} is parsed but not simulated; current geometry and feed state are retained",
+                "warning",
+                "unverified",
+                block.index + 1,
+                block.raw,
+            )
+        )
+    return warnings
+
+
+def _resolve_incremental_linear(block, words, state):
+    if block.native_syntax.incremental_linear and (
+        block.native_syntax.supa or any(g in (28, 53) for g in words.all("G"))
+    ):
+        raise SemanticError(
+            "UNSUPPORTED_SINUMERIK_IC_RETURN", "IC linear values cannot combine with machine returns", "unsupported"
+        )
+    absolute = next((g == 90 for g in reversed(words.all("G")) if g in (90, 91)), state.absolute)
+    scale = next(
+        (25.4 if g in (20, 70, 700) else 1.0 for g in reversed(words.all("G")) if g in (20, 21, 70, 71, 700, 710)),
+        state.unit_scale,
+    )
+    if absolute:
+        for axis in block.native_syntax.incremental_linear:
+            target = getattr(state, axis.lower()) / scale + words[axis]
+            words[axis] = target
+            words._all[axis] = [target]  # pylint: disable=protected-access
+
+
+def _resolve_incremental_rotary(block, words, state):
+    axes = block.native_syntax.incremental_rotary
+    if not axes:
+        return
+    gcodes = words.all("G")
+    if any(g in (28, 53) for g in gcodes) or block.native_syntax.supa:
+        raise SemanticError(
+            "UNSUPPORTED_SINUMERIK_ROTARY", "IC rotary values cannot combine with machine returns", "unsupported"
+        )
+    absolute = next((g == 90 for g in reversed(gcodes) if g in (90, 91)), state.absolute)
+    if absolute:
+        for axis in axes:
+            target = state.rotary_angles[axis] + words[axis]
+            words[axis] = target
+            words._all[axis] = [target]  # pylint: disable=protected-access
+
+
+def _resolve_direct_rotary(block, words, state):
+    if not block.native_syntax.direct_rotary:
+        return
+    absolute = next((g == 90 for g in reversed(words.all("G")) if g in (90, 91)), state.absolute)
+    for axis in block.native_syntax.direct_rotary:
+        value = words[axis]
+        if not 0 <= value <= 360:
+            raise SemanticError("INVALID_SINUMERIK_DC", "DC absolute target must be within 0..360 degrees")
+        delta = (value - state.rotary_angles[axis] + 180) % 360 - 180
+        if abs(delta) == 180:
+            raise SemanticError(
+                "UNSUPPORTED_SINUMERIK_DC_TIE", "DC half-turn direction requires machine settings", "unsupported"
+            )
+        target = state.rotary_angles[axis] + delta if absolute else delta
+        words[axis] = target
+        words._all[axis] = [target]  # pylint: disable=protected-access
+
+
+def apply_native_tcp_edge(block, words, state):
+    """D selects a cutting edge/offset without cancelling the TRAORI transform."""
+    if block.native_syntax is not None and state.tcp_control and "D" in words:
+        state.tool_length_comp = words["D"] == 1
+        state.tool_length_h = 1 if state.tool_length_comp else None
 
 
 def normalize_native_block(block, evaluated, state):
     syntax = block.native_syntax
     if syntax is None:
         return evaluated, None
-    if syntax.kind in ("cycle", "cycle_cancel", "frame_reset", "parameter_assignment"):
+    diagnostic = native_feed_diagnostic(block, evaluated, state)
+    if diagnostic is not None:
+        return evaluated, diagnostic
+    diagnostic = _native_tcp_combination_diagnostic(block, evaluated, state)
+    if diagnostic is not None:
+        return evaluated, diagnostic
+    if syntax.kind != "words":
         return _normalize_native_declaration(block, evaluated, state)
     return _normalize_native_words(block, evaluated, state)
+
+
+def _native_tcp_combination_diagnostic(block, evaluated, state):
+    if not state.tcp_control:
+        return None
+    if block.native_syntax.kind == "cycle":
+        return _diag(block, "UNSUPPORTED_TCP_CYCLE", "Cancel TRAORI before native MCALL cycles")
+    if any(code in (41, 42) for code in evaluated.codes.all_g):
+        return _diag(block, "UNSUPPORTED_TCP_CUTTER_COMPENSATION", "Native TCP cutter compensation is not modeled")
+    return None
 
 
 def _normalize_native_words(block, evaluated, state):
@@ -63,7 +203,11 @@ def _normalize_native_words(block, evaluated, state):
     if diagnostic is not None:
         return evaluated, diagnostic
     gcodes = evaluated.codes.all_g
-    if syntax.supa and (not any(axis in evaluated.words for axis in ("X", "Y", "Z")) or gcodes != (0,)):
+    if syntax.supa and (
+        not any(axis in evaluated.words for axis in ("X", "Y", "Z"))
+        or gcodes not in ((), (0,))
+        or (not gcodes and state.move != 0)
+    ):
         return evaluated, _diag(
             block, "UNSUPPORTED_SINUMERIK_SUPA", "Modeled SUPA requires explicit G0 and XYZ addresses"
         )
@@ -79,14 +223,14 @@ def _normalize_native_words(block, evaluated, state):
         return evaluated, _diag(
             block, "UNSUPPORTED_SINUMERIK_D", "Native milling currently models cutting edge D0/D1 only"
         )
-    normalized = _normalize_g_codes(evaluated, {710: 21})
+    normalized = _normalize_g_codes(evaluated, {70: 20, 71: 21, 700: 20, 710: 21})
     # Remove path-control metadata and express nonmodal SUPA/D in existing
     # state/motion operations, without manufacturing another source program.
     words = normalized.words
     _remove_path_control(words)
     if syntax.supa:
         words.add(WordToken("G", "53"), 53.0)
-    if d is not None:
+    if d is not None and not state.tcp_control:
         words.add(WordToken("G", "49" if d == 0 else "43"), 49.0 if d == 0 else 43.0)
         if d == 1:
             words.add(WordToken("H", "1"), 1.0)
@@ -100,7 +244,18 @@ def _normalize_native_dwell(evaluated, block_index):
     if 4 not in evaluated.codes.all_g:
         return evaluated
     if "S" in words:
-        raise SemanticError("UNSUPPORTED_SINUMERIK_DWELL", "G4 spindle-revolution dwell is not modeled", "unsupported")
+        if any(letter not in ("N", "G", "S") for letter in words):
+            raise SemanticError("UNSUPPORTED_SINUMERIK_DWELL", "G4 S must be a standalone dwell block", "unsupported")
+        words.pop("S", None)
+        words._all.pop("S", None)  # pylint: disable=protected-access
+        words.pop("G", None)
+        words._all.pop("G", None)  # pylint: disable=protected-access
+        return EvaluatedBlock(
+            words,
+            classify_block_codes(words),
+            tuple((letter, value) for letter, value in evaluated.values if letter not in ("G", "S")),
+            (),
+        )
     if "F" not in words:
         return evaluated
     milliseconds = words["F"] * 1000
@@ -121,8 +276,8 @@ def _normalize_native_dwell(evaluated, block_index):
 
 
 def _remove_path_control(words):
-    if 64 in words.all("G"):
-        words._all["G"] = [g for g in words.all("G") if g != 64]  # pylint: disable=protected-access
+    if any(g in {60, 64} | IGNORED_NATIVE_G_CODES for g in words.all("G")):
+        words._all["G"] = [g for g in words.all("G") if g not in {60, 64} | IGNORED_NATIVE_G_CODES]  # pylint: disable=protected-access
         if words.all("G"):
             words["G"] = words.all("G")[-1]
         else:
@@ -146,7 +301,7 @@ def _native_turn_diagnostic(block, evaluated, state, move):
 def _native_modal_cycle_diagnostic(block, evaluated, state):
     if state.native_cycle is None:
         return None
-    allowed = {0, 1, 17, 54, 55, 56, 57, 58, 59, 90, 91, 94}
+    allowed = {0, 1, 17, 54, 55, 56, 57, 58, 59, 60, 64, 90, 91, 94, 500}
     incompatible = (
         "Z" in evaluated.words
         or block.native_syntax.supa
@@ -161,27 +316,81 @@ def _native_modal_cycle_diagnostic(block, evaluated, state):
 
 
 def _normalize_native_declaration(block, evaluated, state):
+    if block.native_syntax.kind in ("real_declaration", "named_assignment"):
+        return replace(evaluated, native_payload=compile_variables(block.native_syntax, state)), None
+    if block.native_syntax.kind in ("swivel", "cycle"):
+        return _compile_native_declaration(block, evaluated, state)
+    if block.native_syntax.kind == "traori":
+        return evaluated, _tcp_declaration_diagnostic(block, state)
     if block.native_syntax.kind == "parameter_assignment":
         index, value = block.native_syntax.parameter_assignment
         return replace(evaluated, native_payload=(index, parameter_value(value, {}))), None
-    if block.native_syntax.kind == "cycle":
-        try:
-            cycle = compile_native_cycle(block.native_syntax, state)
-        except SemanticError as error:
-            return evaluated, _diag(block, error.code, str(error))
-        return replace(evaluated, native_payload=cycle), None
-    if block.native_syntax.kind == "frame_reset" and (state.twp.active or any(state.rotary_angles.values())):
+    if block.native_syntax.kind == "frame_reset" and (
+        state.tcp_control or state.native_cycle is not None or state.cycle != 80 or state.cutter_comp != 40
+    ):
         return evaluated, _diag(
-            block, "UNSUPPORTED_SINUMERIK_CYCLE800", "CYCLE800 reset of an active rotary frame is not modeled"
+            block, "UNSUPPORTED_SINUMERIK_CYCLE800", "Cancel TCP, cycles and compensation before CYCLE800 reset"
         )
     return evaluated, None
 
 
-def apply_native_declaration(block, evaluated, state):
+def _compile_native_declaration(block, evaluated, state):
+    compiler = compile_swivel if block.native_syntax.kind == "swivel" else compile_native_cycle
+    try:
+        payload = compiler(block.native_syntax, state)
+    except SemanticError as error:
+        return evaluated, _diag(block, error.code, str(error))
+    return replace(evaluated, native_payload=payload), None
+
+
+def _tcp_declaration_diagnostic(block, state):
+    if state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES:
+        return _diag(block, "TCP_KINEMATICS_REQUIRED", "TRAORI requires a supported angled AC/BC table profile")
+    if state.twp.active or state.cycle != 80 or state.native_cycle is not None or state.cutter_comp != 40:
+        return _diag(
+            block, "UNSUPPORTED_TCP_COMPOSITION", "Cancel tilted frames, cycles and cutter compensation before TRAORI"
+        )
+    return None
+
+
+def apply_native_declaration(block, evaluated, state, events):
     syntax = block.native_syntax
-    if syntax is None or syntax.kind not in ("cycle", "cycle_cancel", "frame_reset", "parameter_assignment"):
+    if syntax is None or syntax.kind not in (
+        "cycle",
+        "cycle_cancel",
+        "frame_reset",
+        "swivel",
+        "parameter_assignment",
+        "traori",
+        "trafoof",
+        "real_declaration",
+        "named_assignment",
+        "hsc_ignored",
+        "unmodeled",
+        "compof",
+        "main_spindle",
+    ):
         return False
-    if syntax.kind == "parameter_assignment":
+    if syntax.kind in ("real_declaration", "named_assignment"):
+        state.siemens_variables = evaluated.native_payload
+    elif syntax.kind in ("hsc_ignored", "unmodeled", "compof", "main_spindle"):
+        pass
+    elif syntax.kind in ("swivel", "frame_reset"):
+        apply_swivel(block, evaluated.native_payload, state, events)
+    elif syntax.kind in ("traori", "trafoof"):
+        if syntax.kind == "traori":
+            _activate_tcp(state)
+        else:
+            _cancel_tcp(state)
+        events.append(
+            ExecutionEvent(
+                "TCP_CONTROL_ON" if syntax.kind == "traori" else "TCP_CONTROL_OFF",
+                block.index,
+                code=syntax.kind.upper(),
+                kinematics_profile=state.kinematics.id if state.kinematics else None,
+            )
+        )
+    elif syntax.kind == "parameter_assignment":
         index, value = evaluated.native_payload
         state.siemens_parameters[index] = value
     elif syntax.kind != "frame_reset":

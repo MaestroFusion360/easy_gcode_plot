@@ -73,7 +73,7 @@ function Test-PythonModule {
         return $false
     }
 
-    & $Python -c "import $Module" *> $null
+    & $Python -c "try:`n    import $Module`nexcept ImportError:`n    raise SystemExit(1)" *> $null
     return ($LASTEXITCODE -eq 0)
 }
 
@@ -105,7 +105,7 @@ function Invoke-BuildSync {
         }
 
         if ($ReinstallPyInstaller) {
-            $arguments += @('--reinstall-package', 'pyinstaller')
+            $arguments += @('--reinstall-package', 'pyinstaller', '--reinstall-package', 'pyinstaller-hooks-contrib')
         }
 
         & uv @arguments
@@ -156,15 +156,16 @@ try {
         Write-Host 'Native extensions are up to date; rebuild skipped.'
     }
 
-    # Repair PyInstaller only if the module is actually missing. This is not run
-    # on normal builds.
-    if (-not (Test-PythonModule -Python $python -Module 'PyInstaller')) {
-        Write-Host 'PyInstaller module is missing; repairing build environment once...'
+    # Hooks are required too: a partially installed package can import while
+    # silently omitting dynamic dependencies from the frozen application.
+    $buildModules = 'PyInstaller; from _pyinstaller_hooks_contrib import get_hook_dirs'
+    if (-not (Test-PythonModule -Python $python -Module $buildModules)) {
+        Write-Host 'PyInstaller or contributed hooks are missing; repairing build environment once...'
         Invoke-BuildSync -ReinstallPyInstaller
     }
 
-    if (-not (Test-PythonModule -Python $python -Module 'PyInstaller')) {
-        throw "PyInstaller module is unavailable in build environment: $BuildEnvironment"
+    if (-not (Test-PythonModule -Python $python -Module $buildModules)) {
+        throw "PyInstaller or contributed hooks are unavailable in build environment: $BuildEnvironment"
     }
 
     # Feed verification code through stdin to avoid PowerShell quote mangling.

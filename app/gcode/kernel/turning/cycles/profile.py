@@ -3,88 +3,69 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
-from ...frontend.model import Point2, ProfileSegment
+from ...frontend.model import Motion, Point2, ProfileSegment
 from ...geometry import segment_points
 
 
-def _outward_normal_radius(prev: Point2, curr: Point2, nxt: Point2, prefer_positive_x: bool) -> Point2:
-    px = prev.x * 0.5
-    pz = prev.z
-    nx = nxt.x * 0.5
-    nz = nxt.z
-    dx = nx - px
-    dz = nz - pz
-    ln = math.hypot(dx, dz)
-    if ln <= 1e-9:
-        return Point2(1.0, 0.0)
-    tx = dx / ln
-    tz = dz / ln
-    c1 = Point2(tz, -tx)
-    c2 = Point2(-tz, tx)
-    if prefer_positive_x:
-        return c1 if c1.x >= c2.x else c2
-    return c1 if c1.x <= c2.x else c2
-
-
-def build_offset_profile(
-    profile: list[ProfileSegment],
-    finish_u: float,
-    finish_w: float,
-    prefer_positive_x: bool,
-) -> list[ProfileSegment]:
-    if not profile:
-        return []
-    # U and W are independent finish allowances in the machine X and Z
-    # directions.  Project that allowance vector onto the local outward normal
-    # instead of collapsing both values to max(U/2, W), which over-offsets
-    # tapers/arcs and can create large false Z displacements.
-    radial_allow = finish_u * 0.5
-    axial_allow = finish_w
-    if abs(radial_allow) <= 1e-9 and abs(axial_allow) <= 1e-9:
+def build_offset_profile(profile, finish_u, finish_w, prefer_positive_x):
+    """Offset exact lines/circles; never offset individual sampled arc points."""
+    if not profile or (abs(finish_u) <= 1e-9 and abs(finish_w) <= 1e-9):
         return profile
+    from ...compensation.turning.joins import join_primitives  # pylint: disable=import-outside-toplevel
+    from ...compensation.turning.nose import offset_motion, to_point  # pylint: disable=import-outside-toplevel
 
-    dense: list[Point2] = []
-    dense_groups: list[int] = []
-    for group, seg in enumerate(profile):
-        pts = segment_points(seg, seg.start, seg.end)
-        if dense and pts:
-            pts = pts[1:]
-        dense.extend(pts)
-        dense_groups.extend([group] * len(pts))
+    radial = finish_u * 0.5
+    side = 1.0 if prefer_positive_x else -1.0
+    distance = math.copysign(min(abs(radial), abs(finish_w)), radial * side)
+    translation = Point2((radial - side * distance) * 2, finish_w - distance)
+    cutting = [segment for segment in profile if segment.move != 0]
+    primitives = []
+    for segment in cutting:
+        motion = Motion(
+            segment.move,
+            segment.start,
+            segment.end,
+            segment.radius if segment.has_radius else None,
+            None,
+            i=segment.center.x - segment.start.x if segment.has_center else None,
+            k=segment.center.z - segment.start.z if segment.has_center else None,
+            compensation_mode=42 if prefer_positive_x else 41,
+        )
+        primitives.append(offset_motion(motion, distance, 9))
+    for index in range(len(primitives) - 1):
+        try:
+            join = join_primitives(primitives[index], primitives[index + 1])
+        except ValueError:
+            left, right = primitives[index], primitives[index + 1]
+            if math.hypot(left.end.x - right.start.x, left.end.y - right.start.y) > 0.002:
+                raise
+            join = left.end if left.center is not None else right.start
+        primitives[index] = replace(primitives[index], end=join)
+        primitives[index + 1] = replace(primitives[index + 1], start=join)
+    output = []
 
-    if len(dense) < 2:
-        return profile
+    def translated(point):
+        value = to_point(point)
+        return Point2(value.x + translation.x, value.z + translation.z)
 
-    shifted: list[Point2] = []
-    for i, curr in enumerate(dense):
-        prev = dense[i - 1] if i > 0 else curr
-        nxt = dense[i + 1] if i + 1 < len(dense) else curr
-        n = _outward_normal_radius(prev, curr, nxt, prefer_positive_x)
-        cxr = curr.x * 0.5
-        offset_dist = n.x * radial_allow + n.z * axial_allow
-        sxr = cxr + (n.x * offset_dist)
-        sz = curr.z + (n.z * offset_dist)
-        shifted.append(Point2(sxr * 2.0, sz))
-
-    out: list[ProfileSegment] = []
-    for index, (a, b) in enumerate(zip(shifted, shifted[1:])):
-        if abs(a.x - b.x) <= 1e-6 and abs(a.z - b.z) <= 1e-6:
-            continue
-        out.append(
-            ProfileSegment(
-                block=-1,
-                move=1,
-                start=a,
-                end=b,
+    for segment, primitive in zip(cutting, primitives):
+        center = translated(primitive.center) if primitive.center is not None else Point2(0, 0)
+        output.append(
+            replace(
+                segment,
+                start=translated(primitive.start),
+                end=translated(primitive.end),
+                has_center=primitive.center is not None,
+                center=center,
                 has_radius=False,
                 radius=0.0,
-                has_center=False,
-                center=Point2(0.0, 0.0),
-                playback_group=dense_groups[index + 1],
             )
         )
-    return out if out else profile
+    if output and profile[0].move == 0:
+        output.insert(0, replace(profile[0], end=output[0].start))
+    return output or profile
 
 
 def is_boring_cycle(profile: list[ProfileSegment], finish_u: float, stock_x: float) -> bool:

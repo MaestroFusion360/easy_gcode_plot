@@ -16,6 +16,7 @@ from .options import (
     ExportOptions,
     _window_export_options,
 )
+from .source_formatting import format_full_program_source, is_native_full_program
 from .trace import export_result
 from .turn import export_full_program
 from .validation import validate_sinumerik_iso_export
@@ -72,6 +73,8 @@ def export_program(
 def _export_full_mill(result, source, lathe_mode, options, cancelled):
     if lathe_mode:
         raise ValueError("Mill Full Program export requires Milling Mode")
+    if is_native_full_program(result):
+        return format_full_program_source(source, options, native=True)
     if any(event.kind == "SINUMERIK_ISO_MODE" for event in result.events):
         validate_sinumerik_iso_export(result)
     preserved_events = {"TILTED_WORK_PLANE_ON", "TCP_CONTROL_ON"}

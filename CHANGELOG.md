@@ -1,5 +1,48 @@
 # Changelog
 
+## 1.9.0 - 2026-10-04
+
+- Correct incremental drilling depth relative to R and retain the original G98 return plane across G99 holes. Reject drilling without modal Z/R or a positive feed.
+- Execute conditional Macro B THEN assignments, reject unsupported IF bodies without executing embedded NC words, and correct negative FIX/FUP rounding. Preserve preprocessing diagnostics before the execution loop.
+- Keep native drilling return-plane changes in FANUC conversion and avoid negative-zero coordinates and redundant mode restoration before returns.
+- Include dynamically loaded PyOpenGL platform/array handlers in GUI builds and repair missing contributed PyInstaller hooks in the cached build environment.
+- Support bounded three-axis SINUMERIK native → FANUC milling Full Program conversion through the same GUI/CLI/batch API. Preserve operation order, modal feed and supported arc geometry; map numeric tool offsets, D0 cancellation and SUPA positioning, apply comment style and uppercase FANUC comments. Accept empty CYCLE800 frame resets while retaining guards on actual rotary/TWP/TCP conversion.
+- Convert native MCALL CYCLE81/82 to G81/G82 with validated drilling and return planes. Expand CYCLE83 locally to preserve Siemens peck degression, feed factors and reentry geometry. Convert supported metric right-hand CYCLE84 to M29/G99 G84 with feed withdrawal, dwell and rapid return to RTP. Re-execute FANUC output to verify motion paths, feeds and machine signals; cover the supplied drilling/tapping fixtures with 31 conversion regressions.
+- Document FANUC Mill → SINUMERIK ISO-M/G291 and native SINUMERIK → FANUC Mill in both FAQs and documentation-site languages, distinguishing Full Program from Resolved conversion and explicitly marking SINUMERIK lathe/ISO Dialect T as unsupported.
+- Allow native SINUMERIK Full Program formatting in GUI As source/native and CLI `--target-dialect sinumerik_native`: preserve native function arguments, variables, semicolon comments, modal and multi-axis state while applying numbering and address formatting. Keep FANUC-to-native Full Program conversion prohibited.
+- Replace the Statistics dialog's continuous text with HTML measurement tables and a tool selector. Export the same aggregate report, including all tool sections and current units, from GUI Export HTML or CLI `analyze --html`. Exported HTML includes static XY/XZ toolpath SVGs; NC source is not embedded. Batch analysis can generate per-file HTML reports through the single-file API.
+- Preserve analytical circles when applying roughing allowances. G71 Type I follows the contour to the previous depth boundary and retains G2/G3 arcs instead of replacing them with sampled lines. Pass the configured tool table into cycle expansion and use its nose radius/orientation for roughing; correct the internal diameter-I conversion after compensation. Verify all 16 CAM-expanded roughing arc endpoints, centers and radii within 0.002 mm.
+- Calculate turning R corner-fillet tangent points in physical radius X/Z, then convert X back to diameter coordinates. Add quarter-circle, fixture tangency and sampled-radius regressions, plus explicit G2/G3 minor/major arc checks.
+- Add the missing R retract after the final G72 allowance-contour pass, before the Z/X return.
+- Correct G71 final contour return: retract by R, return along Z, then return X to the saved cycle start. Preserve the radial/diameter retract convention for OD roughing and boring.
+- Implement native G93 inverse-time feed (1/F minutes per cutting motion), including rotary TCP timing. Separate G70/G71 length units from G700/G710 length/feed units; retain modal numeric F on unit changes. Native resolved export preserves G93 without feed scaling; other NC targets reject it.
+- Accept G505–G599, G601, G641/G642/G645, ORI*, TRANS/AROT, FGROUP/FL/FGREF, SPOS, CUT3D* and listed motion-control words with unverified warnings. Their machine effects are not simulated and resolved NC export rejects unverified geometry. G4 S dwell is warning-only; G4 F retains seconds semantics.
+- Parse native DIAMON/DIAMOF/DIAM90 with warnings while retaining DIAMOF coordinate semantics. Parse CHF/CHR/RND/RNDM/FRC/FRCM as warning-only metadata without contour or feed changes; resolved NC export rejects these unmodeled commands.
+- Support native X/Y/Z=IC(...) incremental positioning and empty MSG(); add the guide example covering CR radius arcs, modal drilling and SUPA. Native CR syntax requires an MPF/SPF source document.
+- Accept native G60 exact-stop metadata and G500 modal work-offset deactivation with coordinate rebasing. G500 defaults to zero; API wcs_offsets[500] supports translation. OEM base-frame rotations/scaling and acceleration dynamics remain outside the model.
+- Verified CLI/kernel subset; OEM machine retract trajectories remain unmodeled. Multi-axis controller conversion stays fail-closed.
+- Updated both documentation-site SINUMERIK tables with incremental IJK / explicit AC centers, native CAM setup, DC, legacy CYCLE800 and ignored CYCLE832.
+- Execute the supplied 5232-block five-axis sample through M30: support bounded DEF REAL variables, named tools, DC rotary targets, legacy CYCLE800 setup and short CYCLE81 calls.
+- Preserve TRAORI when D0/D1 selects a cutting edge; allow explicit SUPA machine positioning with rotary axes.
+- Ignore CYCLE832 without geometry or display events, as requested.
+- Correct native IJK to incremental centers; support explicit AC centers and emit AC syntax for absolute native conversion output.
+- Removed the obsolete GUI-wide MPF/SPF rotary lock. Native CYCLE800/TRAORI can use the selected AC/BC profile through Settings or Options; opening documents preserves selection while kernel capability checks remain authoritative.
+- Macro B AND/OR now use explicit integer bitwise semantics, consistent with XOR.
+- The expression evaluator rejects Pow, nonnumeric constants and Python containers; expression size/depth/node budgets and floating-point constants bound evaluation.
+- CLI analysis no longer eagerly imports ezdxf; DXF loading failures are controlled export errors only when the DXF backend is used.
+- A shared native gateway caches extension availability and import reasons; frozen releases reject missing extensions. Both build scripts explicitly collect the dynamically loaded parser, discovery and executor extensions.
+- CR-only/uncommon line separators and oversized literal words use the Python reference frontend instead of publishing a divergent native Program graph.
+- Macro B LN/EXP, with domain/overflow diagnostics; BIN/BCD/ADP remain unsupported.
+- Internal context-local parser statistics expose actual total/native/fallback blocks.
+- Native CYCLE800 static frames use Siemens axis-order matrices, common TWP solver/rebasing, additive frames and active-frame resets on angled AC/BC tables. FR0/1/2 are recorded as logical retract requests, without OEM trajectories.
+- Native IC rotary increments accept numeric/direct R values independently of G90/G91.
+- Native SINUMERIK TRAORI/TRAFOOF reuse the common angled AC/BC table TCP state, with numeric configured rotary addresses and direct R references.
+- Common TCP G2/G3 motions accept rotary interpolation in FANUC and SINUMERIK while retaining analytical Cartesian geometry and start/end tool orientation metadata.
+- Active tilted-frame/TCP state prevents ambiguous G290/G291 transitions.
+- Corrected the separate tool-discovery, parser/AST, kernel and ExecutionResult pipeline.
+- Documented source/native fallback policy and frozen-release requirements.
+- Updated the English/Russian controller tables with the bounded CLI/kernel TCP subset and the remaining fail-closed controller/export limitations.
+
 ## 1.8.1 - 2026-10-02
 
 - Redesigned the bilingual landing page with separate language controls, sticky section navigation, visible impeller/STL playback GIFs, expanded feature descriptions, a 1.0.0-to-1.8.0 comparison and a full resource footer.
@@ -13,8 +56,7 @@
 ## 1.8.0 - 2026-10-02
 
 - Added native MCALL CYCLE84 single-pass metric right-hand tapping for the actual CAM 24-parameter call and compatible shortened numeric calls. Derives feed from explicit pitch and spindle rpm, feeds back to RFP+SDIS, then rapids to RTP using shared cycle geometry; emits rigid-tapping, synchronization, reversal and optional dwell signals. Rejects unmodeled deep tapping, thread tables, spindle orientation, unequal/changed speeds and other unsupported modes. Added a paired FANUC G84 fixture and native trace replay coverage.
-
-- Closed SINUMERIK rotary bypass in native and G291 ISO-M execution independently of GUI/profile selection. Resolved native absolute and ISO-M relative IJK arc centers per executed motion, including mixed G290/G291 programs and work offsets; retained FANUC arc configuration.
+- Closed SINUMERIK rotary bypass in native and G291 ISO-M execution independently of GUI/profile selection. Resolved native and ISO-M incremental IJK arc centers, with explicit native I=AC/J=AC/K=AC absolute centers per executed motion, including mixed G290/G291 programs and work offsets; retained FANUC arc configuration.
 - Added immutable source_dialect execution/report metadata and structured unsupported SINUMERIK G/M diagnostic aggregation. Added canonical native AST facts and declaration nodes, eliminated the discarded first AST during MPF/SPF parsing, and enabled the existing Cython modal-position loop for contiguous literal position runs after per-block Python capability validation. Controller-specific syntax and mode switches stop only the current run; acceleration resumes after reference execution and native cycle cancellation. Added complete accelerated/reference parity tests around metadata, cycles, rejection and mixed G290/G291 arcs, plus large-program SINUMERIK/FANUC speed guards.
 - Fixed partially translated Russian About dialog: localized runtime version and description, updated the controller summary, and regenerated the translation catalog and embedded resources.
 - Forced Rotary kinematics = None for SINUMERIK MPF/SPF documents and disabled other GUI profiles, restoring the previous selection for FANUC/new documents without overwriting saved preferences. Clarified the CAM toolpath visualization scope, exclusion of the complex Siemens macro language, and current lack of SDI subprogram execution.

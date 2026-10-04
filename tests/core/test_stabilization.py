@@ -376,7 +376,7 @@ def test_g71_g72_exact_last_plane_and_return_to_cycle_start():
         motion.start.x for motion in longitudinal if motion.move == 1 and motion.start.x == motion.end.x
     ]
     facing_planes = [motion.start.z for motion in facing if motion.move == 1 and motion.start.z == motion.end.z]
-    assert longitudinal_depths == pytest.approx([20, 16, 12])
+    assert longitudinal_depths == pytest.approx([20, 16, 12, 10])
     assert facing_planes == pytest.approx([0, -2, -4, -6, -8, -10])
     assert longitudinal[-1].end == Point2(24, 1)
     assert facing[-1].end == Point2(24, 2)
@@ -391,7 +391,7 @@ def test_g71_boring_and_g72_reverse_facing_reach_last_plane():
 
     boring_depths = [motion.start.x for motion in boring if motion.move == 1 and motion.start.x == motion.end.x]
     facing_planes = [motion.start.z for motion in reverse_facing if motion.move == 1 and motion.start.z == motion.end.z]
-    assert boring_depths == pytest.approx([10, 14, 18])
+    assert boring_depths == pytest.approx([10, 14, 18, 20])
     assert facing_planes == pytest.approx([-10, -8, -6, -4, -2, 0])
     assert boring[-1].end == Point2(6, 1)
     assert reverse_facing[-1].end == Point2(24, -12)

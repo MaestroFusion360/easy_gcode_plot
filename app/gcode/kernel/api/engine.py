@@ -531,7 +531,7 @@ def _partial_steps_after_geometry_failure(steps, owners, failing_index):
 def _resolve_geometry_motion(motion, program, language, arc_type, tolerance):
     """Resolve one motion and attach source location to geometry diagnostics."""
     try:
-        arc_type = motion.source_arc_type or arc_type
+        arc_type = 1 if language == "fanuc_turn" and motion.cycle_generated else (motion.source_arc_type or arc_type)
         if language == "fanuc_turn":
             _validate_turning_arc_source(motion, arc_type, tolerance)
         return resolve_arc(motion, source_arc_type=arc_type), None
@@ -570,6 +570,7 @@ def execute(
             else {}
         )
         geometry_diagnostics.extend(invalid_cycles.values())
+        step_index = 0
         try:
             threading_steps = (
                 _threading_step_flags(result.execution_steps)

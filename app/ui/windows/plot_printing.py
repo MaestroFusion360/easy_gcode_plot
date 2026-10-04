@@ -6,6 +6,7 @@ from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QPagedPaintDevice, QPainter, QPen, QVector4D
 from PyQt6.QtPrintSupport import QPrinter
 
+from app.gcode.plot_page import fit_plot_bounds, print_line_style
 from app.ui.plot.toolpath_vbo import tool_color
 
 
@@ -28,7 +29,7 @@ def print_segment_color(move, tool, *, color_by_tool=False):
     assigned = tool_color(tool) if color_by_tool else None
     if assigned:
         return assigned
-    return "#b94a4a" if move == 0 else "#176e54" if move in (2, 3) else "#172d49"
+    return print_line_style(move)[0]
 
 
 def paint_plot_page(printer: QPagedPaintDevice, segments, *, dashed_rapid=False, color_by_tool=False) -> None:
@@ -50,15 +51,14 @@ def paint_plot_page(printer: QPagedPaintDevice, segments, *, dashed_rapid=False,
         ys = [value for _, y1, _, y2, _, _ in segments for value in (y1, y2)]
         left, right = min(xs), max(xs)
         top, bottom = min(ys), max(ys)
-        span_x, span_y = max(right - left, 1e-9), max(bottom - top, 1e-9)
-        scale = min(drawing.width() / span_x, drawing.height() / span_y)
-        offset_x = drawing.center().x() - (left + right) * scale / 2
-        offset_y = drawing.center().y() - (top + bottom) * scale / 2
+        scale, offset_x, offset_y = fit_plot_bounds(
+            (left, right, top, bottom), (drawing.x(), drawing.y(), drawing.width(), drawing.height())
+        )
         painter.setClipRect(drawing)
         for x1, y1, x2, y2, move, tool in segments:
             color = print_segment_color(move, tool, color_by_tool=color_by_tool)
             style = Qt.PenStyle.DashLine if move == 0 and dashed_rapid else Qt.PenStyle.SolidLine
-            width = 0.22 if move == 0 else 0.32
+            width = print_line_style(move)[1]
             painter.setPen(QPen(QColor(color), width * unit, style, Qt.PenCapStyle.RoundCap))
             painter.drawLine(
                 QPointF(offset_x + x1 * scale, offset_y + y1 * scale),

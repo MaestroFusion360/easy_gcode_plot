@@ -154,16 +154,11 @@ def test_cli_cycle_export_includes_complete_final_id_g71_contour(tmp_path):
     )
 
     lines = exported.read_text(encoding="utf-8").splitlines()
-    contour_start = lines.index("G00 X89.6 Z1")
-    contour = lines[contour_start:-2]
-    assert contour[0] == "G00 X89.6 Z1"
-    assert contour[1] == "G01 X89.568007 Z0.075386 F0.25"
-    assert "G01 X84.219901 Z-30.027723 F0.25" in contour
-    assert "G01 X76.447921 Z-29.933473 F0.25" in contour
-    assert contour[-1] == "G01 X75.3 Z-145 F0.25"
-    assert len(contour) > 100
-    assert "G00 X89.8 Z1" not in lines
-    assert lines[-2:] == ["G00 X72 Z-145", "G00 X72 Z1"]
+    # Preserve analytical arcs through the configured ID tool-nose correction,
+    # rather than checking a long sampled polyline.
+    assert any(line.startswith("G02 ") and " R1.9 " in line for line in lines)
+    assert any(line.startswith("G02 ") and " R2.7 " in line for line in lines)
+    assert lines[-4:] == ["G01 X75.3 Z-145.8 F0.25", "G01 X74.9 Z-145.6 F0.25", "G00 X74.9 Z1", "G00 X72 Z1"]
 
 
 def test_cli_rejects_cycle_mode_for_milling(tmp_path):
