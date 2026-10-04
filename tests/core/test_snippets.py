@@ -49,3 +49,20 @@ def test_legacy_text_snippets_are_imported_once_in_saved_order(tmp_path):
         (directory / "C.txt").write_text("C body", encoding="utf-8")
         assert library.import_legacy_directory(directory) == 0
         assert [item.name for item in library.list_snippets()] == ["B", "A"]
+
+
+def test_bad_legacy_encoding_does_not_abort_valid_imports(tmp_path, caplog):
+    directory = tmp_path / "snippets"
+    directory.mkdir()
+    (directory / "A.txt").write_text("G1 X1", encoding="utf-8")
+    (directory / "B.txt").write_bytes(b"\xff")
+    (directory / "C.txt").write_text("G1 X3", encoding="utf-8")
+    (directory / ".order.json").write_bytes(b"\xff")
+    database = tmp_path / "snippets.db"
+    with SnippetLibrary(str(database)) as library:
+        assert library.import_legacy_directory(directory) == 2
+        assert [(record.name, record.body) for record in library.list_snippets()] == [("A", "G1 X1"), ("C", "G1 X3")]
+    with SnippetLibrary(str(database)) as library:
+        assert len(library.list_snippets()) == 2
+    assert "B.txt" in caplog.text
+    assert (directory / "B.txt").read_bytes() == b"\xff"

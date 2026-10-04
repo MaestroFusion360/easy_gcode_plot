@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 SCHEMA_VERSION = 1
+LOGGER = logging.getLogger(__name__)
 LEGACY_IMPORT_META_KEY = "legacy_text_snippets_imported_v1"
 
 _SCHEMA = """
@@ -154,7 +156,8 @@ class SnippetLibrary:
             for path in paths:
                 try:
                     body = path.read_text(encoding="utf-8")
-                except OSError:
+                except (OSError, UnicodeError) as exc:
+                    LOGGER.warning("Cannot import legacy snippet %s: %s", path, exc)
                     continue
                 cursor = self._conn.execute(
                     "INSERT OR IGNORE INTO snippets(name, body, sort_order, created_at, updated_at) "
@@ -175,7 +178,7 @@ class SnippetLibrary:
         paths = sorted(directory.glob("*.txt"), key=lambda item: item.name.casefold()) if directory.is_dir() else []
         try:
             payload = json.loads((directory / ".order.json").read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
+        except (OSError, UnicodeError, json.JSONDecodeError):
             payload = []
         order = payload if isinstance(payload, list) else []
         positions = {str(name).casefold(): index for index, name in enumerate(order)}

@@ -11,7 +11,6 @@ from ..frontend.model import Program
 from ..geometry.coordinates import is_extended_wcs_gcode
 from ..turning.dialect import supported_codes
 from ..turning.type_a import TYPE_A_SUPPORTED_G_CODES
-from .events import SUBPROGRAM_START
 from .execution import modal_group_conflicts
 
 SUPPORTED_TURNING_G_CODES = TYPE_A_SUPPORTED_G_CODES
@@ -44,18 +43,6 @@ def unsupported_g53_motion_diagnostic(block, modal_move: int) -> Diagnostic:
         block.index + 1,
         block.raw,
     )
-
-
-def _is_literal_g65_block(block) -> bool:
-    for word in block.parsed_words:
-        if word.letter != "G":
-            continue
-        try:
-            if float(word.expr) == 65.0:
-                return True
-        except ValueError:
-            continue
-    return False
 
 
 def _runtime_error_code(message: str, undefined_macro: bool) -> str:
@@ -105,79 +92,50 @@ def diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagno
     return Diagnostic(code=code, message=message, status="malformed", line=line, raw=raw)
 
 
-def unsupported_turning_g_diagnostics(program: Program, gcode_system: str = "A") -> tuple[Diagnostic, ...]:
-    """Report source words outside the modeled two-axis turning contract."""
-    diagnostics: list[Diagnostic] = []
-    for block in program.blocks:
-        if not _is_literal_g65_block(block) and any(word.letter == "Y" for word in block.parsed_words):
-            diagnostics.append(
-                Diagnostic(
-                    code="UNSUPPORTED_AXIS",
-                    message="Y-axis motion is not modeled for fanuc_turn",
-                    severity="error",
-                    status="unsupported",
-                    line=block.index + 1,
-                    raw=block.raw,
-                )
+TURNING_MODELED_M_CODES = frozenset({0, 1, 2, 3, 4, 5, 8, 9, 30, 98, 99})
+
+
+def turning_code_diagnostics(block, evaluated, system="A") -> tuple[Diagnostic, ...]:
+    """Diagnose actually executed source codes after macro evaluation."""
+    if 65 in evaluated.source_gcodes:
+        return ()  # CNC-looking words here are macro arguments.
+    diagnostics = []
+    if "Y" in evaluated.words:
+        diagnostics.append(
+            Diagnostic(
+                "UNSUPPORTED_AXIS",
+                "Y-axis motion is not modeled for fanuc_turn",
+                "error",
+                "unsupported",
+                block.index + 1,
+                block.raw,
             )
-        for word in block.parsed_words:
-            if word.letter != "G":
-                continue
-            try:
-                value = float(word.expr)
-            except ValueError:
-                continue
-            code = int(value)
-            if value == code and code not in supported_codes(gcode_system):
-                affects_geometry = code in {17, 19} or any(
-                    item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words
-                )
-                diagnostics.append(
-                    Diagnostic(
-                        code="UNSUPPORTED_G_CODE",
-                        message=f"G{code} is not modeled for fanuc_turn",
-                        severity="error" if affects_geometry else "warning",
-                        status="unsupported" if affects_geometry else "unverified",
-                        line=block.index + 1,
-                        raw=block.raw,
-                    )
-                )
-    return tuple(diagnostics)
-
-
-def fractional_code_diagnostics(program: Program, steps) -> tuple[Diagnostic, ...]:
-    """Report evaluated fractional G/M words without integer coercion."""
-    diagnostics: list[Diagnostic] = []
-    seen: set[tuple[int, str, float]] = set()
-    for step in steps:
-        block_index = step.source_block
-        if block_index is None or not 0 <= block_index < len(program.blocks):
+        )
+    position = any(axis in evaluated.words for axis in ("X", "Z", "U", "W"))
+    for code in dict.fromkeys(evaluated.source_gcodes):
+        if code in supported_codes(system) or is_extended_wcs_gcode(code):
             continue
-        block = program.blocks[block_index]
-        if any(event.kind == SUBPROGRAM_START and event.code == "G65" for event in step.events):
-            continue
-        affects_geometry = any(item.letter in {"X", "Z", "U", "W"} for item in block.parsed_words)
-        for letter, raw_value in step.words:
-            if letter not in {"G", "M"}:
-                continue
-            value = float(raw_value)
-            if value.is_integer():
-                continue
-            if letter == "G" and is_extended_wcs_gcode(value):
-                continue
-            key = (block_index, letter, value)
-            if key in seen:
-                continue
-            seen.add(key)
-            is_g = letter == "G"
+        geometric = position or code in {17, 19}
+        diagnostics.append(
+            Diagnostic(
+                "UNSUPPORTED_G_CODE",
+                f"G{code:g} is not modeled for fanuc_turn",
+                "error" if geometric else "warning",
+                "unsupported" if geometric else "unverified",
+                block.index + 1,
+                block.raw,
+            )
+        )
+    for code in dict.fromkeys(evaluated.codes.all_m):
+        if code not in TURNING_MODELED_M_CODES:
             diagnostics.append(
                 Diagnostic(
-                    code="UNSUPPORTED_G_CODE" if is_g else "UNSUPPORTED_M_CODE",
-                    message=f"{letter}{value:g} is not modeled for fanuc_turn",
-                    severity="error" if is_g and affects_geometry else "warning",
-                    status="unsupported" if is_g and affects_geometry else "unverified",
-                    line=block.index + 1,
-                    raw=block.raw,
+                    "UNSUPPORTED_M_CODE",
+                    f"M{code:g} is not modeled for fanuc_turn; ignored for trace execution",
+                    "warning",
+                    "unverified",
+                    block.index + 1,
+                    block.raw,
                 )
             )
     return tuple(diagnostics)

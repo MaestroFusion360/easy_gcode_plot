@@ -19,6 +19,7 @@ from app.gcode.export.resolved import convert_resolved_program
 from app.gcode.export.sinumerik import convert_full_program_to_fanuc, convert_full_program_to_sinumerik
 from app.gcode.export.source_formatting import format_full_program_source, is_native_full_program
 from app.gcode.export.validation import validate_full_program_dialect_conversion
+from app.gcode.file_io import atomic_export, protect_source
 from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
 from app.gcode.source_mode import (
@@ -186,6 +187,11 @@ def _export_target(owner):
         path = str(Path(path).with_suffix(".dxf"))
     elif not dxf_export and not Path(path).suffix:
         path += {NC_PROGRAM_FILTER: ".nc", SINUMERIK_FILE_FILTER: ".mpf"}.get(selected_filter, suffix)
+    try:
+        protect_source(path, getattr(owner, "curFile", None))
+    except (OSError, ValueError) as exc:
+        _show_export_error(owner, exc, getattr(owner, "execution_result", None))
+        return None
     return path, dxf_export
 
 
@@ -300,11 +306,15 @@ def _write_export(
     if cancellation.is_set():
         return False
     if dxf_export:
-        export_dxf(
-            result,
+        atomic_export(
             path,
-            turning=lathe_mode,
-            render_points=render_points,
+            lambda temporary: export_dxf(
+                result,
+                temporary,
+                turning=lathe_mode,
+                render_points=render_points,
+                cancelled=cancellation.is_set,
+            ),
             cancelled=cancellation.is_set,
         )
         return True
@@ -785,8 +795,9 @@ class MainWindowFileMixin:
             turning=self.latheMode,
         )
         try:
+            protect_source(target, source_path)
             _atomic_write(target, report + "\n", encoding="utf-8-sig")
-        except OSError as exc:
+        except (OSError, ValueError) as exc:
             QMessageBox.critical(
                 self,
                 QCoreApplication.translate("MainWindow", "Tool List"),

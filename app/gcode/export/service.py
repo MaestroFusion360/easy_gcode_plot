@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import os
-import tempfile
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from time import perf_counter
 
-from app.gcode.batch import _turning_unmodeled_m_diagnostics
+from app.gcode.file_io import atomic_export as _atomic_export
+from app.gcode.file_io import protect_source
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.api.engine import _autodetect_arc_type
 from app.gcode.kernel.frontend.io import read_nc_text
@@ -220,20 +219,6 @@ def _check_unit_conversion(result: ExecutionResult, request: ExportRequest) -> N
             raise ValueError(f"Unit conversion cannot safely preserve source operands for {codes}")
 
 
-def _atomic_export(path: Path, write) -> int:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
-    os.close(descriptor)
-    temporary = Path(temporary_name)
-    try:
-        write(temporary)
-        size = temporary.stat().st_size
-        temporary.replace(path)
-        return size
-    finally:
-        temporary.unlink(missing_ok=True)
-
-
 def _source_preserving_nc_formatting_requested(request: ExportRequest) -> bool:
     return request.sequence_numbers or not request.comments or not request.spaces or request.leading_zero
 
@@ -385,8 +370,7 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
     started = perf_counter()
     source_path = source_path.resolve()
     output_path = output_path.resolve()
-    if source_path == output_path:
-        raise ValueError("Output must differ from the source file")
+    protect_source(output_path, source_path)
     source = read_nc_text(source_path, encoding=request.encoding)
     source_dialect = source_dialect_for_path(source_path, source)
     result, _tools, _inferred = execute_program(
@@ -397,8 +381,6 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         kinematics=request.kinematics,
         source_dialect=source_dialect,
     )
-    if request.language == "fanuc_turn":
-        result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
     failure = _preflight_export_failure(result, request, started)
     if failure is not None:
         return failure

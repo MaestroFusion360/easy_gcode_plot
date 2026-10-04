@@ -10,7 +10,7 @@ from dataclasses import asdict, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
-from typing import Any, Callable, Iterable
+from typing import Callable, Iterable
 
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
@@ -27,7 +27,6 @@ STATUS_CLEAN = "CLEAN"
 STATUS_WARNINGS = "WARNINGS"
 STATUS_ERRORS = "ERRORS"
 STATUS_NO_FILES = "NO_FILES"
-_TURNING_MODELED_M_CODES = frozenset({0, 1, 2, 3, 4, 5, 8, 9, 30, 98, 99})
 _UNSUPPORTED_CODE_RE = re.compile(r"\b([GM]\d+(?:\.\d+)?)\b", re.IGNORECASE)
 
 
@@ -61,7 +60,7 @@ def discover_nc_files(
 
     normalized = _normalize_extensions(extensions)
     allowed = frozenset(normalized)
-    detect_nonstandard_names = normalized == DEFAULT_BATCH_EXTENSIONS
+    detect_nonstandard_names = allowed == frozenset(DEFAULT_BATCH_EXTENSIONS)
     candidates = directory.rglob("*") if recursive else directory.iterdir()
     files = [
         path
@@ -116,41 +115,6 @@ def _code_sort_key(code: str) -> tuple[str, float, str]:
         return code[:1], float("inf"), code
 
 
-def _literal_code(word: Any, letter: str) -> int | None:
-    if word.letter != letter:
-        return None
-    try:
-        value = float(word.expr)
-    except ValueError:
-        return None
-    return int(value) if value.is_integer() else None
-
-
-def _turning_unmodeled_m_diagnostics(result: ExecutionResult) -> tuple[Diagnostic, ...]:
-    program = result.program
-    if program is None:
-        return ()
-    diagnostics: list[Diagnostic] = []
-    for block in program.blocks:
-        if any(_literal_code(word, "G") == 65 for word in block.parsed_words):
-            continue
-        for word in block.parsed_words:
-            code = _literal_code(word, "M")
-            if code is None or code in _TURNING_MODELED_M_CODES:
-                continue
-            diagnostics.append(
-                Diagnostic(
-                    code="UNSUPPORTED_M_CODE",
-                    message=f"M{code} is not modeled for fanuc_turn; ignored for trace execution",
-                    severity="warning",
-                    status="unverified",
-                    line=block.index + 1,
-                    raw=block.raw,
-                )
-            )
-    return tuple(diagnostics)
-
-
 def execute_analysis_program(
     source: str,
     *,
@@ -170,8 +134,6 @@ def execute_analysis_program(
         lathe_gcode_system=lathe_gcode_system,
         source_dialect=source_dialect,
     )
-    if language == "fanuc_turn":
-        result = replace(result, diagnostics=result.diagnostics + _turning_unmodeled_m_diagnostics(result))
     return result
 
 

@@ -18,6 +18,7 @@ from app.gcode.batch import (
 )
 from app.gcode.batch_export import export_directory, write_export_reports
 from app.gcode.export.service import ExportRequest, export_file, validate_export_request
+from app.gcode.file_io import atomic_write_text, validate_output_paths
 from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.kinematics_report import kinematics_report_fields
@@ -286,8 +287,7 @@ def _write(path: Path | None, text: str) -> None:
     if path is None:
         print(text)
         return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text + ("" if text.endswith("\n") else "\n"), encoding="utf-8")
+    atomic_write_text(path, text + ("" if text.endswith("\n") else "\n"))
 
 
 def _print_batch_file(file_report: dict[str, object]) -> None:
@@ -413,6 +413,7 @@ def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: 
 
 
 def _run_single(args: argparse.Namespace) -> int:
+    validate_output_paths(args.file, getattr(args, "output", None), getattr(args, "html", None))
     _source, result = _load(
         args.file,
         args.lang,
@@ -452,6 +453,14 @@ def _native_runtime_ready() -> bool:
     return True
 
 
+def _run_single_safely(args) -> int:
+    try:
+        return _run_single(args)
+    except (OSError, UnicodeError, ValueError) as exc:
+        print(f"{args.command.capitalize()} error: {exc}", file=sys.stderr)
+        return 2
+
+
 def _validate_cli_profiles(args, parser) -> None:
     if args.command == "batch" and args.lang is None:
         return
@@ -487,7 +496,7 @@ def main(argv: list[str] | None = None) -> int:
         return _run_batch_export(args, request, parser)
     if args.command == "batch":
         return _run_batch(args, parser)
-    return _run_single(args)
+    return _run_single_safely(args)
 
 
 if __name__ == "__main__":

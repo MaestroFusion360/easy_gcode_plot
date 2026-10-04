@@ -30,12 +30,6 @@ from ..runtime.diagnostics import SUPPORTED_TURNING_G_CODES as SUPPORTED_G_CODES
 from ..runtime.diagnostics import (
     diagnostic_from_exception as _diagnostic_from_exception,
 )
-from ..runtime.diagnostics import (
-    fractional_code_diagnostics as _fractional_code_diagnostics,
-)
-from ..runtime.diagnostics import (
-    unsupported_turning_g_diagnostics as _unsupported_g_diagnostics,
-)
 from ..runtime.events import program_end_code
 from ..runtime.execution import semantic_instructions as _semantic_instructions
 from ..runtime.trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
@@ -407,12 +401,11 @@ def _execute_impl(
     lathe_gcode_system = validate_system(lathe_gcode_system)
     program: Program | None = None
     unsupported: tuple[Diagnostic, ...] = ()
+    execution_diagnostics: list[Diagnostic] = []
     turn_offsets = _turn_wcs_offsets(wcs_offsets)
     turn_offsets.update(_turn_extended_wcs_offsets(extended_wcs_offsets))
     try:
         program = parse_program(source)
-        unsupported = _unsupported_g_diagnostics(program, lathe_gcode_system)
-        execution_diagnostics: list[Diagnostic] = []
         rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(
             program,
@@ -437,14 +430,13 @@ def _execute_impl(
             diagnostics=execution_diagnostics,
         )
         unsupported += tuple(execution_diagnostics)
-        unsupported += _fractional_code_diagnostics(program, trace_steps)
     except Exception as exc:
         return ExecutionResult(
             ok=False,
             program=program,
             instructions=_semantic_instructions(program) if include_instructions else (),
             motions=(),
-            diagnostics=unsupported + (_diagnostic_from_exception(exc, program),),
+            diagnostics=tuple(execution_diagnostics) + (_diagnostic_from_exception(exc, program),),
             executed_blocks=(),
             complete=False,
         )

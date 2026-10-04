@@ -1783,6 +1783,8 @@ On Windows, snippets are normally stored in:
 
 Older text snippets can be imported once while the original files are retained as backup.
 
+An unreadable or invalid UTF-8 legacy snippet is skipped with a log warning; valid files are still imported. The skipped original remains in the backup directory. Invalid ordering metadata falls back to filename order.
+
 ---
 
 ## Options and scene configuration
@@ -2098,15 +2100,18 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `CHF/CHR/RND/RNDM/FRC/FRCM` | Parsed with warnings; no geometry/feed changes. Chamfers, rounding and corner feed are not simulated. RNDM=0 is recognized without geometric effect; resolved NC export is rejected |
 | `G60/G64` | Exact-stop / continuous-path metadata; acceleration, stop time and blending are not simulated |
 | `G500` | Modal work-offset deactivation with coordinate rebasing; zero G500/base frame by default, API `wcs_offsets[500]` can supply translation; OEM base-frame rotations, mirroring and scaling are not modeled |
+| `DEF REAL`, direct scalar assignments | Bounded underscore-named `DEF REAL` scalars used by CAM setup and direct scalar assignments are accepted |
 | `T`, `M6`, `D0/D1`, `S`, basic M codes | Tool change, modeled cutting-edge selection/cancellation, spindle and coolant signals; controller-specific offset tables are not simulated |
+| Named tools with `M6` | Named tool changes are accepted; if cutter geometry is unavailable, `G41/G42` remains unverified rather than assuming a radius |
 | `G0 SUPA ... D0` | Nonmodal machine-coordinate positioning; `SUPA Z0` means machine zero, independently of the configured home Z |
 | `G64`, `MSG(...)`, `WORKPIECE(...)`, `;` comments | Path-control/display metadata and comments; no blending or stock geometry is generated from these declarations |
+| `SETMS(1)`, `FNORM`, `COMPOF`, `CYCLE832` | Accepted CAM setup/control statements; `CYCLE832` is ignored without geometry or display events |
 | `MCALL CYCLE81/82/83/84(...)` | Modal Z drilling/tapping in `G17/G40`, triggered by subsequent XY blocks; bare `MCALL` cancels the cycle |
-| `CYCLE81/82` | Drilling and rapid return, with modeled seconds-based dwell for `CYCLE82`; safety plane is `RFP + SDIS`, return plane is `RTP` |
+| `CYCLE81/82` | Drilling and rapid return, with modeled seconds-based dwell for `CYCLE82`; safety plane is `RFP + SDIS`, return plane is `RTP`; the four-argument `CYCLE81` form is accepted |
 | `CYCLE83` | Modeled first depth, amount degression, minimum peck depth, chip-breaking/full-retract options and reentry clearance |
 | `CYCLE84` | Single-pass metric right-hand tapping in `G94`: explicit positive `PIT`, `_PITA=0/1`, `SDAC=3`, Z axis and positive `SST` equal to programmed `S`; equal `SST1` or zero/omitted. Feed = pitch × rpm; feed withdrawal to `RFP+SDIS`, rapid return to `RTP`, optional dwell in seconds |
-| `TRAORI` / `TRAFOOF` | GUI/CLI/kernel TCP via the common angled AC/BC table core; G0/G1/G2/G3 with configured numeric A/B/C and R references; incremental IC supported; DC shortest-path supported |
-| `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST200000/200001, DIR-1/0/1; active-frame reset via empty/bare call or TC="0" |
+| `TRAORI` / `TRAFOOF` | GUI/CLI/kernel TCP via the common angled AC/BC table core; G0/G1/G2/G3 with configured numeric A/B/C and R references; incremental IC supported; `DC` selects the shortest absolute rotary approach, while an exactly 180-degree ambiguity is rejected |
+| `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST200000/200001, DIR-1/0/1; legacy 15-argument ST0/R_DATA calls are accepted; active-frame reset via empty/bare call or TC="0" |
 
 Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf. A .nc or unsaved document uses FANUC syntax and cannot interpret CR= as a native radius address. Native X/Y/Z=IC(...) is incremental independently of G90/G91. MSG() is accepted.
 
@@ -2219,6 +2224,8 @@ Example:
 ### What does `trace` do?
 
 `trace` executes one program and can write detailed JSON including resolved motions.
+
+JSON and HTML destinations must differ from the source program and from each other, including aliases of the same file. Collisions are rejected before writing. Input decoding and read/write failures return exit code 2 with an error message. JSON output is committed atomically. GUI program and Tool List export also reject the open source as a destination; use Save/Save As to save source edits.
 
 ```powershell
 .\easy_gcode_plot_cli.exe trace program.nc --lang fanuc_turn -o trace.json
@@ -2852,6 +2859,43 @@ uv run ruff format --check .
 
 Project scripts add resource/generated-file and complexity checks around the standard lint commands.
 
+On Windows, run the full test suite and project lint checks from the repository root:
+
+```powershell
+.\scripts\ps1\test.ps1
+.\scripts\ps1\lint.ps1
+```
+
+### How do I run the daily GUI smoke test with a visible window?
+
+Run from the repository root in PowerShell:
+
+```powershell
+$env:QT_QPA_PLATFORM = "windows"
+.\scripts\ps1\test.ps1 -Path tests/gui/test_daily_workflow_smoke.py -ExtraPytestArgs "-s"
+```
+
+With `QT_QPA_PLATFORM=windows` the test pauses between steps (600 ms by default) so the window stays readable, then runs extra CNC assistant dialogs after the core workflow. Override the pause with `EASY_GCODE_SMOKE_DELAY_MS`:
+
+```powershell
+$env:EASY_GCODE_SMOKE_DELAY_MS = "1000"
+```
+
+The scenario is deterministic. It opens `tests/fixtures/milling/plate_setup_complete.nc`, imports `stl/test2.stl`, saves a working copy, exports the resolved program as SINUMERIK 840D ISO-M (G291) and re-executes it to confirm the same motions, places the stock at X100, sets the G54 X offset to 100 through the WCS dialog, inspects a Y section of the model, hides the STL dock, edits a program tool in the Tool Library, exports the Statistics HTML report, and finally checks persistent options, a custom hotkey and settings restoration. It closes the window when finished; files and settings are isolated in pytest's temporary directory.
+
+GUI test limitations:
+
+- Without the environment override the suite uses Qt's `offscreen` platform, skips the pauses and the extra dialogs, and finishes quickly. Only widget/action state is verified, never rendered pixels or OpenGL image quality.
+- File dialogs and message boxes are stubbed, so native dialog behavior and real file-system prompts are not exercised.
+- Modal dialogs (the Tool Library editor) block their caller; the test drives them with a `QTimer` instead of leaving a window open for manual interaction.
+- SINUMERIK export uses the resolved (Expanded Execution) path: Full Program dialect conversion of this fixture is rejected because it would change machine signals.
+
+To restore the default for subsequent tests in the same PowerShell session:
+
+```powershell
+Remove-Item Env:QT_QPA_PLATFORM
+```
+
 ### Are generated Qt Python files edited manually?
 
 No. `.ui` and `.qrc` sources are authoritative. Regenerate through the project scripts.
@@ -2909,6 +2953,3 @@ No. Windows and Linux artifacts are platform-specific builds even though they sh
 ## License
 
 Easy G-Code Plot is distributed under the MIT License. See `LICENSE.md` for the full text.
-
-
-Native CAM setup also accepts bounded underscore-named `DEF REAL` scalars, direct scalar assignments, named tools with M6, SETMS(1), FNORM, COMPOF, legacy 15-argument CYCLE800 ST0/R_DATA, and four-argument CYCLE81. DC selects the shortest absolute rotary approach; exactly 180-degree ambiguity is rejected. CYCLE832 is ignored without geometry or display events. Named tools without cutter geometry keep G41/G42 unverified.

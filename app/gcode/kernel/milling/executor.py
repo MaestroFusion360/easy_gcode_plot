@@ -146,7 +146,8 @@ def _report_unknown_g_codes(diagnostics, unknown_g, position_words, block) -> No
             Diagnostic(
                 "UNSUPPORTED_G_CODE",
                 (
-                    f"G{g} is not modeled for fanuc_mill; execution stops before this position block"
+                    f"G{g} is not modeled for fanuc_mill; this position block is skipped and its XYZ state "
+                    "is unknown until absolute positions are restored; rotary position blocks stop execution"
                     if position_words
                     else f"G{g} is not modeled for fanuc_mill; ignored for trace execution"
                 ),

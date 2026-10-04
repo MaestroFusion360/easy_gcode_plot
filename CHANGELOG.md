@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.9.1 - 2026-10-04
+
+- Diagnose evaluated FANUC turning G/M codes in the kernel; unsupported position-bearing G codes fail closed and cannot produce successful expanded exports. Macro call arguments and unexecuted branches remain outside CNC-code diagnostics.
+- Protect CLI JSON/HTML and GUI program/tool-list outputs against source-file collisions, including file aliases; reject colliding JSON/HTML destinations before writing. CLI read/write failures return code 2 with a diagnostic.
+- Write CLI reports and GUI DXF through temporary files with atomic replacement. A failed or cancelled DXF write preserves the previous destination.
+- Preserve valid legacy snippet imports when another file has invalid UTF-8, logging the skipped file and retaining the original backup. Ignore invalid encoding in legacy ordering metadata.
+- Make default batch discovery independent of extension order; clarify milling unknown-position diagnostics and report missing/broken Ruff without a JSON parsing traceback.
+- Add a deterministic daily GUI smoke test (`tests/gui/test_daily_workflow_smoke.py`): it opens the plate-setup program and its matching STL, saves a working copy, exports SINUMERIK ISO-M (G291) and re-executes it to confirm the same motions, shifts G54 to X100 to match a model moved to X100, inspects a Y section, hides the STL dock, edits a program tool and exports the Statistics HTML report. It stays fast on the offscreen platform and adds step pauses plus CNC assistant dialogs under `QT_QPA_PLATFORM=windows`; both FAQs document the visible run, `EASY_GCODE_SMOKE_DELAY_MS` and the GUI test limitations.
+- List the accepted native CAM setup forms (bounded underscore `DEF REAL` scalars, direct scalar assignments, named tools with M6, SETMS/FNORM/COMPOF/CYCLE832, legacy 15-argument CYCLE800 ST0/R_DATA, four-argument CYCLE81, DC shortest-path with the 180-degree rejection, and unverified G41/G42 for named tools without cutter geometry) in the SINUMERIK tables of both FAQs.
+
 ## 1.9.0 - 2026-10-04
 
 - Correct incremental drilling depth relative to R and retain the original G98 return plane across G99 holes. Reject drilling without modal Z/R or a positive feed.

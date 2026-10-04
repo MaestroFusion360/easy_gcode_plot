@@ -56,11 +56,15 @@ def measurements():
         encoding="utf-8",
         check=False,
     )
-    if result.returncode not in (0, 1):
-        raise RuntimeError(result.stderr)
+    if result.returncode not in (0, 1) or not result.stdout.strip():
+        raise RuntimeError(result.stderr.strip() or "Ruff did not return diagnostic JSON")
+    try:
+        diagnostics = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(result.stderr.strip() or "Ruff returned invalid diagnostic JSON") from exc
     names = {}
     measured = {}
-    for item in json.loads(result.stdout):
+    for item in diagnostics:
         path = Path(item["filename"])
         if path not in names:
             names[path] = function_names(path)
@@ -73,7 +77,12 @@ def measurements():
 def main():
     baseline = json.loads(BASELINE.read_text(encoding="utf-8"))
     failures = []
-    for key, value in measurements().items():
+    try:
+        measured = measurements()
+    except RuntimeError as exc:
+        print(f"Complexity check error: {exc}", file=sys.stderr)
+        return 2
+    for key, value in measured.items():
         allowed = baseline.get(key)
         if allowed is None or value > allowed:
             failures.append(f"{key}: {value}; allowed {allowed if allowed is not None else 'Ruff default'}")

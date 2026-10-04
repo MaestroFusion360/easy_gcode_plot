@@ -10,7 +10,18 @@ import ezdxf
 import pytest
 
 from app.cli import main
+from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, discover_nc_files
 from app.gcode.program_execution import execute_program
+
+
+def test_batch_extension_order_does_not_change_discovery(tmp_path):
+    (tmp_path / "O1234").write_text("O1234\nG0 X1\nM30")
+    (tmp_path / "part.nc").write_text("G0 X1\nM30")
+    expected = discover_nc_files(tmp_path)
+    assert len(expected) == 2
+    assert discover_nc_files(tmp_path, extensions=reversed(DEFAULT_BATCH_EXTENSIONS)) == expected
+    assert discover_nc_files(tmp_path, extensions=(*DEFAULT_BATCH_EXTENSIONS, ".nc")) == expected
+    assert [path.name for path in discover_nc_files(tmp_path, extensions=("nc",))] == ["part.nc"]
 
 
 @pytest.mark.parametrize(

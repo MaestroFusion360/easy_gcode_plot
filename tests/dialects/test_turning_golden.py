@@ -16,7 +16,7 @@ from app.gcode.kernel import execute
         ("compensation_control_off.nc", 190, 153, (128.27, 25.4), (-1.6, 138.43, -112.697, 25.4), set()),
         ("compensation_control_on.nc", 188, 151, (128.27, 25.4), (-1.6, 138.43, -112.697, 25.4), set()),
         ("cycle71_ID.nc", 38, 37, (72, 1), (0, 89.6, -145, 1), set()),
-        ("drill.nc", 118, 55, (0, 16), (0, 0, -19.09, 16), set()),
+        ("drill.nc", 118, 55, (0, 16), (0, 0, -19.09, 16), {"UNSUPPORTED_M_CODE"}),
         ("face_groove.nc", 50, 46, (110, 20), (0, 110, -20, 20), set()),
         ("od_rough_finish.nc", 46, 43, (100, 20), (0, 100, -45, 20), set()),
         ("oem_header.nc", 4, 0, (100, 20), (0, 100, -30, 20), {"UNSUPPORTED_G_CODE"}),

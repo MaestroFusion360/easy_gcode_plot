@@ -1,10 +1,20 @@
 """The debt baseline permits existing code, never new or growing exceptions."""
 
 import json
+import subprocess
 
 import pytest
 
 from scripts import check_complexity
+
+
+@pytest.mark.parametrize("stdout,stderr", [("", "No module named ruff"), ("broken", "Ruff failure")])
+def test_missing_or_broken_ruff_reports_the_tool_failure(monkeypatch, capsys, stdout, stderr):
+    monkeypatch.setattr(
+        check_complexity.subprocess, "run", lambda *_a, **_k: subprocess.CompletedProcess([], 1, stdout, stderr)
+    )
+    assert check_complexity.main() == 2
+    assert stderr in capsys.readouterr().err
 
 
 @pytest.mark.parametrize(

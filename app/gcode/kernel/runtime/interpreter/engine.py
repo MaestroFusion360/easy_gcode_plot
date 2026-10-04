@@ -10,7 +10,7 @@ from ...geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, 
 from ...turning.cycles import adapt_cycle_emission
 from ...turning.dialect import supported_codes
 from ..cycles import CycleContext, apply_cycle_outcome
-from ..diagnostics import modal_conflict_diagnostics, unsupported_g53_motion_diagnostic
+from ..diagnostics import modal_conflict_diagnostics, turning_code_diagnostics, unsupported_g53_motion_diagnostic
 from ..events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
 from ..execution import (
     POSITION_NEUTRAL_GCODES,
@@ -138,7 +138,7 @@ def execute_trace_step(
     words = evaluated_block.words
     _check_turning_word_errors(words, block)
     ctx.words = evaluated_block.values
-    if _skip_unsupported_system_b(ctx, evaluated_block):
+    if _reject_unsupported_turning_codes(ctx, block, evaluated_block):
         return False, motions
     codes = evaluated_block.codes
     all_g = codes.all_g
@@ -266,13 +266,24 @@ def _dispatch_turning_macro(ctx, block, blocks):
     return True
 
 
-def _skip_unsupported_system_b(ctx, evaluated_block):
-    if ctx.runtime.gcode_system != "B":
-        return False
-    if all(code in supported_codes("B") for code in evaluated_block.source_gcodes):
-        return False
-    ctx.pc += 1
-    return True
+def _reject_unsupported_turning_codes(ctx, block, evaluated_block):
+    diagnostics = turning_code_diagnostics(
+        block, evaluated_block, ctx.runtime.gcode_system
+    ) + modal_conflict_diagnostics(evaluated_block.codes.all_g, "fanuc_turn", block)
+    ctx.diagnostics.extend(diagnostics)
+    if any(item.severity == "error" for item in diagnostics):
+        state, words = ctx.state, evaluated_block.words
+        state.unknown_x_after_g28 |= "X" in words or "U" in words
+        state.unknown_z_after_g28 |= "Z" in words or "W" in words
+        state.position_unknown_reason = "unsupported"
+        ctx.pc += 1
+        return True
+    if ctx.runtime.gcode_system == "B" and any(
+        code not in supported_codes("B") for code in evaluated_block.source_gcodes
+    ):
+        ctx.pc += 1
+        return True
+    return False
 
 
 def _dispatch_turning_g65(program, ctx, block, words, codes, event_list):
