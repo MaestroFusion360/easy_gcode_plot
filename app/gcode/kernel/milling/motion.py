@@ -218,7 +218,7 @@ def _motion(
 
 
 def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offsets) -> TraceMotion | None:
-    """Execute G53 in machine coordinates, mapping absolute zero to configured home."""
+    """Resolve G53/SUPA using the application's configured reference zero."""
     start_machine = _raw_machine_position(state, wcs_offsets)
     end_machine = list(start_machine)
     supa = block.native_syntax is not None and block.native_syntax.supa
@@ -226,14 +226,12 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
         if letter not in words:
             continue
         value = words[letter] * state.unit_scale
-        if supa:
-            end_machine[index] = value
-        elif state.absolute:
+        if supa or state.absolute:
             end_machine[index] = home[index] if value == 0.0 else value
         else:
             end_machine[index] = start_machine[index] + value
 
-    if not supa:
+    if not supa or words.get("Z") == 0.0:
         _validate_reference_retract(state, start_machine, end_machine, words, wcs_offsets)
     _set_raw_machine_position(state, end_machine, wcs_offsets)
     if start_machine == tuple(end_machine):

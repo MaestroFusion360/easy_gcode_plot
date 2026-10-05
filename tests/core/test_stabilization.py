@@ -546,7 +546,7 @@ M30
 
 
 def test_macro_boss_final_full_circle_keeps_g41_compensation_until_g40():
-    source = Path("tests/fixtures/milling/macro_boss_milling.nc").read_text(encoding="utf-8")
+    source = Path("tests/fixtures/milling/fanuc/macro_boss_milling.nc").read_text(encoding="utf-8")
     result = execute(
         source,
         "fanuc_mill",

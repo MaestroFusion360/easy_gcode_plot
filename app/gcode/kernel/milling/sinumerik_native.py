@@ -2,7 +2,8 @@
 
 CR is a radius address; G710 selects metric geometry/feed; G64 selects
 continuous path (logical trace has no blending simulation). MSG/WORKPIECE are
-display metadata. SUPA is a nonmodal machine-coordinate move, not G28.
+display metadata. SUPA is absolute and nonmodal; zero XYZ targets use the
+application's configured reference return, shared with FANUC G53.
 """
 
 import math
@@ -151,6 +152,8 @@ def _resolve_direct_rotary(block, words, state):
     if not block.native_syntax.direct_rotary:
         return
     absolute = next((g == 90 for g in reversed(words.all("G")) if g in (90, 91)), state.absolute)
+    if block.native_syntax.supa:
+        absolute = True
     for axis in block.native_syntax.direct_rotary:
         value = words[axis]
         if not 0 <= value <= 360:
@@ -168,8 +171,24 @@ def _resolve_direct_rotary(block, words, state):
 def apply_native_tcp_edge(block, words, state):
     """D selects a cutting edge/offset without cancelling the TRAORI transform."""
     if block.native_syntax is not None and state.tcp_control and "D" in words:
-        state.tool_length_comp = words["D"] == 1
-        state.tool_length_h = 1 if state.tool_length_comp else None
+        state.tool_length_comp = words["D"] > 0
+        state.tool_length_h = int(words["D"]) if state.tool_length_comp else None
+
+
+def native_edge_diagnostics(block, words):
+    """Retain edge selection without inventing controller offset-table values."""
+    if words.get("D", 0) <= 1:
+        return []
+    return [
+        Diagnostic(
+            "UNVERIFIED_SINUMERIK_EDGE_OFFSETS",
+            "Cutting edge selected; controller-specific edge offsets are unavailable, using nominal tool geometry",
+            "warning",
+            "unverified",
+            block.index + 1,
+            block.raw,
+        )
+    ]
 
 
 def normalize_native_block(block, evaluated, state):
@@ -204,12 +223,12 @@ def _normalize_native_words(block, evaluated, state):
         return evaluated, diagnostic
     gcodes = evaluated.codes.all_g
     if syntax.supa and (
-        not any(axis in evaluated.words for axis in ("X", "Y", "Z"))
+        not any(axis in evaluated.words for axis in ("X", "Y", "Z", "A", "B", "C"))
         or gcodes not in ((), (0,))
         or (not gcodes and state.move != 0)
     ):
         return evaluated, _diag(
-            block, "UNSUPPORTED_SINUMERIK_SUPA", "Modeled SUPA requires explicit G0 and XYZ addresses"
+            block, "UNSUPPORTED_SINUMERIK_SUPA", "Modeled SUPA requires rapid G0 and XYZ/ABC addresses"
         )
     radius = any(token.letter == "CR" for token in block.parsed_words)
     move = next((g for g in reversed(gcodes) if g in (0, 1, 2, 3)), state.move)
@@ -219,10 +238,8 @@ def _normalize_native_words(block, evaluated, state):
     if radius and (move not in (2, 3) or any(axis in evaluated.words for axis in ("I", "J", "K"))):
         return evaluated, _diag(block, "INVALID_SINUMERIK_CR", "CR requires G2/G3 without I/J/K center addresses")
     d = evaluated.words.get("D")
-    if d is not None and (not d.is_integer() or d not in (0, 1)):
-        return evaluated, _diag(
-            block, "UNSUPPORTED_SINUMERIK_D", "Native milling currently models cutting edge D0/D1 only"
-        )
+    if d is not None and (not d.is_integer() or not 0 <= d <= 12):
+        return evaluated, _diag(block, "UNSUPPORTED_SINUMERIK_D", "Native milling models cutting edge D0..D12 only")
     normalized = _normalize_g_codes(evaluated, {70: 20, 71: 21, 700: 20, 710: 21})
     # Remove path-control metadata and express nonmodal SUPA/D in existing
     # state/motion operations, without manufacturing another source program.
@@ -232,8 +249,8 @@ def _normalize_native_words(block, evaluated, state):
         words.add(WordToken("G", "53"), 53.0)
     if d is not None and not state.tcp_control:
         words.add(WordToken("G", "49" if d == 0 else "43"), 49.0 if d == 0 else 43.0)
-        if d == 1:
-            words.add(WordToken("H", "1"), 1.0)
+        if d > 0:
+            words.add(WordToken("H", str(int(d))), d)
     values = tuple((letter, value) for letter, entries in words._all.items() for value in entries)  # pylint: disable=protected-access
     normalized = EvaluatedBlock(words, classify_block_codes(words), values, normalized.signals)
     return _normalize_native_dwell(normalized, block.index), None

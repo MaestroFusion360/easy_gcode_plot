@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from OpenGL import GL
-from PyQt6.QtGui import QColor, QFont, QVector3D
+from PyQt6.QtGui import QColor, QFont, QVector3D, QVector4D
 from pyqtgraph.opengl import GLMeshItem, GLTextItem, MeshData
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
@@ -35,6 +35,17 @@ AXIS_TEXT_GL_OPTIONS = {
 }
 
 
+class _AxisMeshItem(GLMeshItem):
+    """Keep the orientation overlay inside the camera's depth clip range."""
+
+    def mvpMatrix(self):
+        matrix = super().mvpMatrix()
+        # Disabling depth tests does not disable near/far clipping. Preserve
+        # the camera's XY projection, but place overlay geometry at clip Z=0.
+        matrix.setRow(2, QVector4D(0.0, 0.0, 0.0, 0.0))
+        return matrix
+
+
 class AxisTriadItem(GLGraphicsItem):
     """A centered, fixed-pixel-size triad with camera-facing axis labels."""
 
@@ -46,7 +57,7 @@ class AxisTriadItem(GLGraphicsItem):
         self._meshes = []
         self._labels = []
 
-        sphere = GLMeshItem(
+        sphere = _AxisMeshItem(
             parentItem=self,
             meshdata=MeshData.sphere(rows=12, cols=18, radius=0.055),
             color=AXIS_ORIGIN_COLOR,
@@ -76,7 +87,7 @@ class AxisTriadItem(GLGraphicsItem):
             self._labels.append(text)
 
     def _add_arrow(self, color: QColor, rotation) -> None:
-        shaft = GLMeshItem(
+        shaft = _AxisMeshItem(
             parentItem=self,
             meshdata=MeshData.cylinder(rows=1, cols=18, radius=[0.022, 0.022], length=0.72),
             color=color,
@@ -84,7 +95,7 @@ class AxisTriadItem(GLGraphicsItem):
             shader=None,
             glOptions=AXIS_OPAQUE_GL_OPTIONS,
         )
-        cone = GLMeshItem(
+        cone = _AxisMeshItem(
             parentItem=self,
             meshdata=MeshData.cylinder(rows=1, cols=18, radius=[0.075, 0.0], length=0.28),
             color=color,

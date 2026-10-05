@@ -97,7 +97,7 @@ def test_milling_drilling_cycle_execution_path_is_stable():
     assert result.ok, result.diagnostics
     assert result.complete is True
     assert result.program_end == "M30"
-    assert len(result.motions) == 18
+    assert len(result.motions) == 21
     assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
     assert all(motion.cycle_generated for motion in result.motions[1:])
     assert result.motions[0].source_kind == "motion"

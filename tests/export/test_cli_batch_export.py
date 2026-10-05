@@ -197,7 +197,7 @@ def test_turning_arc_export_preserves_end_geometry(tmp_path, arc_type):
 
 @pytest.mark.parametrize("fixture", ["contur_2d.nc", "flange_plate_benchmark.nc"])
 def test_expanded_milling_restores_absolute_mode_after_home_return(tmp_path, fixture):
-    source = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / fixture
+    source = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc" / fixture
     output = tmp_path / "expanded.nc"
     assert main(["export", str(source), "--lang", "fanuc_mill", "-o", str(output)]) == 0
     before, *_ = execute_program(source.read_text(encoding="utf-8"), language="fanuc_mill", autodetect_arc_type=True)

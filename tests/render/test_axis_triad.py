@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pytest
 from OpenGL import GL
+from PyQt6.QtGui import QMatrix4x4, QVector3D, QVector4D
+from pyqtgraph.opengl import GLMeshItem
 
 from app.ui.plot.axis_triad import (
     AXIS_COLORS,
@@ -89,3 +91,28 @@ def test_axis_triad_uses_fixed_unlit_colors():
         AXIS_COLORS["Y"],
         AXIS_COLORS["Z"],
     ]
+
+
+@pytest.mark.parametrize("elevation,azimuth", [(30, -45), (60, 45), (-30, 135), (0, 0)])
+def test_empty_scene_arrows_survive_camera_depth_clipping(monkeypatch, elevation, azimuth):
+    projection = QMatrix4x4()
+    projection.ortho(-50, 50, -50, 50, 0.01, 2)
+    camera = QMatrix4x4()
+    camera.translate(0, 0, -1)
+    camera.rotate(elevation, 1, 0, 0)
+    camera.rotate(azimuth, 0, 0, 1)
+    item = AxisTriadItem()
+    item.set_center((0, 0, 0))
+    item.scale(12, 12, 12)
+    clipped = False
+    for mesh in item._meshes:  # pylint: disable=protected-access
+        original = projection * camera * item.transform() * mesh.transform()
+        monkeypatch.setattr(GLMeshItem, "mvpMatrix", lambda _self, matrix=original: QMatrix4x4(matrix))
+        overlay = mesh.mvpMatrix()
+        for vertex in mesh.opts["meshdata"].vertexes():
+            point = QVector4D(QVector3D(*map(float, vertex)), 1)
+            before, after = original * point, overlay * point
+            clipped |= abs(before.z()) > before.w()
+            assert abs(after.z()) <= after.w()
+            assert (after.x(), after.y(), after.w()) == pytest.approx((before.x(), before.y(), before.w()))
+    assert clipped, "Regression must exercise arrows outside the scene depth range"

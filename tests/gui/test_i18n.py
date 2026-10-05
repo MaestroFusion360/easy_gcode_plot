@@ -48,6 +48,19 @@ def test_russian_translator_translates_form_strings(qt_app, translator):
     assert QCoreApplication.translate("MainWindow", "&File") == "&Файл"
 
 
+def test_russian_groove_geometry_strings(qt_app, translator):
+    assert i18n.install_translator(qt_app, "ru") is True
+    assert QCoreApplication.translate("ToolLibraryDialog", "Groove geometry") == "Геометрия канавочного резца"
+    assert (
+        QCoreApplication.translate("ToolLibraryDialog", "Radial groove")
+        == "\u0420\u0430\u0434\u0438\u0430\u043b\u044c\u043d\u0430\u044f \u043a\u0430\u043d\u0430\u0432\u043a\u0430"
+    )
+    assert (
+        QCoreApplication.translate("ToolLibraryDialog", "Face groove")
+        == "\u0422\u043e\u0440\u0446\u0435\u0432\u0430\u044f \u043a\u0430\u043d\u0430\u0432\u043a\u0430"
+    )
+
+
 def test_russian_reload_prompt_is_translated(qt_app, translator):
     assert i18n.install_translator(qt_app, "ru") is True
     assert QCoreApplication.translate("MainWindow", "Reload file") == "Загрузить файл заново"

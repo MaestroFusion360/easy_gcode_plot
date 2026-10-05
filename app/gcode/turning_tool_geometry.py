@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 
-from app.tools.definitions import tool_application
+from app.tools.definitions import applications_for_orientation, tool_application
 
 EPS = 1e-9
 
@@ -207,9 +207,12 @@ def rounded_polygon(
         following = points[(index + 1) % len(points)]
         before = (previous[0] - point[0], previous[1] - point[1])
         after = (following[0] - point[0], following[1] - point[1])
+        # Reentrant shoulder corners are retained; only convex corners get
+        # a fillet. Treating a shoulder as convex creates a nearly full circle.
+        cross = before[0] * after[1] - before[1] * after[0]
         before_length = math.hypot(*before)
         after_length = math.hypot(*after)
-        if before_length <= EPS or after_length <= EPS:
+        if cross * direction >= -EPS or before_length <= EPS or after_length <= EPS:
             rounded.append(point)
             continue
         before_unit = (before[0] / before_length, before[1] / before_length)
@@ -289,6 +292,92 @@ def tip_fillet_center(
     )
 
 
+def physical_tool_application(spec: dict[str, object], application: str | None = None) -> str:
+    """Resolve a physical geometry variant without consulting UI filters."""
+    if application is not None:
+        return application
+    tool_type = canonical_turning_tool_type(spec.get("type"))
+    orientation = tip_orientation(spec, 3)
+    if tool_type == "groove":
+        if spec.get("grooveCuttingPlane") == "face":
+            return "face"
+        return "id" if orientation in (1, 2) else "od"
+    if tool_type == "diamond_35" and orientation in (6, 8):
+        return "id"
+    return (applications_for_orientation(tool_type, orientation) or ("od",))[0]
+
+
+def _physical_geometry_spec(spec, application):
+    application = physical_tool_application(spec, application)
+    return {**spec, "applications": [application]}, application
+
+
+# Outline from the supplied thread-insert drawing, centred on its D=12
+# inscribed circle. Each tooth has its own 60-degree profile; the body edges
+# and recessed shoulders are independent of that profile.
+THREAD_INSERT_OUTLINE = (
+    (-5.988444250162592, 7.782667345353854),
+    (-5.383444250162592, 7.782667345353854),
+    (-4.475944250162592, 9.354503453222609),
+    (-3.568444250162592, 7.782667345353854),
+    (-1.514954479321786, 7.782667345353854),
+    (9.852640406802130, 1.236832699836573),
+    (9.470428539098464, 0.767856060560720),
+    (10.377928539098460, -0.803980047308037),
+    (8.562928539098461, -0.803980047308037),
+    (7.805734941718353, -2.402771400863096),
+    (-3.575322347252479, -8.973627890312962),
+    (-3.905706518019108, -8.501790395373456),
+    (-5.974691030248929, -8.501790395373456),
+    (-5.039681468907276, -6.882306329567029),
+    (-5.988444250162592, -5.527332654646147),
+)
+
+
+def thread_tool_polygon(spec: dict[str, object]) -> tuple[tuple[float, float], ...]:
+    """Scale the fixed D=12 drawing solely by the insert diameter.
+
+    The tooth profile parameters belong to stock removal, not this silhouette.
+    P8 has its active vertex down; P6 mirrors it upward in the lathe view.
+    """
+    scale = positive_float(spec, "insertLength", 12.0) / 12.0
+    trace_x, trace_y = THREAD_INSERT_OUTLINE[2]
+    local = tuple(((trace_y - y) * scale, (x - trace_x) * scale) for x, y in THREAD_INSERT_OUTLINE)
+    orientation = tip_orientation(spec, 8)
+    if orientation == 6:
+        return tuple((-x, z) for x, z in local)
+    if orientation == 9:
+        return tuple((-y * scale, x * scale) for x, y in THREAD_INSERT_OUTLINE)
+    if orientation == 8:
+        return local
+    return _rotate_polygon(local, ORIENTATION_SCREEN_ANGLES[orientation] - ORIENTATION_SCREEN_ANGLES[8])
+
+
+def _orient_thread_polygon(points, spec):
+    orientation = tip_orientation(spec, 8)
+    if orientation == 9:
+        center_x = (min(x for x, _z in points) + max(x for x, _z in points)) * 0.5
+        return tuple((x - center_x, z) for x, z in points)
+    tip_x, tip_z = TIP_DIRECTIONS[orientation]
+    direction_length = math.hypot(tip_x, tip_z)
+    body_x, body_z = -tip_x / direction_length, -tip_z / direction_length
+    return tuple((x * body_x - z * body_z, x * body_z + z * body_x) for x, z in points)
+
+
+def thread_cutting_profile(spec: dict[str, object]) -> tuple[tuple[float, float], ...]:
+    """Keep the radial removal envelope independent of the schematic body."""
+    length = positive_float(spec, "insertLength", 12.0)
+    tip_width = min(positive_float(spec, "threadTipWidth", 0.8), length * 0.8)
+    angle = min(179.0, max(1.0, positive_float(spec, "threadAngle", 60.0)))
+    depth = length * 0.75
+    half_width = min(length * 0.5, tip_width * 0.5 + depth * math.tan(math.radians(angle * 0.5)))
+    points = rounded_polygon(
+        ((0.0, -tip_width * 0.5), (depth, -half_width), (depth, half_width), (0.0, tip_width * 0.5)),
+        nonnegative_float(spec, "threadCornerRadius", 0.1),
+    )
+    return _orient_thread_polygon(points, spec)
+
+
 def turning_tool_polygon(
     spec: dict[str, object],
     stock_diameter: float,
@@ -296,35 +385,17 @@ def turning_tool_polygon(
     stock_scope: bool = False,
     application: str | None = None,
 ) -> tuple[tuple[float, float], ...] | None:
-    """Return the local X/Z cutting silhouette relative to the programmed point."""
+    """Return a cutting footprint or the tool silhouette relative to its trace point.
+
+    Thread previews use the supplied insert schematic; stock
+    removal uses the radial cutting profile. Other tools share both outlines.
+    """
     tool_type = canonical_turning_tool_type(spec.get("type"))
-    application = tool_application(spec, application)
+    spec, application = _physical_geometry_spec(spec, application)
     scale = max(3.0, min(12.0, stock_diameter * 0.08))
     polygon = None
     if tool_type == "thread":
-        length = positive_float(spec, "insertLength", 12.0)
-        tip_width = min(positive_float(spec, "threadTipWidth", 0.8), length * 0.8)
-        thread_angle = min(179.0, max(1.0, positive_float(spec, "threadAngle", 60.0)))
-        corner_radius = nonnegative_float(spec, "threadCornerRadius", 0.1)
-        half_angle = math.radians(thread_angle * 0.5)
-        body_depth = length * 0.75
-        body_half_width = min(length * 0.5, tip_width * 0.5 + body_depth * math.tan(half_angle))
-        local = (
-            (0.0, -tip_width * 0.5),
-            (body_depth, -body_half_width),
-            (body_depth, body_half_width),
-            (0.0, tip_width * 0.5),
-        )
-        local = rounded_polygon(local, corner_radius)
-        canonical = _rotate_polygon(local, 45.0)
-        orientation = tip_orientation(spec, 3)
-        if orientation == 9:
-            center_x = (min(x for x, _z in canonical) + max(x for x, _z in canonical)) * 0.5
-            center_z = (min(z for _x, z in canonical) + max(z for _x, z in canonical)) * 0.5
-            polygon = tuple((x - center_x, z - center_z) for x, z in canonical)
-        else:
-            rotation = ORIENTATION_SCREEN_ANGLES.get(orientation, ORIENTATION_SCREEN_ANGLES[3])
-            polygon = _rotate_polygon(canonical, rotation - ORIENTATION_SCREEN_ANGLES[3])
+        polygon = thread_cutting_profile(spec) if stock_scope else thread_tool_polygon(spec)
     elif tool_type == "round":
         radius = positive_float(spec, "insertLength", 12.0) * 0.5
         direction_x, direction_z = TIP_DIRECTIONS[tip_orientation(spec, 3)]
@@ -421,7 +492,7 @@ def turning_tool_polygon(
 def display_tool_geometry(spec: dict[str, object], stock_diameter: float, application: str | None = None):
     """Return ``(polygon, preview_depth, cache_key)`` for the OpenGL tool preview."""
     tool_type = canonical_turning_tool_type(spec.get("type"))
-    application = tool_application(spec, application)
+    application = physical_tool_application(spec, application)
     scale = max(3.0, min(12.0, stock_diameter * 0.08))
     if tool_type in {"drill", "tap"}:
         diameter = positive_float(spec, "diameter", max(2.0, stock_diameter * 0.1))
@@ -441,13 +512,9 @@ def display_tool_geometry(spec: dict[str, object], stock_diameter: float, applic
         return ((0.0, 0.0), (scale, 0.0), (scale, scale), (0.0, scale)), 1.0, (tool_type, "empty")
     width = positive_float(spec, "width")
     nose = positive_float(spec, "noseRadius")
-    orientation = tip_orientation(spec, 1)
-    length = positive_float(spec, "insertLength", scale)
+    orientation = tip_orientation(spec, 8 if tool_type == "thread" else 1)
+    length = positive_float(spec, "insertLength", 12.0 if tool_type == "thread" else scale)
     if tool_type == "thread":
-        angle = positive_float(spec, "threadAngle", 60.0)
-        tip_width = positive_float(spec, "threadTipWidth", 0.8)
-        corner_radius = nonnegative_float(spec, "threadCornerRadius", 0.1)
-        cache_key = (tool_type, application, length, angle, tip_width, corner_radius, orientation)
-    else:
-        cache_key = (tool_type, application, width, nose, orientation, length)
+        return points, max(1.0, length * 0.35), (tool_type, length, orientation)
+    cache_key = (tool_type, application, width, nose, orientation, length)
     return points, max(1.0, max(width, length, nose) * 0.35), cache_key

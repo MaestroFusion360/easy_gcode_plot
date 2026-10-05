@@ -15,7 +15,7 @@ from ..runtime.capabilities import controller_capability_gate
 from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.diagnostics import modal_conflict_diagnostics
 from ..runtime.events import home_return_event, main_program_location, program_end_code, program_start_event
-from ..runtime.execution import ProgramRuntime, semantic_instructions
+from ..runtime.execution import ProgramRuntime, resolve_program_tools, semantic_instructions
 from .cycles.sinumerik import execute_native_cycle
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .kinematics import TCP_TABLE_PROFILES, MachineKinematics, effective_orientation, kinematics_snapshot
@@ -24,6 +24,7 @@ from .sinumerik_native import (
     apply_native_declaration,
     apply_native_tcp_edge,
     evaluate_native_block,
+    native_edge_diagnostics,
     native_ignored_mode_warnings,
     native_operation_code,
 )
@@ -187,6 +188,11 @@ def _validate_g73_retract_distance(value: float) -> None:
         raise ValueError("G73 retract distance must be finite and non-negative")
 
 
+def _validate_g83_clearance(value: float) -> None:
+    if not math.isfinite(value) or value < 0.0:
+        raise ValueError("G83 reentry clearance must be finite and non-negative")
+
+
 def _unsupported_polar_arc(state: MillState, gcodes, words) -> bool:
     """Return whether this block requests an unverified polar arc form."""
     polar_active = state.polar_active
@@ -334,7 +340,9 @@ def _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
     evaluated = evaluated_block.values
     signals = evaluated_block.signals + _milling_spindle_signals(block, words, evaluated_block.codes.all_m)
     diagnostics: list[Diagnostic] = (
-        native_ignored_mode_warnings(block) if ctx.runtime.controller_mode == "sinumerik_native" else []
+        native_ignored_mode_warnings(block) + native_edge_diagnostics(block, words)
+        if ctx.runtime.controller_mode == "sinumerik_native"
+        else []
     )
     early_outcome = _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_events, diagnostics)
     if early_outcome is not None:
@@ -608,7 +616,10 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
     if not rotary or 65 in gcodes:
         return None
     state = ctx.state
+    supa = block.native_syntax is not None and block.native_syntax.supa
     absolute = next((g == 90 for g in reversed(gcodes) if g in (90, 91)), state.absolute)
+    if supa:
+        absolute = True
     targets = {
         axis: 0.0
         if 28 in gcodes
@@ -618,6 +629,8 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
         for axis in rotary
     }
     changed = tuple(axis for axis in rotary if targets[axis] != state.rotary_angles[axis])
+    if supa and (state.kinematics is None or any(axis not in state.kinematics.addresses for axis in rotary)):
+        changed = rotary
     if not changed:
         return None
     move = next((g for g in reversed(gcodes) if g in (0, 1, 2, 3)), state.move)
@@ -727,13 +740,16 @@ def execute_milling(
     home: tuple[float, float, float] = (0.0, 0.0, 0.0),
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
     g73_retract_distance: float = 1.0,
+    g83_clearance: float = 1.0,
     include_instructions: bool = True,
     kinematics: MachineKinematics | None = None,
     source_dialect: str = "fanuc",
+    tool_resolver=None,
 ):
 
     definition, fingerprint = kinematics_snapshot(kinematics)
     program = parse_sinumerik_program(source) if source_dialect == "sinumerik" else parse_program(source)
+    resolve_program_tools(program, None, tool_resolver)
     program_start_block, program_number = main_program_location(program)
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
     state = MillState(
@@ -745,6 +761,7 @@ def execute_milling(
         unit_scale=float(default_unit_scale),
         source_arc_type=1 if source_dialect == "sinumerik" else None,
         g73_retract_distance=float(g73_retract_distance),
+        g83_clearance=float(g83_clearance),
     )
     motions: list[TraceMotion] = []
     diagnostics: list[Diagnostic] = []
@@ -772,6 +789,7 @@ def execute_milling(
 
     try:
         _validate_g73_retract_distance(state.g73_retract_distance)
+        _validate_g83_clearance(state.g83_clearance)
         while 0 <= runtime.pc < len(program.blocks):
             simple_blocks_available = (
                 not contains_rotary

@@ -92,7 +92,14 @@ M05
     assert sorted({motion.end_x for motion in cycle if motion.move == 1}) == [30.0, 32.0, 38.0, 44.0, 50.0]
 
     tools = {
-        "T0202": {"type": "groove", "applications": ["face"], "width": 3.0, "noseRadius": 0.0, "tipOrientation": 3}
+        "T0202": {
+            "type": "groove",
+            "applications": ["face"],
+            "grooveCuttingPlane": "face",
+            "width": 3.0,
+            "noseRadius": 0.0,
+            "tipOrientation": 3,
+        }
     }
     stock = TurningStockTimeline(result.motions, TurningStockSpec(outer_diameter=60, length=30, resolution=0.5), tools)
     rapid_index = next(

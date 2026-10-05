@@ -36,8 +36,8 @@ from app.gcode.kernel import execute
         (
             "indexed_table_b.nc",
             "4ax_table_b",
-            1764,
-            1077,
+            2080,
+            1393,
             103,
             25,
             (-475.5282581475768, -35.0, 154.5084971874736),
@@ -58,8 +58,8 @@ from app.gcode.kernel import execute
         (
             "flange_plate_benchmark.nc",
             None,
-            317,
-            55,
+            325,
+            63,
             58,
             0,
             (0.0, 0.0, 0.0),
@@ -81,7 +81,7 @@ def test_milling_fixture_trace_contract(
     fixture_text,
 ):
     result = execute(
-        fixture_text(f"milling/{name}"),
+        fixture_text(f"milling/fanuc/{name}"),
         language="fanuc_mill",
         kinematics=kinematics,
         home_z=500 if name in {"indexed_table_a.nc", "indexed_table_b.nc"} else 0,

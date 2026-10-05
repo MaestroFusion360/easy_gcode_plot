@@ -31,6 +31,7 @@ from ..runtime.diagnostics import (
     diagnostic_from_exception as _diagnostic_from_exception,
 )
 from ..runtime.events import program_end_code
+from ..runtime.execution import resolve_program_tools
 from ..runtime.execution import semantic_instructions as _semantic_instructions
 from ..runtime.trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
 from ..runtime.trace_metadata import threading_step_flags as _threading_step_flags
@@ -344,10 +345,12 @@ def _execute_impl(
     wcs_offsets: WcsOffsets | None = None,
     extended_wcs_offsets: WcsOffsets | None = None,
     milling_g73_retract_distance: float = 1.0,
+    milling_g83_clearance: float = 1.0,
     emulate_g28_home: bool = False,
     include_instructions: bool = True,
     kinematics=None,
     source_dialect: str = "fanuc",
+    tool_resolver=None,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
@@ -390,9 +393,11 @@ def _execute_impl(
                 home=(home_x, home_y, home_z),
                 wcs_offsets=mill_offsets,
                 g73_retract_distance=milling_g73_retract_distance,
+                g83_clearance=milling_g83_clearance,
                 include_instructions=include_instructions,
                 kinematics=kinematics,
                 source_dialect=source_dialect,
+                tool_resolver=tool_resolver,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
             extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
@@ -406,6 +411,7 @@ def _execute_impl(
     turn_offsets.update(_turn_extended_wcs_offsets(extended_wcs_offsets))
     try:
         program = parse_program(source)
+        tools = resolve_program_tools(program, tools, tool_resolver)
         rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(
             program,
@@ -535,6 +541,18 @@ def _resolve_geometry_motion(motion, program, language, arc_type, tolerance):
         return None, diagnostic
 
 
+def _capture_tool_resolver(resolver, resolved_tools):
+    if resolver is None:
+        return None
+
+    def resolve(program):
+        tools = resolver(program)
+        resolved_tools["milling_tools"] = tools
+        return tools
+
+    return resolve
+
+
 def execute(
     source,
     language="fanuc_turn",
@@ -546,9 +564,15 @@ def execute(
     arc_tolerance=0.001,
     **options,
 ):
-    """Execute once; resolve geometry and publish a self-contained immutable result."""
+    """Execute once; resolve geometry and publish a self-contained immutable result.
+
+    An optional tool_resolver receives the parsed Program once, before motion
+    execution, and returns the tool geometry used by execution/compensation.
+    Parsing and tool preparation share execution cancellation checkpoints.
+    """
     token = active_budget.set(ExecutionBudget(limits or ExecutionLimits(), cancelled))
-    milling_tools = options.pop("milling_tools", None)
+    resolved_tools = {"milling_tools": options.pop("milling_tools", None)}
+    options["tool_resolver"] = _capture_tool_resolver(options.pop("tool_resolver", None), resolved_tools)
     try:
         result = _execute_impl(source, language, **options)
         result = replace(result, source_dialect=options.get("source_dialect", "fanuc"))
@@ -616,7 +640,7 @@ def execute(
         diagnostics = result.diagnostics + tuple(geometry_diagnostics)
         if language == "fanuc_mill":
             result, motions, compensation_diagnostics = _resolve_milling_compensation(
-                result, motions, motion_step_owners, milling_tools, options.get("kinematics")
+                result, motions, motion_step_owners, resolved_tools["milling_tools"], options.get("kinematics")
             )
             diagnostics += compensation_diagnostics
         return replace(

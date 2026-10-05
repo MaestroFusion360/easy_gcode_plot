@@ -11,6 +11,34 @@ from app.gcode.trace_tools import render_trace
 from app.ui.plot.toolpath_vbo import segments_from_render_points
 
 
+@pytest.mark.parametrize("profile,rotary", [("5ax_table_ac_angled", "A60 C120"), ("5ax_table_bc_angled", "B60 C120")])
+@pytest.mark.parametrize("offset", [(0, 0, 0), (40, -25, 80)])
+def test_native_supa_zero_retract_matches_fanuc_g53_with_wcs_and_configured_home(profile, rotary, offset):
+    options = {"language": "fanuc_mill", "kinematics": profile, "home_z": 500, "wcs_offsets": {54: offset}}
+    native = execute(
+        f"G90 G54 G0 X0 Y0 Z0\nTRAORI\nG1 X10 Y20 Z30 {rotary} F100\n"
+        "TRAFOOF\nG91\nSUPA G0 Z0 D0\nG90 G0 X15 Y25 Z50\nM30",
+        source_dialect="sinumerik",
+        **options,
+    )
+    fanuc = execute(
+        f"G90 G54 G0 X0 Y0 Z0\nG43.4 H1\nG1 X10 Y20 Z30 {rotary} F100\nG49\nG53 G0 Z0\nG0 X15 Y25 Z50\nM30",
+        **options,
+    )
+    assert native.ok and native.complete, native.diagnostics
+    assert fanuc.ok and fanuc.complete, fanuc.diagnostics
+    before, retract, after = native.motions[-3:]
+    reference = fanuc.motions[-2]
+    assert (retract.start_x, retract.start_y, retract.start_z) == pytest.approx(
+        (before.end_x, before.end_y, before.end_z)
+    )
+    assert (retract.end_x, retract.end_y, retract.end_z) == pytest.approx(
+        (reference.end_x, reference.end_y, reference.end_z)
+    )
+    assert (after.start_x, after.start_y, after.start_z) == pytest.approx((retract.end_x, retract.end_y, retract.end_z))
+    assert retract.tool_orientation == reference.tool_orientation
+
+
 @pytest.mark.parametrize("reference", ["G91 G28 Z0", "G53 Z0"])
 @pytest.mark.parametrize(
     "angle, expected",
@@ -88,7 +116,7 @@ def test_none_kinematics_reference_still_returns_to_positive_z(reference):
 @pytest.mark.parametrize("profile", ["4ax_table_b", "5ax_table_bc_angled"])
 @pytest.mark.parametrize("reference", ["G0G91G28Z0M5", "G0G90G53Z0M5"])
 def test_indexed_table_b_fixture_retract_and_next_approach_stay_outside_part(reference, profile):
-    source = (Path(__file__).parents[1] / "fixtures/milling/indexed_table_b.nc").read_text()
+    source = (Path(__file__).parents[1] / "fixtures/milling/fanuc/indexed_table_b.nc").read_text()
     source = source.replace("G0G91G28Z0M5", reference)
     result = execute(source, language="fanuc_mill", kinematics=profile, home_z=500)
     assert result.ok and result.complete, result.diagnostics
@@ -146,3 +174,34 @@ def test_rotated_reference_crossing_wcs_centre_is_rejected(reference):
     assert not result.ok
     assert any("WCS centre plane" in d.message for d in result.diagnostics)
     assert not any(m.source_kind in {"g28", "g53"} for m in result.motions)
+
+
+@pytest.mark.parametrize(
+    "path,dialect,kind,home_z",
+    [("fanuc/impeller.ptp", "fanuc", "g53", 500), ("sinumerik/impeller.mpf", "sinumerik", "supa", 300)],
+)
+def test_real_bc_impeller_zero_retract_moves_outward_to_configured_return(path, dialect, kind, home_z, fixture_text):
+    profile = "5ax_table_bc_angled"
+    offset = np.array((0.0, 0.0, 100.0))
+    result = execute(
+        fixture_text(f"milling/{path}"),
+        language="fanuc_mill",
+        source_dialect=dialect,
+        kinematics=profile,
+        home_z=home_z,
+        wcs_offsets={54: tuple(offset)},
+    )
+    assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
+    retract = next(m for m in reversed(result.motions) if m.source_kind == kind and "Z0" in m.source_raw)
+    step = next(s for s in result.execution_steps if s.source_block == retract.source_block)
+    if dialect == "sinumerik":
+        assert step.active_wcs == 500
+        offset = np.zeros(3)
+    orientation = np.asarray(point_orientation(load_catalog()[profile], dict(step.rotary_angles)))
+    outward = orientation[:, 2]
+    start = np.array((retract.start_x, retract.start_y, retract.start_z))
+    end = np.array((retract.end_x, retract.end_y, retract.end_z))
+    assert np.dot(end - start, outward) > 0
+    assert np.cross(end - start, outward) == pytest.approx((0, 0, 0), abs=1e-7)
+    assert (orientation.T @ (end - offset) + offset)[2] == pytest.approx(home_z)
+    assert min(np.dot(start - offset, outward), np.dot(end - offset, outward)) > 0

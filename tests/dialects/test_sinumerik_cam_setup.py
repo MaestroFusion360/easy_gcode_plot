@@ -1,7 +1,5 @@
 """Real CAM header, named parameters, spindle/tool selection and native TCP."""
 
-from pathlib import Path
-
 import pytest
 
 from app.gcode.kernel import execute
@@ -20,6 +18,43 @@ def test_real_declarations_assignments_and_case_insensitive_references():
     assert (result.motions[0].end_x, result.motions[0].end_z) == (12, -10)
     assert result.program.blocks[0].raw == source.splitlines()[0]
     assert result.program.ast.nodes[0].native_syntax.real_declarations == ("_X_HOME", "_Z_HOME")
+
+
+@pytest.mark.parametrize("profile,axis", [("5ax_table_ac_angled", "A"), ("5ax_table_bc_angled", "B")])
+def test_supa_rotary_only_returns_to_absolute_machine_zero_under_g91(profile, axis):
+    result = native(f"G0 {axis}30 C20\nG91\nSUPA G0 {axis}0 C0 D0\nM30", profile=profile)
+    assert result.ok and result.complete, result.diagnostics
+    assert dict(result.rotary_angles)[axis] == dict(result.rotary_angles)["C"] == 0
+    assert len([event for event in result.events if event.kind == "ROTARY_INDEX"]) == 2
+    assert not result.motions
+
+
+def test_supa_mixed_linear_and_rotary_machine_targets_ignore_g91_and_offsets():
+    result = native(
+        "G0 B30 C20\nG91\nSUPA G0 X12 Z5 B0 C=DC(10) D0\nM30",
+        profile="5ax_table_bc_angled",
+        wcs_offsets={54: (100, 200, 300)},
+    )
+    assert result.ok and result.complete, result.diagnostics
+    assert dict(result.rotary_angles)["B"] == 0
+    assert dict(result.rotary_angles)["C"] == 10
+    assert result.motions[-1].source_kind == "supa"
+
+
+@pytest.mark.parametrize(
+    "source,profile,code",
+    [
+        ("SUPA G0 B0 C0 D0", None, "ROTARY_KINEMATICS_REQUIRED"),
+        ("SUPA G0 A0 C0 D0", "5ax_table_bc_angled", "UNCONFIGURED_ROTARY_AXIS"),
+        ("SUPA G1 B0 C0 D0", "5ax_table_bc_angled", "UNSUPPORTED_SINUMERIK_SUPA"),
+        ("SUPA G0 B=IC(10)", "5ax_table_bc_angled", "UNSUPPORTED_SINUMERIK_ROTARY"),
+    ],
+)
+def test_supa_rotary_boundaries_are_validated_even_for_unchanged_zero_axes(source, profile, code):
+    result = native(source, profile=profile)
+    assert not result.ok and not result.complete
+    assert result.diagnostics[-1].code == code
+    assert all(value == 0 for value in dict(result.rotary_angles).values())
 
 
 def test_real_variables_default_to_zero_and_can_copy_numeric_r_and_named_values():
@@ -95,7 +130,7 @@ def test_dc_invalid_or_ambiguous_targets_fail_before_rotary_mutation(source, cod
     assert dict(result.rotary_angles)["C"] == 0
 
 
-@pytest.mark.parametrize("edge", [0, 1])
+@pytest.mark.parametrize("edge", [0, 1, 2, 12])
 def test_d_edge_selection_does_not_cancel_tcp(edge):
     result = native(f"TRAORI\nG0 X10 Y0 Z5 A10 C=DC(278) D{edge}\nG1 X0 Y10 Z0 A20 C=DC(277) F100\nTRAFOOF\nM30")
     assert result.ok, result.diagnostics
@@ -104,8 +139,31 @@ def test_d_edge_selection_does_not_cancel_tcp(edge):
     assert (result.motions[-1].end_x, result.motions[-1].end_y, result.motions[-1].end_z) == (0, 10, 0)
 
 
+def test_supplied_bc_impeller_finishes_without_skipping_cam_header(fixture_text):
+    result = native(fixture_text("milling/sinumerik/impeller.mpf"), profile="5ax_table_bc_angled", home_z=300)
+    assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
+    assert len(result.motions) == 5469
+    assert {d.code for d in result.diagnostics} == {"UNMODELED_SINUMERIK_NATIVE"}
+    assert {motion.tool for motion in result.motions if motion.tool} == {"T60"}
+    assert any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events)
+    assert any(event.kind == "TCP_CONTROL_ON" for event in result.events)
+    assert dict(result.rotary_angles)["B"] == dict(result.rotary_angles)["C"] == 0
+
+
+@pytest.mark.parametrize("command", ["TRANS", "TRANS X10", "AROT Z90", "FGROUP(X,Y,Z)"])
+def test_unmodeled_frame_commands_warn_without_blocking_execution(command):
+    result = native(f"G0 X1\n{command}\nG1 X2 F100\nM30")
+    assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
+    assert [motion.end_x for motion in result.motions] == [1, 2]
+    assert len(result.diagnostics) == 1
+    diagnostic = result.diagnostics[0]
+    assert diagnostic.code == "UNMODELED_SINUMERIK_NATIVE"
+    assert diagnostic.severity == "warning"
+    assert diagnostic.line == 2
+
+
 def test_compact_cam_fixture_finishes_static_tcp_drilling_and_home_sections(fixture_text):
-    result = native(fixture_text("milling/sinumerik_cam_setup.mpf"))
+    result = native(fixture_text("milling/sinumerik/sinumerik_cam_setup.mpf"))
     assert result.ok and result.complete and not result.diagnostics, result.diagnostics
     assert any(m.arc is not None for m in result.motions)
     assert any(m.source_kind == "cycle" for m in result.motions)
@@ -113,13 +171,11 @@ def test_compact_cam_fixture_finishes_static_tcp_drilling_and_home_sections(fixt
     assert result.execution_steps[-1].source_block == len(result.program.blocks) - 1
 
 
-def test_supplied_full_cam_program_reaches_m30_without_suppressing_compensation_warning():
-    path = Path(__file__).resolve().parents[2] / "tmp/cnc programs/5ax/smpl_sim08_5ax_sinumerik_mm.mpf"
-    if not path.exists():
-        pytest.skip("User's local full CAM reference is not present")
-    result = native(path.read_text(encoding="utf8"))
+def test_supplied_full_cam_program_reaches_m30_without_suppressing_compensation_warning(fixture_text):
+    result = native(fixture_text("milling/sinumerik/5ax_test.mpf"))
     assert result.ok and result.complete, result.diagnostics
-    assert len(result.motions) == 4999
+    # Machine-home edits may add or remove zero-length SUPA returns.
+    assert sum(motion.source_kind != "supa" for motion in result.motions) == 4950
     first_arc = next(m.arc for m in result.motions if m.arc is not None)
     assert first_arc.radius == pytest.approx(11.500224084773304)
     assert len(result.execution_steps) == len(result.program.blocks) == 5232

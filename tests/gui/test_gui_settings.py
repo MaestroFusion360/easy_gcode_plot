@@ -154,7 +154,14 @@ def test_turning_tool_geometry_types_are_normalized_for_stock_removal():
 
     expected = {
         **raw,
-        "T0101": {"type": "groove", "applications": ["face"], "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
+        "T0101": {
+            "type": "groove",
+            "applications": ["face"],
+            "grooveCuttingPlane": "face",
+            "width": 4.0,
+            "noseRadius": 0.0,
+            "tipOrientation": 3,
+        },
         "T0202": {"type": "groove", "applications": ["od"], "width": 4.0, "noseRadius": 0.0, "tipOrientation": 3},
         "T0606": {"type": "groove", "applications": ["id"], "width": 3.0, "noseRadius": 0.0, "tipOrientation": 2},
         "T0404": {**raw["T0404"], "insertLength": 12.0},

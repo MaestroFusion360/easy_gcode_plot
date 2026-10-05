@@ -727,8 +727,13 @@ X17.0
                   <td>
                     <p>
                       G73 is high-speed peck drilling with short intermediate
-                      retract behavior. G83 uses the full-retract drilling
-                      behavior modeled by the common drilling layer.
+                      retract behavior. G83 returns to R and rapidly re-enters
+                      at clearance d above the previous depth, bounded by R,
+                      before continuing at feed. The kernel option
+                      <code>milling_g83_clearance</code> sets d in millimetres;
+                      the default 1.0 mm is a modeling assumption, not a value
+                      read from the controller. This affects feed distance and
+                      cycle-time statistics. Turning and native CYCLE83 are unchanged.
                     </p>
                   </td>
                 </tr>
@@ -924,7 +929,7 @@ X17.0
                 </tr>
                 <tr>
                   <td>
-                    <code>T</code>, <code>M6</code>, <code>D0/D1</code>,
+                    <code>T</code>, <code>M6</code>, <code>D0..D12</code>,
                     <code>S</code>, basic M codes
                   </td>
                   <td>
@@ -939,6 +944,8 @@ X17.0
                     Nonmodal machine-coordinate positioning;
                     <code>SUPA Z0</code> means machine zero, independently of
                     the configured home Z
+                    <br />Configured A/B/C axes are also supported, including
+                    rotary-only blocks. SUPA targets remain absolute under G91.
                   </td>
                 </tr>
                 <tr>
@@ -997,7 +1004,7 @@ X17.0
                   <td><code>CYCLE800</code></td>
                   <td>
                     GUI/CLI/kernel static frames: modes 57/54/39/27/30/45,
-                    ST0/200000/200001, DIR-1/0/1; legacy 15-argument
+                    ST0/200000/200001/220000/220001, DIR-1/0/1; legacy 15-argument
                     R_DATA setup and active-frame reset supported
                   </td>
                 </tr>
@@ -1017,7 +1024,7 @@ X17.0
                     G41/G42 remains unverified without configured cutter geometry.</td>
                 </tr>
                 <tr>
-                  <td><code>D0/D1 under TRAORI</code></td>
+                  <td><code>D0..D12 under TRAORI</code></td>
                   <td>Cutting-edge selection preserves the active TCP transform.</td>
                 </tr>
                 <tr>
@@ -1091,6 +1098,13 @@ X17.0
             toolpath. Supports external, internal and face turning, grooves
             and thread profiles. Playback can move forward and backward.
           </p>
+          <p>
+            OD/ID/Face checkboxes filter tracing choices in the tool editor;
+            removal follows physical cutter geometry independently of those filters.
+            Thread inserts use a fixed contour with three 60-degree teeth,
+            scaled only by diameter. External P8 points down; internal P6 points up.
+            The thread-removal profile is calculated separately.
+          </p>
         </div>
       </article>
       <article class="story">
@@ -1136,11 +1150,21 @@ X17.0
       </div>
       <div class="prose">
         <p>
-          A separate preliminary scan discovers tools; the parser builds
-          the program model. The kernel evaluates flow, variables, cycles, coordinate
+          The frontend builds Program/AST once. Tool setup uses that same model
+          to classify operations, look up saved tools by T number and retain
+          manual program overrides. The Cython/Python source scanner supplies
+          literal tool candidates, comments and dimensions. The kernel then
+          evaluates flow, variables, cycles, coordinate
           systems and tool compensation. The resulting moves are used by the
           3D view, playback, statistics and export. The desktop interface and
           CLI use the same calculation kernel.
+        </p>
+        <p>
+          Native SINUMERIK CYCLE81–83 select drill defaults and CYCLE84 selects
+          a tap through controller AST facts, including modal MCALL and its
+          cancellation. Matching saved-library tools supply their actual geometry
+          before defaults are used. A found or default tool does not guarantee
+          verified compensation: G41/G42 can still produce UNVERIFIED diagnostics.
         </p>
         <p>
           When an unsupported command affects the tool position, the kernel

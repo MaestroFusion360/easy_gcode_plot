@@ -43,6 +43,7 @@ class MillState(MachineRuntimeState):
     cycle_feed: float = 0.0
     cycle_p: float = 0.0
     g73_retract_distance: float = 1.0
+    g83_clearance: float = 1.0
     return_initial: bool = False
     cycle_initial_z: float | None = None
     cutter_comp: int = 40

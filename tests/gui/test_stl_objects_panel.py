@@ -84,14 +84,14 @@ def test_dock_is_fixed_without_float_or_close_buttons(qt_app):
         qt_app.processEvents()
 
 
-def test_dock_width_can_shrink_below_content_size_hint(qt_app):
+def test_dock_width_keeps_operation_controls_visible_when_shrinking(qt_app):
     window, dock = _shown_dock(qt_app)
     try:
         assert dock.widget().minimumSizeHint().width() > 120
         assert dock.minimumSizeHint().width() == 0
         window.resizeDocks([dock], [120], Qt.Orientation.Horizontal)
         qt_app.processEvents()
-        assert dock.width() <= 150
+        assert dock.width() >= 440
     finally:
         window.close()
         window.deleteLater()

@@ -145,7 +145,15 @@ def test_true_then_supports_indirect_and_named_assignment():
 
 @pytest.mark.parametrize(
     "statement",
-    ["IF[1 GT 2]THEN G0 X50", "IF[2 GT 1]THEN G0 X50", "IF 1 THEN G0 X50", "IF[1 GT 2] G0 X50", "IF[1 GT 2]THEN"],
+    [
+        "IF[1 GT 2]THEN G0 X50",
+        "IF[2 GT 1]THEN G0 X50",
+        "IF 1 THEN G0 X50",
+        "IF[1 GT 2] G0 X50",
+        "IF[1 GT 2]THEN",
+        "IF [#1 GT 3] THEN #2=9 GOTO10",
+        "IF [4 GT 3] THEN #2=9 goto 10",
+    ],
 )
 @pytest.mark.parametrize("language", ["fanuc_mill", "fanuc_turn"])
 def test_unmodeled_or_malformed_if_never_executes_embedded_motion(statement, language):

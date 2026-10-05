@@ -231,6 +231,8 @@ def _conditional_flow(text: str) -> FlowNode:
             return FlowNode(kind="unsupported_if")
         tail = re.match(r"\s*THEN\s*(.+)$", text[close_pos + 1 :], re.IGNORECASE)
         if tail:
+            if re.search(r"\bGOTO\s*\d", tail.group(1), re.IGNORECASE):
+                return FlowNode(kind="unsupported_if")
             assignment = _assignment_flow(tail.group(1), text[open_pos + 1 : close_pos].strip())
             if assignment is not None:
                 return assignment

@@ -120,6 +120,7 @@ class StlObjectsPanel(QDockWidget):
             layout.setContentsMargins(0, 0, 0, 0)
             layout.addWidget(group, 0, Qt.AlignmentFlag.AlignTop)
         self.setWidget(wrapper)
+        wrapper.setMinimumWidth(440)
 
     def _pivot_group(self):
         group = QGroupBox(QCoreApplication.translate("MainWindow", "Base point"))

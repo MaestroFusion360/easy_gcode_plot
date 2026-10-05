@@ -43,7 +43,7 @@ def test_user_cycles_fixture_exports_via_cli(tmp_path):
         main(
             [
                 "export",
-                str(FIXTURES / "cycles_sin840d.mpf"),
+                str(FIXTURES / "sinumerik" / "cycles_sin840d.mpf"),
                 "-o",
                 str(output),
                 "--mode",
@@ -57,15 +57,15 @@ def test_user_cycles_fixture_exports_via_cli(tmp_path):
     text = output.read_text()
     assert "G81" in text and "G80" in text
     assert not any(word in text for word in ("MCALL", "CYCLE81", "CYCLE82", "CYCLE83", "CYCLE800", "SUPA"))
-    source = (FIXTURES / "cycles_sin840d.mpf").read_text()
+    source = (FIXTURES / "sinumerik" / "cycles_sin840d.mpf").read_text()
     validate_full_program_dialect_conversion(execute(source, "sinumerik"), text, "fanuc_mill", source_dialect="fanuc")
 
 
 def test_gui_cycle_export_uses_the_same_converter_and_matches_reference_drilling():
-    source = (FIXTURES / "cycles_sin840d.mpf").read_text()
+    source = (FIXTURES / "sinumerik" / "cycles_sin840d.mpf").read_text()
     output, target, original = replay(source)
     assert _convert_full_program_dialect(source, original, 1, "sinumerik", ExportOptions(delimiter=True), {}) == output
-    reference = execute((FIXTURES / "cycles_fanuc.nc").read_text(), "fanuc")
+    reference = execute((FIXTURES / "fanuc" / "cycles_fanuc.nc").read_text(), "fanuc")
     assert reference.ok and reference.complete
     # Both posts have the same first four drilling holes. Their deep-drilling
     # algorithms differ: Siemens uses degression, FANUC uses constant G83 Q1.
@@ -99,6 +99,7 @@ def test_native_peck_degression_feed_factor_and_incremental_holes(units, mode):
     )
     output, target, original = replay(source)
     assert "G83" not in output
+    assert all(line.strip() for line in output.splitlines())
     assert len([m for m in target.motions if m.move == 1]) == len([m for m in original.motions if m.move == 1])
 
 
@@ -115,7 +116,7 @@ def test_rigid_tapping_returns_at_feed_to_safety_then_rapid_to_rtp(dwell):
 
 
 def test_existing_tapping_fixture_replays():
-    replay((FIXTURES / "tapping_sin840d.mpf").read_text())
+    replay((FIXTURES / "sinumerik" / "tapping_sin840d.mpf").read_text())
 
 
 def test_cycle_parameters_are_reevaluated_at_each_hole():

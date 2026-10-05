@@ -42,10 +42,17 @@ def _extruded_polygon(points, depth: float) -> MeshData:
     count = len(points)
     half = depth * 0.5
     vertices = [(x, -half, z) for x, z in points] + [(x, half, z) for x, z in points]
+    # The thread insert has recessed shoulders between its three teeth.
+    # A fan from a boundary vertex fills those recesses. All supported tool
+    # silhouettes are star-shaped about their body centre, so use that centre.
+    center_x = sum(x for x, _z in points) / count
+    center_z = sum(z for _x, z in points) / count
+    vertices.extend(((center_x, -half, center_z), (center_x, half, center_z)))
     faces = []
-    for index in range(1, count - 1):
-        faces.append((0, index + 1, index))
-        faces.append((count, count + index, count + index + 1))
+    for index in range(count):
+        following = (index + 1) % count
+        faces.append((2 * count, following, index))
+        faces.append((2 * count + 1, count + index, count + following))
     for index in range(count):
         following = (index + 1) % count
         faces.extend(((index, following, count + following), (index, count + following, count + index)))

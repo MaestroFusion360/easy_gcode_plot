@@ -137,10 +137,10 @@ def test_turning_cycle_context_preserves_default_and_selects_drill_and_tap():
     assert tools["T0303"]["diameter"] == 10.0
 
 
-def test_explicit_tool_comment_overrides_cycle_fallback():
+def test_cycle_operation_selects_type_while_comment_supplies_dimensions():
     tools = discover_tools("T7 M6 (FLAT END MILL D6)\nG81 Z-5", turning=False)
 
-    assert tools["T7"]["type"] == "mill_flat"
+    assert tools["T7"]["type"] == "drill"
     assert tools["T7"]["diameter"] == 6.0
 
 
@@ -149,7 +149,7 @@ def test_real_program_fixtures(fixture_text):
     assert turning["T0909"]["noseRadius"] == 0.8
     assert turning["T1111"]["applications"] == ["id"]
     assert turning["T0808"]["type"] == "groove"
-    milling = discover_tools(fixture_text("milling/plate_setup_complete.nc"), turning=False)
+    milling = discover_tools(fixture_text("milling/fanuc/plate_setup_complete.nc"), turning=False)
     assert milling["T3"]["type"] == "drill"
     assert "SPOT_DRILL" in milling["T3"]["description"]
 
@@ -180,7 +180,14 @@ def test_new_program_tool_reaches_kernel_before_execution_and_removes_stock(monk
     observed = []
 
     def checked_execute(text, **options):
-        observed.append(options["tools"]["T0909"]["noseRadius"])
+        resolver = options["tool_resolver"]
+
+        def checked_resolver(program):
+            tools = resolver(program)
+            observed.append(tools["T0909"]["noseRadius"])
+            return tools
+
+        options["tool_resolver"] = checked_resolver
         return execute(text, **options)
 
     monkeypatch.setattr("app.gcode.program_execution.execute", checked_execute)
@@ -200,3 +207,32 @@ def test_new_program_tool_reaches_kernel_before_execution_and_removes_stock(monk
     initial = timeline.outer.copy()
     timeline.set_motion_count(len(result.motions))
     assert any(new < old for new, old in zip(timeline.outer, initial, strict=True))
+
+
+@pytest.mark.parametrize(("cycle", "kind"), [(81, "drill"), (82, "drill"), (83, "drill"), (84, "tap")])
+def test_sinumerik_cycle_ast_selects_operation_tool(cycle, kind):
+    tools = discover_tools(
+        f"T2 M6\nMCALL CYCLE{cycle}(5,0,1,-10)\nX0 Y0\nMCALL\n",
+        turning=False,
+        source_dialect="sinumerik",
+    )
+    assert tools["T2"]["type"] == kind
+
+
+def test_sinumerik_cycle_mentions_in_comments_and_messages_are_not_operations():
+    tools = discover_tools(
+        'T2 M6\n; MCALL CYCLE84(5,0,1,-10)\nMSG("CYCLE83(5,0,1,-10)")\nG1 X10 F100\n',
+        turning=False,
+        source_dialect="sinumerik",
+    )
+    assert tools["T2"]["type"] == DEFAULT_MILLING_TOOL["type"]
+
+
+def test_native_modal_cycle_tracks_tool_changes_and_cancellation():
+    tools = discover_tools(
+        "T1 M6\nMCALL CYCLE83(5,0,1,-10)\nX0 Y0\nT2 M6\nX10 Y0\nMCALL\nT3 M6\nG1 X20 F100\n",
+        turning=False,
+        source_dialect="sinumerik",
+    )
+    assert tools["T1"]["type"] == tools["T2"]["type"] == "drill"
+    assert tools["T3"]["type"] == "mill_flat"

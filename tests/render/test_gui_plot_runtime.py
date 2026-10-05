@@ -10,6 +10,7 @@ from PyQt6.QtTest import QSignalSpy, QTest
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.kernel import execute
+from app.gcode.kernel.frontend.program import parse_program
 from app.main_window import MainWindow
 
 
@@ -54,7 +55,14 @@ def test_correction_toggle_controls_tools_passed_to_kernel(qt_app, monkeypatch):
     expected = execute("")
 
     def fake_execute(*args, **kwargs):
-        captured.append(kwargs)
+        tools = kwargs["tool_resolver"](parse_program(args[0]))
+        captured.append(
+            {
+                **kwargs,
+                "tools": tools if kwargs["language"] == "fanuc_turn" else {},
+                "milling_tools": tools if kwargs["language"] == "fanuc_mill" else {},
+            }
+        )
         return expected
 
     monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
@@ -210,7 +218,7 @@ def test_arc_heavy_milling_file_exceeds_auto_update_segment_limit(qt_app):
     window.arcTolerance = 0.001
     window.correctionEnabled = False
     window.ui.actionLatheMode.setChecked(False)
-    source = Path("tests/fixtures/milling/macro_boss_milling.nc").read_text(encoding="utf-8")
+    source = Path("tests/fixtures/milling/fanuc/macro_boss_milling.nc").read_text(encoding="utf-8")
     window.ui.editor.setText(source)
     result = execute(source, language="fanuc_mill")
     assert result.motions

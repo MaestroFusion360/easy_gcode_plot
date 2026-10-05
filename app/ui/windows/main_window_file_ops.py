@@ -222,6 +222,7 @@ def _text_export_snapshot(owner):
     inference = deepcopy(getattr(owner, "program_tool_inference", {}) or {})
     execution_options = {
         "current_tools": deepcopy(getattr(owner, "millingTools", {}) or {}),
+        "library_tools": deepcopy(getattr(owner, "millingToolLibrary", {}) or {}),
         "previous_inference": deepcopy(inference.get("millingTools", {})),
         "correction_enabled": bool(getattr(owner, "correctionEnabled", True)),
         "lathe_gcode_system": getattr(owner, "latheGcodeSystem", "A"),

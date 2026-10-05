@@ -1,4 +1,4 @@
-"""Native MPF subset, physical SUPA coordinates and real-program trace parity.
+"""Native MPF subset, configured SUPA returns and real-program trace parity.
 
 The fixtures are the user's paired CAM programs. FANUC rounds some geometry
 to 0.001 mm and uses rapid for the final Z retract; those differences are explicit.
@@ -31,9 +31,11 @@ def _end(motion):
 
 def test_paired_contour_programs_have_same_compensated_trace_with_cam_rounding():
     native, tools, _ = execute_program(
-        (FIXTURES / "contur_2d_sin840d.mpf").read_text(), language="fanuc_mill", source_dialect="sinumerik"
+        (FIXTURES / "sinumerik" / "contur_2d_sin840d.mpf").read_text(),
+        language="fanuc_mill",
+        source_dialect="sinumerik",
     )
-    fanuc, _, _ = execute_program((FIXTURES / "contur_2d.nc").read_text(), language="fanuc_mill")
+    fanuc, _, _ = execute_program((FIXTURES / "fanuc" / "contur_2d.nc").read_text(), language="fanuc_mill")
     assert native.ok and native.complete and not native.diagnostics
     assert fanuc.ok and fanuc.complete and not fanuc.diagnostics
     assert tools["T3"]["diameter"] == 6
@@ -68,7 +70,9 @@ def test_paired_contour_programs_have_same_compensated_trace_with_cam_rounding()
 
 def test_native_trace_export_roundtrips_to_fanuc_geometry():
     native, _, _ = execute_program(
-        (FIXTURES / "contur_2d_sin840d.mpf").read_text(), language="fanuc_mill", source_dialect="sinumerik"
+        (FIXTURES / "sinumerik" / "contur_2d_sin840d.mpf").read_text(),
+        language="fanuc_mill",
+        source_dialect="sinumerik",
     )
     nc = export_result(native, ExportOptions(include_execution_events=False, safety_line=True, delimiter=True))
     replay = execute(nc, language="fanuc_mill")
@@ -83,7 +87,7 @@ def test_native_trace_export_roundtrips_to_fanuc_geometry():
     assert "SUPA" not in nc and "CR=" not in nc and "WORKPIECE" not in nc
 
 
-def test_supa_zero_means_machine_zero_even_with_nonzero_home_and_wcs():
+def test_supa_zero_uses_configured_reference_with_nonzero_home_and_wcs():
     result = _native(
         "G710 G90 G54\nG0 X1 Y2 Z3\nG91\nG0 SUPA Z0 D0\nG90\nG1 Z4 F100\nM30",
         home_z=500,
@@ -91,7 +95,7 @@ def test_supa_zero_means_machine_zero_even_with_nonzero_home_and_wcs():
     )
     assert result.ok and result.complete and not result.diagnostics
     supa = result.motions[-2]
-    assert _end(supa) == (11, 22, 0)
+    assert _end(supa) == (11, 22, 500)
     assert supa.source_kind == "supa"
     assert _end(result.motions[-1]) == (11, 22, 104)
     assert not any(event.kind == "HOME_RETURN" and event.source_block == 3 for event in result.events)
@@ -130,7 +134,7 @@ def test_native_d_selects_and_cancels_modeled_edge_without_motion():
     assert result.motions[0].tool == "T3"
 
 
-@pytest.mark.parametrize("operation", ["G1 SUPA Z0", "G1 X10 CR=4", "G2 X10 CR=8 I1", "D2", 'MSG("ok") G0 X99'])
+@pytest.mark.parametrize("operation", ["G1 SUPA Z0", "G1 X10 CR=4", "G2 X10 CR=8 I1", "D13", 'MSG("ok") G0 X99'])
 def test_unmodeled_native_forms_fail_closed(operation):
     result = _native(operation + "\nG0 X99")
     assert not result.ok and not result.complete
@@ -153,7 +157,7 @@ def test_native_compensation_cannot_leak_through_mode_switch():
 
 
 def test_native_full_program_export_preserves_native_syntax():
-    source = (FIXTURES / "contur_2d_sin840d.mpf").read_text()
+    source = (FIXTURES / "sinumerik" / "contur_2d_sin840d.mpf").read_text()
     result, _, _ = execute_program(source, language="fanuc_mill", source_dialect="sinumerik")
     converted = export_full_mill_program(result, source.splitlines())
     assert "WORKPIECE(" in converted and "G710" in converted

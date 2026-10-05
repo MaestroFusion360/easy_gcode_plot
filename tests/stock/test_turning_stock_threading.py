@@ -41,7 +41,7 @@ def test_threading_stock_removal_uses_pitch_and_insert_angle(
             "T0606": {
                 "type": "thread",
                 "applications": [application],
-                "tipOrientation": 8,
+                "tipOrientation": 6 if application == "id" else 8,
                 "threadAngle": 60.0,
                 "threadCornerRadius": 0.0,
             }

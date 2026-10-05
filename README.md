@@ -48,16 +48,18 @@ The GUI, playback, statistics, stock-removal tools, CLI analysis and exporters a
 ```text
 G-code source
     |
-    +--> Tool discovery (preliminary scan)
-    |      |- native Cython scanner
-    |      `- Python fallback
-    |
     `--> Parser / controller frontend
            |- native Cython parser
            `- per-block Python fallback where required
                 |
                 v
              Program / AST
+                |
+                v
+          Program tool setup
+          (AST operation hints, library lookup, manual overrides)
+                |- source comments / dimensions: Cython scanner
+                `- Python scanner fallback
                 |
                 v
           CNC execution kernel
@@ -72,7 +74,7 @@ G-code source
                 `--> NC / DXF export
 ```
 
-Tool discovery is a separate preliminary source scan; the parser constructs Program/AST and the kernel owns execution semantics. Rendering, statistics and export consume ExecutionResult rather than interpreting G-code independently. Python fallback is supported in source checkouts, including individual complex blocks. Packaged releases require all three native extensions; missing extensions are explicit runtime errors.
+The frontend constructs Program/AST once per shared execution. Tool setup consumes that same object before motion execution; the Cython/Python source scanner supplies literal tool candidates, comments and dimensions. Library lookup and manual overrides resolve the tool geometry, and the kernel owns execution semantics. Rendering, statistics and export consume ExecutionResult rather than interpreting G-code independently. Python fallback is supported in source checkouts, including individual complex blocks. Packaged releases require all three native extensions; missing extensions are explicit runtime errors.
 
 Unsupported or ambiguous controller behavior is reported explicitly instead of being converted into guessed geometry.
 
@@ -87,6 +89,8 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - Tool-nose compensation.
 - Direct A/C/corner-R programming.
 - Cutter-aware Stock Removal, including thread profiles.
+- Stock Removal follows executed motions and physical cutter geometry independently of the OD/ID/Face UI filters.
+- Thread-insert previews use a fixed contour with three 60-degree teeth, scaled only by diameter; P8 external tools point down and P6 internal tools point up. The thread-removal profile is calculated separately.
 
 ### FANUC-style milling
 
@@ -125,6 +129,7 @@ See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current
 - ASCII and binary STL overlays with solid and feature-edge modes.
 - STL positioning, transforms, arrays, sections and statistics.
 - SQLite-backed turning and milling tool libraries.
+- Automatic saved-tool lookup by program T number, preserving manual program overrides. Operation-based fallbacks include native SINUMERIK CYCLE81–83 drills and CYCLE84 taps, classified from the controller AST.
 - English and Russian UI.
 - Light and Dark themes.
 - UTF-8 and Windows-1251 input.
@@ -140,6 +145,8 @@ See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current
 - Native Cython acceleration with compatible Python fallback.
 
 Detailed controller behavior, limits, configuration and troubleshooting are documented in [FAQ.md](FAQ.md), also available through **Help → FAQ**.
+
+The [GUI sandbox](docs/GUI_SANDBOX.md) runs one isolated four-program regression scenario or a paced visual demo, covering Options, Export, Stock Removal and STL Objects with an explicit final result.
 
 ---
 
@@ -185,9 +192,9 @@ Native support currently includes:
 - metric `G710`
 - work offsets
 - `G40/G41/G42`
-- `D0/D1`
+- `D0..D12`
 - tool, spindle and coolant commands
-- machine-coordinate `G0 SUPA`
+- `G0 SUPA`, including configured A/B/C rotary axes (absolute even under G91); zero XYZ addresses use the application's configured G28/SUPA return position, shared with FANUC G53
 - `MSG`
 - `WORKPIECE`
 - `G64`
@@ -239,6 +246,12 @@ The kernel keeps a single resolved arc with the complete sweep. Rendering, playb
 Native XYZ geometry and modal cycles are supported; the GUI/CLI/kernel also accepts the bounded TCP subset below.
 
 GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91; CUT3DC and FL[] remain explicitly unsupported. GUI profile selection reaches the same kernel and plotting path.
+
+`D0` cancels edge selection; `D1` through `D12` select an edge while retaining
+nominal tool geometry. Edges above D1 report `UNVERIFIED_SINUMERIK_EDGE_OFFSETS`
+because controller offset tables are unavailable. CYCLE800 ST220000/220001
+compute a new/additive frame without indexing. The `DMG` frame-only data-set
+name is accepted on `5ax_table_bc_angled` with FR0; OEM indexing remains unsupported.
 
 ### Native acceleration
 

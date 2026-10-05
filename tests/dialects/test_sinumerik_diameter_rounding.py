@@ -36,7 +36,9 @@ def test_optional_diameter_and_rounding_words_do_not_warn_when_skipped():
 @pytest.mark.parametrize("skip", [False, True])
 def test_supplied_guide_radius_arcs_complete_with_bounded_warnings(fixture_text, scale, skip):
     result = native(
-        fixture_text("milling/sinumerik_guide_radius.mpf"), default_unit_scale=scale, skip_optional_blocks=skip
+        fixture_text("milling/sinumerik/sinumerik_guide_radius.mpf"),
+        default_unit_scale=scale,
+        skip_optional_blocks=skip,
     )
     assert result.ok and result.complete, result.diagnostics
     arcs = [m.arc for m in result.motions if m.arc is not None]

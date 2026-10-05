@@ -97,6 +97,8 @@ def _calculate_source(
         **snapshot_options,
     )
     execution_ms = (perf_counter() - execution_started) * 1000.0
+    if not result.motions and any(d.code == "EXECUTION_CANCELLED" for d in result.diagnostics):
+        raise InterruptedError("Program preparation cancelled")
     points = None
     render_limited = False
     if render and result is not None and result.motions:
@@ -322,6 +324,9 @@ class MainWindowExecutionMixin:
         options = deepcopy(
             {
                 "language": language,
+                "library_tools": deepcopy(
+                    getattr(self, "turningToolLibrary" if turning else "millingToolLibrary", {}) or {}
+                ),
                 "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
                 "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
                 "source_dialect": getattr(self, "_document_source_dialect", "fanuc"),
@@ -417,6 +422,8 @@ class MainWindowExecutionMixin:
             current,
             inference.get(attribute, {}),
             turning=self.latheMode,
+            library_tools=getattr(self, "turningToolLibrary" if self.latheMode else "millingToolLibrary", {}),
+            source_dialect=getattr(self, "_document_source_dialect", "fanuc"),
             default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
         )
         self.program_tool_inference = inference
@@ -597,6 +604,7 @@ class MainWindowExecutionMixin:
             return False
         if result is None or not result.motions:
             self.clearPlot()
+            self.execution_result = result if result is not None and not result.ok else None
             if hasattr(self, "updateExecutionStatus"):
                 self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
             return False

@@ -21,8 +21,8 @@ def _end(motion):
 
 
 def test_paired_cycle_programs_cut_same_holes_and_depths():
-    native = _native((FIXTURES / "cycles_sin840d.mpf").read_text())
-    fanuc = execute((FIXTURES / "cycles_fanuc.nc").read_text(), language="fanuc_mill")
+    native = _native((FIXTURES / "sinumerik" / "cycles_sin840d.mpf").read_text())
+    fanuc = execute((FIXTURES / "fanuc" / "cycles_fanuc.nc").read_text(), language="fanuc_mill")
     assert native.ok and native.complete and not native.diagnostics
     assert fanuc.ok and fanuc.complete and not fanuc.diagnostics
     native_feeds = [m for m in native.motions if m.move == 1]
@@ -42,7 +42,7 @@ def test_paired_cycle_programs_cut_same_holes_and_depths():
 
 @pytest.mark.parametrize("events", [False, True])
 def test_native_cycle_trace_export_roundtrip(events):
-    native = _native((FIXTURES / "cycles_sin840d.mpf").read_text())
+    native = _native((FIXTURES / "sinumerik" / "cycles_sin840d.mpf").read_text())
     trace = export_result(native, ExportOptions(include_execution_events=events, safety_line=True, delimiter=True))
     replay = execute(trace, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
@@ -92,8 +92,8 @@ def test_unmodeled_cycle_declarations_fail_closed(declaration):
 
 
 def test_cam_tapping_matches_fanuc_g84_and_trace_replay():
-    native = _native((FIXTURES / "tapping_sin840d.mpf").read_text())
-    fanuc = execute((FIXTURES / "tapping_fanuc.nc").read_text(), language="fanuc_mill")
+    native = _native((FIXTURES / "sinumerik" / "tapping_sin840d.mpf").read_text())
+    fanuc = execute((FIXTURES / "fanuc" / "tapping_fanuc.nc").read_text(), language="fanuc_mill")
     replay = execute(export_result(native, ExportOptions()), language="fanuc_mill")
     for result in (native, fanuc, replay):
         assert result.ok and result.complete and not result.diagnostics

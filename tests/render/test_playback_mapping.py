@@ -75,7 +75,7 @@ def test_g71_offset_arcs_remain_individual_analytical_playback_moves():
 
 def test_cycle_and_macro_expansion_motions_are_not_collapsed(fixture_text):
     cycle = execute(fixture_text("turning/drill.nc"))
-    macro = execute(fixture_text("milling/macro_b.nc"), language="fanuc_mill")
+    macro = execute(fixture_text("milling/fanuc/macro_b.nc"), language="fanuc_mill")
 
     assert cycle.ok and macro.ok
     assert len(_playback(cycle)) == len(cycle.motions)

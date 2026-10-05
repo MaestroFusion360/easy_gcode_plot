@@ -32,8 +32,8 @@ def _supa_words(step, words):
     if step.programmed_position is None:
         raise ValueError("Full Program conversion requires a resolved programmed position for SUPA")
     addressed = {letter for letter, _value in words if letter in {"X", "Y", "Z"}}
-    # SUPA's literal machine zero is not the kernel's G53 home alias.
-    # The executor already inverted WCS and programmed transforms here.
+    # Serialize the executor's resolved reference target, including configured
+    # zero returns, after inversion of WCS and programmed transforms.
     words = [
         (letter, value)
         for letter, value in words
@@ -159,6 +159,8 @@ def normalize_native_full_program(source, result):
         if separator:
             comments.append(tail.rstrip("\r\n"))
         comment = " ;" + " | ".join(comments) if comments else ""
+        if not normalized[block.index] and not comment:
+            continue
         prefix = "/" if block.optional_skip else ""
         converted = normalized[block.index].replace("\n", (newline or "\n") + prefix)
         lines.append(prefix + converted + comment + newline)

@@ -219,7 +219,7 @@ class ToolLibraryDialog(QDialog):
         if tool_type == "groove":
             return f"W{float(spec.get('width', 0.0)):g}  R{float(spec.get('noseRadius', 0.0)):g}"
         if tool_type == "thread":
-            return f"E{float(spec.get('threadAngle', 60.0)):g}  EX{float(spec.get('threadTipWidth', 0.8)):g}"
+            return f"P{int(spec.get('tipOrientation', 8))}  EX{float(spec.get('threadTipWidth', 0.8)):g}"
         if tool_type in TURNING_INSERT_TYPES:
             orientation = int(spec.get("tipOrientation", DEFAULT_AUTO_TIP_ORIENTATION.get(tool_type, 1)))
             return f"P{orientation}  R{float(spec.get('noseRadius', 0.0)):g}  L{float(spec.get('insertLength', 0.0)):g}"

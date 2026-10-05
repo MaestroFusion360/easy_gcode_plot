@@ -71,6 +71,7 @@ def test_groove_width_removes_inner_material():
             "T0505": {
                 "type": "groove",
                 "applications": ["id"],
+                "tipOrientation": 2,
                 "width": 3.0,
             }
         },
@@ -101,7 +102,14 @@ def test_groove_width_is_swept_along_diagonal_trace(
             length=25,
             resolution=0.5,
         ),
-        {"T0303": {"type": tool_type, "applications": [application], "width": 4.0}},
+        {
+            "T0303": {
+                "type": tool_type,
+                "applications": [application],
+                "tipOrientation": 2 if application == "id" else 3,
+                "width": 4.0,
+            }
+        },
     )
 
     stock.set_motion_count(1)
@@ -110,7 +118,9 @@ def test_groove_width_is_swept_along_diagonal_trace(
     endpoint = profile[_at(stock, -15)]
 
     if profile_name == "outer":
-        assert endpoint == pytest.approx(15.0)
+        # The bounded cutter reaches radius 23 here, leaving an outer ring.
+        assert endpoint == pytest.approx(25.0)
+        assert stock.material_intervals[_at(stock, -15)] == ((0.0, 15.0), (23.0, 25.0))
         assert 15.0 < middle < 20.0
     else:
         assert endpoint == pytest.approx(15.0)
@@ -255,6 +265,7 @@ def test_groove_removes_only_local_radial_footprint_and_rewinds(orientation):
             "T0202": {
                 "type": "groove",
                 "applications": ["face"],
+                "grooveCuttingPlane": "face",
                 "width": 3.0,
                 "noseRadius": 0.0,
                 "tipOrientation": orientation,

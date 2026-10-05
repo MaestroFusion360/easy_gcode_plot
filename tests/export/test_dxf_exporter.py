@@ -119,7 +119,7 @@ def test_dxf_write_round_trip_and_incomplete_result_rejection(tmp_path):
 
 
 def test_flange_plate_benchmark_executes_subprograms_compensates_contours_and_exports_dxf(fixture_text):
-    source = fixture_text("milling/flange_plate_benchmark.nc")
+    source = fixture_text("milling/fanuc/flange_plate_benchmark.nc")
     result = execute(
         source,
         language="fanuc_mill",

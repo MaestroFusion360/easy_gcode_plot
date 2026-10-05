@@ -6,7 +6,7 @@ from app.gcode.kernel import execute
 
 
 def test_macro_b_expression_control_flow_and_indirect_addressing(fixture_text):
-    result = execute(fixture_text("milling/macro_b.nc"), language="fanuc_mill")
+    result = execute(fixture_text("milling/fanuc/macro_b.nc"), language="fanuc_mill")
     assert result.ok, result.diagnostics
 
     by_label = {motion.source_nlabel: motion for motion in result.motions if motion.source_nlabel is not None}
@@ -43,7 +43,7 @@ def test_macro_b_expression_control_flow_and_indirect_addressing(fixture_text):
     ],
 )
 def test_macro_b_loop_programs_expand_to_deterministic_motion(fixture_text, fixture_name, arc_move, arc_count, min_z):
-    result = execute(fixture_text(f"milling/{fixture_name}"), language="fanuc_mill")
+    result = execute(fixture_text(f"milling/fanuc/{fixture_name}"), language="fanuc_mill")
     assert result.ok, result.diagnostics
 
     arcs = [motion for motion in result.motions if motion.move == arc_move]

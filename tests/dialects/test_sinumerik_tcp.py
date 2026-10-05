@@ -137,10 +137,12 @@ def test_native_tcp_reaches_cli_batch_and_export_stays_closed(tmp_path):
 
 
 def test_native_compact_fixture_and_cut3dc_negative_fixture(fixture_text):
-    result = native(fixture_text("milling/sinumerik_traori_ac.mpf"), kinematics="5ax_table_ac_angled")
+    result = native(fixture_text("milling/sinumerik/sinumerik_traori_ac.mpf"), kinematics="5ax_table_ac_angled")
     assert result.ok and result.complete, result.diagnostics
     assert any(m.arc is not None for m in result.motions)
-    failed = native(fixture_text("milling/sinumerik_cut3dc_unsupported.mpf"), kinematics="5ax_table_ac_angled")
+    failed = native(
+        fixture_text("milling/sinumerik/sinumerik_cut3dc_unsupported.mpf"), kinematics="5ax_table_ac_angled"
+    )
     assert failed.ok and failed.complete
     assert failed.motions
     assert any(d.raw == "CUT3DC" and d.severity == "warning" for d in failed.diagnostics)

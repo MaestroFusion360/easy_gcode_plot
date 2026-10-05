@@ -2803,6 +2803,18 @@ Do you want to reload it from disk?</source>
 <context>
     <name>ToolLibraryDialog</name>
     <message>
+      <source>Groove geometry</source>
+      <translation>Геометрия канавочного резца</translation>
+    </message>
+    <message>
+      <source>Radial groove</source>
+      <translation>Радиальная канавка</translation>
+    </message>
+    <message>
+      <source>Face groove</source>
+      <translation>Торцевая канавка</translation>
+    </message>
+    <message>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="6"/>
         <location filename="../app/ui/dialogs/tool_dialogs.py" line="366"/>
         <location filename="../app/ui/dialogs/tool_dialogs.py" line="373"/>

@@ -83,6 +83,10 @@ function Invoke-BuildSync {
         [switch]$ReinstallPyInstaller
     )
 
+    # Editable installs replace .pyd files in the source tree. Windows cannot
+    # replace an extension loaded by a running GUI or persistent Python session.
+    & (Join-Path $PSScriptRoot 'assert-native-unlocked.ps1') -ProjectRoot $projectRoot
+
     $hadProjectEnvironment = Test-Path Env:UV_PROJECT_ENVIRONMENT
     $previousProjectEnvironment = $env:UV_PROJECT_ENVIRONMENT
     $hadVirtualEnvironment = Test-Path Env:VIRTUAL_ENV

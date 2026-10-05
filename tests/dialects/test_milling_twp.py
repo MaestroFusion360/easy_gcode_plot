@@ -20,7 +20,7 @@ from app.gcode.kernel.milling.twp import euler_zxz
 from app.gcode.trace_tools import render_trace
 from app.ui.plot.toolpath_vbo import segments_from_render_points
 
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "g68_2_cube.nc"
+FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc" / "g68_2_cube.nc"
 
 
 def _mill(source: str, profile: str = "5ax_table_ac_angled"):

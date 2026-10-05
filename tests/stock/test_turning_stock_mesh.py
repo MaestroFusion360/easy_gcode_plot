@@ -4,7 +4,8 @@ import pytest
 
 from app.gcode.kernel import TraceMotion
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline, profile_interval_mesh_spans
-from app.ui.plot.stock_overlay import material_interval_mesh_spans
+from app.gcode.turning_tool_geometry import display_tool_geometry
+from app.ui.plot.stock_overlay import _extruded_polygon, material_interval_mesh_spans
 
 
 def test_radial_groove_records_exact_vertical_stock_walls():
@@ -79,3 +80,25 @@ def test_interval_mesh_reaches_exact_face_break_when_next_slice_is_empty():
     spans = material_interval_mesh_spans(((0.0, 12.4),), (), end_break=True)
 
     assert spans == ((0.0, 12.4, 0.0, 12.4),)
+
+
+@pytest.mark.parametrize("radius", [0.0, 0.1])
+def test_thread_insert_mesh_preserves_recessed_shoulders(radius):
+    points, depth, _key = display_tool_geometry({"type": "thread", "threadCornerRadius": radius}, 50.0)
+    mesh = _extruded_polygon(points, depth)
+    vertices = mesh.vertexes()
+    faces = mesh.faces()
+    cap_area = 0.0
+    for face in faces[::2][: len(points)]:
+        a, b, c = vertices[face]
+        cap_area += abs((b[0] - a[0]) * (c[2] - a[2]) - (b[2] - a[2]) * (c[0] - a[0])) * 0.5
+    polygon_area = (
+        abs(
+            sum(
+                x * points[(index + 1) % len(points)][1] - z * points[(index + 1) % len(points)][0]
+                for index, (x, z) in enumerate(points)
+            )
+        )
+        * 0.5
+    )
+    assert cap_area == pytest.approx(polygon_area, rel=1e-6)

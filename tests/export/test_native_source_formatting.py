@@ -79,7 +79,7 @@ def test_native_comment_removal_keeps_parentheses_and_quoted_semicolons():
 
 @pytest.mark.parametrize("fixture", ["sinumerik_traori_ac.mpf", "sinumerik_cycle800.mpf"])
 def test_cli_native_multiaxis_source_formatting_preserves_geometry_and_orientation(tmp_path, fixture_text, fixture):
-    source = fixture_text("milling/" + fixture)
+    source = fixture_text("milling/sinumerik/" + fixture)
     source_path, output_path = tmp_path / fixture, tmp_path / "formatted.mpf"
     source_path.write_text(source)
     request = ExportRequest(

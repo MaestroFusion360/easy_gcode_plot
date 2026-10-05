@@ -298,6 +298,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What is an `ExecutionEvent`?](#what-is-an-executionevent)
     - [How are tests organized?](#how-are-tests-organized)
     - [How do I run the main checks?](#how-do-i-run-the-main-checks)
+    - [How do I run the daily GUI smoke test with a visible window?](#how-do-i-run-the-daily-gui-smoke-test-with-a-visible-window)
     - [Are generated Qt Python files edited manually?](#are-generated-qt-python-files-edited-manually)
   - [Build and release](#build-and-release)
     - [How do I build on Windows?](#how-do-i-build-on-windows)
@@ -331,16 +332,18 @@ The core data flow is:
 ```text
 G-code source
     |
-    +--> Tool discovery (preliminary scan)
-    |      |- native Cython scanner
-    |      `- Python fallback
-    |
     `--> Parser / controller frontend
            |- native Cython parser
            `- per-block Python fallback where required
                 |
                 v
              Program / AST
+                |
+                v
+          Program tool setup
+          (AST operation hints, library lookup, manual overrides)
+                |- source comments / dimensions: Cython scanner
+                `- Python scanner fallback
                 |
                 v
           CNC execution kernel
@@ -1352,7 +1355,9 @@ The common cycle runtime returns generated geometry, modal updates, signals and 
 
 ### What is the difference between G73 and G83 milling peck cycles?
 
-G73 is high-speed peck drilling with short intermediate retract behavior. G83 uses the full-retract drilling behavior modeled by the common drilling layer.
+G73 is high-speed peck drilling with short intermediate retract behavior. G83 returns to R between pecks, then rapidly re-enters at clearance d above the previous depth before continuing at feed. Reentry is limited to the R plane. The kernel option `milling_g83_clearance` sets d in millimetres, including inch programs; it must be finite and non-negative. The default 1.0 mm is a modeling assumption because the controller setting cannot be read from the program. This changes G83 feed distance and cycle-time statistics; turning G83 and native SINUMERIK CYCLE83 keep their separate behavior.
+
+For milling drilling cycles, a depth above R reports `INVALID_DRILLING_DEPTH`. Z equal to R remains valid and produces no drilling feed stroke.
 
 ### How is G82 dwell represented?
 
@@ -1552,6 +1557,8 @@ This SQLite database is authoritative for Saved Library tools.
 
 **Current Program** is temporary state for the open CNC program. Literal T selections can be discovered from source and assigned geometry without modifying the persistent library.
 
+The operation identifies the fallback tool type first. A matching T number in the corresponding Saved Library then supplies the actual geometry, including its saved type and dimensions. If no valid matching record exists, discovery uses source comment dimensions and the operation-based default. Milling `T02` matches `T2`; turning `T202` matches `T0202`, while different packed offsets remain distinct. Manual Current Program edits take priority on subsequent recalculations.
+
 **Saved Library** is persistent and is committed to `tools.db` only when the Tool Library window is accepted.
 
 ### Does opening a program write discovered tools to the database?
@@ -1593,8 +1600,16 @@ Operation context supplies a practical temporary default where possible:
 
 - milling G81-G83 -> drill;
 - milling G84 -> tap;
+- native SINUMERIK CYCLE81/CYCLE82/CYCLE83 -> drill;
+- native SINUMERIK CYCLE84 -> tap;
 - turning G32/G33/G76/G92 -> thread tool;
 - otherwise standard milling or turning fallback geometry.
+
+Native cycle classification uses the controller AST, including modal MCALL, cancellation and tool changes. Cycle names in comments or MSG text do not classify an operation. An operation's type takes priority over a conflicting comment type hint; an automatically matched saved tool keeps its own geometry. The preliminary scan does not execute macros or infer physical dimensions from a toolpath. CLI/API callers can supply a library snapshot through `execute_program(..., library_tools=...)`; execution does not load a local SQLite library implicitly.
+
+Shared GUI/CLI execution builds Program/AST once, resolves tools from that same object before motion execution, and then calculates the trace. Discovery does not run another frontend pass. The Cython/Python scanner still extracts source comments and literal tool candidates; it does not independently execute controller operations.
+
+Finding a saved tool or assigning a default does not guarantee verified compensation. `UNVERIFIED` describes an unproven compensated path, not merely an unknown tool. G41/G42 can remain unverified with missing geometry, an unsupported tool or an invalid entry/path, including native SINUMERIK named tools without matching numeric geometry. Operation-based defaults existed before automatic library lookup.
 
 ### Are macro T expressions discovered as literal tools?
 
@@ -1614,7 +1629,7 @@ The turning library uses nine canonical geometry types:
 - Drill;
 - Tap.
 
-OD, ID and Face are application flags rather than different geometry classes.
+OD, ID and Face are UI filters for available tracing orientations, rather than different geometry classes. They do not choose the material-removal side or change Stock Removal results for the same trace and physical geometry.
 
 ### Which milling tools can be previewed?
 
@@ -1856,13 +1871,19 @@ Manual values persist until Reset to Auto, New or opening another program return
 
 ### Which tools remove material?
 
-The supported turning tool geometries include the nine canonical tool-library types. OD/ID/Face applicability selects the machining context.
+The supported turning tool geometries include the nine canonical tool-library types. Stock Removal follows the resolved trace, tracing orientation and physical cutter geometry. OD/ID/Face checkboxes only filter the tracing choices in the tool editor; changing these filters does not change removal for the same trace and cutter geometry.
+
+The cutter's bounded swept footprint removes only the material it intersects. Separate remaining material rings are retained, including the outside wall during G71 boring. Stepping backward and replaying the same motions restores the same stock section. For grooves, **Groove geometry** selects radial or face geometry independently of these checkboxes.
 
 ### How are threads represented in Stock Removal?
 
 Synchronized G32/G33, modal G92 and G76 cutting motions use a deterministic longitudinal thread-section model rather than sweeping the complete insert body as a generic solid.
 
 The programmed X defines root depth, F defines pitch/lead, and configured thread geometry shapes the section.
+
+The displayed thread insert is a separate fixed silhouette shared by Tool Library and the Stock Removal overlay: a triangular body with three small 60-degree cutting teeth and recessed shoulders. Its active tracing point is anchored to the programmed tool position. In the standard lathe view, the external P8 vertex points down and the internal P6 vertex points up.
+
+Only the insert diameter scales this silhouette. The reference contour is D12; entering D20 scales every coordinate by `20 / 12`, approximately 1.667. EX, RC and the thread profile angle do not deform the displayed body. The angle remains part of the removal calculation but is hidden in the editor; the library summary shows the tracing orientation. These display changes do not rewrite SQLite tool records.
 
 ### Does Stock Removal detect machine collisions?
 
@@ -2101,9 +2122,9 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `G60/G64` | Exact-stop / continuous-path metadata; acceleration, stop time and blending are not simulated |
 | `G500` | Modal work-offset deactivation with coordinate rebasing; zero G500/base frame by default, API `wcs_offsets[500]` can supply translation; OEM base-frame rotations, mirroring and scaling are not modeled |
 | `DEF REAL`, direct scalar assignments | Bounded underscore-named `DEF REAL` scalars used by CAM setup and direct scalar assignments are accepted |
-| `T`, `M6`, `D0/D1`, `S`, basic M codes | Tool change, modeled cutting-edge selection/cancellation, spindle and coolant signals; controller-specific offset tables are not simulated |
+| `T`, `M6`, `D0..D12`, `S`, basic M codes | Tool change, modeled cutting-edge selection/cancellation, spindle and coolant signals; controller-specific offset tables are not simulated |
 | Named tools with `M6` | Named tool changes are accepted; if cutter geometry is unavailable, `G41/G42` remains unverified rather than assuming a radius |
-| `G0 SUPA ... D0` | Nonmodal machine-coordinate positioning; `SUPA Z0` means machine zero, independently of the configured home Z |
+| `G0 SUPA ... D0` | Nonmodal absolute XYZ and configured A/B/C positioning, independent of G91. In the application's reference-coordinate model, zero XYZ addresses use the configured G28/SUPA return coordinates, as FANUC G53 does. WCS and the current rotary frame determine the displayed return. Rotary zero means A/B/C=0; `SUPA G0 B0 C0 D0` requires a compatible BC profile |
 | `G64`, `MSG(...)`, `WORKPIECE(...)`, `;` comments | Path-control/display metadata and comments; no blending or stock geometry is generated from these declarations |
 | `SETMS(1)`, `FNORM`, `COMPOF`, `CYCLE832` | Accepted CAM setup/control statements; `CYCLE832` is ignored without geometry or display events |
 | `MCALL CYCLE81/82/83/84(...)` | Modal Z drilling/tapping in `G17/G40`, triggered by subsequent XY blocks; bare `MCALL` cancels the cycle |
@@ -2111,7 +2132,7 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `CYCLE83` | Modeled first depth, amount degression, minimum peck depth, chip-breaking/full-retract options and reentry clearance |
 | `CYCLE84` | Single-pass metric right-hand tapping in `G94`: explicit positive `PIT`, `_PITA=0/1`, `SDAC=3`, Z axis and positive `SST` equal to programmed `S`; equal `SST1` or zero/omitted. Feed = pitch × rpm; feed withdrawal to `RFP+SDIS`, rapid return to `RTP`, optional dwell in seconds |
 | `TRAORI` / `TRAFOOF` | GUI/CLI/kernel TCP via the common angled AC/BC table core; G0/G1/G2/G3 with configured numeric A/B/C and R references; incremental IC supported; `DC` selects the shortest absolute rotary approach, while an exactly 180-degree ambiguity is rejected |
-| `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST200000/200001, DIR-1/0/1; legacy 15-argument ST0/R_DATA calls are accepted; active-frame reset via empty/bare call or TC="0" |
+| `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST200000/200001/220000/220001, DIR-1/0/1; legacy 15-argument ST0/R_DATA calls are accepted; active-frame reset via empty/bare call or TC="0" |
 
 Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf. A .nc or unsaved document uses FANUC syntax and cannot interpret CR= as a native radius address. Native X/Y/Z=IC(...) is incremental independently of G90/G91. MSG() is accepted.
 
@@ -2868,33 +2889,44 @@ On Windows, run the full test suite and project lint checks from the repository 
 
 ### How do I run the daily GUI smoke test with a visible window?
 
-Run from the repository root in PowerShell:
+The launchers configure the environment automatically: `scripts\ps1\start-sandbox.ps1` on Windows, or `bash scripts/sh/start-sandbox.sh` on Linux/macOS. They run the visible demo by default. Use `-Automated` / `--automated` for offscreen mode and `-DelayMs 1500` / `--delay-ms 1500` to adjust demo pacing. The PowerShell launcher restores previous environment values; the Bash launcher sets overrides only for its child process.
+
+Run the automated sandbox from the repository root in PowerShell:
+
+```powershell
+.\scripts\ps1\test.ps1 tests/gui/test_daily_workflow_smoke.py -q -s
+```
+
+For a visible, paced demo, enable both the Windows Qt platform and demo mode:
 
 ```powershell
 $env:QT_QPA_PLATFORM = "windows"
-.\scripts\ps1\test.ps1 -Path tests/gui/test_daily_workflow_smoke.py -ExtraPytestArgs "-s"
+$env:EASY_GCODE_SMOKE_DEMO = "1"
+try {
+    .\scripts\ps1\test.ps1 tests/gui/test_daily_workflow_smoke.py -q -s
+}
+finally {
+    Remove-Item Env:QT_QPA_PLATFORM -ErrorAction SilentlyContinue
+    Remove-Item Env:EASY_GCODE_SMOKE_DEMO -ErrorAction SilentlyContinue
+}
 ```
 
-With `QT_QPA_PLATFORM=windows` the test pauses between steps (600 ms by default) so the window stays readable, then runs extra CNC assistant dialogs after the core workflow. Override the pause with `EASY_GCODE_SMOKE_DELAY_MS`:
+Setting only `QT_QPA_PLATFORM=windows` shows the window but does not enable presentation pauses or the final demo summary dialog. The default `EASY_GCODE_SMOKE_DELAY_MS` is 1000 ms: actions pause for 1 second, major stages/dialogs for 2 seconds, and the final summary for 4 seconds. You can adjust the pacing:
 
 ```powershell
-$env:EASY_GCODE_SMOKE_DELAY_MS = "1000"
+$env:EASY_GCODE_SMOKE_DELAY_MS = "1500"
 ```
 
-The scenario is deterministic. It opens `tests/fixtures/milling/plate_setup_complete.nc`, imports `stl/test2.stl`, saves a working copy, exports the resolved program as SINUMERIK 840D ISO-M (G291) and re-executes it to confirm the same motions, places the stock at X100, sets the G54 X offset to 100 through the WCS dialog, inspects a Y section of the model, hides the STL dock, edits a program tool in the Tool Library, exports the Statistics HTML report, and finally checks persistent options, a custom hotkey and settings restoration. It closes the window when finished; files and settings are isolated in pytest's temporary directory.
+Both modes execute the same assertions. The scenario opens these existing inputs without moving or changing them:
 
-GUI test limitations:
+- FANUC milling: `tests/fixtures/milling/fanuc/flange_plate_benchmark.nc`, without STL; dark theme, grid/colors and settings persistence, Statistics with a per-tool selector and SVG HTML export, expanded FANUC export and kernel replay. Line width stays unchanged.
+- FANUC turning: `tests/fixtures/turning/lathe_cycles_example.nc`; G71/G76 and real Stock Removal with deterministic rewind/replay. Saved-library geometry takes priority over automatic discovery.
+- SINUMERIK 3+2: `tests/fixtures/milling/sinumerik/5ax_test.mpf` with `stl/test6.stl` and the AC profile. STL Objects: Base Point Origin, Position Z=-100, Move Here.
+- SINUMERIK impeller: `tests/fixtures/milling/sinumerik/impeller.mpf` with `stl/test7.stl` and `5ax_table_bc_angled`. STL Objects: Transform rotates Z by +90 degrees, then Section Y at zero, Apply, Undo, and STL edges only. The sandbox editor uses saved T60 taper-ball-mill geometry with D1. Play briefly, then seek in 10% slider steps through completion. Turning Stock Removal and the flange benchmark retain complete continuous playback.
 
-- Without the environment override the suite uses Qt's `offscreen` platform, skips the pauses and the extra dialogs, and finishes quickly. Only widget/action state is verified, never rendered pixels or OpenGL image quality.
-- File dialogs and message boxes are stubbed, so native dialog behavior and real file-system prompts are not exercised.
-- Modal dialogs (the Tool Library editor) block their caller; the test drives them with a `QTimer` instead of leaving a window open for manual interaction.
-- SINUMERIK export uses the resolved (Expanded Execution) path: Full Program dialect conversion of this fixture is rejected because it would change machine signals.
+Pytest isolates settings, the tool library and all output files in temporary directories. The sandbox's fixed T0303 P2 record is in that temporary library, not the user's configured SQLite. File pickers receive predetermined paths; application dialogs and actions remain real. Unexpected message boxes fail the stage instead of hanging. Assertions inspect widget/model/scene state, not OpenGL pixels. Both modes print stage results; demo mode also displays a timed final summary and identifies the failed stage if an assertion fails.
 
-To restore the default for subsequent tests in the same PowerShell session:
-
-```powershell
-Remove-Item Env:QT_QPA_PLATFORM
-```
+See [GUI sandbox](docs/GUI_SANDBOX.md) for the complete stage contracts and platform notes.
 
 ### Are generated Qt Python files edited manually?
 

@@ -72,7 +72,7 @@ def test_mill_full_program_round_trips_arc_planes_and_full_circle(source):
 
 
 def test_mill_full_program_flattens_polar_coordinates_without_leaving_g16_active(fixture_text):
-    source = fixture_text("milling/polar_drilling.nc")
+    source = fixture_text("milling/fanuc/polar_drilling.nc")
     result = execute(source, language="fanuc_mill")
     assert result.ok, result.diagnostics
 
@@ -91,7 +91,7 @@ def test_mill_full_program_flattens_polar_coordinates_without_leaving_g16_active
 
 
 def test_mill_full_program_flattens_subprograms_and_preserves_inch_incremental_controls(fixture_text):
-    source = fixture_text("milling/subprogram.nc")
+    source = fixture_text("milling/fanuc/subprogram.nc")
     result = execute(source, language="fanuc_mill")
     assert result.ok, result.diagnostics
 
@@ -111,7 +111,7 @@ def test_mill_full_program_flattens_subprograms_and_preserves_inch_incremental_c
 
 
 def test_mill_full_program_preserves_source_controls_comments_and_program_end(fixture_text):
-    source = fixture_text("milling/wcs_test.nc")
+    source = fixture_text("milling/fanuc/wcs_test.nc")
     result = execute(source, language="fanuc_mill")
     assert result.ok, result.diagnostics
 
@@ -249,7 +249,7 @@ M99
 def test_cli_allows_program_mode_for_milling(tmp_path, fixture_text):
     source = tmp_path / "mill.nc"
     output = tmp_path / "expanded.nc"
-    source_text = fixture_text("milling/subprogram.nc")
+    source_text = fixture_text("milling/fanuc/subprogram.nc")
     source.write_text(source_text, encoding="utf-8")
 
     assert (

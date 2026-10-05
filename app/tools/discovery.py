@@ -10,6 +10,7 @@ from copy import deepcopy
 from io import StringIO
 
 from app.gcode.kernel.frontend.lang import lex_words, strip_comments
+from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
 from app.native import native_symbol
 from app.tools.definitions import (
     DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION,
@@ -81,7 +82,7 @@ def _dimension(description, names, default, scale, *, allow_zero=False):
 
 def _turning_spec(description, scale, operation_kind=None):
     spec = deepcopy(DEFAULT_TURNING_TOOL)
-    kind = _type_hint(description) or operation_kind
+    kind = operation_kind or _type_hint(description)
     if kind in {"groove", "thread", "drill", "tap"}:
         spec["type"] = kind
     application = "id" if re.search(r"\bID\b", _hint_text(description)) else "od"
@@ -100,7 +101,7 @@ def _turning_spec(description, scale, operation_kind=None):
 
 def _milling_spec(description, scale, operation_kind=None):
     spec = deepcopy(DEFAULT_MILLING_TOOL)
-    kind = _type_hint(description) or operation_kind
+    kind = operation_kind or _type_hint(description)
     if kind not in {None, "thread", "groove"}:
         spec["type"] = kind
     spec["diameter"] = _dimension(description, "D|DIA|DIAMETER", 10.0, scale)
@@ -235,9 +236,51 @@ def _operation_kind(words, turning):
     return None
 
 
-def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None):
-    """Return inferred definitions; callers must insert only absent library keys."""
+def _native_modal_kind(syntax, previous):
+    if syntax is None:
+        return previous
+    if syntax.kind == "cycle":
+        return {81: "drill", 82: "drill", 83: "drill", 84: "tap"}.get(syntax.cycle_code)
+    return None if syntax.kind == "cycle_cancel" else previous
+
+
+def _native_node_operation(node, modal_kind):
+    if node.native_syntax is not None and node.native_syntax.kind == "cycle":
+        return modal_kind
+    if modal_kind and any(word.letter in {"X", "Y", "Z"} for word in node.words):
+        return modal_kind
+    return _operation_kind(node.words, False)
+
+
+def _program_operation_hints(program, turning, cancelled):
+    """Classify operations from the shared controller AST, never comment text."""
+    operations = {}
+    active_tool = None
+    modal_kind = None
+    for index, node in enumerate(program.ast.nodes):
+        _cancel_checkpoint(index, cancelled)
+        if _is_g65_call(node.words):
+            continue
+        for word in node.words:
+            if word.letter == "T":
+                active_tool = _tool_key(word.expr, turning)
+        syntax = node.native_syntax
+        if syntax is not None and syntax.named_tool is not None:
+            active_tool = None
+        modal_kind = _native_modal_kind(syntax, modal_kind)
+        kind = _operation_kind(node.words, True) if turning else _native_node_operation(node, modal_kind)
+        if active_tool is not None and kind is not None:
+            operations.setdefault(active_tool, kind)
+    return operations
+
+
+def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None, source_dialect="fanuc", program=None):
+    """Return source tool candidates and operation-based fallback geometry."""
     headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled)
+    if program is not None:
+        operations = _program_operation_hints(program, turning, cancelled)
+    elif not turning and source_dialect == "sinumerik":
+        operations = _program_operation_hints(parse_sinumerik_program(source), False, cancelled)
     descriptions = {}
     for key, inline, nearby, scale in occurrences:
         description = inline or headers.get(key, "") or nearby

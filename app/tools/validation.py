@@ -164,6 +164,11 @@ def _normalize_groove_spec(raw_spec, spec, implied_application):
     }
     if orientation not in choices:
         orientation = min(choices)
+    cutting_plane = raw_spec.get("grooveCuttingPlane")
+    if cutting_plane is None and applications == ("face",):
+        cutting_plane = "face"  # Migrate the legacy geometry variant once.
+    if cutting_plane in ("radial", "face"):
+        spec["grooveCuttingPlane"] = cutting_plane
     spec.update(
         width=width,
         noseRadius=groove_radius if math.isfinite(groove_radius) and groove_radius > 0.0 else 0.0,

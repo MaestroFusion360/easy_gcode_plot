@@ -6,7 +6,7 @@ from pathlib import Path
 
 from PyQt6.QtCore import QCoreApplication
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QButtonGroup, QDialog, QMessageBox
+from PyQt6.QtWidgets import QButtonGroup, QComboBox, QDialog, QMessageBox
 
 from app.tools.definitions import (
     AUTO_TIP_ORIENTATIONS,
@@ -156,6 +156,14 @@ class _TurningToolEditor(QDialog):
         self.inches = self.ui.inchesCheck
         self.buttonBox = self.ui.buttonBox
         self._form = self.ui.formLayout
+        self.grooveCuttingPlane = QComboBox(self)
+        self.grooveCuttingPlane.addItem(QCoreApplication.translate("ToolLibraryDialog", "Radial groove"), "radial")
+        self.grooveCuttingPlane.addItem(QCoreApplication.translate("ToolLibraryDialog", "Face groove"), "face")
+        cutting_plane = spec.get("grooveCuttingPlane", "face" if spec.get("applications") == ["face"] else "radial")
+        self.grooveCuttingPlane.setCurrentIndex(self.grooveCuttingPlane.findData(cutting_plane))
+        self._form.insertRow(
+            5, QCoreApplication.translate("ToolLibraryDialog", "Groove geometry"), self.grooveCuttingPlane
+        )
         self._length_controls = (
             self.noseRadius,
             self.insertLength,
@@ -310,6 +318,7 @@ class _TurningToolEditor(QDialog):
         thread = category == "thread" and tool_type == "thread"
         axial = category in {"drill", "tap"}
         self._set_row_visible(self.noseRadius, insert or groove)
+        self._set_row_visible(self.grooveCuttingPlane, groove)
         self._set_row_visible(self.tipOrientation, insert or groove or thread)
         self._set_row_visible(self.insertLength, insert or thread)
         self._set_row_visible(self.width, groove)
@@ -317,7 +326,7 @@ class _TurningToolEditor(QDialog):
         self._set_row_visible(self.length, axial)
         self._set_row_visible(self.tipAngle, axial)
         self._set_row_visible(self.threadHelp, thread)
-        self._set_row_visible(self.threadAngle, thread)
+        self._set_row_visible(self.threadAngle, False)
         self._set_row_visible(self.threadTipWidth, thread)
         self._set_row_visible(self.threadCornerRadius, thread)
         self._sync_tip_orientation_choices(tool_type)
@@ -395,6 +404,10 @@ class _TurningToolEditor(QDialog):
             )
         elif tool_type == "groove":
             selected = self.selectedDirections()
+            if self.grooveCuttingPlane.currentData() == "face":
+                spec["grooveCuttingPlane"] = "face"
+            else:
+                spec["grooveCuttingPlane"] = "radial"
             spec["applications"] = [item for item in TURNING_APPLICATIONS if item in selected]
             spec.update(
                 width=metric_value(self.width),

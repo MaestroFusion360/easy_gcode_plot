@@ -5,6 +5,7 @@ import math
 import pytest
 
 from app.gcode.turning_tool_geometry import (
+    THREAD_INSERT_OUTLINE,
     cutting_insert_points,
     display_tool_geometry,
     lathe_view_point,
@@ -172,27 +173,35 @@ def test_supported_tool_display_and_stock_use_same_polygon(tool_spec):
     stock_points = turning_tool_polygon(tool_spec, 50.0, stock_scope=True)
 
     assert stock_points is not None
-    assert display_points == stock_points
+    if tool_spec["type"] == "thread":
+        assert display_points != stock_points
+    else:
+        assert display_points == stock_points
 
 
-def test_thread_parameters_change_tool_geometry_and_cache_key():
-    base = {
-        "type": "thread",
-        "insertLength": 12.0,
-        "threadAngle": 60.0,
-        "threadTipWidth": 0.8,
-        "threadCornerRadius": 0.1,
-        "tipOrientation": 3,
-    }
-    base_points, _depth, base_key = display_tool_geometry(base, 50.0)
-    changed_points, _depth, changed_key = display_tool_geometry({**base, "threadAngle": 55.0}, 50.0)
-    rounded_points, _depth, rounded_key = display_tool_geometry({**base, "threadCornerRadius": 0.3}, 50.0)
+@pytest.mark.parametrize("parameter", [{"threadAngle": 55.0}, {"threadCornerRadius": 0.3}, {"threadTipWidth": 2.0}])
+def test_thread_profile_parameters_do_not_change_display_geometry(parameter):
+    base = {"type": "thread", "insertLength": 12.0, "tipOrientation": 8}
+    assert display_tool_geometry(base, 50.0) == display_tool_geometry({**base, **parameter}, 50.0)
 
-    assert base_points != changed_points
-    assert base_key != changed_key
-    assert base_points != rounded_points
-    assert base_key != rounded_key
-    assert turning_tool_polygon(base, 50.0, stock_scope=True) == base_points
+
+@pytest.mark.parametrize("orientation", [6, 8])
+def test_thread_display_scales_uniformly_by_diameter(orientation):
+    base = {"type": "thread", "insertLength": 12.0, "tipOrientation": orientation}
+    original, depth, key = display_tool_geometry(base, 50.0)
+    scaled, scaled_depth, scaled_key = display_tool_geometry({**base, "insertLength": 20.0}, 50.0)
+    for actual, (x, z) in zip(scaled, original, strict=True):
+        assert actual == pytest.approx((x * 20.0 / 12.0, z * 20.0 / 12.0))
+    assert scaled_depth == pytest.approx(depth * 20.0 / 12.0)
+    assert scaled_key != key
+
+
+@pytest.mark.parametrize(("orientation", "direction"), [(8, 1), (6, -1)])
+def test_thread_display_vertex_points_down_for_external_up_for_internal(orientation, direction):
+    polygon = turning_tool_polygon({"type": "thread", "tipOrientation": orientation}, 50.0)
+    assert polygon is not None
+    assert polygon[2] == (0.0, 0.0)
+    assert all(direction * x >= -1e-9 for x, _z in polygon)
 
 
 @pytest.mark.parametrize(
@@ -274,3 +283,48 @@ def test_diamond35_cardinal_auto_trace_directions_are_exact(tool_type, orientati
 
     assert points is not None
     assert _trace_direction_angle(points) == pytest.approx(expected_angle)
+
+
+@pytest.mark.parametrize(("orientation", "body_sign"), [(8, 1), (6, -1)])
+def test_thread_orientation_is_radial_and_axially_symmetric(orientation, body_sign):
+    spec = {"type": "thread", "tipOrientation": orientation, "threadCornerRadius": 0.0}
+    polygon = turning_tool_polygon(spec, 50.0, stock_scope=True)
+    assert polygon is not None
+    assert all(body_sign * x >= -1e-9 for x, _z in polygon)
+    assert max(z for _x, z in polygon) == pytest.approx(-min(z for _x, z in polygon))
+    assert display_tool_geometry(spec, 50.0)[0] != polygon
+
+
+def test_thread_missing_orientation_matches_explicit_p8():
+    spec = {"type": "thread"}
+    assert turning_tool_polygon(spec, 50.0) == turning_tool_polygon({**spec, "tipOrientation": 8}, 50.0)
+    assert display_tool_geometry(spec, 50.0) == display_tool_geometry({**spec, "tipOrientation": 8}, 50.0)
+
+
+@pytest.mark.parametrize("angle", [55.0, 60.0])
+def test_thread_insert_has_three_small_profile_teeth(angle):
+    polygon = turning_tool_polygon(
+        {"type": "thread", "tipOrientation": 8, "threadAngle": angle, "threadCornerRadius": 0.0}, 50.0
+    )
+    assert polygon is not None
+    assert len(polygon) == 15
+    for index in (2, 7, 12):
+        tip = polygon[index]
+        before = polygon[index - 1]
+        after = polygon[index + 1]
+        a = (before[0] - tip[0], before[1] - tip[1])
+        b = (after[0] - tip[0], after[1] - tip[1])
+        cosine = sum(x * y for x, y in zip(a, b, strict=True)) / (math.hypot(*a) * math.hypot(*b))
+        assert math.degrees(math.acos(cosine)) == pytest.approx(60.0)
+    assert polygon[2] == pytest.approx((0.0, 0.0))
+
+
+def test_thread_schematic_matches_supplied_dxf_and_mirrors_for_internal():
+    external = turning_tool_polygon({"type": "thread", "tipOrientation": 8, "threadCornerRadius": 0.0}, 50.0)
+    internal = turning_tool_polygon({"type": "thread", "tipOrientation": 6, "threadCornerRadius": 0.0}, 50.0)
+    assert external is not None and internal is not None
+    trace_x, trace_y = THREAD_INSERT_OUTLINE[2]
+    for actual, (x, y) in zip(external, THREAD_INSERT_OUTLINE, strict=True):
+        assert actual == pytest.approx((trace_y - y, x - trace_x))
+    for actual, (x, z) in zip(internal, external, strict=True):
+        assert actual == pytest.approx((-x, z))

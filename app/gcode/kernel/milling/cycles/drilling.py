@@ -121,6 +121,8 @@ def _resolve_drilling_cycle(state: MillState, words) -> _ResolvedDrillingCycle |
     feed = state.cycle_feed or state.feed
     if feed <= 0:
         raise SemanticError("INVALID_DRILLING_FEED", "Drilling requires a positive modal feed", "invalid_geometry")
+    if state.cycle_z > retract_z + 1e-9:
+        raise SemanticError("INVALID_DRILLING_DEPTH", "Drilling depth Z is above the R plane", "invalid_geometry")
     behavior = _DRILL_BEHAVIOR[state.cycle]
     initial_z = state.cycle_initial_z if state.cycle_initial_z is not None else state.z
     return_z = max(initial_z, retract_z) if state.return_initial else retract_z
@@ -188,6 +190,9 @@ def _expand_drilling_cycle(
             resolved.target_z,
             step=resolved.step,
             retract_distance=state.g73_retract_distance,
+            reentry_clearance=(
+                state.g83_clearance if resolved.behavior.peck and not resolved.behavior.high_speed_peck else None
+            ),
             full_retract=not resolved.behavior.high_speed_peck,
             retract_after_final=False,
             return_to=resolved.return_z,

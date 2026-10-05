@@ -41,7 +41,7 @@ def test_groove_width_is_editable_and_saved(qt_app, direction):
     editor.width.setValue(6.5)
 
     assert editor.width.isEnabled()
-    expected = {"type": "groove", "applications": [direction], "width": 6.5}
+    expected = {"type": "groove", "applications": [direction], "grooveCuttingPlane": "radial", "width": 6.5}
     expected["noseRadius"] = 0.4
     if direction == "od":
         expected["tipOrientation"] = 3
@@ -91,6 +91,7 @@ def test_turning_editor_serializes_thread_geometry(qt_app):
 
     assert editor.category() == "thread"
     assert editor.currentToolType() == "thread"
+    assert editor.threadAngle.isHidden()
     assert editor.threadType.itemIcon(0).isNull()
     assert editor.categoryButtons["thread"].icon().isNull()
     assert editor.threadHelp.pixmap() is not None
@@ -280,3 +281,14 @@ def test_turning_editor_insert_length_defaults_and_serializes(qt_app, tool_type,
     assert editor.value()[1]["insertLength"] == expected
     editor.deleteLater()
     window.deleteLater()
+
+
+def test_groove_geometry_is_saved_independently_of_ui_filter(qt_app):
+    editor = _TurningToolEditor(spec={"type": "groove", "applications": ["face"], "tipOrientation": 3, "width": 3.0})
+    assert editor.grooveCuttingPlane.currentData() == "face"
+    editor.directionChecks["od"].setChecked(True)
+    editor.directionChecks["face"].setChecked(False)
+    assert editor.value()[1]["grooveCuttingPlane"] == "face"
+    editor.grooveCuttingPlane.setCurrentIndex(editor.grooveCuttingPlane.findData("radial"))
+    assert editor.value()[1]["grooveCuttingPlane"] == "radial"
+    editor.deleteLater()

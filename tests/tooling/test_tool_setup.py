@@ -2,6 +2,7 @@
 
 # pylint: disable=protected-access
 
+import importlib
 import json
 from copy import deepcopy
 
@@ -10,8 +11,10 @@ from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QLabel, QMessageBox
 
 from app import settings
+from app.gcode.kernel import execute
 from app.gcode.program_execution import execute_program
 from app.main_window import MainWindow
+from app.tools import discovery
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.setup import refresh_setup
 from app.ui.dialogs import tool_dialogs, tool_library_dialog
@@ -36,6 +39,7 @@ def qt_app():
 
 
 def test_same_t_number_in_different_files_uses_each_program_geometry(window, tmp_path):
+    window.millingToolLibrary = {}
     library = settings.get_tool_library()
     before = library.list_tools()
     first = tmp_path / "first.nc"
@@ -79,7 +83,15 @@ def test_shared_execution_preserves_gui_tool_override(monkeypatch):
 
     def fake_execute(_source, **options):
         observed.update(options)
-        return object()
+        resolver = options["tool_resolver"]
+
+        def checked_resolver(program):
+            tools = resolver(program)
+            observed["milling_tools"] = tools
+            return tools
+
+        options["tool_resolver"] = checked_resolver
+        return execute(_source, **options)
 
     monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
     _result, updated, inferred = execute_program(
@@ -382,3 +394,143 @@ def test_tool_library_export_uses_complete_saved_kind_not_current_selection(wind
     payload = json.loads(output.read_text(encoding="utf-8"))
     assert [record["tool"] for record in payload["tools"]] == ["T1", "T7"]
     assert "T99" not in {record["tool"] for record in payload["tools"]}
+
+
+@pytest.mark.parametrize(
+    ("turning", "key", "alias", "source", "spec"),
+    [
+        (False, "T2", "T02", "T2 M6\nG83 Z-10 R2 F100\n", {"type": "drill", "diameter": 7.0, "length": 42.0}),
+        (
+            True,
+            "T0202",
+            "T202",
+            "T0202\nG32 X20 Z-10 F1\n",
+            {"type": "thread", "insertLength": 20.0, "tipOrientation": 8},
+        ),
+    ],
+)
+def test_setup_uses_matching_library_number_without_mutating_library(turning, key, alias, source, spec):
+    current = {}
+    library = {alias: spec}
+    before = deepcopy(library)
+    inferred = refresh_setup(source, current, {}, turning=turning, library_tools=library)
+    assert current[key] == inferred[key]
+    field = "insertLength" if turning else "diameter"
+    assert current[key][field] == spec[field]
+    current[key][field] = 99
+    assert library == before
+    assert inferred[key][field] == spec[field]
+
+
+def test_library_auto_assignment_retains_manual_override_and_refreshes_unedited_tools():
+    source = "T2 M6\nG83 Z-10\nT3 M6\nG84 Z-10\n"
+    library = {"T2": {"type": "drill", "diameter": 7, "length": 42}, "T3": {"type": "tap", "diameter": 6, "length": 40}}
+    current = {}
+    previous = refresh_setup(source, current, {}, turning=False, library_tools=library)
+    current["T2"]["diameter"] = 9
+    library["T2"]["diameter"] = 8
+    library["T3"]["diameter"] = 5
+    refresh_setup(source, current, previous, turning=False, library_tools=library)
+    assert current["T2"]["diameter"] == 9
+    assert current["T3"]["diameter"] == 5
+
+
+def test_gui_native_discovery_uses_saved_number_then_cycle_default(window):
+    window.millingToolLibrary = {"T2": {"type": "drill", "diameter": 7, "length": 42}}
+    window._document_source_dialect = "sinumerik"
+    window.ui.editor.setText("T2 M6\nMCALL CYCLE83(5,0,1,-10)\nMCALL\nT7 M6\nMCALL CYCLE84(5,0,1,-10)\n")
+    window.analyzeEditorSource()
+    assert window.millingTools["T2"]["diameter"] == 7
+    assert window.millingTools["T7"]["type"] == "tap"
+
+
+def test_shared_execution_passes_saved_geometry_to_kernel(monkeypatch):
+    observed = {}
+
+    def checked_execute(source, **options):
+        observed.update(options)
+        resolver = options["tool_resolver"]
+
+        def checked_resolver(program):
+            tools = resolver(program)
+            observed["milling_tools"] = tools
+            return tools
+
+        options["tool_resolver"] = checked_resolver
+        return execute(source, **options)
+
+    monkeypatch.setattr("app.gcode.program_execution.execute", checked_execute)
+    library = {"T2": {"type": "drill", "diameter": 7, "length": 42}}
+    _result, updated, _inferred = execute_program(
+        "T2 M6\nMCALL CYCLE83(5,0,1,-10)\n",
+        language="fanuc_mill",
+        source_dialect="sinumerik",
+        library_tools=library,
+    )
+    assert updated["T2"]["diameter"] == observed["milling_tools"]["T2"]["diameter"] == 7
+    assert "library_tools" not in observed
+
+
+@pytest.mark.parametrize(
+    ("language", "dialect", "source", "parser_module", "parser_name"),
+    [
+        ("fanuc_turn", "fanuc", "T0202\nG32 X20 Z-10 F1\nM30", "app.gcode.kernel.api.engine", "parse_program"),
+        ("fanuc_mill", "fanuc", "T2 M6\nG81 Z-10 R2 F100\nM30", "app.gcode.kernel.milling.executor", "parse_program"),
+        (
+            "fanuc_mill",
+            "sinumerik",
+            "T2 M6\nMCALL CYCLE81(5,0,1,-10)\nX0 Y0\nMCALL\nM30",
+            "app.gcode.kernel.milling.executor",
+            "parse_sinumerik_program",
+        ),
+    ],
+)
+def test_execution_and_discovery_share_one_parsed_program(
+    monkeypatch, language, dialect, source, parser_module, parser_name
+):
+    module = importlib.import_module(parser_module)
+    original_parser = getattr(module, parser_name)
+    parsed = []
+    observed = []
+    original_hints = discovery._program_operation_hints
+
+    def counted_parse(text):
+        program = original_parser(text)
+        parsed.append(program)
+        return program
+
+    def checked_hints(program, turning, cancelled):
+        observed.append(program)
+        return original_hints(program, turning, cancelled)
+
+    def unexpected_parse(_source):
+        pytest.fail("Discovery must reuse the kernel Program")
+
+    monkeypatch.setattr(module, parser_name, counted_parse)
+    monkeypatch.setattr(discovery, "_program_operation_hints", checked_hints)
+    monkeypatch.setattr(discovery, "parse_sinumerik_program", unexpected_parse)
+    result, tools, _inferred = execute_program(source, language=language, source_dialect=dialect)
+    assert result.ok and result.complete, result.diagnostics
+    assert len(parsed) == len(observed) == 1
+    assert parsed[0] is observed[0] is result.program
+    assert tools
+
+
+def test_shared_execution_keeps_unverified_named_tool_compensation():
+    source = 'T="UGT_ENDMILL"\nM6\nG0 X0 Y0\nG41 G1 X10 F100\nG1 Y10\nG40 G1 X20\nM30\n'
+    result, _tools, _inferred = execute_program(source, language="fanuc_mill", source_dialect="sinumerik")
+    assert any(d.code == "UNVERIFIED_CUTTER_COMPENSATION" for d in result.diagnostics)
+    assert any(m.compensation_status == "UNVERIFIED" for m in result.motions)
+
+
+@pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
+def test_tool_preparation_cancellation_remains_a_resource_diagnostic(monkeypatch, language):
+    def cancelled_scan(*_args):
+        raise InterruptedError("Tool discovery cancelled")
+
+    monkeypatch.setattr("app.tools.discovery._scan_source", cancelled_scan)
+    result, tools, _inferred = execute_program("T2\nM30", language=language)
+    assert not result.ok and not result.complete
+    assert not result.motions and not tools
+    assert result.diagnostics[0].code == "EXECUTION_CANCELLED"
+    assert result.diagnostics[0].status == "resource_limit"

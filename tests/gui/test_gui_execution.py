@@ -12,6 +12,7 @@ from PyQt6.QtWidgets import QApplication, QWidget
 
 from app import main_window
 from app.gcode.kernel import execute
+from app.gcode.kernel.frontend.program import parse_program
 from app.ui.windows import execution_worker, main_window_execution
 from app.ui.windows.execution_worker import run_execution
 from app.ui.windows.main_window_execution import MainWindowExecutionMixin
@@ -180,7 +181,7 @@ def test_execution_worker_propagates_errors_and_clears_active_flag(monkeypatch):
     assert window._kernel_execution_active is False
 
 
-def test_window_calculation_can_cancel_during_tool_discovery():
+def test_window_calculation_can_cancel_during_program_preparation():
     checks = 0
 
     def cancelled():
@@ -188,7 +189,7 @@ def test_window_calculation_can_cancel_during_tool_discovery():
         checks += 1
         return checks >= 3
 
-    with pytest.raises(InterruptedError, match="Tool discovery cancelled"):
+    with pytest.raises(InterruptedError, match="Program preparation cancelled"):
         main_window_execution._calculate_source(
             "G1 X1 Y1 F100\n" * 10_000,
             current_tools={},
@@ -260,6 +261,9 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     def fake_execute(source, **kwargs):
         captured["source"] = source
         captured.update(kwargs)
+        tools = kwargs["tool_resolver"](parse_program(source))
+        captured["tools"] = {}
+        captured["milling_tools"] = tools
         return expected
 
     monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)

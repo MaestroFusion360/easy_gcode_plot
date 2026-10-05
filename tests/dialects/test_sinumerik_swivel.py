@@ -77,6 +77,30 @@ def test_post_rotation_offset_and_additive_frame_composition():
     )
 
 
+def test_frame_only_status_does_not_index_even_with_nonzero_direction():
+    result = native("G0 A10 C20\n" + cycle(st=220000, direction=1) + "\nM30")
+    assert result.ok and result.complete, result.diagnostics
+    assert dict(result.rotary_angles)["A"] == 10
+    assert dict(result.rotary_angles)["C"] == 20
+    assert any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events)
+    assert len([event for event in result.events if event.kind == "ROTARY_INDEX"]) == 1
+
+
+def test_frame_only_additive_status_composes_without_reindexing():
+    result = native(cycle(st=220000, direction=0) + "\n" + cycle(st=220001, direction=1) + "\nM30")
+    assert result.ok and result.complete, result.diagnostics
+    assert len([event for event in result.events if event.kind == "TILTED_WORK_PLANE_ON"]) == 2
+    assert not any(event.kind == "ROTARY_INDEX" for event in result.events)
+
+
+@pytest.mark.parametrize("profile,st", [("5ax_table_ac_angled", 220000), ("5ax_table_bc_angled", 200000)])
+def test_dmg_dataset_rejects_other_profiles_and_oem_indexing(profile, st):
+    source = f'CYCLE800(0,"DMG",{st},39,0,0,0,-32,52,0,0,0,0,0,0)'
+    result = native(source, profile)
+    assert not result.ok
+    assert result.diagnostics[-1].code == "UNSUPPORTED_SINUMERIK_CYCLE800"
+
+
 @pytest.mark.parametrize("reset", ["CYCLE800()", "CYCLE800", cycle(angles=(0, 0, 0), origin=(0, 0, 0), tc="0")])
 def test_reset_preserves_displayed_tip_and_emits_no_motion(reset):
     result = native(cycle() + "\nG0 X1 Y2 Z3\n" + reset + "\nG0\nM30")
@@ -154,7 +178,7 @@ def test_documented_compatibility_reset_and_retract_metadata():
 
 @pytest.mark.parametrize("mode", ["expanded", "full", "resolved"])
 def test_fixture_executes_and_export_stays_closed(fixture_text, tmp_path, mode):
-    source = fixture_text("milling/sinumerik_cycle800.mpf")
+    source = fixture_text("milling/sinumerik/sinumerik_cycle800.mpf")
     result = native(source)
     assert result.ok and result.complete, result.diagnostics
     path = tmp_path / "native.mpf"
@@ -190,7 +214,7 @@ def test_incremental_rotary_errors_remain_controlled(command, code):
 
 def test_cycle800_reaches_cli_and_batch_consumers(fixture_text, tmp_path):
     path = tmp_path / "swivel.mpf"
-    path.write_text(fixture_text("milling/sinumerik_cycle800.mpf"), encoding="utf8")
+    path.write_text(fixture_text("milling/sinumerik/sinumerik_cycle800.mpf"), encoding="utf8")
     args = [str(path), "--lang", "fanuc_mill", "--kinematics", "5ax_table_ac_angled"]
     assert main(["trace", *args, "-o", str(tmp_path / "trace.json")]) == 0
     assert main(["analyze", *args]) == 0

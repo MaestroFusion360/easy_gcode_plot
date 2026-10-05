@@ -27,7 +27,7 @@ from app.gcode.kernel.milling.kinematics import (
 )
 from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
 
-_MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling"
+_MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc"
 _FIXTURE_KINEMATICS = {
     "indexed_table_a.nc": "4ax_table_a",
     "indexed_table_b.nc": "4ax_table_b",
@@ -43,6 +43,21 @@ _MILLING_FIXTURE_CASES = tuple(
     for path in sorted(_MILLING_FIXTURE_DIR.iterdir())
     if path.is_file() and path.suffix.lower() in {".nc", ".ptp"}
 )
+
+
+@pytest.mark.parametrize("cycle", ["G99 G81 Z10 R2 F100", "G91 G99 G81 Z5 R-18 F100"])
+def test_drilling_depth_above_r_is_invalid(cycle):
+    result = execute(cycle + "\nM30", "fanuc_mill")
+    assert not result.ok
+    assert any(d.code == "INVALID_DRILLING_DEPTH" and d.status == "invalid_geometry" for d in result.diagnostics)
+    assert not result.motions
+
+
+@pytest.mark.parametrize("depth", [-5, 2])
+def test_drilling_depth_at_or_below_r_is_valid(depth):
+    result = execute(f"G99 G81 Z{depth} R2 F100\nG80\nM30", "fanuc_mill")
+    assert result.ok, result.diagnostics
+    assert sum(m.move == 1 for m in result.motions) == (1 if depth < 2 else 0)
 
 
 def _motion_endpoints(result, source_blocks):
@@ -123,7 +138,7 @@ def test_rotary_angles_and_wcs_are_recorded_per_execution_step():
 
 def test_indexed_table_a_fixture_preserves_both_sides_and_restores_a_zero(fixture_text):
     result = execute(
-        fixture_text("milling/indexed_table_a.nc"), language="fanuc_mill", kinematics="4ax_table_a", home_z=500
+        fixture_text("milling/fanuc/indexed_table_a.nc"), language="fanuc_mill", kinematics="4ax_table_a", home_z=500
     )
     assert result.ok and result.complete, result.diagnostics
     indices = [event for event in result.events if event.kind == "ROTARY_INDEX"]
@@ -140,7 +155,7 @@ def test_indexed_table_a_fixture_preserves_both_sides_and_restores_a_zero(fixtur
 
 
 def test_table_c_fixture_xc_contour_overlays_first_xy_contour(fixture_text):
-    result = execute(fixture_text("milling/indexed_table_c.nc"), language="fanuc_mill", kinematics="4ax_table_c")
+    result = execute(fixture_text("milling/fanuc/indexed_table_c.nc"), language="fanuc_mill", kinematics="4ax_table_c")
     assert result.ok and result.complete, result.diagnostics
     assert not result.diagnostics
 
@@ -295,7 +310,7 @@ def test_g43_4_cancel_keeps_reference_move_contiguous_and_uses_home_z(reference,
 @pytest.mark.parametrize("name,kinematics", _MILLING_FIXTURE_CASES)
 def test_fanuc_mill_fixture_motion_trace_never_teleports_between_adjacent_moves(name, kinematics, fixture_text):
     result = execute(
-        fixture_text(f"milling/{name}"),
+        fixture_text(f"milling/fanuc/{name}"),
         language="fanuc_mill",
         kinematics=kinematics,
         home_z=500.0,
@@ -397,7 +412,7 @@ def test_non_right_angle_b_index_preserves_signed_side(angle, expected_x, expect
 
 
 def test_milling_polar_drilling_fixture_matches_absolute_and_incremental_manual_examples(fixture_text):
-    result = execute(fixture_text("milling/polar_drilling.nc"), language="fanuc_mill")
+    result = execute(fixture_text("milling/fanuc/polar_drilling.nc"), language="fanuc_mill")
     assert result.ok, result.diagnostics
 
     expected = [(86.602540, 50.0), (-86.602540, 50.0), (0.0, -100.0)]
@@ -760,9 +775,11 @@ def test_milling_g83_peck_drilling_fully_retracts_to_r_between_pecks():
             (0, 5.0, 1.0),
             (1, 1.0, -1.0),
             (0, -1.0, 1.0),
-            (1, 1.0, -3.0),
+            (0, 1.0, 0.0),
+            (1, 0.0, -3.0),
             (0, -3.0, 1.0),
-            (1, 1.0, -5.0),
+            (0, 1.0, -2.0),
+            (1, -2.0, -5.0),
             (0, -5.0, 1.0),
         ],
     )
@@ -785,6 +802,34 @@ def test_milling_g73_peck_drilling_uses_small_retract_between_pecks():
             (0, -5.0, 1.0),
         ],
     )
+
+
+@pytest.mark.parametrize("clearance,feed_starts", [(0, [1, -1, -3]), (0.25, [1, -0.75, -2.75]), (10, [1, 1, 1])])
+def test_milling_g83_reentry_clearance_option_and_r_plane_clamp(clearance, feed_starts):
+    result = execute(
+        "G0 Z5\nG98\nG83 Z-5 R1 Q2 F100\nG80\nM30",
+        "fanuc_mill",
+        milling_g83_clearance=clearance,
+    )
+    assert result.ok, result.diagnostics
+    moves = _cycle_z_moves(result, "G83")
+    assert [start for move, start, _ in moves if move == 1] == pytest.approx(feed_starts)
+    assert moves[-1] == pytest.approx((0, -5, 5))
+    assert all(end <= 1 for move, _, end in moves[:-1] if move == 0)
+
+
+def test_milling_g83_reentry_clearance_is_one_mm_in_inch_mode():
+    result = execute("G20\nG0 Z0.2\nG83 Z-0.2 R0 Q0.1 F4\nG80\nM30", "fanuc_mill")
+    assert result.ok, result.diagnostics
+    feeds = [m for m in result.motions if m.cycle_generated and m.move == 1]
+    assert feeds[1].start_z - feeds[0].end_z == pytest.approx(1)
+
+
+@pytest.mark.parametrize("clearance", [-1, float("inf"), float("nan")])
+def test_milling_g83_clearance_must_be_finite_and_non_negative(clearance):
+    result = execute("G83 Z-5 R1 Q2 F100\nM30", "fanuc_mill", milling_g83_clearance=clearance)
+    assert not result.ok and not result.complete
+    assert any("G83 reentry clearance" in d.message for d in result.diagnostics)
 
 
 def test_milling_g73_retract_clearance_is_one_mm_in_inch_mode():
@@ -911,7 +956,7 @@ def test_milling_g73_retract_distance_must_be_finite_and_non_negative(distance):
 
 
 def test_milling_real_subprogram_fixture_repeats_m98_m99_and_returns_to_main_program(fixture_text):
-    result = execute(fixture_text("milling/subprogram.nc"), language="fanuc_mill")
+    result = execute(fixture_text("milling/fanuc/subprogram.nc"), language="fanuc_mill")
     assert result.ok, result.diagnostics
 
     assert len(result.motions) == 172
@@ -921,7 +966,7 @@ def test_milling_real_subprogram_fixture_repeats_m98_m99_and_returns_to_main_pro
 
 
 def test_milling_real_contour_fixture_covers_cw_ccw_arcs_and_depth(fixture_text):
-    result = execute(fixture_text("milling/contur_2d.nc"), language="fanuc_mill")
+    result = execute(fixture_text("milling/fanuc/contur_2d.nc"), language="fanuc_mill")
     assert result.ok, result.diagnostics
 
     assert sum(motion.move == 2 for motion in result.motions) == 18
@@ -930,7 +975,7 @@ def test_milling_real_contour_fixture_covers_cw_ccw_arcs_and_depth(fixture_text)
 
 
 def test_milling_wcs_fixture_executes_four_complete_contours(fixture_text):
-    result = execute(fixture_text("milling/wcs_test.nc"), language="fanuc_mill")
+    result = execute(fixture_text("milling/fanuc/wcs_test.nc"), language="fanuc_mill")
     assert result.ok, result.diagnostics
 
     assert len(result.motions) == 71

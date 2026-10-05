@@ -1,332 +1,438 @@
-"""End-to-end smoke test for a deterministic daily desktop editing workflow.
+"""Four-stage isolated GUI sandbox; EASY_GCODE_SMOKE_DEMO=1 enables visual pacing.
 
-Scope and limitations:
-
-- Only widget, action and model state is asserted; rendered pixels and OpenGL
-  image quality are never verified, especially on the default ``offscreen``
-  platform.
-- File dialogs and message boxes are stubbed, so native dialog behavior and
-  real file-system prompts are not exercised.
-- Modal dialogs (the Tool Library editor) block their caller, so the test
-  drives them with ``QTimer.singleShot`` rather than waiting for a human.
-- The SINUMERIK export uses the resolved (Expanded Execution) conversion;
-  Full Program dialect conversion of this fixture is rejected because it would
-  change machine signals.
+File pickers receive fixture paths. Dialogs/actions remain real; assertions
+inspect model and scene state rather than pixels. Outputs stay in tmp_path.
 """
 
 from __future__ import annotations
 
 import os
 from pathlib import Path
+from time import monotonic
 
+import numpy as np
 import pytest
 from PyQt6.QtCore import QCoreApplication, QEvent, Qt, QTimer
-from PyQt6.QtGui import QKeySequence
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
+from PyQt6.QtWidgets import QApplication, QDialogButtonBox, QMessageBox
 
+from app import settings as app_settings
 from app.gcode.export import EXPANDED_EXECUTION_MODE
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
 from app.ui.windows import main_window_file_ops
 
-PROGRAM_FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "plate_setup_complete.nc"
-STL_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test2.stl"
-
-# The smoke scenario verifies GUI state behind the dialogs' and dock's public controls.
 # pylint: disable=protected-access
-
-SINUMERIK_ISO_TARGET = 2
-
-
-def _is_interactive() -> bool:
-    """A visible Qt platform means a human is watching this run."""
-    return os.environ.get("QT_QPA_PLATFORM", "offscreen").strip().lower() not in {"offscreen", "minimal", ""}
-
-
-def _step_delay_ms() -> int:
-    """Read the visual pause, falling back to the default on invalid input."""
-    try:
-        return max(0, int(os.environ.get("EASY_GCODE_SMOKE_DELAY_MS", "600")))
-    except ValueError:
-        return 600
-
-
-INTERACTIVE = _is_interactive()
-STEP_DELAY_MS = _step_delay_ms()
+ROOT = Path(__file__).resolve().parents[2]
+FIXTURES = ROOT / "tests/fixtures"
+DEMO = os.environ.get("EASY_GCODE_SMOKE_DEMO") == "1"
+DELAY_MS = max(0, int(os.environ.get("EASY_GCODE_SMOKE_DELAY_MS", "1000")))
+IMPELLER_TOOL = {
+    "type": "taper_ball_mill",
+    "diameter": 4.0,
+    "cornerRadius": 0.0,
+    "fluteLength": 25.0,
+    "bodyLength": 25.0,
+    "length": 50.0,
+    "taperAngle": 6.0,
+    "description": "TAPER BALL MILL D4",
+}
 
 
-def _settle(app, label=""):
-    """Drain pending Qt events; pause between steps only on a visible platform."""
+def _settle(app, label, factor=1):
     app.processEvents()
-    if INTERACTIVE:
-        if label:
-            print(f"[smoke] {label}", flush=True)
-        QTest.qWait(STEP_DELAY_MS)
+    print(f"[sandbox] {label}", flush=True)
+    if DEMO:
+        QTest.qWait(DELAY_MS * factor)
 
 
-def _dispose_window(window):
+def _wait(app, condition, label, timeout=60):
+    deadline = monotonic() + timeout
+    while not condition():
+        app.processEvents()
+        assert monotonic() < deadline, f"Timed out: {label}"
+
+
+def _record(results, stage, errors):
+    assert not errors, f"{stage}: {errors}"
+    results.append((stage, "PASS"))
+
+
+def _dispose(window):
+    window.ui.editor.setModified(False)
     window.autoUpdateTimer.stop()
     window.close()
     window.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
 
 
-def _install_dialog_stubs(monkeypatch, *, open_paths, save_paths):
-    """Answer file dialogs from a path map and record the message boxes used."""
-    information = []
-    warnings = []
-    criticals = []
-    export_errors = []
-
-    def fake_open_file_name(_parent, caption, *_args, **_kwargs):
-        if caption not in open_paths:
-            pytest.fail(f"Unexpected open-file dialog: {caption}")
-        return str(open_paths[caption]), ""
-
-    def fake_save_file_name(_parent, caption, *_args, **_kwargs):
-        if caption not in save_paths:
-            pytest.fail(f"Unexpected save-file dialog: {caption}")
-        return str(save_paths[caption]), main_window_file_ops.NC_PROGRAM_FILTER
-
-    monkeypatch.setattr(main_window_file_ops.QFileDialog, "getOpenFileName", fake_open_file_name)
-    monkeypatch.setattr(main_window_file_ops.QFileDialog, "getSaveFileName", fake_save_file_name)
-    monkeypatch.setattr(
-        QMessageBox,
-        "information",
-        lambda *args, **_kwargs: information.append(args) or QMessageBox.StandardButton.Ok,
-    )
-    monkeypatch.setattr(
-        QMessageBox,
-        "warning",
-        lambda *args, **_kwargs: warnings.append(args) or QMessageBox.StandardButton.No,
-    )
-    monkeypatch.setattr(
-        QMessageBox,
-        "critical",
-        lambda *args, **_kwargs: criticals.append(args) or QMessageBox.StandardButton.Ok,
-    )
-    monkeypatch.setattr(
-        main_window_file_ops,
-        "_show_export_error",
-        lambda *args, **_kwargs: export_errors.append(args),
-    )
-    return information, warnings, criticals, export_errors
+def _summary(window, results, error=None):
+    text = "\n".join(f"{name}: {status}" for name, status in results)
+    text += "\n\n" + (f"Sandbox FAILED: {error}" if error else "Sandbox completed successfully")
+    print(text, flush=True)
+    if DEMO:
+        box = QMessageBox(window)
+        box.setObjectName("sandboxResult")
+        box.setWindowTitle("Easy G-Code Plot Sandbox")
+        box.setIcon(QMessageBox.Icon.Critical if error else QMessageBox.Icon.Information)
+        box.setText(text)
+        QTimer.singleShot(max(3000, DELAY_MS * 4), box.accept)
+        box.exec()
 
 
-def _open_setup_program(window, app):
-    """Open the plate-setup program and require a complete execution."""
-    window.ui.actionOpen.trigger()
-    _settle(app, "open plate setup program")
+def _install_dialogs(monkeypatch, paths, exported):
+    html_report = exported.with_suffix(".html")
+    errors = []
+
+    def open_file(_parent, caption, *_args, **_kwargs):
+        assert caption in paths, f"Unexpected file picker: {caption}"
+        return str(paths[caption]), ""
+
+    def save_file(_parent, caption, *_args, **_kwargs):
+        assert caption in {"Export", "Export HTML"}, f"Unexpected save picker: {caption}"
+        if caption == "Export HTML":
+            return str(html_report), "HTML (*.html)"
+        return str(exported), main_window_file_ops.NC_PROGRAM_FILTER
+
+    def unexpected(*args, **_kwargs):
+        errors.append(str(args))
+        return QMessageBox.StandardButton.Cancel
+
+    def information(parent, title, text, *_args, **_kwargs):
+        target = html_report if title == "Export HTML" else exported
+        if title not in {"Export", "Export HTML"} or str(target) not in text or not target.exists():
+            return unexpected(parent, title, text)
+        return QMessageBox.StandardButton.Ok
+
+    monkeypatch.setattr(main_window_file_ops.QFileDialog, "getOpenFileName", open_file)
+    monkeypatch.setattr(main_window_file_ops.QFileDialog, "getSaveFileName", save_file)
+    monkeypatch.setattr(QMessageBox, "information", information)
+    monkeypatch.setattr(QMessageBox, "warning", unexpected)
+    monkeypatch.setattr(QMessageBox, "critical", unexpected)
+    monkeypatch.setattr(main_window_file_ops, "_show_export_error", unexpected)
+    return errors
+
+
+def _new_program(window, app, *, turning=False, profile=None, home=(0, 100)):
+    window.ui.editor.setModified(False)
+    window.ui.actionNew.trigger()
     window.autoUpdateTimer.stop()
-    assert Path(window.curFile) == PROGRAM_FIXTURE
+    assert not window.curFile and not window.ui.editor.text()
+    assert not window.render_points and not window._stl_entries
+    assert window._toolpath_item is None
+    assert getattr(window, "_stock_item", None) not in window.ui.graphicsView.items
+    _settle(app, "New: workspace cleared", 0)
+    window.ui.actionLatheMode.setChecked(turning)
+    if not turning:
+        window.ui.action3D.trigger()
+        assert window._view_mode == "3d"
+        _settle(app, "ISO view", 0)
+    if profile:
+        _options(window, app, profile=profile)
+    window.ui.actionWCS.trigger()
+    dialog = window.wcsDlg
+    assert dialog.isVisible()
+    for code in range(54, 60):
+        for axis in ("X", "Y", "Z"):
+            getattr(dialog.ui, f"g{code}{axis}").setValue(0)
+    dialog.ui.homeX.setValue(home[0])
+    dialog.ui.homeY.setValue(0)
+    dialog.ui.homeZ.setValue(home[1])
+    dialog.ui.homeConfiguredCheck.setChecked(True)
+    _settle(app, f"WCS: Home X={home[0]} Z={home[1]}", 2)
+    dialog.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
+    assert window.homeConfigured
+    assert window.xPosMach == home[0] / (2 if turning else 1)
+    assert window.zPosMach == home[1]
+
+
+def _open_fixture(window, app, paths, path):
+    assert path.is_file(), path
+    paths["Open"] = path
+    previous = window.execution_result
+    window.ui.actionOpen.trigger()
+    window.autoUpdateTimer.stop()
     window.ui.actionRefresh.trigger()
-    _settle(app, "refresh execution")
-    assert window.execution_result is not None
-    assert window.execution_result.ok
-    assert window.execution_result.complete
-    assert window.execution_result.motions
-    return len(window.execution_result.motions)
+    _wait(app, lambda: window.execution_result is not previous and not window._kernel_execution_active, str(path))
+    assert Path(window.curFile) == path
+    _settle(app, path.name, 2)
+    return window.execution_result
 
 
-def _import_part_model(window, app):
-    """Import the matching STL model and reveal the object dock."""
-    window.ui.actionImportSTL.trigger()
-    _settle(app, "import STL model")
-    assert len(window._stl_entries) == 1
-    window._stl_panel_toggle_action.setChecked(True)
-    _settle(app, "show STL dock")
-    return window.stlObjectsDock
+def _playback(window, app, *, full=False, step_percent=25):
+    if not window.ui.actionPlay.isEnabled():
+        assert not window.execution_result.motions
+        _settle(app, "Playback unavailable: kernel rejected the program", 2)
+        return
+    window.ui.horizontalSlider.setValue(0)
+    if full or step_percent == 10:
+        window.ui.playbackSpeedSlider.setValue(5)
+    window.ui.actionPlay.trigger()
+    assert window.ui.actionPlay.isChecked() and window.timer.isActive()
+    if full:
+        _complete_playback(window, app)
+        _settle(app, "Full playback complete", 2)
+        return
+    _wait(app, lambda: window.ui.horizontalSlider.value() > 0, "playback advances")
+    _settle(app, "Play: motion playback", 2)
+    window.ui.actionPlay.setChecked(False)
+    maximum = window.ui.horizontalSlider.maximum()
+    for percent in range(step_percent, 100, step_percent):
+        value = maximum * percent // 100
+        window.ui.horizontalSlider.setValue(value)
+        _settle(app, f"Playback {percent}% ({value}/{maximum})")
+    window.ui.horizontalSlider.setValue(maximum - 1)
+    window.ui.actionPlay.trigger()
+    _wait(app, lambda: not window.ui.actionPlay.isChecked(), "playback finishes")
+    assert window.ui.horizontalSlider.value() == maximum
+    _settle(app, "Playback complete", 2)
 
 
-def _save_working_copy(window, app, saved):
-    """Save As writes a separate working copy and switches the document to it."""
-    window.ui.actionSaveAs.trigger()
-    _settle(app, "save working copy")
-    assert saved.exists()
-    assert Path(window.curFile) == saved
+def _complete_playback(window, app):
+    """Visit every logical motion via timer events, without seeking the slider."""
+    maximum = window.ui.horizontalSlider.maximum()
+    window.timer.start(2 if DEMO else 0, Qt.TimerType.PreciseTimer, window)
+    deadline = monotonic() + max(60, maximum * 0.03 + 30)
+    while window.ui.actionPlay.isChecked():
+        QTest.qWait(5 if DEMO else 1)
+        assert monotonic() < deadline, "Timed out: full playback"
+    app.processEvents()
+    assert window.ui.horizontalSlider.value() == maximum
+    assert not window.timer.isActive()
 
 
-def _export_sinumerik_iso(window, app, exported, source_motions):
-    """Export the setup as SINUMERIK 840D ISO-M and re-execute it."""
+def _assert_execution(window, *, allowed=()):
+    result = window.execution_result
+    assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
+    assert result.motions and window.render_points
+    assert {d.code for d in result.diagnostics} <= set(allowed), result.diagnostics
+    assert window._toolpath_item in window.ui.graphicsView.items
+    assert sum(s.emitted_count for s in result.execution_steps) == len(result.motions)
+    return result
+
+
+def _options(window, app, *, profile=None, appearance=False, stl_edges=None):
+    window.ui.actionOptions.trigger()
+    dialog = window.optionsDlg
+    assert dialog.isVisible()
+    _settle(app, "Options", 2)
+    ui = dialog.ui
+    original_width = window.plotLineWidth
+    if appearance:
+        ui.tabs.setCurrentWidget(ui.generalTab)
+        ui.fileTypeCombo.setCurrentIndex(1)
+        _settle(app, "Default syntax: ISO G-Code", 2)
+        ui.themeCombo.setCurrentIndex(1)
+        ui.tabs.setCurrentWidget(ui.plotTab)
+        ui.gridCheck.setChecked(True)
+        ui.gridStepSpin.setValue(20)
+        _settle(app, "Plot settings")
+        ui.tabs.setCurrentWidget(ui.colorsTab)
+        ui.linearColorEdit.setText("#36d9ff")
+        ui.arcColorEdit.setText("#ffb347")
+        _settle(app, "Toolpath colors")
+    if profile:
+        ui.tabs.setCurrentWidget(ui.plotTab)
+        index = ui.rotaryKinematicsCombo.findData(profile)
+        assert index >= 0, profile
+        ui.rotaryKinematicsCombo.setCurrentIndex(index)
+        _settle(app, profile)
+    if stl_edges is not None:
+        ui.tabs.setCurrentWidget(ui.plotTab)
+        ui.stlWireframeCheck.setChecked(stl_edges)
+        _settle(app, "STL edges only")
+    ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
+    _settle(app, "Options applied")
+    if profile:
+        assert window.rotaryKinematics == profile
+    if stl_edges is not None:
+        assert window.stlWireframe == stl_edges
+    if appearance:
+        assert window.defaultFileType == window.ui.fileTypeCombo.currentIndex() == 1
+        assert window.ui.editor.lexer() is window.lexer
+        assert window.uiTheme == "dark"
+        assert window.plotLineWidth == window._toolpath_item.width == original_width
+        assert window.plotLineColor == "#36d9ff" and window.plotArcColor == "#ffb347"
+        assert window.plotGrid and window.plotGridStep == 20
+        window.settings.sync()
+        restored = MainWindow()
+        try:
+            assert restored.defaultFileType == 1 and restored.ui.editor.lexer() is restored.lexer
+            assert restored.uiTheme == "dark" and restored.plotLineWidth == original_width
+            assert restored.plotLineColor == "#36d9ff" and restored.plotGridStep == 20
+        finally:
+            _dispose(restored)
+
+
+def _export(window, app, exported):
+    source_count = len(window.execution_result.motions)
     window.ui.actionExportData.trigger()
-    _settle(app, "open export dialog")
     dialog = window.exportDlg
     assert dialog.isVisible()
     dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
-    dialog.targetCncCombo.setCurrentIndex(SINUMERIK_ISO_TARGET)
-    assert dialog.targetCncCombo.currentIndex() == SINUMERIK_ISO_TARGET
+    dialog.targetCncCombo.setCurrentIndex(0)
+    _settle(app, "Export expanded FANUC", 2)
     dialog.accept()
-    _settle(app, "export SINUMERIK ISO-M")
-
-    assert exported.exists()
-    assert exported.stat().st_size > 0
-    text = exported.read_text(encoding="utf-8")
-    assert text.splitlines()[0].strip() == "G291"
-    assert "T10" in text
-    converted = execute(text, language="fanuc_mill", source_dialect="sinumerik")
-    assert converted.ok
-    assert converted.complete
-    assert len(converted.motions) == source_motions
+    _wait(app, exported.exists, "export output")
+    result = execute(exported.read_text(encoding="utf-8"), "fanuc_mill")
+    assert result.ok and result.complete, result.diagnostics
+    assert not result.diagnostics, result.diagnostics
+    assert len(result.motions) == source_count
 
 
-def _move_stl_to(window, panel, target, app):
-    """Place the STL base point at an explicit world position."""
-    panel.operationCombo.setCurrentIndex(1)
-    panel.positionX.setValue(target[0])
-    panel.positionY.setValue(target[1])
-    panel.positionZ.setValue(target[2])
-    panel.moveButton.click()
-    _settle(app, "move STL to X100")
-    assert window._stl_entries[0].obj.world_pivot() == pytest.approx(target)
-
-
-def _shift_g54_x(window, app, value):
-    """Set the G54 X offset through the real WCS dialog."""
-    window.ui.actionWCS.trigger()
-    _settle(app, "open WCS")
-    dialog = window.wcsDlg
-    assert dialog.isVisible()
-    dialog.ui.g54X.setValue(value)
-    dialog.accept()
-    _settle(app, "apply G54 X100")
-    assert window.wcsOffsets[54][0] == pytest.approx(value)
-
-
-def _section_stl_along_y(window, panel, app):
-    """Cut the placed model with a Y section plane through its middle."""
-    bounds = window._stl_entries[0].overlay.bounds
-    panel.operationCombo.setCurrentIndex(5)
-    panel.sectionAxis.setCurrentText("Y")
-    panel.sectionOffset.setValue((bounds[1][0] + bounds[1][1]) / 2.0)
-    panel.sectionButton.click()
-    _settle(app, "section STL along Y")
-    assert window._stl_section_spec is not None
-    assert window._stl_section_spec[1] == "Y"
-
-
-def _change_program_tool(window, app):
-    """Edit the first program tool through the Tool Library's modal editor."""
-    window.ui.actionToolLibrary.trigger()
-    _settle(app, "open tool library")
-    dialog = window.toolLibraryDlg
-    assert dialog.isVisible()
-    table = dialog.pages["milling"]["program"]
-    assert table.rowCount() >= 1
-    table.selectRow(0)
-    key = table.item(0, 0).text()
-    before = float(window.millingTools[key]["diameter"])
-    target = before + 1.0
-    opened = []
-
-    def edit_open_editor():
-        editors = [
-            child
-            for child in dialog.findChildren(QDialog)
-            if child.isVisible() and hasattr(child, "diameter") and hasattr(child, "validateAndAccept")
-        ]
-        assert editors, "milling tool editor did not open"
-        opened.append(editors[0])
-        editors[0].diameter.setValue(target)
-        editors[0].validateAndAccept()
-
-    QTimer.singleShot(0, edit_open_editor)
-    dialog.edit_program_tool("milling")
-    _settle(app, "edit program tool")
-    assert opened
-    assert float(window.millingTools[key]["diameter"]) == pytest.approx(target, abs=1e-6)
-    dialog.close()
-    _settle(app, "close tool library")
-
-
-def _export_statistics_html(window, app, report_path):
-    """Open Statistics and write its portable HTML report."""
+def _statistics(window, app, report):
     window.ui.actionStatistics.trigger()
-    _settle(app, "open statistics")
     dialog = window.statisticsDlg
     assert dialog.isVisible()
-    assert dialog.reportText.toPlainText().strip()
+    all_tools = dialog.reportText.toPlainText()
+    assert all_tools.strip() and dialog.toolSelect.count() > 1
     assert dialog.exportHtmlButton.isEnabled()
+    _settle(app, "Statistics: all tools", 2)
+    dialog.toolSelect.setCurrentIndex(1)
+    assert dialog.toolSelect.currentData() is not None
+    assert dialog.reportText.toPlainText() != all_tools
+    _settle(app, "Statistics: selected tool", 2)
+    dialog.toolSelect.setCurrentIndex(0)
     dialog.exportHtmlButton.click()
-    _settle(app, "export statistics HTML")
-    assert report_path.exists()
-    assert report_path.stat().st_size > 0
-    assert "<html" in report_path.read_text(encoding="utf-8").lower()
+    assert report.is_file()
+    html = report.read_text(encoding="utf-8")
+    assert "<svg" in html and "<select" in html
+    assert Path(window.curFile).name in html
+    _settle(app, "Statistics: HTML exported")
     dialog.close()
-    _settle(app, "close statistics")
 
 
-def _exercise_options_dialog(window, app):
-    """Toggle a broad set of persistent options and confirm they were applied."""
-    window.ui.actionOptions.trigger()
-    _settle(app, "open options")
-    dialog = window.optionsDlg
-    assert dialog.isVisible()
-    ui = dialog.ui
-    ui.showRapidCheck.setChecked(False)
-    ui.stlWireframeCheck.setChecked(True)
-    ui.axesCheck.setChecked(False)
-    ui.whitespaceCheck.setChecked(True)
-    ui.eolCheck.setChecked(True)
-    ui.lineWidthSpin.setValue(2.5)
-    ui.playbackSpeedSlider.setValue(5)
-    _settle(app, "edit options")
-    dialog.accept()
-    _settle(app, "apply options")
-
-    assert window.plotShowRapid is False
-    assert window.stlWireframe is True
-    assert window.plotAxes is False
-    assert window.spaceVisible is True
-    assert window.eolVisible is True
-    assert window.plotLineWidth == pytest.approx(2.5)
-    assert window.playbackSpeed == 5
-
-
-def _visit_tool_dialogs(window, app):
-    """Open the assistant dialogs a user reaches from the CNC functions menu."""
-    for action_name, attribute in (
-        ("actionHoleCalculator", "holeCalculatorDlg"),
-        ("actionPocketCalculator", "pocketCalculatorDlg"),
-        ("actionTokens", "tokensDlg"),
-        ("actionSnippets", "snippetsDlg"),
-    ):
-        getattr(window.ui, action_name).trigger()
-        _settle(app, action_name)
-        dialog = getattr(window, attribute)
-        assert dialog.isVisible(), action_name
-        dialog.close()
-        _settle(app, f"{action_name} closed")
-
-    window.holeCalculatorDlg.show()
-    window.holeCalculatorDlg.ui.patternTabs.setCurrentIndex(1)
-    _settle(app, "hole calculator grid pattern")
-    window.holeCalculatorDlg.close()
-
-    window.pocketCalculatorDlg.show()
-    window.pocketCalculatorDlg.ui.rectangularRadio.setChecked(True)
-    _settle(app, "pocket calculator rectangular pattern")
-    window.pocketCalculatorDlg.close()
-
-    assert window.tokensDlg.model.rowCount() >= 1
-
-    # Stock is only offered in turning mode.
-    window.ui.actionLatheMode.setChecked(True)
-    _settle(app, "toggle lathe mode")
+def _stock(window, app):
     window.ui.actionStock.trigger()
-    _settle(app, "open stock")
-    assert window.stockDlg.isVisible()
-    window.stockDlg.close()
-    _settle(app, "close stock")
-    window.ui.actionLatheMode.setChecked(False)
-    _settle(app, "toggle mill mode")
+    dialog = window.stockDlg
+    assert dialog.isVisible()
+    dialog.enabled.setChecked(True)
+    dialog.outer.setValue(130)
+    dialog.inner.setValue(0)
+    dialog.length.setValue(55)
+    dialog.front_z.setValue(1)
+    dialog.accuracy.setValue(dialog.accuracy.maximum())
+    _settle(app, "Stock configuration", 2)
+    dialog.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
+    assert window.stockEnabled
+    assert window.turnStockDiameter == 130
+    assert window.turnStockInnerDiameter == 0
+    assert window.turnStockLength == 55
+    assert window.turnStockFrontZ == 1
+    assert window.turnStockResolution == 0.1
+    window.ui.playbackSpeedSlider.setValue(5)
+    window.ui.actionPlay.setChecked(True)
+    _wait(app, lambda: window._stock_animation_active, "stock playback")
+    _wait(app, lambda: window.ui.horizontalSlider.value() > 0, "stock playback advances")
+    _settle(app, "Play: complete Stock Removal", 2)
+    timeline = window._stock_timeline
+    assert timeline is not None
+    initial = list(timeline.initial_material_intervals)
+    maximum = window.ui.horizontalSlider.maximum()
+    _complete_playback(window, app)
+    assert timeline.material_intervals != initial
+    assert window._stock_item in window.ui.graphicsView.items
+    assert window._stock_item.last_stock_face_count > 0
+    final = list(timeline.material_intervals)
+    first_thread = next(index for index, motion in enumerate(timeline.motions) if motion.threading)
+    timeline.set_motion_count(first_thread)
+    before_thread_outer = list(timeline.outer)
+    before_thread_inner = list(timeline.inner)
+    timeline.set_motion_count(len(timeline.motions))
+    assert timeline.outer == before_thread_outer, "Internal threading damaged the outside stock contour"
+    assert all(after >= before for after, before in zip(timeline.inner, before_thread_inner))
+    assert any(after > before for after, before in zip(timeline.inner, before_thread_inner))
+    assert timeline.material_intervals == final
+    window.ui.horizontalSlider.setValue(0)
+    window.ui.horizontalSlider.setValue(maximum)
+    assert timeline.material_intervals == final
+    _settle(app, "Stock Removal complete", 2)
+    window.ui.actionStop.trigger()
 
 
-def _run_interactive_extras(window, app):
-    """Slower scenarios that only make sense while a human watches the window."""
-    print("[smoke] --- interactive extras ---", flush=True)
-    _exercise_options_dialog(window, app)
-    _visit_tool_dialogs(window, app)
+def _stl(window, app, paths, name):
+    window.ui.actionClearSTL.trigger()
+    paths["Import STL"] = ROOT / "stl" / name
+    window.ui.actionImportSTL.trigger()
+    _wait(app, lambda: len(window._stl_entries) == 1, "STL import")
+    window._stl_panel_toggle_action.setChecked(True)
+    panel = window.stlObjectsDock
+    assert panel.isVisible()
+    panel.objectList.setCurrentRow(0)
+    assert not window.stlWireframe
+    _settle(app, f"STL Objects: {name}", 2)
+    if name == "test6.stl":
+        _position_test6(window, panel, app)
+    else:
+        _section_test7(window, panel, app)
+        _options(window, app, stl_edges=True)
+    assert window._stl_entries[0].overlay.item in window.ui.graphicsView.items
+    window.fitToView()
+    window._stl_panel_toggle_action.setChecked(False)
+    _settle(app, "STL and toolpath", 2)
+
+
+def _position_test6(window, panel, app):
+    panel.operationCombo.setCurrentIndex(0)
+    panel.pivotMode.setCurrentIndex(panel.pivotMode.findData("origin"))
+    panel.pivotApplyButton.click()
+    _settle(app, "Base Point: Origin")
+    assert window._stl_entries[0].obj.pivot_mode == "origin"
+    panel.operationCombo.setCurrentIndex(1)
+    panel.positionX.setValue(0)
+    panel.positionY.setValue(0)
+    panel.positionZ.setValue(-100)
+    _settle(app, "Position Z=-100")
+    panel.moveButton.click()
+    _settle(app, "Move Here")
+    assert window._stl_entries[0].obj.world_pivot() == pytest.approx((0, 0, -100))
+    assert window._stl_entries[0].overlay.bounds[2] == pytest.approx((-100, 0))
+
+
+def _use_impeller_library_tool(window, app):
+    """Verify that the unchanged opened source resolves the saved T60 snapshot."""
+    opened_lines = window.ui.editor.text().splitlines()
+    fixture_lines = (FIXTURES / "milling/sinumerik/impeller.mpf").read_text(encoding="utf-8").splitlines()
+    unchanged = opened_lines == fixture_lines
+    assert unchanged, "Sandbox must use the opened fixture without rewriting its source"
+    assert window.millingTools["T60"] == IMPELLER_TOOL
+    assert {motion.tool for motion in window.execution_result.motions if motion.tool} == {"T60"}
+    _settle(app, "Impeller: saved T60 taper ball mill, D1")
+
+
+def _section_test7(window, panel, app):
+    original_triangles = window._stl_entries[0].obj.world_triangles().copy()
+    original_pivot = tuple(window._stl_entries[0].obj.world_pivot())
+    panel.operationCombo.setCurrentIndex(2)
+    panel.rotateAxis.setCurrentText("Z")
+    panel.rotateAngle.setValue(90)
+    _settle(app, "Transform: rotate Z +90 degrees")
+    panel.rotateButton.click()
+    rotated = window._stl_entries[0].obj
+    expected = original_triangles.copy()
+    expected[..., 0] = original_pivot[0] - (original_triangles[..., 1] - original_pivot[1])
+    expected[..., 1] = original_pivot[1] + (original_triangles[..., 0] - original_pivot[0])
+    assert not np.allclose(rotated.world_triangles(), original_triangles)
+    np.testing.assert_allclose(rotated.world_triangles(), expected, atol=1e-5)
+    assert window._stl_entries[0].overlay.object is rotated
+    _settle(app, "Rotate applied", 2)
+    panel.operationCombo.setCurrentIndex(5)
+    panel.sectionAxis.setCurrentText("Y")
+    panel.sectionOffset.setValue(0)
+    panel.sectionKeepSide.setCurrentIndex(0)
+    _settle(app, "Section Y=0")
+    panel.sectionButton.click()
+    _settle(app, "Section Apply")
+    assert window._stl_section_spec == (0, "Y", 0, True)
+    assert window._stl_entries[0].section_overlay is not None
+    assert panel.undoButton.isEnabled()
+    panel.undoButton.click()
+    _settle(app, "Section Undo")
+    assert window._stl_section_spec is None
+    assert window._stl_entries[0].section_overlay is None
+    assert window._stl_entries[0].obj.world_pivot() == pytest.approx(original_pivot)
+    assert window._stl_entries[0].obj == rotated
+    np.testing.assert_allclose(window._stl_entries[0].obj.world_triangles(), expected, atol=1e-5)
 
 
 @pytest.fixture(scope="module")
@@ -335,90 +441,153 @@ def qt_app():
 
 
 def test_daily_gui_workflow_stays_inside_sandbox(qt_app, monkeypatch, tmp_path):
-    """Walk one deterministic setup-to-report workflow through the real GUI surface."""
-    saved = tmp_path / "plate_setup_complete_copy.nc"
-    exported = tmp_path / "plate_setup_sinumerik.mpf"
-    html_report = tmp_path / "plate_setup_statistics.html"
-
-    information, warnings, criticals, export_errors = _install_dialog_stubs(
-        monkeypatch,
-        open_paths={"Open": PROGRAM_FIXTURE, "Import STL": STL_FIXTURE},
-        save_paths={"Save As": saved, "Export": exported, "Export HTML": html_report},
-    )
-
+    """Exercise four programs, including complete native impeller playback."""
+    if DEMO:
+        assert qt_app.platformName() not in {"offscreen", "minimal"}, "Demo needs a visible Qt platform"
+    paths = {}
+    exported = tmp_path / "flange_expanded.nc"
+    errors = _install_dialogs(monkeypatch, paths, exported)
+    # Seed only the isolated test library, never the user's configured SQLite.
+    saved_boring_tool = {
+        "type": "diamond_80",
+        "applications": ["id"],
+        "tipOrientation": 2,
+        "noseRadius": 0.4,
+        "insertLength": 12.0,
+        "description": "PROFILE ROUGHING2",
+    }
+    saved_tools = {
+        "T0101": {
+            "type": "diamond_80",
+            "applications": ["od"],
+            "tipOrientation": 3,
+            "noseRadius": 0.4,
+            "insertLength": 12.0,
+            "description": "FACE1",
+        },
+        "T0202": {
+            "type": "drill",
+            "diameter": 15.0,
+            "length": 100.0,
+            "tipAngle": 118.0,
+            "description": "DRILL1",
+        },
+        "T0303": saved_boring_tool,
+        "T0404": {
+            "type": "groove",
+            "grooveCuttingPlane": "radial",
+            "applications": ["od"],
+            "tipOrientation": 3,
+            "width": 3.0,
+            "noseRadius": 0.2,
+            "description": "GROOVE1",
+        },
+        "T0505": {
+            "type": "groove",
+            "grooveCuttingPlane": "radial",
+            "applications": ["id"],
+            "tipOrientation": 2,
+            "width": 2.5,
+            "noseRadius": 0.2,
+            "description": "GROOVE3",
+        },
+        "T0606": {
+            "type": "thread",
+            "applications": ["id"],
+            "tipOrientation": 6,
+            "insertLength": 12.0,
+            "threadAngle": 60.0,
+            "threadTipWidth": 0.8,
+            "threadCornerRadius": 0.1,
+            "description": "THREAD1",
+        },
+    }
+    library = app_settings.get_tool_library()
+    for key, spec in saved_tools.items():
+        library.save_tool("turning", key, spec)
+    library.save_tool("milling", "T60", IMPELLER_TOOL)
     window = MainWindow()
+    window.autoUpdateEnabled = False
+    results = []
+    stage = "FANUC Mill"
+    guard = QTimer(window)
+
+    def guard_modal():
+        modal = qt_app.activeModalWidget()
+        if isinstance(modal, QMessageBox) and modal.objectName() != "sandboxResult":
+            errors.append(f"Unexpected modal: {modal.windowTitle()}: {modal.text()}")
+            modal.reject()
+
+    guard.timeout.connect(guard_modal)
+    guard.start(100)
     try:
+        window.resize(1280, 800)
         window.show()
-        _settle(qt_app, "show main window")
-
-        # 1. Open the milling setup program and import its matching stock model.
-        source_motions = _open_setup_program(window, qt_app)
-        panel = _import_part_model(window, qt_app)
-
-        # 2. Save a working copy, then export a SINUMERIK ISO-M program for it.
-        _save_working_copy(window, qt_app, saved)
-        _export_sinumerik_iso(window, qt_app, exported, source_motions)
-        assert any(str(exported) in str(part) for message in information for part in message)
-
-        # 3. Place the stock at X100 and shift the G54 origin to match.
-        _move_stl_to(window, panel, (100.0, 0.0, 0.0), qt_app)
-        _shift_g54_x(window, qt_app, 100.0)
-
-        # 4. Inspect a Y section of the placed model, then hide the STL dock.
-        _section_stl_along_y(window, panel, qt_app)
-        window._stl_panel_toggle_action.setChecked(False)
-        _settle(qt_app, "hide STL objects")
-        assert not panel.isVisible()
-        assert not window._stl_panel_toggle_action.isChecked()
-
-        # 5. Change a program tool and export the statistics HTML report.
-        _change_program_tool(window, qt_app)
-        _export_statistics_html(window, qt_app, html_report)
-
-        # 6. Change a persistent option and a custom hotkey through the real Options dialog.
-        previous_grid = window.plotGrid
-        window.ui.actionOptions.trigger()
-        _settle(qt_app, "open options")
-        assert window.optionsDlg.isVisible()
-        window.optionsDlg.ui.gridCheck.setChecked(not previous_grid)
-        assert window.optionsDlg.hotkeyEditor.assign("actionToolLibrary", "Ctrl+Alt+L")
-        window.optionsDlg.accept()
-        _settle(qt_app, "apply options")
-        assert window.plotGrid == (not previous_grid)
-        assert window.ui.actionToolLibrary.shortcut() == QKeySequence("Ctrl+Alt+L")
-
-        # 7. Send the new shortcut through Qt's key event path rather than triggering QAction directly.
-        window.toolLibraryDlg.hide()
-        window.activateWindow()
-        window.ui.editor.setFocus()
-        _settle(qt_app, "focus editor")
-        QTest.keyClick(
-            window.ui.editor,
-            Qt.Key.Key_L,
-            Qt.KeyboardModifier.ControlModifier | Qt.KeyboardModifier.AltModifier,
-        )
-        _settle(qt_app, "send shortcut")
-        assert window.toolLibraryDlg.isVisible()
-        window.toolLibraryDlg.close()
-        _settle(qt_app, "close tool library")
-
-        # 8. Options.accept() persists both values; verify that a fresh MainWindow restores them.
-        window.settings.sync()
-        restored = MainWindow()
-        try:
-            assert restored.plotGrid == (not previous_grid)
-            assert restored.ui.actionToolLibrary.shortcut() == QKeySequence("Ctrl+Alt+L")
-        finally:
-            _dispose_window(restored)
-
-        assert not warnings
-        assert not criticals
-        assert not export_errors
-
-        # 9. A visible run keeps the same window open longer and walks extra dialogs.
-        if INTERACTIVE:
-            _run_interactive_extras(window, qt_app)
+        qt_app.processEvents()
+        screen = window.screen().availableGeometry()
+        frame = window.frameGeometry()
+        frame.moveCenter(screen.center())
+        window.move(frame.topLeft())
+        _new_program(window, qt_app)
+        _open_fixture(window, qt_app, paths, FIXTURES / "milling/fanuc/flange_plate_benchmark.nc")
+        _assert_execution(window)
+        assert window.millingTools["T2"]["type"] == "mill_flat" and window.millingTools["T2"]["diameter"] == 10
+        assert window.millingTools["T4"]["type"] == "drill"
+        assert not window._stl_entries
+        _record(results, stage, errors)
+        stage = "Options / Dark Theme / Plot Settings"
+        _options(window, qt_app, appearance=True)
+        _record(results, stage, errors)
+        stage = "Statistics / HTML report"
+        _statistics(window, qt_app, exported.with_suffix(".html"))
+        _record(results, stage, errors)
+        stage = "Export"
+        _export(window, qt_app, exported)
+        _playback(window, qt_app, full=True)
+        _record(results, stage, errors)
+        stage = "FANUC Turn"
+        _new_program(window, qt_app, turning=True, home=(150, 10))
+        _open_fixture(window, qt_app, paths, FIXTURES / "turning/lathe_cycles_example.nc")
+        assert window.ui.editor.lexer() is window.lexer
+        result = _assert_execution(window, allowed=("UNVERIFIED_TOOL_NOSE_COMPENSATION",))
+        assert window.tools["T0303"] == saved_boring_tool
+        assert window.tools == saved_tools
+        assert library.get_tool("turning", "T0303").spec == saved_boring_tool
+        assert any(m.cycle_generated and m.source_raw.startswith("G71") for m in result.motions)
+        assert any(m.cycle_generated and m.source_raw.startswith("G76") for m in result.motions)
+        _record(results, stage, errors)
+        stage = "Stock Removal"
+        _stock(window, qt_app)
+        _record(results, stage, errors)
+        stage = "SINUMERIK 3+2 + test6.stl"
+        _new_program(window, qt_app, profile="5ax_table_ac_angled", home=(0, 100))
+        _open_fixture(window, qt_app, paths, FIXTURES / "milling/sinumerik/5ax_test.mpf")
+        assert window.ui.editor.lexer() is window.lexer
+        result = _assert_execution(window, allowed=("UNVERIFIED_CUTTER_COMPENSATION",))
+        assert result.kinematics_profile == "5ax_table_ac_angled"
+        assert any(m.tool_orientation is not None for m in result.motions)
+        assert len({m.tool_orientation for m in result.motions}) > 1
+        _stl(window, qt_app, paths, "test6.stl")
+        _playback(window, qt_app)
+        _record(results, stage, errors)
+        stage = "SINUMERIK Impeller + test7.stl"
+        _new_program(window, qt_app, profile="5ax_table_bc_angled", home=(0, 300))
+        _open_fixture(window, qt_app, paths, FIXTURES / "milling/sinumerik/impeller.mpf")
+        _use_impeller_library_tool(window, qt_app)
+        result = _assert_execution(window, allowed=("UNMODELED_SINUMERIK_NATIVE",))
+        assert result.kinematics_profile == "5ax_table_bc_angled"
+        _stl(window, qt_app, paths, "test7.stl")
+        _playback(window, qt_app, step_percent=10)
+        for diagnostic in result.diagnostics:
+            print(f"[sandbox] {diagnostic.code}: {diagnostic.message}", flush=True)
+        _record(results, stage, errors)
+        results.append(("STL Objects / Origin / Position / Section / Undo", "PASS"))
+        assert not errors, errors
+        _summary(window, results)
+    except Exception as exc:
+        results.append((stage, "FAIL"))
+        _summary(window, results, error=f"{stage}: {exc}")
+        raise
     finally:
-        # A failed assertion must not leave a save prompt blocking the suite.
-        window.ui.editor.setModified(False)
-        _dispose_window(window)
+        guard.stop()
+        _dispose(window)

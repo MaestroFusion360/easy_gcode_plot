@@ -22,6 +22,13 @@ from .events import g65_call_event, program_flow_events
 from .signals import signals_for_words
 
 MOTION_CODES = frozenset(TYPE_A_MOTION)
+
+
+def resolve_program_tools(program, tools, resolver):
+    """Resolve tool geometry once after parsing, before execution state changes."""
+    return tools if resolver is None else resolver(program)
+
+
 CYCLE_CODES = frozenset(TYPE_A_CYCLES)
 POSITION_NEUTRAL_GCODES = frozenset(
     {

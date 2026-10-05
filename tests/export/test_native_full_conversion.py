@@ -3,6 +3,7 @@
 import pytest
 
 from app.cli import main
+from app.gcode.export.native_full import normalize_native_full_program
 from app.gcode.export.native_layout import format_native_tool_changes
 from app.gcode.export.options import ExportOptions
 from app.gcode.export.service import ExportRequest, export_file
@@ -21,6 +22,28 @@ def test_native_cycle_export_does_not_print_negative_zero():
     source = "G710\nG0 X-1 Z10\nF100\nMCALL CYCLE81(5,0,2,-5,,0,0,0,0)\nX-0.000000000000001\nMCALL\nM30"
     output = convert_full_program_to_fanuc(source)
     assert "X-0" not in output
+
+
+def test_native_cycle_conversion_preserves_only_source_blank_lines_and_comments():
+    source = (
+        "G710\nG0 Z10\nF100\n\n; source comment\nMCALL CYCLE81(5,0,2,-5,,0,0,0,0) ; activate\nX2\nMCALL\nMCALL\nM30\n"
+    )
+    output = normalize_native_full_program(source, execute(source))
+    assert output.splitlines().count("") == 1
+    assert "; source comment" in output and "; activate" in output
+    assert "G80\nG0\n" in output
+
+
+@pytest.mark.parametrize("numbered", [False, True])
+def test_native_drilling_export_has_no_generated_blank_blocks(numbered):
+    source = "G710\nG0 Z10\nF100\nMCALL CYCLE81(5,0,2,-5,,0,0,0,0)\nX2\nMCALL\nM30\n"
+    output = convert_full_program_to_fanuc(
+        source, export_options=ExportOptions(sequence_numbers=numbered, sequence_spacing=True)
+    )
+    assert all(line.strip() for line in output.splitlines())
+    if numbered:
+        numbers = [int(line.split()[0][1:]) for line in output.splitlines() if line.startswith("N")]
+        assert numbers == list(range(numbers[0], numbers[0] + len(numbers)))
 
 
 @pytest.mark.parametrize("units,expected", [("G710", "G21"), ("G700", "G20")])
@@ -144,7 +167,7 @@ def test_frame_reset_does_not_allow_active_cycle800_or_reverse_native_export():
 
 
 def test_cli_exports_actual_correction_program_with_reset_and_compensation(tmp_path, fixture_text, capsys):
-    source = fixture_text("milling/correction_sin840d.mpf")
+    source = fixture_text("milling/sinumerik/correction_sin840d.mpf")
     input_path, output = tmp_path / "correction.mpf", tmp_path / "converted.nc"
     input_path.write_text(source)
     assert (
@@ -171,7 +194,7 @@ def test_cli_exports_actual_correction_program_with_reset_and_compensation(tmp_p
     result, target = execute(source), execute(converted, "fanuc")
     assert target.ok and target.complete and not target.diagnostics
     validate_full_program_dialect_conversion(result, converted, "fanuc_mill", source_dialect="fanuc")
-    original_cam = execute(fixture_text("milling/correction_fanuc.nc"), "fanuc")
+    original_cam = execute(fixture_text("milling/fanuc/correction_fanuc.nc"), "fanuc")
     assert original_cam.ok and original_cam.complete
 
     # CAM splits circular moves differently and rounds coordinates/feed.
@@ -182,7 +205,7 @@ def test_cli_exports_actual_correction_program_with_reset_and_compensation(tmp_p
 
 
 def test_nonzero_home_supa_conversion_preserves_geometry(fixture_text):
-    source = fixture_text("milling/correction_sin840d.mpf")
+    source = fixture_text("milling/sinumerik/correction_sin840d.mpf")
     options = {"home_z": 100}
     result = execute_program(source, language="fanuc_mill", source_dialect="sinumerik", **options)[0]
     assert result.ok and result.complete
@@ -193,7 +216,7 @@ def test_nonzero_home_supa_conversion_preserves_geometry(fixture_text):
 
 
 def test_ijk_correction_export_has_tool_offsets_and_source_modal_feeds(tmp_path, fixture_text):
-    source = fixture_text("milling/correction_ijk_sin840d.mpf")
+    source = fixture_text("milling/sinumerik/correction_ijk_sin840d.mpf")
     input_path, output = tmp_path / "correction.mpf", tmp_path / "correction.nc"
     input_path.write_text(source)
     export_file(input_path, output, ExportRequest(language="fanuc_mill", mode="full", leading_zero=True))

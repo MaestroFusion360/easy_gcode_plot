@@ -71,7 +71,11 @@ class NativeCycleEmitter:
         return self._canned_hole(step, projected)
 
     def _expanded_pecks(self, step, motions):
-        lines = self._cancel(step) + [_hole_controls(step), "G90"]
+        lines = self._cancel(step)
+        controls = _hole_controls(step)
+        if controls:
+            lines.append(controls)
+        lines.append("G90")
         previous_feed = None
         for motion in motions:
             words = [f"G{motion.move}"]
@@ -105,7 +109,10 @@ class NativeCycleEmitter:
         template = (parameters, last.end_z)
         if not can_use_g98 or template != self.template:
             lines = self._cancel(step)
-        lines.extend([_hole_controls(step), "G90"])
+        controls = _hole_controls(step)
+        if controls:
+            lines.append(controls)
+        lines.append("G90")
         if self.template is None:
             lines.extend(self._start_hole(step, motions, first, last, target_code, parameters, can_use_g98))
             self.template = template

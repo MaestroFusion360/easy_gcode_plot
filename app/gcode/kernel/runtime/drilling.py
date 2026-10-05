@@ -32,6 +32,7 @@ def axial_pecks(
     full_retract: bool,
     retract_after_final: bool,
     tolerance: float,
+    reentry_clearance: float | None = None,
 ) -> tuple[AxialPeck, ...]:
     """Return scalar peck positions; callers retain machine-specific interpretation."""
     direction = 1.0 if target > start else -1.0
@@ -56,6 +57,10 @@ def axial_pecks(
         last_depth = depth
         if retract is not None:
             feed_start = start if full_retract else retract
+            if full_retract and reentry_clearance is not None:
+                feed_start = depth - direction * reentry_clearance
+                if (feed_start - start) * direction < 0.0:
+                    feed_start = start
     return tuple(result)
 
 
@@ -70,6 +75,7 @@ def axial_cycle_moves(
     return_to: float | None = None,
     return_feed: bool = False,
     tolerance: float = 1e-9,
+    reentry_clearance: float | None = None,
 ) -> tuple[AxialMove, ...]:
     """Build a machine-neutral scalar drilling/tapping path.
 
@@ -87,7 +93,10 @@ def axial_cycle_moves(
             full_retract=full_retract,
             retract_after_final=retract_after_final,
             tolerance=tolerance,
+            reentry_clearance=reentry_clearance,
         ):
+            if abs(current - peck.feed_start) > tolerance:
+                moves.append(AxialMove(0, current, peck.feed_start))
             if abs(peck.depth - peck.feed_start) > tolerance:
                 moves.append(AxialMove(1, peck.feed_start, peck.depth))
             current = peck.depth
