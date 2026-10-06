@@ -1,0 +1,112 @@
+{
+  "id": "fanuc_lathe_a",
+  "machine": "lathe",
+  "extension": "nc",
+  "options": {
+    "incrementalMode": false,
+    "delimiter": true,
+    "leadingZero": false,
+    "decimalPlaces": 6,
+    "forceDecimal": false,
+    "plusOutput": false,
+    "units": "mm"
+  },
+  "format": {
+    "outputArcs": true,
+    "arcMode": "IJK",
+    "arcCenter": "incremental",
+    "absoluteCenterSyntax": "words",
+    "radiusAddress": "R",
+    "multiTurnArcs": false,
+    "words": {
+      "motion": {"order": 10, "required": true},
+      "X": {"order": 20, "required": false},
+      "Y": {"order": 30, "required": false},
+      "Z": {"order": 40, "required": false},
+      "I": {"order": 50, "required": false},
+      "J": {"order": 60, "required": false},
+      "K": {"order": 70, "required": false},
+      "R": {"order": 80, "required": false}
+    }
+  },
+  "motion": {
+    "rapidMove": "G0",
+    "linearMove": "G1",
+    "circularMoveCW": "G2",
+    "circularMoveCCW": "G3",
+    "planeXY": "G17",
+    "planeXZ": "G18",
+    "planeYZ": "G19",
+    "threadMove": "G32"
+  },
+  "positioning": {
+    "absolute": "",
+    "incremental": "",
+    "incrementalAxes": {
+      "X": "U",
+      "Z": "W"
+    }
+  },
+  "home": {
+    "G28": {
+      "X": "G28 U0",
+      "Z": "G28 W0"
+    },
+    "G53": {
+      "X": "G53 U0",
+      "Z": "G53 W0"
+    }
+  },
+  "tool": {
+    "toolChange": "{tool} {code}"
+  },
+  "spindle": {
+    "cw": "M3",
+    "ccw": "M4",
+    "stop": "M5",
+    "cssOn": "G96 {speed}",
+    "cssOff": "G97 {speed}",
+    "maxSpeed": "G50 {speed}"
+  },
+  "coolant": {
+    "mist": "M7",
+    "flood": "M8",
+    "off": "M9"
+  },
+  "feed": {
+    "perMinute": "G98",
+    "perRev": "G99",
+    "inverseTime": ""
+  },
+  "units": {
+    "inch": "G20",
+    "metric": "G21"
+  },
+  "dwell": {
+    "command": "G4 {dwell}",
+    "address": "P",
+    "scale": 1000
+  },
+  "program": {
+    "start": "",
+    "preamble": [
+      "G18 G40 G80 G54 G98"
+    ],
+    "safety": [
+      "G80",
+      "G0 G18 G40 G90"
+    ],
+    "stop": "M0",
+    "optionalStop": "M1",
+    "end": "M30"
+  },
+  "supports": {
+    "axes": ["X", "Y", "Z"],
+    "inverseTime": false,
+    "multiTurnArcs": false,
+    "absoluteArcCenters": true
+  },
+  "comment": {
+    "template": "({text})"
+  }
+}

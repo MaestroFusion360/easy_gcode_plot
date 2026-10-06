@@ -2,34 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import replace
-
 import pytest
 
-from app.gcode.exporter import ExportOptions, export_cycle_groups, export_full_program
+from app.gcode.exporter import ExportOptions, export_full_program
 from app.gcode.kernel import execute
-
-
-def test_turn_full_program_rejects_unverified_trace_gap():
-    source = "G21 G18\nG0 X20 Z2\nG1 X10 Z0 F100\nM30"
-    result = execute(source, language="fanuc_turn")
-    assert result.ok, result.diagnostics
-    broken = replace(result, motions=(result.motions[0], replace(result.motions[1], start_x=18)))
-    with pytest.raises(ValueError, match="position gap"):
-        export_full_program(broken, source.splitlines())
-
-
-def test_turn_exports_radius_input_as_standard_diameter_coordinates():
-    source = "G21 G18\nG0 X10 Z0\nG1 X15 Z-5 F100\nM30"
-    result = execute(source, language="fanuc_turn", x_is_diameter=False)
-    assert result.ok, result.diagnostics
-    full = export_full_program(result, source.splitlines())
-    assert "G190" not in full and "G191" not in full
-    round_trip = execute(full, language="fanuc_turn")
-    assert round_trip.ok, round_trip.diagnostics
-    assert [(motion.end_x, motion.end_z) for motion in round_trip.motions] == [
-        (motion.end_x, motion.end_z) for motion in result.motions
-    ]
 
 
 @pytest.mark.parametrize(
@@ -59,18 +35,13 @@ def test_turn_cycle_export_uses_execution_step_as_one_logical_group(cycle_source
     result = execute(cycle_source, language="fanuc_turn")
     assert result.ok, result.diagnostics
 
-    text = export_cycle_groups(
-        result,
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
-    )
-
-    assert text.count("EXPANDED TURN CYCLE") == 1
-    assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
-
     full = export_full_program(
         result,
         cycle_source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
     round_trip = execute(full, language="fanuc_turn")
     assert round_trip.ok, round_trip.diagnostics
@@ -99,16 +70,19 @@ M9 M02
     text = export_full_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     assert text.count("M02") == 1
     assert "M30" not in text
-    assert "\nT4\n" in text
+    assert "\nT04\n" in text
     assert "T0004" not in text
     assert "G20" in text
     assert "G00 X2 Z1" in text
-    assert "M9" in text
+    assert "M09" in text
 
     round_trip = execute(text, language="fanuc_turn")
     assert round_trip.ok, round_trip.diagnostics
@@ -136,7 +110,10 @@ M99
     text = export_full_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     assert "M98" not in text

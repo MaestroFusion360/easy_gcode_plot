@@ -523,6 +523,21 @@ def test_shared_execution_keeps_unverified_named_tool_compensation():
     assert any(m.compensation_status == "UNVERIFIED" for m in result.motions)
 
 
+def test_shared_execution_suppresses_cutter_compensation_warnings_when_correction_is_disabled():
+    source = "G90 G17\nG0 X0 Y0\nG41 G1 X10 Y0 F100\nG1 X10 Y10\nG40 G1 X20\nM30\n"
+    result, _tools, _inferred = execute_program(
+        source,
+        language="fanuc_mill",
+        correction_enabled=False,
+    )
+
+    assert result.ok and result.complete, result.diagnostics
+    assert not any(
+        diagnostic.code in {"UNVERIFIED_CUTTER_COMPENSATION", "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION"}
+        for diagnostic in result.diagnostics
+    )
+
+
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])
 def test_tool_preparation_cancellation_remains_a_resource_diagnostic(monkeypatch, language):
     def cancelled_scan(*_args):

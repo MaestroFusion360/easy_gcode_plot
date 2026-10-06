@@ -672,7 +672,7 @@ def _execute_turning_motion(
 
 def _taint_unsupported_position(state, words, gcode, has_pos, non_motion_g) -> bool:
     """Fail closed for an unmodeled position-bearing turning command."""
-    if not non_motion_g or not has_pos or gcode in (28, 30):
+    if not non_motion_g or not has_pos or gcode in (28, 30, 70, 71, 72, 73, 74, 75, 76):
         return False
     state.unknown_x_after_g28 = ("X" in words) or ("U" in words)
     state.unknown_z_after_g28 = ("Z" in words) or ("W" in words)

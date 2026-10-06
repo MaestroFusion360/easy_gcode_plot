@@ -29,6 +29,12 @@ def test_statistics_html_cannot_replace_input(tmp_path):
     assert path.read_text() == "M30"
 
 
+def test_statistics_html_creates_missing_parent_directory(tmp_path):
+    target = tmp_path / "nested" / "reports" / "statistics.html"
+    write_statistics_html(target, "report")
+    assert target.read_text(encoding="utf-8") == "report"
+
+
 def test_each_tool_bounds_include_arc_extrema_and_only_its_movements():
     result = execute(
         "G21 G90 G17\nT1 M6\nG0 X10 Y0\nG3 X-10 Y0 I-10 J0 F100\nT2 M6\nG0 X50 Y50 Z20\nG1 X60\nM30",

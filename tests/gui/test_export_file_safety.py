@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+from app.gcode.export_file import ExportRequest
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
 from app.ui.windows import main_window_file_ops as ops
@@ -36,12 +37,11 @@ def test_gui_dxf_preserves_previous_file_and_never_reports_cancel_as_success(tmp
     with pytest.raises(OSError if failure == "write" else InterruptedError):
         ops._write_export(
             None,
-            dxf_export=True,
             path=output,
             result=execute("G1 X10 F100", language="fanuc_mill"),
+            request=ExportRequest(language="fanuc_mill", format="dxf"),
+            source="",
             render_points=None,
-            lathe_mode=False,
-            text_snapshot=None,
             cancellation=cancellation,
         )
     assert output.read_text() == "PREVIOUS DXF"

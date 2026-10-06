@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.gcode.export.source_formatting import format_full_program_source
+from app.gcode.export.full import format_full_program_source
 from app.gcode.exporter import ExportOptions
 
 

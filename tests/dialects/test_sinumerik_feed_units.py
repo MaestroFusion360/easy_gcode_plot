@@ -2,8 +2,8 @@
 
 import pytest
 
-from app.gcode.export.options import ExportOptions
-from app.gcode.export.resolved import convert_resolved_program
+from app.gcode.export.common import ExportOptions
+from app.gcode.export.expanded import convert_resolved_program
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import trace_statistics
 
@@ -108,7 +108,7 @@ def test_known_unmodeled_commands_warn_and_continue(command):
 @pytest.mark.parametrize("scale", [1.0, 25.4])
 def test_inverse_time_native_export_roundtrip(scale):
     result = native("G93 G1 X25.4 F2\nG3 X0 Y25.4 CR=25.4 F4\nM30")
-    output = convert_resolved_program(result, "sinumerik_native", ExportOptions(output_unit_scale=scale))
+    output = convert_resolved_program(result, "sinumerik_840d", ExportOptions(output_unit_scale=scale))
     replay = native(output)
     assert replay.ok and replay.complete, replay.diagnostics
     assert [m.feed for m in replay.motions] == [2, 4]
@@ -121,4 +121,4 @@ def test_inverse_time_native_export_roundtrip(scale):
 def test_warning_geometry_cannot_be_converted_to_verified_nc():
     result = native("TRANS X10\nG1 X1 F100\nM30")
     with pytest.raises(ValueError, match="ignored SINUMERIK"):
-        convert_resolved_program(result, "sinumerik_native")
+        convert_resolved_program(result, "sinumerik_840d")

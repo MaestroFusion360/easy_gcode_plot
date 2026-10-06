@@ -1,13 +1,4 @@
 {
-  "app/gcode/export/dispatch.py:export_program:C901": 11,
-  "app/gcode/export/mill.py:export_full_mill_program:C901": 17,
-  "app/gcode/export/mill.py:export_full_mill_program:PLR0912": 17,
-  "app/gcode/export/mill.py:export_full_mill_program:PLR0915": 53,
-  "app/gcode/export/trace.py:export_result:C901": 17,
-  "app/gcode/export/trace.py:export_result:PLR0912": 18,
-  "app/gcode/export/turn.py:export_full_program:C901": 22,
-  "app/gcode/export/turn.py:export_full_program:PLR0912": 22,
-  "app/gcode/export/turn.py:export_full_program:PLR0915": 64,
   "app/gcode/kernel/turning/cycles/g71.py:build_g71_roughing:C901": 16,
   "app/gcode/kernel/turning/cycles/g71.py:build_g71_roughing:PLR0912": 15,
   "app/gcode/kernel/turning/cycles/g71.py:build_g71_roughing:PLR0915": 77,

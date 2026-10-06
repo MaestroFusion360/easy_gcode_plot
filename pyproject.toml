@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.9.2"
+version = "1.9.3"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -37,6 +37,7 @@ include = ["app", "app.*"]
 namespaces = false
 
 [tool.setuptools.package-data]
+"app.gcode.export" = ["posts/*.json"]
 "app.gcode" = ["templates/*.html", "templates/*.js"]
 "app.gcode.kernel.milling" = ["rotary_profiles.json"]
 "app.ui.generated" = ["*.ui"]

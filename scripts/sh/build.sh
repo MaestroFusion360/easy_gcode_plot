@@ -79,6 +79,7 @@ arguments=(
     --hidden-import app.gcode.kernel.milling._native_executor
     --add-data "$project_root/pyproject.toml:."
     --add-data "$project_root/app/gcode/kernel/milling/rotary_profiles.json:app/gcode/kernel/milling"
+    --add-data "$project_root/app/gcode/export/posts:app/gcode/export/posts"
     --add-data "$project_root/app/gcode/templates:app/gcode/templates"
 )
 

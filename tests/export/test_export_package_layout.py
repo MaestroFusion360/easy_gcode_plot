@@ -16,7 +16,6 @@ LEGACY_REEXPORTS = [
     ("app.gcode.exporter", "motion_line"),
     ("app.gcode.exporter", "export_full_program"),
     ("app.gcode.exporter", "export_full_mill_program"),
-    ("app.gcode.exporter", "export_cycle_groups"),
     ("app.gcode.exporter", "export_program"),
     ("app.gcode.exporter", "export_pgm"),
     ("app.gcode.exporter", "DXF_MODE"),
@@ -41,20 +40,31 @@ def test_legacy_package_attribute_access_matches_submodule_import():
     assert dxf_exporter.export_dxf is export_pkg.export_dxf
 
 
-def test_export_package_split_modules_own_one_responsibility():
-    from app.gcode.export import common, dispatch, dxf, dxf_geometry, formatting, mill, options, trace, turn
+def test_export_package_contains_only_three_paths_and_shared_helpers():
+    from pathlib import Path
 
-    assert callable(options.ExportOptions)
-    assert callable(formatting.motion_line)
-    assert callable(common._execution_slices)  # pylint: disable=protected-access
-    assert callable(trace.export_result)
-    assert callable(turn.export_full_program)
-    assert callable(turn.export_cycle_groups)
-    assert callable(mill.export_full_mill_program)
-    assert callable(dispatch.export_program)
-    assert callable(dxf.build_dxf_document)
-    assert callable(dxf.export_dxf)
-    assert callable(dxf_geometry._add_arc_or_circle)  # pylint: disable=protected-access
+    from app.gcode.export import common, expanded, full
+
+    folder = Path(export_pkg.__file__).parent
+    assert {path.name for path in folder.glob("*.py")} == {
+        "__init__.py",
+        "common.py",
+        "full.py",
+        "expanded.py",
+        "dxf.py",
+    }
+    assert {path.stem for path in (folder / "posts").glob("*.json")} == {
+        "fanuc_mill",
+        "fanuc_mill_multiaxis",
+        "fanuc_lathe_a",
+        "fanuc_lathe_b",
+        "sinumerik_iso",
+        "sinumerik_840d",
+        "sinumerik_840d_multiaxis",
+    }
+    assert callable(common.motion_line)
+    assert callable(full.normalize_full_program)
+    assert callable(expanded.convert_resolved_program)
 
 
 def test_dxf_import_is_lazy_for_gcode_only_callers():

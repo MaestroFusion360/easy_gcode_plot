@@ -6,13 +6,13 @@
             <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>380</width>
-                <height>430</height>
+                <width>660</width>
+                <height>470</height>
             </rect>
         </property>
         <property name="minimumSize">
             <size>
-                <width>380</width>
+                <width>620</width>
                 <height>430</height>
             </size>
         </property>
@@ -21,273 +21,388 @@
         </property>
         <layout class="QVBoxLayout" name="verticalLayout">
             <item>
-                <layout class="QGridLayout" name="gridLayout">
-                    <property name="leftMargin">
-                        <number>2</number>
-                    </property>
-                    <property name="rightMargin">
-                        <number>2</number>
-                    </property>
-                    <item row="7" column="0">
-                        <widget class="QLabel" name="label_seqStart">
-                            <property name="text">
-                                <string>Seq. Num. Start</string>
+                <layout class="QHBoxLayout" name="columnsLayout">
+                    <item>
+                        <layout class="QVBoxLayout" name="leftColumn">
+                            <item>
+                                <layout class="QGridLayout" name="gridLeftMode">
+                                    <property name="leftMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <property name="rightMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <item row="0" column="0">
+                                        <widget class="QLabel" name="label_Lang">
+                                            <property name="text">
+                                                <string>Export Type</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                        <widget class="QComboBox" name="langCmbBox"/>
+                                    </item>
+                                    <item row="1" column="0">
+                                        <widget class="QLabel" name="label_TargetCnc">
+                                            <property name="text">
+                                                <string>Target CNC</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="1">
+                                        <widget class="QComboBox" name="targetCncCombo"/>
+                                    </item>
+                                    <item row="2" column="0">
+                                        <widget class="QLabel" name="arcOutputLabel">
+                                            <property name="text">
+                                                <string>Arc Output</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="1">
+                                        <widget class="QComboBox" name="arcOutputCmbBox">
+                                            <item>
+                                                <property name="text">
+                                                    <string>IJK RELATIVE</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>IJK ABSOLUTE</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>R RADIUS</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>LINEARIZED</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item>
+                                <widget class="Line" name="leftSeparator">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Horizontal</enum>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <layout class="QGridLayout" name="gridLeftOutput">
+                                    <property name="leftMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <property name="rightMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <item row="0" column="0">
+                                        <widget class="QLabel" name="modalFeedLabel">
+                                            <property name="text">
+                                                <string>Modal Feed</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                        <widget class="QComboBox" name="modalFeedCombo">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="0">
+                                        <widget class="QLabel" name="decimalPlacesLabel">
+                                            <property name="text">
+                                                <string>Decimal Places</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="1">
+                                        <widget class="QSpinBox" name="decimalPlacesSpin">
+                                            <property name="maximum">
+                                                <number>12</number>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="0">
+                                        <widget class="QLabel" name="forceDecimalLabel">
+                                            <property name="text">
+                                                <string>Force Decimal</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="1">
+                                        <widget class="QComboBox" name="forceDecimalCombo">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                    <item row="3" column="0">
+                                        <widget class="QLabel" name="plusSignLabel">
+                                            <property name="text">
+                                                <string>Plus Sign</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="3" column="1">
+                                        <widget class="QComboBox" name="plusSignCombo">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item>
+                                <spacer name="leftSpacer">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Vertical</enum>
+                                    </property>
+                                    <property name="sizeHint" stdset="0">
+                                        <size>
+                                            <width>20</width>
+                                            <height>40</height>
+                                        </size>
+                                    </property>
+                                </spacer>
+                            </item>
+                        </layout>
+                    </item>
+                    <item>
+                        <widget class="Line" name="columnSeparator">
+                            <property name="orientation">
+                                <enum>Qt::Orientation::Vertical</enum>
                             </property>
                         </widget>
                     </item>
-                    <item row="1" column="0">
-                        <widget class="QLabel" name="labelForce">
-                            <property name="text">
-                                <string>Address Force Output </string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="3" column="1">
-                        <widget class="QLineEdit" name="startLineEdit">
-                            <property name="enabled">
-                                <bool>true</bool>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="5" column="1">
-                        <widget class="QComboBox" name="safLineCmbBox">
+                    <item>
+                        <layout class="QVBoxLayout" name="rightColumn">
                             <item>
-                                <property name="text">
-                                    <string>No</string>
-                                </property>
+                                <layout class="QGridLayout" name="gridRightProgram">
+                                    <property name="leftMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <property name="rightMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <item row="0" column="0">
+                                        <widget class="QLabel" name="label_StartText">
+                                            <property name="text">
+                                                <string>Start Program Text</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                        <widget class="QLineEdit" name="startLineEdit"/>
+                                    </item>
+                                    <item row="1" column="0">
+                                        <widget class="QLabel" name="label_EndText">
+                                            <property name="text">
+                                                <string>End Program Text</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="1">
+                                        <widget class="QLineEdit" name="endLineEdit"/>
+                                    </item>
+                                    <item row="2" column="0">
+                                        <widget class="QLabel" name="label_SafLine">
+                                            <property name="text">
+                                                <string>Safety Line</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="1">
+                                        <widget class="QComboBox" name="safLineCmbBox">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                </layout>
                             </item>
                             <item>
-                                <property name="text">
-                                    <string>Yes</string>
-                                </property>
-                            </item>
-                        </widget>
-                    </item>
-                    <item row="0" column="0">
-                        <widget class="QLabel" name="label_Lang">
-                            <property name="text">
-                                <string>Export Type</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="9" column="1">
-                        <widget class="QComboBox" name="delimCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>No</string>
-                                </property>
+                                <widget class="Line" name="rightSeparator">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Horizontal</enum>
+                                    </property>
+                                </widget>
                             </item>
                             <item>
-                                <property name="text">
-                                    <string>Yes</string>
-                                </property>
-                            </item>
-                        </widget>
-                    </item>
-                    <item row="0" column="1">
-                        <widget class="QComboBox" name="langCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>ISO IJ ARC INCR</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>ISO IJ ARC ABS</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>ISO R ARC</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>ISO NO ARC</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>PLOT DATA</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>EXPANDED TURN PROGRAM</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>EXPANDED MILL PROGRAM</string>
-                                </property>
-                            </item>
-                        </widget>
-                    </item>
-                    <item row="8" column="0">
-                        <widget class="QLabel" name="label_seqInterval">
-                            <property name="text">
-                                <string>Seq. Num. Interval</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="7" column="1">
-                        <widget class="QSpinBox" name="seqStartSpinBox">
-                            <property name="minimum">
-                                <number>1</number>
-                            </property>
-                            <property name="maximum">
-                                <number>99999</number>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="2" column="0">
-                        <widget class="QLabel" name="label_Incr">
-                            <property name="text">
-                                <string>Coordinates</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="3" column="0">
-                        <widget class="QLabel" name="label_StartText">
-                            <property name="text">
-                                <string>Start Program Text</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="9" column="0">
-                        <widget class="QLabel" name="label_Delim">
-                            <property name="text">
-                                <string>Delimeter</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="6" column="1">
-                        <widget class="QComboBox" name="seqNumCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>No</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>Yes</string>
-                                </property>
-                            </item>
-                        </widget>
-                    </item>
-                    <item row="2" column="1">
-                        <widget class="QComboBox" name="incrCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>G90 Absolute</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>G91 Incremental</string>
-                                </property>
-                            </item>
-                        </widget>
-                    </item>
-                    <item row="8" column="1">
-                        <widget class="QSpinBox" name="seqIntervalSpinBox">
-                            <property name="minimum">
-                                <number>1</number>
-                            </property>
-                            <property name="maximum">
-                                <number>99999</number>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="1" column="1">
-                        <widget class="QComboBox" name="forceCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>No</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>Yes</string>
-                                </property>
-                            </item>
-                        </widget>
-                    </item>
-                    <item row="5" column="0">
-                        <widget class="QLabel" name="label_SafLine">
-                            <property name="text">
-                                <string>Safety Line</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="6" column="0">
-                        <widget class="QLabel" name="label_SeqNum">
-                            <property name="text">
-                                <string>Seq. Num.</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="4" column="0">
-                        <widget class="QLabel" name="label_EndText">
-                            <property name="text">
-                                <string>End Program Text</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="4" column="1">
-                        <widget class="QLineEdit" name="endLineEdit"/>
-                    </item>
-                    <item row="10" column="1">
-                        <widget class="QComboBox" name="leadingZeroCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>No</string>
-                                </property>
+                                <layout class="QGridLayout" name="gridRightFormat">
+                                    <property name="leftMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <property name="rightMargin">
+                                        <number>2</number>
+                                    </property>
+                                    <item row="0" column="0">
+                                        <widget class="QLabel" name="label_Incr">
+                                            <property name="text">
+                                                <string>Coordinates</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                        <widget class="QComboBox" name="incrCmbBox">
+                                            <item>
+                                                <property name="text">
+                                                    <string>G90 Absolute</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>G91 Incremental</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="0">
+                                        <widget class="QLabel" name="label_SeqNum">
+                                            <property name="text">
+                                                <string>Seq. Num.</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="1">
+                                        <widget class="QComboBox" name="seqNumCmbBox">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="0">
+                                        <widget class="QLabel" name="label_seqStart">
+                                            <property name="text">
+                                                <string>Seq. Num. Start</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="1">
+                                        <widget class="QSpinBox" name="seqStartSpinBox">
+                                            <property name="minimum">
+                                                <number>1</number>
+                                            </property>
+                                            <property name="maximum">
+                                                <number>99999</number>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="3" column="0">
+                                        <widget class="QLabel" name="label_seqInterval">
+                                            <property name="text">
+                                                <string>Seq. Num. Interval</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="3" column="1">
+                                        <widget class="QSpinBox" name="seqIntervalSpinBox">
+                                            <property name="minimum">
+                                                <number>1</number>
+                                            </property>
+                                            <property name="maximum">
+                                                <number>99999</number>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="4" column="0">
+                                        <widget class="QLabel" name="label_Delim">
+                                            <property name="text">
+                                                <string>Delimeter</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="4" column="1">
+                                        <widget class="QComboBox" name="delimCmbBox">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                    <item row="5" column="0">
+                                        <widget class="QLabel" name="labelLeadingZero">
+                                            <property name="text">
+                                                <string>Leading Zero (G,M,T,H,D)</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="5" column="1">
+                                        <widget class="QComboBox" name="leadingZeroCmbBox">
+                                            <item>
+                                                <property name="text">
+                                                    <string>No</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Yes</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                </layout>
                             </item>
                             <item>
-                                <property name="text">
-                                    <string>Yes</string>
-                                </property>
+                                <spacer name="rightSpacer">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Vertical</enum>
+                                    </property>
+                                    <property name="sizeHint" stdset="0">
+                                        <size>
+                                            <width>20</width>
+                                            <height>40</height>
+                                        </size>
+                                    </property>
+                                </spacer>
                             </item>
-                        </widget>
-                    </item>
-                    <item row="10" column="0">
-                        <widget class="QLabel" name="labelLeadingZero">
-                            <property name="text">
-                                <string>Leading Zero (G,M,T,H,D)</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="11" column="0">
-                        <widget class="QLabel" name="arcOutputLabel">
-                            <property name="text">
-                                <string>Arc Output</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item row="11" column="1">
-                        <widget class="QComboBox" name="arcOutputCmbBox">
-                            <item>
-                                <property name="text">
-                                    <string>IJK RELATIVE</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>IJK ABSOLUTE</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>R RADIUS</string>
-                                </property>
-                            </item>
-                            <item>
-                                <property name="text">
-                                    <string>LINEARIZED</string>
-                                </property>
-                            </item>
-                        </widget>
+                        </layout>
                     </item>
                 </layout>
             </item>
@@ -305,14 +420,21 @@
     </widget>
     <tabstops>
         <tabstop>langCmbBox</tabstop>
-        <tabstop>forceCmbBox</tabstop>
-        <tabstop>incrCmbBox</tabstop>
+        <tabstop>targetCncCombo</tabstop>
+        <tabstop>arcOutputCmbBox</tabstop>
+        <tabstop>modalFeedCombo</tabstop>
+        <tabstop>decimalPlacesSpin</tabstop>
+        <tabstop>forceDecimalCombo</tabstop>
+        <tabstop>plusSignCombo</tabstop>
         <tabstop>startLineEdit</tabstop>
         <tabstop>endLineEdit</tabstop>
         <tabstop>safLineCmbBox</tabstop>
+        <tabstop>incrCmbBox</tabstop>
         <tabstop>seqNumCmbBox</tabstop>
         <tabstop>seqStartSpinBox</tabstop>
         <tabstop>seqIntervalSpinBox</tabstop>
+        <tabstop>delimCmbBox</tabstop>
+        <tabstop>leadingZeroCmbBox</tabstop>
     </tabstops>
     <resources/>
     <connections>

@@ -7,12 +7,16 @@ import json
 from collections import Counter
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
+from io import StringIO
 from pathlib import Path
 from time import perf_counter
 from typing import Callable, Iterable
 
 from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, _normalize_extensions, discover_nc_files
-from app.gcode.export.service import ExportRequest, export_file, request_document
+from app.gcode.export.common import is_export_limitation
+from app.gcode.export.expanded import load_post_profile
+from app.gcode.export_file import ExportRequest, export_file, request_document
+from app.gcode.file_io import atomic_write_text
 from app.gcode.kinematics_report import kinematics_report_fields
 from app.gcode.source_mode import source_dialect_for_path
 
@@ -27,8 +31,8 @@ def _destination(
     suffix = (
         ".dxf"
         if request.format == "dxf"
-        else ".mpf"
-        if request.target_dialect in ("sinumerik840d", "sinumerik_iso", "sinumerik_native")
+        else "." + load_post_profile(request.target_dialect)["extension"]
+        if request.target_dialect
         else ".nc"
     )
     if path.suffix.lower() in source_extensions:
@@ -85,6 +89,10 @@ def _file_report(
             report["output_path"] = str(destination)
             report["output_relative_path"] = destination.relative_to(output_root).as_posix()
             report["output_size_bytes"] = exported.output_size_bytes
+        elif any(is_export_limitation(item) for item in diagnostics) and not any(
+            item.severity == "error" and not is_export_limitation(item) for item in diagnostics
+        ):
+            report["status"] = "UNSUPPORTED"
     report["diagnostic_count"] = len(report["diagnostics"])
     report["elapsed_ms"] = round((perf_counter() - started) * 1000, 3)
     return report
@@ -114,6 +122,15 @@ def export_directory(
     if unknown:
         raise ValueError(f"Kinematics map references an undiscovered file: {sorted(unknown)[0]}")
     destinations = [_destination(path, directory, destination_root, request, normalized_extensions) for path in paths]
+    reserved_reports = {
+        (destination_root / f"{REPORT_BASENAME}.{suffix}").as_posix().casefold() for suffix in ("json", "csv")
+    }
+    collision = next(
+        (path for path in destinations if path.as_posix().casefold() in reserved_reports),
+        None,
+    )
+    if collision is not None:
+        raise ValueError(f"Export destination conflicts with batch manifest: {collision.name}")
     duplicates = [
         name for name, count in Counter(path.as_posix().casefold() for path in destinations).items() if count > 1
     ]
@@ -130,7 +147,15 @@ def export_directory(
             on_file(item)
     counts = Counter(item["status"] for item in files)
     status = (
-        "NO_FILES" if not files else "ERRORS" if counts["ERRORS"] else "WARNINGS" if counts["WARNINGS"] else "CLEAN"
+        "NO_FILES"
+        if not files
+        else "ERRORS"
+        if counts["ERRORS"]
+        else "UNSUPPORTED"
+        if counts["UNSUPPORTED"]
+        else "WARNINGS"
+        if counts["WARNINGS"]
+        else "CLEAN"
     )
     return {
         "schema_version": REPORT_SCHEMA_VERSION,
@@ -151,6 +176,7 @@ def export_directory(
         "summary": {
             "files_total": len(files),
             "exported": counts["EXPORTED"] + counts["WARNINGS"],
+            "unsupported": counts["UNSUPPORTED"],
             "warnings": counts["WARNINGS"],
             "errors": counts["ERRORS"],
             "diagnostics_total": sum(int(item["diagnostic_count"]) for item in files),
@@ -166,7 +192,11 @@ def write_export_reports(report: dict[str, object], output_root: str | Path) -> 
     directory.mkdir(parents=True, exist_ok=True)
     json_path = directory / f"{REPORT_BASENAME}.json"
     csv_path = directory / f"{REPORT_BASENAME}.csv"
-    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n")
+    atomic_write_text(
+        json_path,
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     fieldnames = (
         "input_relative_path",
         "output_relative_path",
@@ -187,12 +217,13 @@ def write_export_reports(report: dict[str, object], output_root: str | Path) -> 
         "kinematics_definition",
         "source_dialect",
     )
-    with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fieldnames)
-        writer.writeheader()
-        for item in report["files"]:
-            row = {name: item.get(name) for name in fieldnames}
-            row["kinematics_definition"] = json.dumps(item.get("kinematics_definition"), sort_keys=True)
-            row["diagnostics"] = "; ".join(f"{entry['code']}: {entry['message']}" for entry in item["diagnostics"])
-            writer.writerow(row)
+    stream = StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=fieldnames)
+    writer.writeheader()
+    for item in report["files"]:
+        row = {name: item.get(name) for name in fieldnames}
+        row["kinematics_definition"] = json.dumps(item.get("kinematics_definition"), sort_keys=True)
+        row["diagnostics"] = "; ".join(f"{entry['code']}: {entry['message']}" for entry in item["diagnostics"])
+        writer.writerow(row)
+    atomic_write_text(csv_path, stream.getvalue(), encoding="utf-8-sig")
     return json_path, csv_path

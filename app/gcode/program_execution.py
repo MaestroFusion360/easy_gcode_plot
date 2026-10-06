@@ -42,6 +42,7 @@ def execute_program(
             raise SemanticError("EXECUTION_CANCELLED", "Tool discovery cancelled", "resource_limit") from exc
         return deepcopy(tools) if correction_enabled else {}
 
+    kernel_options["milling_correction_enabled"] = bool(correction_enabled)
     result = execute(
         source,
         language=language,

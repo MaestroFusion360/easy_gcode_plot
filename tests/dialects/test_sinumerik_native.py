@@ -10,11 +10,12 @@ from math import dist
 from pathlib import Path
 
 import pytest
+from export_signatures import _motion_trace_signature
 
-from app.gcode.export.mill import export_full_mill_program
-from app.gcode.export.options import ExportOptions
-from app.gcode.export.trace import export_result
-from app.gcode.export.validation import _motion_trace_signature
+from app.gcode.comments import strip_comments
+from app.gcode.export.common import ExportOptions
+from app.gcode.export.expanded import export_result
+from app.gcode.export.full import export_full_mill_program
 from app.gcode.kernel import execute
 from app.gcode.program_execution import execute_program
 
@@ -74,7 +75,7 @@ def test_native_trace_export_roundtrips_to_fanuc_geometry():
         language="fanuc_mill",
         source_dialect="sinumerik",
     )
-    nc = export_result(native, ExportOptions(include_execution_events=False, safety_line=True, delimiter=True))
+    nc = export_result(native, ExportOptions(safety_line=True, delimiter=True))
     replay = execute(nc, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
     assert len(replay.motions) == len(native.motions)
@@ -84,7 +85,8 @@ def test_native_trace_export_roundtrips_to_fanuc_geometry():
         if source.arc:
             assert target.arc is not None
             assert dist(source.arc.center, target.arc.center) < 0.000002
-    assert "SUPA" not in nc and "CR=" not in nc and "WORKPIECE" not in nc
+    code_only = "\n".join(strip_comments(line) for line in nc.splitlines())
+    assert "SUPA" not in code_only and "CR=" not in code_only and "WORKPIECE" not in code_only
 
 
 def test_supa_zero_uses_configured_reference_with_nonzero_home_and_wcs():
@@ -100,7 +102,7 @@ def test_supa_zero_uses_configured_reference_with_nonzero_home_and_wcs():
     assert _end(result.motions[-1]) == (11, 22, 104)
     assert not any(event.kind == "HOME_RETURN" and event.source_block == 3 for event in result.events)
     nc = export_result(result, ExportOptions(safety_line=True, delimiter=True))
-    replay = execute(nc, language="fanuc_mill", home_z=500, wcs_offsets={54: (10, 20, 100)})
+    replay = execute(nc, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
     assert [_end(m) for m in replay.motions] == [_end(m) for m in result.motions]
 

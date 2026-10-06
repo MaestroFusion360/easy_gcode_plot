@@ -202,16 +202,12 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Are exporters separate G-code interpreters?](#are-exporters-separate-g-code-interpreters)
     - [What does Full Program mean?](#what-does-full-program-mean)
     - [What does Expanded Execution mean?](#what-does-expanded-execution-mean)
-    - [What is the analysis banner?](#what-is-the-analysis-banner)
-    - [What is turning cycle-group export?](#what-is-turning-cycle-group-export)
-    - [What is Plot Data export?](#what-is-plot-data-export)
     - [What does DXF contain?](#what-does-dxf-contain)
     - [Does DXF parse the G-code again?](#does-dxf-parse-the-g-code-again)
     - [Which NC formatting options exist?](#which-nc-formatting-options-exist)
     - [Which milling Expanded arc output modes exist?](#which-milling-expanded-arc-output-modes-exist)
     - [What happens when a full circle is exported in R mode?](#what-happens-when-a-full-circle-is-exported-in-r-mode)
     - [Can Expanded NC be converted between millimetres and inches?](#can-expanded-nc-be-converted-between-millimetres-and-inches)
-    - [Why can explicit unit conversion be rejected?](#why-can-explicit-unit-conversion-be-rejected)
     - [Can Full Program be forced to mm or inch?](#can-full-program-be-forced-to-mm-or-inch)
     - [What units does DXF use?](#what-units-does-dxf-use)
     - [Can comments be removed from export?](#can-comments-be-removed-from-export)
@@ -222,7 +218,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [How are MPF and SPF files detected?](#how-are-mpf-and-spf-files-detected)
     - [Can FANUC milling programs be converted to SINUMERIK?](#can-fanuc-milling-programs-be-converted-to-sinumerik)
     - [Can SINUMERIK native milling programs be converted to FANUC?](#can-sinumerik-native-milling-programs-be-converted-to-fanuc)
-    - [How do Full Program and Resolved conversion differ?](#how-do-full-program-and-resolved-conversion-differ)
+    - [How do Full Program and Expanded Execution differ?](#how-do-full-program-and-expanded-execution-differ)
     - [Is SINUMERIK lathe supported?](#is-sinumerik-lathe-supported)
   - [CLI](#cli)
     - [Does the CLI use the same kernel as the GUI?](#does-the-cli-use-the-same-kernel-as-the-gui)
@@ -258,7 +254,6 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What are batch-export statuses?](#what-are-batch-export-statuses)
     - [Which export modes are available from the CLI?](#which-export-modes-are-available-from-the-cli)
     - [Which options are intentionally rejected in Full Program mode?](#which-options-are-intentionally-rejected-in-full-program-mode)
-    - [Which options are rejected for turning cycle export?](#which-options-are-rejected-for-turning-cycle-export)
     - [Can sequence start/increment be supplied without sequence numbers?](#can-sequence-startincrement-be-supplied-without-sequence-numbers)
     - [Are there preset batch-export scripts?](#are-there-preset-batch-export-scripts)
   - [Configuration](#configuration)
@@ -402,7 +397,7 @@ uv run --no-dev python main.py
 3. Configure WCS, home and tools when the program requires them.
 4. Refresh the execution result.
 5. Inspect the trajectory, playback, diagnostics and statistics.
-6. Export the full program, expanded execution, cycle groups, plot data or DXF when required.
+6. Export FULL, EXPANDED or DXF when required.
 
 ### Which input encodings are supported?
 
@@ -1941,90 +1936,69 @@ If no execution result exists, there is no variable history to show. If the sour
 
 ### Which GUI export families exist?
 
-The project contains exporters for:
+The program has three NC/geometry export families:
 
-- Turning Full Program;
-- Milling Full Program;
-- Expanded Execution;
-- turning cycle groups;
-- Plot Data;
-- DXF trajectory;
-- Tool List text report.
+- **FULL** — source-preserving NC normalization;
+- **EXPANDED** — resolved geometry/state through a controller post profile;
+- **DXF** — toolpath geometry.
+
+Tool List and Statistics reports are separate report exports, not NC export modes.
 
 ### Are exporters separate G-code interpreters?
 
-No. Exporters consume `ExecutionResult`, resolved motions and execution-step/event metadata.
-
-They do not execute a second independent CNC model.
+No. FULL uses the exact source together with its authoritative execution map. EXPANDED and DXF consume resolved execution geometry/state. None of them runs a second CNC interpreter.
 
 ### What does Full Program mean?
 
-For SINUMERIK native with **As source** or **SINUMERIK native** selected, Full Program instead formats the original program without flattening its geometry. Native functions, expressions, modal commands, CYCLE800 and TRAORI remain intact. The CLI equivalent is `--mode full --target-dialect sinumerik_native`.
-
-Full Program is a flattened executable-style export that preserves controller/context blocks and comments where appropriate while replacing geometry with authoritative executed geometry.
-
-Subprogram calls are flattened in actual execution order rather than copied as an untouched source tree.
-
-The turning and milling Full Program exporters deliberately retain more controller structure than Expanded Execution, but they are still built from the executed result rather than being simple source-file copies.
+FULL preserves ordinary source blocks, comments, modal commands, controller dialect and supported cycles. Flow/label-dependent constructs are unfolded from the execution map before renumbering: evaluated Macro B, IF/GOTO/WHILE, G65 and M98/M99 calls, and FANUC turning G70–G76. FULL does not convert the program to another controller.
 
 ### What does Expanded Execution mean?
 
-Expanded Execution serializes the resolved logical execution trace.
+EXPANDED is the controller-conversion path. One generic postprocessor emits resolved geometry and machine state through a JSON profile. Cycles, variables and subprogram flow have already been executed. Target profiles define syntax, mandatory frames, capabilities and defaults; they do not disable user output options.
 
-That means it can flatten:
+Bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`, `fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d` and `sinumerik_840d_multiaxis`; an external JSON path can be supplied with `--post-profile`. The `*_multiaxis` profiles declare `supports.axes` `X/Y/Z/A/B/C` and emit explicit resolved rotary coordinates; the three-axis profiles stay XYZ-only and still reject rotary geometry.
 
-- subprogram calls;
-- Macro B loops and branches;
-- generated canned-cycle motions;
-- cycle expansions;
-- resolved compensation where verified.
+### What does Auto (source controller) mean?
 
-It can also emit structural execution events as comments/control records where appropriate.
+`Auto (source controller)` is not a separate capability mode. It automatically selects the post profile that matches the source controller and dialect: FANUC turning uses the Type A/B lathe profile, FANUC milling uses `fanuc_mill`, SINUMERIK ISO uses `sinumerik_iso` and native SINUMERIK uses `sinumerik_840d`. EXPANDED always re-serializes the resolved execution, so even "Auto" is a conversion; it simply does not require you to name a target.
 
-### What is the analysis banner?
+### How does Modal Feed work?
 
-Expanded text output can include:
+`Modal Feed` controls whether `F` is restated: **Yes** emits `F` only when the feed or feed mode changes, **No** restates `F` on every cutting motion.
 
-```text
-(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)
-```
+### Can I choose formatting options when converting to a specific controller?
 
-The banner exists to distinguish generated resolved execution from original controller source.
-
-### What is turning cycle-group export?
-
-CLI mode `cycles` exports only executed turning-cycle groups. Each generated group is annotated and emitted using the execution-step unit/X-programming state.
-
-It is only available for `fanuc_turn` and is not a generic milling export mode.
-
-### What is Plot Data export?
-
-Plot Data serializes the resolved logical trace as point-to-point output intended for geometry consumption rather than controller-structure preservation.
+Yes. EXPANDED treats Target CNC as the target syntax/post profile, not as a capability switch. Coordinates (G90/G91), sequence numbers, delimiter, leading zero, modal feed, decimal precision, force decimal, plus sign, arc output and start/end program text remain available and are honored for FANUC → FANUC, FANUC → SINUMERIK ISO, FANUC → SINUMERIK native and SINUMERIK → FANUC. A profile default applies only when you did not choose a value. If a profile declares a mandatory prefix (for example `G290`/`G291`), that prefix stays physically first and your start text follows it. A profile is only consulted for genuine capability limits: rotary/TWP/TCP, a missing axis or an unsupported arc/feed state.
 
 ### What does DXF contain?
 
-DXF is generated from resolved geometry. Rapid and cutting motion use separate layers.
-
-Turning is exported in the plot-aligned Z/X representation. Milling exports 3D line/arc/circle geometry where representable.
+DXF contains the available resolved motion geometry. Rapid and cutting motions use separate layers. Turning uses the plot-aligned Z/X representation; milling writes 3D lines and analytical arcs/circles where representable, with sampled polylines for geometry that cannot be represented as one DXF arc.
 
 ### Does DXF parse the G-code again?
 
-No. It consumes resolved trace geometry.
+No. The DXF writer consumes motion geometry and does not interpret controller words or NC formatting options.
 
 ### Which NC formatting options exist?
 
 Shared export options include:
 
 - absolute/incremental coordinates where supported;
-- force addresses;
 - sequence numbers;
 - sequence start and increment;
 - sequence-number spacing;
 - spaces/no spaces between words;
 - leading zeroes (`G01` versus `G1`);
 - comments/no comments;
-- safety line;
+- safety line (the profile's declared safe restart block);
+- decimal precision, force decimal and plus sign;
+- start and end program text;
 - milling arc representation.
+
+For EXPANDED these options are user-owned: the target profile supplies syntax and a default only for values you do not set. A profile-defined mandatory frame stays first and your start text follows it.
+
+### How does a post profile control word order and mandatory addresses?
+
+The profile's `format.words` object gives every frame token an `order` and a `required` flag: `motion`, `X`, `Y`, `Z`, `A`, `B`, `C`, `I`, `J`, `K` and `R`. `required=true` emits the address whenever it has a resolved value (for example `Y0` instead of omitting zero `Y`); `required=false` allows the serializer's normal omission of an unchanged value. `motion.required=false` makes the motion code modal, so `G1` is restated only when the motion changes. Per-word `decimals`/`sign` are stored in the same object. An axis entry is only accepted when that axis is declared in `supports.axes`, and `F` is deliberately excluded because feed is controlled by Modal Feed. Address requiredness is a property of a specific post/controller, so it lives only in the profile and has no separate GUI/CLI switch.
 
 ### Which milling Expanded arc output modes exist?
 
@@ -2038,7 +2012,7 @@ radius
 linearized
 ```
 
-`auto` detects the source IJK convention per program and chooses a compatible resolved export representation.
+`auto` uses the post profile convention. The four explicit modes are relative IJK, absolute IJK, radius and linearized. Source arc syntax has already been resolved before posting. Native SINUMERIK profiles render absolute centers as `I=AC(...)` / `J=AC(...)` / `K=AC(...)` and radius arcs as `CR=`.
 
 ### What happens when a full circle is exported in R mode?
 
@@ -2046,30 +2020,9 @@ It is emitted as two exact semicircular R arcs.
 
 ### Can Expanded NC be converted between millimetres and inches?
 
-Yes, for source programs whose non-motion controller operands can be preserved safely.
+Yes. Unit conversion is applied to resolved geometry/state at the postprocessor boundary. Coordinates, arc geometry, I/J/K or radius output, feeds and supported controller state are emitted in the requested units and replay-tested by the export suite.
 
-The conversion scales resolved geometry at the export boundary, including coordinates, arc geometry, I/J/K, radius and feed values represented in the motion trace.
-
-### Why can explicit unit conversion be rejected?
-
-Some control blocks contain dimensioned operands that are not represented solely by resolved `TraceMotion`. Current export therefore refuses explicit NC unit conversion when execution contains source operands for:
-
-```text
-G4
-G10
-G28
-G30
-G50
-G51
-G52
-G53
-G68
-G69
-G92
-G96
-```
-
-This is a conservative safety rule. The exporter does not rewrite such operands by heuristic text scaling.
+FULL remains source-preserving and therefore accepts only `--units auto`.
 
 ### Can Full Program be forced to mm or inch?
 
@@ -2083,7 +2036,7 @@ DXF can be emitted in millimetres or inches. `auto` keeps the current default DX
 
 ### Can comments be removed from export?
 
-Yes. The shared `include_comments`/`--no-comments` option applies to source comments retained by Full Program and generated comments/annotations in expanded output.
+Yes. `--no-comments` removes source comments from FULL and suppresses source comments carried into EXPANDED. EXPANDED comment syntax comes from the selected post profile.
 
 ### Are exports written atomically by the CLI service?
 
@@ -2146,9 +2099,7 @@ Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc
 
 The GUI/CLI/kernel also supports a bounded TRAORI/TRAFOOF TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured numeric A/B/C assignments and direct R references follow G90/G91; rotary TCP arcs retain analytical Cartesian geometry and orientation endpoints. The GUI preserves rotary selection and executes native AC/BC programs through the same kernel. CYCLE800 builds its own Siemens rotation matrix and uses the common TWP solver/rebasing. FR0/1/2 are logical retract requests, with no OEM retract trajectory; FR_I must be zero/blank and DMODE0/1 is supported. DIR chooses the principal first-table-joint branch. IC(numeric/direct R) is incremental independently of G90/G91. ORI*, TRANS/AROT, FGROUP, FL[], FGREF[], SPOS, CUT3DC/CUT3DF/CUT3DFF and path-control extensions are parsed with unverified warnings; their effects are not simulated. Arbitrary Siemens subprogram calls remain fail-closed. Cancel TCP before G290/G291; active TCP transitions are rejected. Native MCALL and G41/G42 cannot be activated under TCP, and active MCALL must be cancelled before rotary positioning. No multi-axis controller conversion is enabled.
 
-Regression fixtures are `tests/fixtures/milling/contur_2d_sin840d.mpf` / `contur_2d.nc` and `cycles_sin840d.mpf` / `cycles_fanuc.nc`. Comparisons account for CAM rounding and actual differences in retract commands and peck parameters. A native `CYCLE83` with a decreasing step is not identical to FANUC `G83 Q1`. Native trace export to FANUC is tested by re-executing the exported geometry. Native SINUMERIK -> FANUC milling **Full Program** now uses the kernel's normalized execution words and re-executes the target to verify geometry, feed mode and machine signals. Supported units G70/G71/G700/G710 and G93 are preserved. Safe metadata warnings remain in source diagnostics; CYCLE81/82/83/84 conversion is described below; unsupported frames, orientation and rotary/TCP semantics block conversion. FANUC -> native Full Program remains unavailable.
-
-Conversion places G291 in the first frame, before all comments and headers. It preserves G43/H and G49. O0001 becomes (O0001); standalone % delimiters are removed. Actual rotary/TCP/TWP programs remain unsupported. Controller H-table offsets are not applied to plotted geometry.
+EXPANDED profiles are tested by re-executing output and comparing geometry, feeds and machine signals. FULL preserves the source dialect.
 
 In `G291`, common integer milling G codes, unit selection, coordinate systems, selected canned cycles and `G50/G51` are accepted. Extended work offsets use `G54 P1..P48`; source `G54.1` and other decimal G codes are rejected, though `G54 Pn` is normalized internally to the milling kernel's `G54.1 Pn` form. Ordinary `G91` incremental positioning is supported. G68 is limited to a standalone 2D form with `G90` active, only the center axes of the active plane and `R`, and no `I/J/K`; incremental-angle and 3D-vector forms are rejected. `G69` is supported. Macro B flow and unsupported ISO functions stop with diagnostics. `G51` uses the modeled `P/1000` scale weighting; machine-specific alternative weighting is not modeled.
 
@@ -2160,50 +2111,32 @@ The GUI Open/Save filters include `.mpf` and `.spf`. The CLI and batch scanner i
 
 ### Can FANUC milling programs be converted to SINUMERIK?
 
-Yes. **Full Program** converts the supported three-axis `fanuc_mill` subset to **SINUMERIK ISO Dialect M (`G291`)**. Choose **MILL FULL PROGRAM → SINUMERIK 840D ISO-M (G291)** in the GUI, or use:
+Yes. Choose **EXPANDED EXECUTION** and the target controller. The postprocessor consumes resolved kernel geometry; `sinumerik_iso` emits ISO-M with G291, and `sinumerik_840d` emits native with G290.
 
 ```powershell
-.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode full --target-dialect sinumerik_iso -o iso_part.mpf
+.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
 ```
-
-The converter preserves source blocks, supported ISO milling cycles and tool/spindle/coolant commands, including `G43 H...` and `G49`. It inserts a standalone `G291` before the header, converts the `O` program number to a comment and removes standalone `%` delimiters. The legacy target `sinumerik840d` is an alias for ISO-M in Full Program mode. The reverse **SINUMERIK ISO-M → FANUC Mill** direction removes the standalone `G291` and validates the FANUC result.
-
-Only the verified ISO-M subset is accepted: unsupported commands, Macro B control flow, unverified compensation and actual rotary/TWP/TCP programs block conversion. Selecting a rotary profile alone does not block an XYZ-only program. Full Program does not translate FANUC into native Siemens commands such as `CYCLE800` or `TRAORI`.
 
 ### Can SINUMERIK native milling programs be converted to FANUC?
 
-Yes, within the supported **three-axis native milling subset**. MPF/SPF inputs start in native mode; `--lang fanuc_mill` selects the shared milling geometry model. Choose **MILL FULL PROGRAM → FANUC milling** in the GUI, or use:
+Yes, for supported three-axis geometry. Parameters and CYCLE81/82/83/84 have already been executed by the kernel; EXPANDED emits the resulting motions, feeds, dwell and machine signals. Source MCALL and cycle definitions are absent from the output. Rotary/TWP/TCP and unverified geometry-changing commands are rejected.
 
 ```powershell
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full --target-dialect fanuc_mill -o fanuc_part.nc
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc
 ```
 
-Full Program retains the order of source operations and comments, normalizing supported native syntax from kernel execution. Parameters and expressions become evaluated values at their use sites; it does not translate Siemens macro source into Macro B. Supported units `G70/G71/G700/G710`, inverse-time feed `G93`, ordinary XYZ motion and arc geometry are converted to FANUC words. Numeric tool changes use `T... M6`; native `D1` uses the active tool number for `H`/cutter `D`, and `D0` cancels length compensation with `G49`. The selected comment style is applied, and FANUC comments are uppercased.
+### How do Full Program and Expanded Execution differ?
 
-| Native drilling operation | Full Program FANUC output |
-| --- | --- |
-| `MCALL CYCLE81/82(...)` | `G81` without dwell, `G82 P...` with dwell; `P` is milliseconds. Hole positions remain modal where equivalent. |
-| `MCALL CYCLE83(...)` | Explicit local `G0/G1` pecks preserving the executed first depth, degression, minimum step, feed factor and return/reentry planes. It is not replaced by a different constant-step `G83 Q...`. |
-| Supported `MCALL CYCLE84(...)` | `M29` and `G99 G84`, preserving tapping feed, dwell and synchronized feed withdrawal to the safety plane, then `G80` and rapid return to `RTP`. |
-| Bare `MCALL` | Cancels the target canned cycle with `G80` when active and restores the source motion mode. |
+**FULL** answers “keep this controller program, but normalize it safely.” It preserves ordinary source structure and the source controller/dialect; only execution-flow constructs that cannot safely survive renumbering are unfolded.
 
-Cycle depths, safety plane `RFP + SDIS`, return plane `RTP` and per-hole parameter changes come from the executed source. CYCLE84 remains limited to the kernel's metric, right-hand, single-pass tapping subset. CYCLE83 expansion is confined to the drilling holes; the rest of the Full Program is not flattened into a trace.
-
-An empty/bare `CYCLE800` used to reset a frame does not make a three-axis program multi-axis and is accepted. **Active CYCLE800 3+2, rotary 4-axis, TRAORI/TCP 5-axis and their rotary arcs are not converted.** Execution/plotting support for these features is separate from export support. Named tools, source control flow and unmodeled geometry-changing commands also block Full Program conversion. Safe metadata warnings alone do not block it.
-
-The exported text is executed again in the target dialect before writing. Conversion checks the physical motion path, feed mode/feed and modeled machine signals. Only monotone subdivisions of the same axis-aligned rapid path are normalized for cycle return-plane comparison; changed cutting geometry or feed still fails validation.
-
-### How do Full Program and Resolved conversion differ?
-
-**Full Program** keeps source operation structure within the supported subset. **Resolved / Expanded Execution** serializes executed three-axis geometry, expanding cycles and evaluating variables; source loops, expressions and WCS structure are not retained. Resolved output uses physical XYZ in a single zero-offset G54 frame. Targets are `fanuc_mill`, `sinumerik_iso` and `sinumerik_native`; ISO starts with `G291`, while native uses explicit absolute arc centers `I=AC/J=AC/K=AC`. Resolved conversion also rejects rotary/TCP geometry.
+**EXPANDED** answers “emit this executed three-axis result for this controller.” It serializes resolved geometry/state through one of the JSON post profiles. Physical XYZ uses one zero-offset G54 frame; source cycles, macro variables and subprogram calls are not recreated.
 
 ```powershell
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode resolved --target-dialect fanuc_mill -o native_trace.nc
-.\easy_gcode_plot_cli.exe batch-export C:\Fanuc --lang fanuc_mill --mode full --target-dialect sinumerik_iso -o C:\SiemensISO
-.\easy_gcode_plot_cli.exe batch-export C:\SiemensNative --lang fanuc_mill --mode full --target-dialect fanuc_mill -o C:\FanucOutput
+.\easy_gcode_plot_cli.exe batch-export C:\Fanuc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o C:\SiemensISO
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full -o normalized.mpf
 ```
 
-GUI, single-file CLI and `batch-export` share the conversion API. Batch export uses `.mpf` for SINUMERIK and `.nc` for FANUC and records per-file failures. Existing native source can also be formatted without dialect conversion: choose **As source / SINUMERIK native** or `--mode full --target-dialect sinumerik_native`. This preserves native expressions, CYCLE800 and TRAORI. It does not enable FANUC → native Full Program conversion; native target serialization is available separately in Resolved mode.
+GUI and CLI use the same FULL / EXPANDED / DXF split. Target-controller selection belongs to EXPANDED. Actual rotary/TWP/TCP geometry is rejected by the current controller postprocessor; a selected kinematics profile by itself does not make an XYZ-only program multi-axis. DXF is an independent geometry output and has no NC post profile.
 
 ### Is SINUMERIK lathe supported?
 
@@ -2430,23 +2363,7 @@ Unexpected internal analyzer failures are not intentionally swallowed as fake us
 
 ### Are there preset batch scripts?
 
-Yes.
-
-Windows:
-
-```powershell
-.\scripts\ps1\batch\batch_mill.ps1
-.\scripts\ps1\batch\batch_turn.ps1
-```
-
-Linux:
-
-```bash
-bash scripts/sh/batch/batch_mill.sh
-bash scripts/sh/batch/batch_turn.sh
-```
-
-They run the already-built CLI executable and write reports below the system temporary directory. They do not build or run the test suite.
+There are no separate preset scripts for ordinary `batch` analysis. Run the CLI command directly so the input directory and report destination are explicit.
 
 ---
 
@@ -2540,17 +2457,14 @@ NO_FILES
 
 ### Which export modes are available from the CLI?
 
-NC mode:
+NC has two modes:
 
 ```text
 expanded
 full
-cycles
 ```
 
-`cycles` is turning-only.
-
-DXF ignores NC-only mode/formatting controls and rejects them if explicitly supplied.
+DXF is selected with `--format dxf`; NC-only mode/formatting controls are rejected when explicitly supplied.
 
 ### Which options are intentionally rejected in Full Program mode?
 
@@ -2559,14 +2473,9 @@ Full Program does not accept explicit:
 - unit conversion other than `auto`;
 - arc-type selection;
 - coordinate-mode conversion;
-- force-addresses;
-- safety-line control through the CLI contract.
+- modal-feed control.
 
-The goal is to avoid pretending those transformations are semantically equivalent to Expanded Execution.
-
-### Which options are rejected for turning cycle export?
-
-Cycle export is turning-only, accepts `--units auto`, and rejects Expanded-only semantic controls such as arc-type, coordinate-mode conversion and force addresses.
+The goal is to avoid pretending those transformations are semantically equivalent to Expanded Execution. Safety-line, start/end program text, sequence numbering, delimiter and leading-zero options are applied by FULL because they change text framing, not geometry.
 
 ### Can sequence start/increment be supplied without sequence numbers?
 
@@ -2574,9 +2483,16 @@ No. Explicit sequence start, increment or spacing requires `--sequence-numbers`.
 
 ### Are there preset batch-export scripts?
 
-The development tree includes Windows/Linux batch-export presets for milling and turning under the same `scripts/ps1/batch` and `scripts/sh/batch` areas as batch analysis.
+Yes. The development tree contains four concrete EXPANDED conversion checks for Windows and Linux:
 
-They are intended to run the built CLI, not to rebuild the application.
+```text
+fanuc_mill_to_sinumerik_native
+fanuc_mill_to_sinumerik_iso
+fanuc_lathe_a_to_b
+sinumerik_native_to_fanuc_mill
+```
+
+They run the built CLI with an explicit JSON post profile and write below `tmp/test_export`. They do not rebuild the application.
 
 ---
 
@@ -2694,7 +2610,7 @@ The M-code is not modeled as a machine effect. Batch keeps the geometric trace w
 
 ### Export unit conversion is refused
 
-Expanded NC unit conversion is conservative. If the program contains a source control block with dimensioned operands that cannot be safely reconstructed from the resolved trace, export refuses the conversion instead of scaling source text heuristically.
+EXPANDED unit conversion operates on resolved geometry/state rather than scaling source text. If conversion is refused, inspect the reported execution/postprocessor diagnostic (for example unsupported rotary/TWP/TCP or incomplete execution). FULL intentionally supports only `--units auto`.
 
 ### Batch-export says the output directory is invalid
 
@@ -2771,18 +2687,15 @@ They do not belong to the OpenGL renderer.
 
 ### What belongs in `app/gcode/export/`?
 
-The export package owns:
+The package is intentionally small:
 
-- shared options;
-- formatting;
-- turning full export;
-- milling full export;
-- expanded trace export;
-- DXF;
-- unit scaling;
-- single-file CLI export service.
+- `common.py` — shared export options, motion formatting and unit scaling;
+- `full.py` — source-preserving FULL normalization using source + execution map;
+- `expanded.py` — the single JSON-profile postprocessor for resolved geometry/state;
+- `dxf.py` — DXF geometry output;
+- `posts/*.json` — the five bundled controller profiles.
 
-Export consumes the execution result rather than reinterpreting G-code.
+Single-file CLI orchestration lives in `app/gcode/export_file.py`; `batch_export.py` only applies that contract to a directory tree. No export path contains a second G-code interpreter.
 
 ### What does `program_execution.py` do?
 
@@ -2974,7 +2887,7 @@ The native build checks tracked `.pyx` and dependency state and can reuse the bu
 
 ### How are releases validated in CI?
 
-The release workflow builds/tests Windows and Linux artifacts before publication. Linux release validation includes starting the packaged CLI and exercising the batch fixture presets before the final release artifact is published.
+The release workflow runs the full tests and static checks on Linux and Windows before packaging. Both packaged CLIs are smoke-tested with `--help`; Linux is archived with a SHA-256 sidecar, Windows publishes GUI/CLI hashes, and the release job downloads both artifacts before creating or updating the tagged GitHub Release.
 
 ### Does a Linux executable run as a Windows `.exe`?
 

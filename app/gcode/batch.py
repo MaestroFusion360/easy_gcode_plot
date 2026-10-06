@@ -8,10 +8,12 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import asdict, replace
 from datetime import UTC, datetime
+from io import StringIO
 from pathlib import Path
 from time import perf_counter
 from typing import Callable, Iterable
 
+from app.gcode.file_io import atomic_write_text
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
 from app.gcode.kinematics_report import kinematics_report_fields
@@ -28,6 +30,34 @@ STATUS_WARNINGS = "WARNINGS"
 STATUS_ERRORS = "ERRORS"
 STATUS_NO_FILES = "NO_FILES"
 _UNSUPPORTED_CODE_RE = re.compile(r"\b([GM]\d+(?:\.\d+)?)\b", re.IGNORECASE)
+
+
+def validate_batch_output_directory(
+    root: str | Path,
+    output: str | Path,
+    *,
+    extensions: Iterable[str],
+    generated_extensions: Iterable[str],
+    recursive: bool = True,
+    label: str = "Output",
+) -> None:
+    """Reject only generated artifacts that would fall back into the active scan."""
+    source = Path(root).resolve()
+    destination = Path(output).resolve()
+    inside_source = destination == source or source in destination.parents
+    if not inside_source or (destination != source and not recursive):
+        return
+
+    scanned = {
+        value if value.startswith(".") else f".{value}" for item in extensions if (value := item.strip().lower())
+    }
+    generated = {
+        value if value.startswith(".") else f".{value}"
+        for item in generated_extensions
+        if (value := item.strip().lower())
+    }
+    if scanned & generated:
+        raise ValueError(f"{label} directory would place generated files inside the active batch scan")
 
 
 def _normalize_extensions(extensions: Iterable[str]) -> tuple[str, ...]:
@@ -297,6 +327,15 @@ def analyze_directory(
     started = perf_counter()
     directory = Path(root).resolve()
     normalized_extensions = _normalize_extensions(extensions)
+    if html_dir is not None:
+        validate_batch_output_directory(
+            directory,
+            html_dir,
+            extensions=normalized_extensions,
+            generated_extensions=(".html",),
+            recursive=recursive,
+            label="HTML output",
+        )
     paths = discover_nc_files(directory, recursive=recursive, extensions=normalized_extensions)
     profiles = kinematics_by_file or {}
     actual = {path.relative_to(directory).as_posix() for path in paths}
@@ -384,11 +423,34 @@ def write_batch_reports(
 ) -> tuple[Path, Path]:
     """Write detailed JSON and spreadsheet-friendly CSV batch reports."""
     directory = Path(output_dir)
-    directory.mkdir(parents=True, exist_ok=True)
     json_path = directory / f"{basename}.json"
     csv_path = directory / f"{basename}.csv"
+    root = report.get("root")
+    if root:
+        validate_batch_output_directory(
+            str(root),
+            directory,
+            extensions=report.get("extensions", ()),
+            generated_extensions=(".json", ".csv"),
+            recursive=bool(report.get("recursive", True)),
+            label="Report output",
+        )
+        source_paths = {
+            (Path(str(root)) / str(item["path"])).resolve()
+            for item in report.get("files", ())
+            if isinstance(item, dict) and item.get("path")
+        }
+        collision = next((path for path in (json_path, csv_path) if path.resolve() in source_paths), None)
+        if collision is not None:
+            raise ValueError(f"Report output would overwrite an input file: {collision.name}")
 
-    json_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    directory.mkdir(parents=True, exist_ok=True)
+
+    atomic_write_text(
+        json_path,
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
 
     fieldnames = (
         "path",
@@ -414,19 +476,20 @@ def write_batch_reports(
         "language",
         "html_report",
     )
-    with csv_path.open("w", encoding="utf-8-sig", newline="") as stream:
-        writer = csv.DictWriter(stream, fieldnames=fieldnames)
-        writer.writeheader()
-        for file_report in report["files"]:  # type: ignore[union-attr]
-            diagnostics = file_report["diagnostics"]
-            writer.writerow(
-                {
-                    **{name: file_report.get(name) for name in fieldnames},
-                    "kinematics_definition": json.dumps(file_report.get("kinematics_definition"), sort_keys=True),
-                    "unsupported_g_codes": ";".join(file_report["unsupported_g_codes"]),
-                    "unsupported_m_codes": ";".join(file_report["unsupported_m_codes"]),
-                    "diagnostic_codes": ";".join(str(item["code"]) for item in diagnostics),
-                    "diagnostics": _diagnostic_text(diagnostics),
-                }
-            )
+    stream = StringIO(newline="")
+    writer = csv.DictWriter(stream, fieldnames=fieldnames)
+    writer.writeheader()
+    for file_report in report["files"]:  # type: ignore[union-attr]
+        diagnostics = file_report["diagnostics"]
+        writer.writerow(
+            {
+                **{name: file_report.get(name) for name in fieldnames},
+                "kinematics_definition": json.dumps(file_report.get("kinematics_definition"), sort_keys=True),
+                "unsupported_g_codes": ";".join(file_report["unsupported_g_codes"]),
+                "unsupported_m_codes": ";".join(file_report["unsupported_m_codes"]),
+                "diagnostic_codes": ";".join(str(item["code"]) for item in diagnostics),
+                "diagnostics": _diagnostic_text(diagnostics),
+            }
+        )
+    atomic_write_text(csv_path, stream.getvalue(), encoding="utf-8-sig")
     return json_path, csv_path

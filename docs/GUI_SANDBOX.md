@@ -1,4 +1,4 @@
-# GUI sandbox for 1.9.2
+# GUI sandbox
 
 One pytest scenario drives the existing MainWindow through four programs. It
 uses isolated QSettings and tool-library storage from `tests/conftest.py`;

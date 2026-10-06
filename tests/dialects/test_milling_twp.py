@@ -5,9 +5,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from app.gcode.export.dispatch import export_program
+from app.gcode.export import export_program
+from app.gcode.export.common import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions
 from app.gcode.export.dxf import build_dxf_document
-from app.gcode.export.options import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions
+from app.gcode.export.full import format_full_program_source
 from app.gcode.kernel.api.engine import execute
 from app.gcode.kernel.milling.kinematics import (
     effective_orientation,
@@ -159,9 +160,9 @@ def test_euler_zxz_face_axes():
 def test_twp_nc_export_preserves_source_or_fails_closed(tmp_path):
     source = FIXTURE.read_text()
     result = _mill(source)
-    assert (
-        export_program(result, source, mode=MILL_FULL_PROGRAM_MODE, lathe_mode=False, options=ExportOptions()) == source
-    )
+    assert export_program(
+        result, source, mode=MILL_FULL_PROGRAM_MODE, lathe_mode=False, options=ExportOptions()
+    ) == format_full_program_source(source, ExportOptions())
     with pytest.raises(ValueError, match="G68.2"):
         export_program(result, source, mode=EXPANDED_EXECUTION_MODE, lathe_mode=False, options=ExportOptions())
 

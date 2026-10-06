@@ -467,22 +467,48 @@ def _execute_impl(
     )
 
 
+def _compensation_diagnostics(result, motions, *, code, message, predicate):
+    """Attach cutter-compensation diagnostics to every affected source block."""
+    blocks = result.program.blocks if result.program is not None else ()
+    diagnostics = []
+    seen_blocks = set()
+    for motion in motions:
+        if not predicate(motion):
+            continue
+        block_index = motion.source_block
+        if block_index is None or block_index in seen_blocks:
+            continue
+        seen_blocks.add(block_index)
+        block = blocks[block_index] if 0 <= block_index < len(blocks) else None
+        diagnostics.append(
+            Diagnostic(
+                code,
+                message,
+                "warning",
+                "unverified",
+                block_index + 1,
+                None if block is None else block.raw,
+            )
+        )
+    return tuple(diagnostics)
+
+
 def _resolve_milling_compensation(result, motions, motion_step_owners, milling_tools, kinematics):
     """Apply verified local-plane offsets or retain the unverified C-table trace."""
     selected = getattr(kinematics, "id", kinematics)
     table_c = selected == "4ax_table_c"
     diagnostics = ()
     if table_c:
-        if any(m.compensation_mode in (41, 42) for m in motions):
-            diagnostics = (
-                Diagnostic(
-                    "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION",
-                    "G41/G42 cutter compensation is not supported for 4ax_table_c; "
-                    "the plotted path is the programmed, uncompensated tool-tip path",
-                    "warning",
-                    "unverified",
-                ),
-            )
+        diagnostics = _compensation_diagnostics(
+            result,
+            motions,
+            code="UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION",
+            message=(
+                "G41/G42 cutter compensation is not supported for 4ax_table_c; "
+                "the plotted path is the programmed, uncompensated tool-tip path"
+            ),
+            predicate=lambda motion: motion.compensation_mode in (41, 42),
+        )
     else:
         local_motions = [_compensation_frame(motion, local=True) for motion in motions]
         motions, motion_step_owners = apply_milling_cutter_compensation_with_owners(
@@ -491,16 +517,15 @@ def _resolve_milling_compensation(result, motions, motion_step_owners, milling_t
             motion_step_owners,
         )
         motions = [_compensation_frame(motion, local=False) for motion in motions]
-        if any(m.compensation_mode in (41, 42) and not m.compensation_applied for m in motions):
-            diagnostics = (
-                Diagnostic(
-                    "UNVERIFIED_CUTTER_COMPENSATION",
-                    "G41/G42 requires a configured T1-T99 milling cutter and supported "
-                    "resolved line/arc/helix geometry",
-                    "warning",
-                    "unverified",
-                ),
-            )
+        diagnostics = _compensation_diagnostics(
+            result,
+            motions,
+            code="UNVERIFIED_CUTTER_COMPENSATION",
+            message=(
+                "G41/G42 requires a configured T1-T99 milling cutter and supported resolved line/arc/helix geometry"
+            ),
+            predicate=lambda motion: motion.compensation_mode in (41, 42) and not motion.compensation_applied,
+        )
 
     emitted_counts = [0] * len(result.execution_steps)
     for owner in motion_step_owners:
@@ -572,10 +597,15 @@ def execute(
     """
     token = active_budget.set(ExecutionBudget(limits or ExecutionLimits(), cancelled))
     resolved_tools = {"milling_tools": options.pop("milling_tools", None)}
+    milling_correction_enabled = bool(options.pop("milling_correction_enabled", True))
     options["tool_resolver"] = _capture_tool_resolver(options.pop("tool_resolver", None), resolved_tools)
     try:
         result = _execute_impl(source, language, **options)
-        result = replace(result, source_dialect=options.get("source_dialect", "fanuc"))
+        result = replace(
+            result,
+            source_dialect=options.get("source_dialect", "fanuc"),
+            lathe_gcode_system=validate_system(options.get("lathe_gcode_system", "A")),
+        )
         effective_arc_type = _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type)
         motions, motion_step_owners, geometry_diagnostics, cursor = [], [], [], 0
         invalid_cycles = (
@@ -638,7 +668,7 @@ def execute(
                 execution_steps=_steps_with_emitted_counts(result.execution_steps, emitted_counts),
             )
         diagnostics = result.diagnostics + tuple(geometry_diagnostics)
-        if language == "fanuc_mill":
+        if language == "fanuc_mill" and milling_correction_enabled:
             result, motions, compensation_diagnostics = _resolve_milling_compensation(
                 result, motions, motion_step_owners, resolved_tools["milling_tools"], options.get("kinematics")
             )

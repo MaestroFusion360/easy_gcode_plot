@@ -274,7 +274,13 @@ def _export(window, app, exported):
     _settle(app, "Export expanded FANUC", 2)
     dialog.accept()
     _wait(app, exported.exists, "export output")
-    result = execute(exported.read_text(encoding="utf-8"), "fanuc_mill")
+    result = execute(
+        exported.read_text(encoding="utf-8"),
+        "fanuc_mill",
+        home_x=window.xPosMach,
+        home_y=window.yPosMach,
+        home_z=window.zPosMach,
+    )
     assert result.ok and result.complete, result.diagnostics
     assert not result.diagnostics, result.diagnostics
     assert len(result.motions) == source_count

@@ -12,7 +12,8 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from app import main_window
-from app.gcode.exporter import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions
+from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.exporter import DXF_MODE, EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
 from app.gcode.kernel import execute
 from app.gcode.source_mode import SOURCE_DIALECT_FANUC, SOURCE_DIALECT_SINUMERIK
 from app.gcode.trace_tools import render_trace
@@ -157,7 +158,6 @@ def test_program_export_failure_or_cancellation_never_reports_success(monkeypatc
     result = execute("G1 X10 F100\nM30")
     monkeypatch.setattr(main_window_file_ops, "_export_target", lambda _owner: (str(tmp_path / "out.nc"), False))
     monkeypatch.setattr(main_window_file_ops, "_ensure_current_export_trace", lambda _owner: True)
-    monkeypatch.setattr(main_window_file_ops, "_text_export_snapshot", lambda _owner: None)
     notices, errors = [], []
     monkeypatch.setattr(main_window_file_ops.QMessageBox, "information", lambda *a: notices.append(a))
     monkeypatch.setattr(main_window_file_ops, "_show_export_error", lambda *a: errors.append(a))
@@ -300,37 +300,33 @@ def test_export_dialog_selected_group_controls_missing_extension(monkeypatch, tm
 
 
 @pytest.mark.parametrize(
-    ("source", "target_cnc", "source_dialect", "expected"),
+    ("source", "source_dialect", "expected"),
     [
         (
             "O0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n",
-            2,
             SOURCE_DIALECT_FANUC,
-            "G291\n(O0001)\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
+            "O0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
         ),
         (
             "G291\nO0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n",
-            1,
             SOURCE_DIALECT_SINUMERIK,
-            "O0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
+            "G291\nO0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n",
         ),
     ],
 )
-def test_full_program_export_converts_target_dialect_without_expanding(
-    source, target_cnc, source_dialect, expected, tmp_path
-):
+def test_full_program_export_preserves_source_dialect(source, source_dialect, expected, tmp_path):
     result = execute(source, language="fanuc_mill", source_dialect=source_dialect)
     assert result.ok and result.complete
     output = tmp_path / "converted.nc"
+    request = ExportRequest(language="fanuc_mill", format="nc", mode="full", spaces=False)
 
     main_window_file_ops._write_export(
         None,
-        dxf_export=False,
         path=str(output),
         result=result,
+        request=request,
+        source=source,
         render_points=(),
-        lathe_mode=False,
-        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, None, "utf-8", target_cnc, source_dialect, {}),
         cancellation=Event(),
     )
 
@@ -338,128 +334,213 @@ def test_full_program_export_converts_target_dialect_without_expanding(
 
 
 @pytest.mark.parametrize(
-    ("source", "target_cnc", "source_dialect"),
+    ("source", "source_dialect"),
     [
-        ("G21 G17 G90\nG0 X0 Y0\nM30\n", 1, SOURCE_DIALECT_FANUC),
-        ("G291\nG21 G17 G90\nG0 X0 Y0\nM30\n", 2, SOURCE_DIALECT_SINUMERIK),
+        ("G21 G17 G90\nG0 X0 Y0\nM30\n", SOURCE_DIALECT_FANUC),
+        ("G291\nG21 G17 G90\nG0 X0 Y0\nM30\n", SOURCE_DIALECT_SINUMERIK),
     ],
 )
-def test_full_program_export_rejects_same_source_and_target_dialect(source, target_cnc, source_dialect, tmp_path):
+def test_full_program_export_accepts_its_source_dialect(source, source_dialect, tmp_path):
     result = execute(source, language="fanuc_mill", source_dialect=source_dialect)
     output = tmp_path / "same-dialect.nc"
+    request = ExportRequest(language="fanuc_mill", format="nc", mode="full")
 
-    with pytest.raises(ValueError, match="already"):
-        main_window_file_ops._write_export(
-            None,
-            dxf_export=False,
-            path=str(output),
-            result=result,
-            render_points=(),
-            lathe_mode=False,
-            text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, None, "utf-8", target_cnc, source_dialect, {}),
-            cancellation=Event(),
-        )
+    main_window_file_ops._write_export(
+        None,
+        path=str(output),
+        result=result,
+        request=request,
+        source=source,
+        render_points=(),
+        cancellation=Event(),
+    )
 
-    assert not output.exists()
+    assert output.exists()
+    assert (
+        "G291" in output.read_text(encoding="utf-8")
+        if source_dialect == SOURCE_DIALECT_SINUMERIK
+        else "G291" not in output.read_text(encoding="utf-8")
+    )
 
 
-def test_full_program_conversion_applies_formatting_without_changing_geometry(tmp_path):
+def test_full_program_normalization_applies_formatting_without_changing_geometry(tmp_path):
     source = "O0001\nN5 G21 G17 G90\nN10 G0 X0 Y0\nN20 G1 X10 F100\nM30\n"
     result = execute(source, language="fanuc_mill")
     output = tmp_path / "formatted.mpf"
-    options = ExportOptions(
+    request = ExportRequest(
+        language="fanuc_mill",
+        format="nc",
+        mode="full",
         sequence_numbers=True,
         sequence_start=100,
         sequence_increment=10,
-        delimiter=True,
+        spaces=True,
         leading_zero=True,
     )
 
     main_window_file_ops._write_export(
         None,
-        dxf_export=False,
         path=str(output),
         result=result,
+        request=request,
+        source=source,
         render_points=(),
-        lathe_mode=False,
-        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, options, "utf-8", 2, SOURCE_DIALECT_FANUC, {}),
         cancellation=Event(),
     )
 
     assert output.read_text(encoding="utf-8") == (
-        "G291\n(O0001)\nN100 G21 G17 G90\nN110 G00 X0 Y0\nN120 G01 X10 F100\nN130 M30\n"
+        "O0001\nN100 G21 G17 G90\nN110 G00 X0 Y0\nN120 G01 X10 F100\nN130 M30\n"
     )
 
 
-def test_full_program_conversion_applies_start_end_and_safety_options(tmp_path):
+def test_full_program_normalization_applies_start_end_and_safety_options(tmp_path):
     source = "O0001\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
     result = execute(source, language="fanuc_mill")
     output = tmp_path / "program-wrappers.mpf"
-    options = ExportOptions(start_program="O0002", end_program="M30", safety_line=True, delimiter=True)
+    request = ExportRequest(
+        language="fanuc_mill",
+        format="nc",
+        mode="full",
+        start_program="O0002",
+        end_program="M30",
+        safety_line=True,
+        spaces=True,
+    )
 
     main_window_file_ops._write_export(
         None,
-        dxf_export=False,
         path=str(output),
         result=result,
+        request=request,
+        source=source,
         render_points=(),
-        lathe_mode=False,
-        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, options, "utf-8", 2, SOURCE_DIALECT_FANUC, {}),
         cancellation=Event(),
     )
 
     assert output.read_text(encoding="utf-8") == (
-        "G291\n(O0002)\nG80\nG0 G17 G40 G49 G90\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
+        "O0002\nG80\nG0 G17 G40 G49 G90\nG21 G17 G90\nG0 X0 Y0\nG1 X10 F100\nM30\n"
     )
 
 
-def test_full_program_conversion_can_remove_frame_numbers_and_spaces(tmp_path):
+def test_full_program_normalization_can_remove_frame_numbers_and_spaces(tmp_path):
     source = "G291\nO0001\nN5 G21 G17 G90\nN10 G0 X0 Y0\nN20 G1 X10 F100\nM30\n"
     result = execute(source, language="fanuc_mill", source_dialect=SOURCE_DIALECT_SINUMERIK)
     output = tmp_path / "compact.nc"
-    options = ExportOptions(sequence_numbers=False, delimiter=False)
+    request = ExportRequest(language="fanuc_mill", format="nc", mode="full", sequence_numbers=False, spaces=False)
 
     main_window_file_ops._write_export(
         None,
-        dxf_export=False,
         path=str(output),
         result=result,
+        request=request,
+        source=source,
         render_points=(),
-        lathe_mode=False,
-        text_snapshot=(source, MILL_FULL_PROGRAM_MODE, 0, options, "utf-8", 1, SOURCE_DIALECT_SINUMERIK, {}),
         cancellation=Event(),
     )
 
-    assert output.read_text(encoding="utf-8") == "O0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n"
+    assert output.read_text(encoding="utf-8") == "G291\nO0001\nG21G17G90\nG0X0Y0\nG1X10F100\nM30\n"
 
 
-def test_full_program_conversion_validates_with_the_gui_wcs_offsets(tmp_path):
+def test_full_program_normalization_validates_with_the_gui_wcs_offsets(tmp_path):
     source = "G21 G17 G90\nG54\nG0 X0 Y0\nG1 X10 F100\nM30\n"
     execution_options = {"wcs_offsets": {54: (125.0, -40.0, 0.0)}}
     result = execute(source, language="fanuc_mill", **execution_options)
     output = tmp_path / "wcs.mpf"
+    request = ExportRequest(language="fanuc_mill", format="nc", mode="full", spaces=True)
 
     main_window_file_ops._write_export(
         None,
-        dxf_export=False,
         path=str(output),
         result=result,
+        request=request,
+        source=source,
         render_points=(),
-        lathe_mode=False,
-        text_snapshot=(
-            source,
-            MILL_FULL_PROGRAM_MODE,
-            0,
-            ExportOptions(delimiter=True),
-            "utf-8",
-            2,
-            SOURCE_DIALECT_FANUC,
-            execution_options,
-        ),
         cancellation=Event(),
     )
 
-    assert output.read_text(encoding="utf-8").startswith("G291\n")
+    replay = execute(output.read_text(encoding="utf-8"), language="fanuc_mill", **execution_options)
+    assert replay.ok and replay.complete
+    assert [(m.end_x, m.end_y, m.end_z) for m in replay.motions] == [
+        (m.end_x, m.end_y, m.end_z) for m in result.motions
+    ]
+
+
+def test_gui_expanded_export_uses_owner_output_fields(qt_app, tmp_path):
+    source = "G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nX20\nM30"
+    result = execute(source, language="fanuc_mill")
+    output = tmp_path / "gui-output.nc"
+    owner = SimpleNamespace(
+        exportMode=EXPANDED_EXECUTION_MODE,
+        latheMode=False,
+        exportTargetCnc=0,
+        modalFeed=False,
+        exportDecimalPlaces=2,
+        exportForceDecimal=True,
+        exportPlusOutput=True,
+        ui=SimpleNamespace(editor=SimpleNamespace(text=lambda: source)),
+    )
+    request, request_source, _encoding = main_window_file_ops._export_request(owner)
+
+    main_window_file_ops._write_export(
+        owner,
+        path=str(output),
+        result=result,
+        request=request,
+        source=request_source,
+        render_points=(),
+        cancellation=Event(),
+    )
+
+    text = output.read_text(encoding="utf-8")
+    assert text.count("F+100.") == 2
+    assert "X+10." in text
+
+
+@pytest.mark.parametrize(
+    ("export_mode", "target_cnc", "language"),
+    [
+        (EXPANDED_EXECUTION_MODE, 0, "fanuc_mill"),
+        (EXPANDED_EXECUTION_MODE, 1, "fanuc_mill"),
+        (EXPANDED_EXECUTION_MODE, 2, "fanuc_mill"),
+        (EXPANDED_EXECUTION_MODE, 3, "fanuc_mill"),
+        (EXPANDED_EXECUTION_MODE, 4, "fanuc_mill"),
+        (EXPANDED_EXECUTION_MODE, 5, "fanuc_mill"),
+        (MILL_FULL_PROGRAM_MODE, 0, "fanuc_mill"),
+        (DXF_MODE, 0, "fanuc_mill"),
+        (EXPANDED_EXECUTION_MODE, 2, "fanuc_turn"),
+    ],
+)
+def test_gui_and_cli_export_are_byte_identical(qt_app, tmp_path, export_mode, target_cnc, language):
+    """The GUI must only fill the shared contract; it must not convert on its own."""
+    if language == "fanuc_turn":
+        source = "O1234\nG21 G18 G90\nG0 X0 Z0\nG1 X20 Z-10 F100\nG3 X40 Z-20 I0 K-10\nM30\n"
+    else:
+        source = "O1234\nG21 G17 G90\nG0 X0 Y0\nG2 X10 Y10 I10 J0 F100\nM30\n"
+    source_path = tmp_path / "part.nc"
+    source_path.write_bytes(source.encode("utf-8"))
+    result = execute(source, language=language)
+    owner = SimpleNamespace(
+        exportMode=export_mode,
+        latheMode=language == "fanuc_turn",
+        exportTargetCnc=target_cnc,
+        ui=SimpleNamespace(editor=SimpleNamespace(text=lambda: source)),
+    )
+    request, request_source, _encoding = main_window_file_ops._export_request(owner)
+
+    gui_output = tmp_path / "gui.out"
+    main_window_file_ops._write_export(
+        owner,
+        path=str(gui_output),
+        result=result,
+        request=request,
+        source=request_source,
+        render_points=(),
+        cancellation=Event(),
+    )
+    cli_output = tmp_path / "cli.out"
+    export_file(source_path, cli_output, request)
+
+    assert gui_output.read_bytes() == cli_output.read_bytes()
 
 
 def test_cp1251_ptp_opens_and_saves_in_original_encoding(qt_app, tmp_path, monkeypatch):

@@ -48,6 +48,7 @@ def write_statistics_html(path, html, *, source_path=None):
         source = Path(source_path).resolve()
         if target == source or (target.exists() and source.exists() and target.samefile(source)):
             raise ValueError("The report cannot overwrite the source program")
+    target.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=target.parent, delete=False) as stream:

@@ -1,14 +1,13 @@
 """Native Full Program formatting preserves functions and multi-axis state."""
 
 import pytest
+from export_signatures import _motion_trace_signature
 
-from app.gcode.export.dispatch import export_program
-from app.gcode.export.options import MILL_FULL_PROGRAM_MODE, ExportOptions
-from app.gcode.export.service import ExportRequest, export_file
-from app.gcode.export.source_formatting import format_full_program_source
-from app.gcode.export.validation import _motion_trace_signature
+from app.gcode.export import export_program
+from app.gcode.export.common import MILL_FULL_PROGRAM_MODE, ExportOptions
+from app.gcode.export.full import format_full_program_source
+from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.program_execution import execute_program
-from app.ui.windows.main_window_file_ops import _convert_full_program_dialect
 
 
 def test_gui_native_source_formatting_preserves_expressions_comments_and_crlf():
@@ -50,24 +49,6 @@ def test_gui_native_source_formatting_preserves_expressions_comments_and_crlf():
     target = execute_program(formatted, language="fanuc_mill", source_dialect="sinumerik")[0]
     assert target.ok and target.complete
     assert _motion_trace_signature(target) == _motion_trace_signature(original)
-    assert (
-        _convert_full_program_dialect(
-            source,
-            original,
-            3,
-            "sinumerik",
-            ExportOptions(
-                sequence_numbers=True,
-                sequence_start=10,
-                sequence_increment=10,
-                delimiter=True,
-                leading_zero=True,
-                comment_style="parentheses",
-            ),
-            {},
-        )
-        == formatted
-    )
 
 
 def test_native_comment_removal_keeps_parentheses_and_quoted_semicolons():
@@ -84,7 +65,6 @@ def test_cli_native_multiaxis_source_formatting_preserves_geometry_and_orientati
     source_path.write_text(source)
     request = ExportRequest(
         language="fanuc_mill",
-        target_dialect="sinumerik_native",
         mode="full",
         kinematics="5ax_table_ac_angled",
         sequence_numbers=True,

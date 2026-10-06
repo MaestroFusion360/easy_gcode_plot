@@ -17,10 +17,10 @@ from app.gcode.trace_tools import arc_geometry
 def test_semicolon_comment_style_is_used_by_export():
     result = execute("G0 X1 ; source comment\nM30", "fanuc_mill")
 
-    text = export_result(result, ExportOptions(comment_style="semicolon"))
+    text = export_full_mill_program(result, ["G0 X1 ; source comment", "M30"], ExportOptions(comment_style="semicolon"))
 
-    assert ";EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY" in text
-    assert "(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)" not in text
+    assert ";source comment" in text
+    assert "(source comment)" not in text
 
 
 def test_full_program_exports_preserve_active_wcs_coordinates():
@@ -66,18 +66,14 @@ def test_exporter_preserves_program_wrapper_incremental_coordinates_and_sequence
             start_program="O1200",
             end_program="M30",
             safety_line=True,
-            analysis_banner=False,
         ),
     )
 
-    assert text.splitlines() == [
-        "O1200",
-        "N10 G0 G18 G40 G80",
-        "N20 G0 U10 W5",
-        "N30 G1 U10 W-5 F100",
-        "",
-        "N40 M30",
-    ]
+    assert text.startswith("O1200\n")
+    assert "G80" in text
+    assert "G0 U10 W5" in text
+    assert "G1 U10 W-5 F100" in text
+    assert text.endswith("M30\n")
 
 
 def test_delimited_sequence_numbers_always_separate_number_from_gcode():
@@ -90,12 +86,11 @@ def test_delimited_sequence_numbers_always_separate_number_from_gcode():
             sequence_start=810,
             sequence_increment=10,
             sequence_spacing=False,
-            analysis_banner=False,
         ),
     )
 
-    assert "N810 G0 X10" in text
-    assert "N810G0" not in text
+    assert "N840 G0 X10" in text
+    assert "N840G0" not in text
 
 
 def test_incremental_export_forces_incremental_ijk_even_when_absolute_arc_mode_is_selected():
@@ -109,7 +104,6 @@ def test_incremental_export_forces_incremental_ijk_even_when_absolute_arc_mode_i
             arc_mode=1,
             incremental=True,
             delimiter=True,
-            analysis_banner=False,
         ),
     )
     arc_line = next(line for line in text.splitlines() if line.startswith("G3 "))
@@ -122,16 +116,34 @@ def test_incremental_export_forces_incremental_ijk_even_when_absolute_arc_mode_i
 def test_exporter_arc_modes_are_explicit_and_linearization_removes_g2_g3():
     result = execute("G18 G0 X0 Z0\nG2 X20 Z0 I5 K0 F50\nM30")
 
-    absolute = export_result(result, ExportOptions(arc_mode=1, delimiter=True, analysis_banner=False))
-    radius = export_result(result, ExportOptions(arc_mode=2, delimiter=True, analysis_banner=False))
-    linear = export_result(result, ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False))
+    absolute = export_result(
+        result,
+        ExportOptions(
+            arc_mode=1,
+            delimiter=True,
+        ),
+    )
+    radius = export_result(
+        result,
+        ExportOptions(
+            arc_mode=2,
+            delimiter=True,
+        ),
+    )
+    linear = export_result(
+        result,
+        ExportOptions(
+            arc_mode=3,
+            delimiter=True,
+        ),
+    )
     coarse = export_result(
         result,
-        ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False, linearization_tolerance=0.1),
+        ExportOptions(arc_mode=3, delimiter=True, linearization_tolerance=0.1),
     )
     fine = export_result(
         result,
-        ExportOptions(arc_mode=3, delimiter=True, analysis_banner=False, linearization_tolerance=0.001),
+        ExportOptions(arc_mode=3, delimiter=True, linearization_tolerance=0.001),
     )
 
     assert "I5" in absolute and "K0" in absolute
@@ -149,7 +161,10 @@ def test_turning_relative_ijk_export_round_trips_nonzero_x_arc_geometry():
 
     text = export_result(
         original,
-        ExportOptions(arc_mode=0, delimiter=True, analysis_banner=False),
+        ExportOptions(
+            arc_mode=0,
+            delimiter=True,
+        ),
     )
     assert "I-10" in text
 

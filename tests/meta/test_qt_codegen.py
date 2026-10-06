@@ -128,7 +128,9 @@ def test_qt_generation_uses_pyside_only_as_dev_toolchain():
     native_build_script = (ROOT / POWERSHELL_SCRIPTS_DIR / "build-native.ps1").read_text(encoding="utf-8")
     assert "build-native.ps1" in build_script
     assert "--collect-submodules', 'app.gcode.export'" in build_script
+    assert "app\\gcode\\export\\posts" in build_script
     assert "--collect-submodules app.gcode.export" in shell_build_script
+    assert "app/gcode/export/posts:app/gcode/export/posts" in shell_build_script
     assert "--no-dev" in native_build_script
     for generated in [*_ui_mapping(ROOT).values(), ROOT / RESOURCE_DIR / "files_res.py"]:
         content = generated.read_text(encoding="utf-8")

@@ -1,7 +1,7 @@
 """General application dialogs unrelated to tool-library editing."""
 
 from PyQt6.QtCore import QCoreApplication, Qt
-from PyQt6.QtWidgets import QComboBox, QDialog, QLabel
+from PyQt6.QtWidgets import QDialog
 
 from app import get_version
 from app.gcode.export import (
@@ -9,13 +9,6 @@ from app.gcode.export import (
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
     TURN_FULL_PROGRAM_MODE,
-)
-from app.gcode.source_mode import (
-    SINUMERIK_MODE_SIEMENS,
-    SOURCE_DIALECT_FANUC,
-    SOURCE_DIALECT_SINUMERIK,
-    sinumerik_initial_mode,
-    source_dialect_for_path,
 )
 from app.ui.generated.dialogs.about import Ui_AboutDlg
 from app.ui.generated.dialogs.block_num import Ui_BlockNumberDlg
@@ -110,7 +103,6 @@ class Export(QDialog):
         "TURN FULL PROGRAM",
         "MILL FULL PROGRAM",
         "EXPANDED EXECUTION",
-        "PLOT DATA",
         "DXF",
     )
     _ARC_LABELS = (
@@ -127,44 +119,75 @@ class Export(QDialog):
         self.ui.setupUi(self)
         self.setWindowIcon(self.parent().windowIcon())
         self.setWindowFlags(Qt.WindowType.Window | Qt.WindowType.WindowCloseButtonHint)
+        self.targetCncLabel = self.ui.label_TargetCnc
+        self.targetCncCombo = self.ui.targetCncCombo
+        self.modalFeedLabel = self.ui.modalFeedLabel
+        self.modalFeedCombo = self.ui.modalFeedCombo
+        self.decimalPlacesLabel = self.ui.decimalPlacesLabel
+        self.decimalPlacesSpin = self.ui.decimalPlacesSpin
+        self.forceDecimalLabel = self.ui.forceDecimalLabel
+        self.forceDecimalCombo = self.ui.forceDecimalCombo
+        self.plusSignLabel = self.ui.plusSignLabel
+        self.plusSignCombo = self.ui.plusSignCombo
         self._configure_export_mode_ui()
         self.loadSettings()
         self.connectActions()
         self.sync_mode_availability(bool(self.parent().latheMode))
 
     def _configure_export_mode_ui(self):
-        """Populate export choices while Designer owns the complete dialog structure."""
+        """Populate export choices; Designer owns the complete dialog structure."""
         self.ui.langCmbBox.clear()
         self.ui.langCmbBox.addItems(self._MODE_LABELS)
         self.ui.incrCmbBox.clear()
         self.ui.incrCmbBox.addItems(("G90 Absolute", "G91 Incremental"))
         self.ui.arcOutputCmbBox.clear()
         self.ui.arcOutputCmbBox.addItems(self._ARC_LABELS)
-        self.targetCncLabel = QLabel(QCoreApplication.translate("ExportOptDlg", "Target CNC"), self)
-        self.targetCncCombo = QComboBox(self)
-        self.targetCncLabel.setObjectName("targetCncLabel")
-        self.targetCncCombo.setObjectName("targetCncCombo")
+        translate = QCoreApplication.translate
+        self.targetCncCombo.clear()
         self.targetCncCombo.addItems(
             (
-                QCoreApplication.translate("ExportOptDlg", "As source (no conversion)"),
-                QCoreApplication.translate("ExportOptDlg", "FANUC milling"),
-                QCoreApplication.translate("ExportOptDlg", "SINUMERIK 840D ISO-M (G291)"),
-                QCoreApplication.translate("ExportOptDlg", "SINUMERIK 840D native"),
+                translate("ExportOptDlg", "Auto (source controller)"),
+                translate("ExportOptDlg", "FANUC milling"),
+                translate("ExportOptDlg", "SINUMERIK 840D ISO-M (G291)"),
+                translate("ExportOptDlg", "SINUMERIK 840D native"),
+                translate("ExportOptDlg", "FANUC milling (multi-axis)"),
+                translate("ExportOptDlg", "SINUMERIK 840D native (multi-axis)"),
             )
         )
-        grid = self.ui.gridLayout
-        existing_widgets = []
-        for index in range(grid.count() - 1, -1, -1):
-            row, column, row_span, column_span = grid.getItemPosition(index)
-            widget = grid.itemAt(index).widget()
-            if widget is not None:
-                existing_widgets.append((widget, row + 1, column, row_span, column_span))
-                grid.removeWidget(widget)
-        for widget, row, column, row_span, column_span in existing_widgets:
-            grid.addWidget(widget, row, column, row_span, column_span)
-        grid.addWidget(self.targetCncLabel, 0, 0, 1, 1)
-        grid.addWidget(self.targetCncCombo, 0, 1, 1, 1)
-        self.resize(self.width(), self.height() + 35)
+        self._set_tooltips()
+        required = self.sizeHint().expandedTo(self.minimumSize())
+        self.setMinimumSize(required)
+        self.resize(required)
+
+    def _set_tooltips(self):
+        """Explain options without disabling them by target controller."""
+        translate = QCoreApplication.translate
+        self.targetCncCombo.setToolTip(
+            translate(
+                "ExportOptDlg",
+                "Auto selects the post profile matching the source controller/dialect. "
+                "Other entries choose a target controller; user output options stay available.",
+            )
+        )
+        self.modalFeedCombo.setToolTip(
+            translate(
+                "ExportOptDlg",
+                "Yes suppresses repeated F when feed and mode are unchanged; No restates F on every motion.",
+            )
+        )
+        self.ui.safLineCmbBox.setToolTip(
+            translate(
+                "ExportOptDlg",
+                "Insert the post profile's declared safe restart block after the program start text.",
+            )
+        )
+        self.ui.startLineEdit.setToolTip(
+            translate(
+                "ExportOptDlg",
+                "Inserted before the post preamble. A mandatory controller mode (G290/G291) always stays first.",
+            )
+        )
+        self.ui.endLineEdit.setToolTip(translate("ExportOptDlg", "Replaces the post profile's program end text."))
 
     def _set_parent_bool(self, combo, attr_name, true_index=1):
         """Update a boolean attribute on the parent using combo index."""
@@ -179,7 +202,6 @@ class Export(QDialog):
         self.ui.langCmbBox.setCurrentIndex(self.parent().exportMode)
         self.targetCncCombo.setCurrentIndex(self.parent().exportTargetCnc)
         self.ui.arcOutputCmbBox.setCurrentIndex(self.parent().exportArcMode)
-        self._set_combo_from_bool(self.ui.forceCmbBox, self.parent().forceAdr)
         self._set_combo_from_bool(self.ui.incrCmbBox, self.parent().incrMode)
         self.ui.startLineEdit.setText(self.parent().startPgmExp)
         self.ui.endLineEdit.setText(self.parent().endPgmExp)
@@ -189,6 +211,10 @@ class Export(QDialog):
         self.ui.seqIntervalSpinBox.setValue(self.parent().seqNumIncr)
         self._set_combo_from_bool(self.ui.delimCmbBox, self.parent().delim)
         self._set_combo_from_bool(self.ui.leadingZeroCmbBox, self.parent().leadingZero)
+        self._set_combo_from_bool(self.modalFeedCombo, getattr(self.parent(), "modalFeed", True))
+        self.decimalPlacesSpin.setValue(int(getattr(self.parent(), "exportDecimalPlaces", 6)))
+        self._set_combo_from_bool(self.forceDecimalCombo, getattr(self.parent(), "exportForceDecimal", False))
+        self._set_combo_from_bool(self.plusSignCombo, getattr(self.parent(), "exportPlusOutput", False))
         self._sync_target_cnc_choices()
         self._sync_output_option_availability()
 
@@ -196,7 +222,7 @@ class Export(QDialog):
         """Keep edits local until OK; Cancel leaves application settings unchanged."""
         self.accepted.connect(self._apply_and_export)
         self.ui.langCmbBox.currentIndexChanged.connect(lambda _index: self._sync_output_option_availability())
-        self.targetCncCombo.currentIndexChanged.connect(lambda _index: self._sync_output_option_availability())
+        self.targetCncCombo.currentIndexChanged.connect(lambda _index: self._sync_target_cnc_choices())
 
     def showEvent(self, event):
         self.loadSettings()
@@ -206,13 +232,9 @@ class Export(QDialog):
     def _apply_and_export(self):
         self.exportMode()
         self.parent().exportTargetCnc = (
-            self.targetCncCombo.currentIndex()
-            if self.ui.langCmbBox.currentIndex() in (MILL_FULL_PROGRAM_MODE, EXPANDED_EXECUTION_MODE)
-            and not self.parent().latheMode
-            else 0
+            self.targetCncCombo.currentIndex() if self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE else 0
         )
         self.arcMode()
-        self.forceAdr(self.ui.forceCmbBox.currentIndex())
         self.incrMode(self.ui.incrCmbBox.currentIndex())
         self.startPgmText()
         self.endPgmText()
@@ -222,7 +244,15 @@ class Export(QDialog):
         self.seqNumIncr()
         self.delim(self.ui.delimCmbBox.currentIndex())
         self.ledingZero(self.ui.leadingZeroCmbBox.currentIndex())
+        self.apply_output_fields()
         self.parent().export()
+
+    def apply_output_fields(self):
+        """Persist the four EXPANDED output fields on the parent window."""
+        self._set_parent_bool(self.modalFeedCombo, "modalFeed")
+        self.parent().exportDecimalPlaces = self.decimalPlacesSpin.value()
+        self._set_parent_bool(self.forceDecimalCombo, "exportForceDecimal")
+        self._set_parent_bool(self.plusSignCombo, "exportPlusOutput")
 
     def exportMode(self):
         """Store the selected logical export type."""
@@ -234,13 +264,12 @@ class Export(QDialog):
         self.parent().exportArcMode = self.ui.arcOutputCmbBox.currentIndex()
 
     def _sync_output_option_availability(self):
-        """Enable only options consumed by the selected exporter."""
-        dxf = self.ui.langCmbBox.currentIndex() == DXF_MODE
-        full_mill = self.ui.langCmbBox.currentIndex() == MILL_FULL_PROGRAM_MODE
-        resolved_mill = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE and not self.parent().latheMode
-        resolved_conversion = resolved_mill and self.targetCncCombo.currentIndex() != 0
-        self.targetCncLabel.setEnabled(full_mill or resolved_mill)
-        self.targetCncCombo.setEnabled(full_mill or resolved_mill)
+        """Enable options by export mode only; the target controller never disables formatting."""
+        mode = self.ui.langCmbBox.currentIndex()
+        dxf = mode == DXF_MODE
+        expanded = mode == EXPANDED_EXECUTION_MODE
+        self.targetCncLabel.setEnabled(expanded)
+        self.targetCncCombo.setEnabled(expanded)
         self._sync_target_cnc_choices()
         source_editing_controls = (
             (self.ui.label_StartText, self.ui.startLineEdit),
@@ -254,57 +283,30 @@ class Export(QDialog):
             (self.ui.label_Delim, self.ui.delimCmbBox),
             (self.ui.labelLeadingZero, self.ui.leadingZeroCmbBox),
         )
-        for label, control in source_editing_controls:
-            label.setEnabled(not dxf and not resolved_conversion)
-            control.setEnabled(not dxf and not resolved_conversion)
-        for label, control in formatting_controls:
+        expanded_only_controls = (
+            (self.ui.label_Incr, self.ui.incrCmbBox),
+            (self.ui.arcOutputLabel, self.ui.arcOutputCmbBox),
+            (self.modalFeedLabel, self.modalFeedCombo),
+            (self.decimalPlacesLabel, self.decimalPlacesSpin),
+            (self.forceDecimalLabel, self.forceDecimalCombo),
+            (self.plusSignLabel, self.plusSignCombo),
+        )
+        for label, control in (*source_editing_controls, *formatting_controls):
             label.setEnabled(not dxf)
             control.setEnabled(not dxf)
-
-        converted = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
-        turning_expanded = converted and bool(self.parent().latheMode)
-        self.ui.labelForce.setEnabled(converted and not resolved_conversion)
-        self.ui.forceCmbBox.setEnabled(converted and not resolved_conversion)
-        self.ui.label_Incr.setEnabled(converted and not resolved_conversion)
-        self.ui.incrCmbBox.setEnabled(converted and not resolved_conversion)
-        self.ui.arcOutputLabel.setEnabled(converted and not turning_expanded)
-        self.ui.arcOutputCmbBox.setEnabled(converted and not turning_expanded)
-        self._sync_resolved_arc_choices(resolved_conversion)
-
-    def _sync_resolved_arc_choices(self, resolved):
-        model = self.ui.arcOutputCmbBox.model()
-        native = self.targetCncCombo.currentIndex() == 3
-        allowed = {1, 3} if native else {0, 2, 3}
-        for index in range(self.ui.arcOutputCmbBox.count()):
-            model.item(index).setEnabled(not resolved or index in allowed)
-        if resolved and self.ui.arcOutputCmbBox.currentIndex() not in allowed:
-            self.ui.arcOutputCmbBox.setCurrentIndex(1 if native else 0)
+        for label, control in expanded_only_controls:
+            label.setEnabled(expanded)
+            control.setEnabled(expanded)
 
     def _sync_target_cnc_choices(self):
-        """Disable conversion to the dialect already used by the open program."""
-        parent = self.parent()
-        source = str(parent.ui.editor.text())
-        source_dialect = source_dialect_for_path(getattr(parent, "curFile", None), source)
-        model = self.targetCncCombo.model()
-        resolved = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
-        fanuc_item = model.item(1) if hasattr(model, "item") else None
-        sinumerik_item = model.item(2) if hasattr(model, "item") else None
-        if fanuc_item is not None:
-            fanuc_item.setEnabled(resolved or source_dialect != SOURCE_DIALECT_FANUC)
-        if sinumerik_item is not None:
-            sinumerik_item.setEnabled(resolved or source_dialect != SOURCE_DIALECT_SINUMERIK)
-        native_item = model.item(3) if hasattr(model, "item") else None
-        if native_item is not None:
-            native_item.setEnabled(
-                resolved
-                or (
-                    source_dialect == SOURCE_DIALECT_SINUMERIK
-                    and sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS
-                    and self.ui.langCmbBox.currentIndex() == MILL_FULL_PROGRAM_MODE
-                )
-            )
-        current_item = model.item(self.targetCncCombo.currentIndex()) if hasattr(model, "item") else None
-        if current_item is not None and not current_item.isEnabled():
+        expanded = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
+        turning = bool(self.parent().latheMode)
+        labels = ("FANUC lathe A", "FANUC lathe B") if turning else ("FANUC milling", "SINUMERIK 840D ISO-M (G291)")
+        for index, label in enumerate(labels, 1):
+            self.targetCncCombo.setItemText(index, label)
+        for index in range(1, self.targetCncCombo.count()):
+            self.targetCncCombo.model().item(index).setEnabled(expanded and not (turning and index >= 3))
+        if not expanded or (turning and self.targetCncCombo.currentIndex() >= 3):
             self.targetCncCombo.setCurrentIndex(0)
 
     def sync_mode_availability(self, turning: bool):
@@ -322,11 +324,6 @@ class Export(QDialog):
         if invalid:
             self.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
         self._sync_output_option_availability()
-
-    def forceAdr(self, idx):
-        """Toggle forced address formatting on export."""
-        del idx
-        self._set_parent_bool(self.ui.forceCmbBox, "forceAdr")
 
     def incrMode(self, idx):
         """Switch between absolute and incremental output coordinates."""

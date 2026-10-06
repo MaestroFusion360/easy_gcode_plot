@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from app.gcode.export.options import ExportOptions
-from app.gcode.export.trace import export_result
+from app.gcode.export.common import ExportOptions
+from app.gcode.export.expanded import export_result
 from app.gcode.kernel import execute
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/milling"
@@ -43,7 +43,7 @@ def test_paired_cycle_programs_cut_same_holes_and_depths():
 @pytest.mark.parametrize("events", [False, True])
 def test_native_cycle_trace_export_roundtrip(events):
     native = _native((FIXTURES / "sinumerik" / "cycles_sin840d.mpf").read_text())
-    trace = export_result(native, ExportOptions(include_execution_events=events, safety_line=True, delimiter=True))
+    trace = export_result(native, ExportOptions(safety_line=True, delimiter=True))
     replay = execute(trace, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
     assert len(replay.motions) == len(native.motions)

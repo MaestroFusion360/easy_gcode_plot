@@ -6,7 +6,7 @@ import pytest
 
 from app.cli import main
 from app.gcode.batch import analyze_directory
-from app.gcode.export.service import ExportRequest, export_file
+from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.kernel import execute
 from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
 from app.gcode.kernel.milling.kinematics import transform_vector
@@ -185,6 +185,11 @@ def test_fixture_executes_and_export_stays_closed(fixture_text, tmp_path, mode):
     path.write_text(source, encoding="utf8")
     destination = tmp_path / "converted.nc"
     request = ExportRequest(language="fanuc_mill", kinematics="5ax_table_ac_angled", mode=mode)
+    if mode == "full":
+        outcome = export_file(path, destination, request)
+        assert outcome.execution.ok and destination.exists()
+        assert "CYCLE800" in destination.read_text()
+        return
     try:
         outcome = export_file(path, destination, request)
     except ValueError:

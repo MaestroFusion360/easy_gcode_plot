@@ -1,0 +1,114 @@
+{
+  "id": "fanuc_mill_multiaxis",
+  "machine": "mill",
+  "extension": "nc",
+  "options": {
+    "incrementalMode": false,
+    "delimiter": true,
+    "leadingZero": false,
+    "decimalPlaces": 6,
+    "forceDecimal": false,
+    "plusOutput": false,
+    "units": "mm"
+  },
+  "format": {
+    "outputArcs": true,
+    "arcMode": "IJK",
+    "arcCenter": "incremental",
+    "absoluteCenterSyntax": "words",
+    "radiusAddress": "R",
+    "multiTurnArcs": false,
+    "words": {
+      "motion": {"order": 10, "required": true},
+      "X": {"order": 20, "required": false},
+      "Y": {"order": 30, "required": false},
+      "Z": {"order": 40, "required": false},
+      "A": {"order": 50, "required": false},
+      "B": {"order": 60, "required": false},
+      "C": {"order": 70, "required": false},
+      "I": {"order": 80, "required": false},
+      "J": {"order": 90, "required": false},
+      "K": {"order": 100, "required": false},
+      "R": {"order": 110, "required": false}
+    }
+  },
+  "motion": {
+    "rapidMove": "G0",
+    "linearMove": "G1",
+    "circularMoveCW": "G2",
+    "circularMoveCCW": "G3",
+    "planeXY": "G17",
+    "planeXZ": "G18",
+    "planeYZ": "G19",
+    "threadMove": "G32"
+  },
+  "positioning": {
+    "absolute": "G90",
+    "incremental": "G91",
+    "incrementalAxes": {}
+  },
+  "home": {
+    "G28": {
+      "X": "G91 G28 X0",
+      "Y": "G91 G28 Y0",
+      "Z": "G91 G28 Z0"
+    },
+    "G53": {
+      "X": "G53 X0",
+      "Y": "G53 Y0",
+      "Z": "G53 Z0"
+    }
+  },
+  "tool": {
+    "toolChange": "{tool} {code}"
+  },
+  "spindle": {
+    "cw": "M3",
+    "ccw": "M4",
+    "stop": "M5",
+    "cssOn": "G96 {speed}",
+    "cssOff": "G97 {speed}",
+    "maxSpeed": "G50 {speed}"
+  },
+  "coolant": {
+    "mist": "M7",
+    "flood": "M8",
+    "off": "M9"
+  },
+  "feed": {
+    "perMinute": "G94",
+    "perRev": "G95",
+    "inverseTime": ""
+  },
+  "units": {
+    "inch": "G20",
+    "metric": "G21"
+  },
+  "dwell": {
+    "command": "G4 {dwell}",
+    "address": "P",
+    "scale": 1000
+  },
+  "program": {
+    "start": "",
+    "preamble": [
+      "G17 G90 G94 G40 G49 G54"
+    ],
+    "safety": [
+      "G80",
+      "G0 G17 G40 G49 G90"
+    ],
+    "stop": "M0",
+    "optionalStop": "M1",
+    "end": "M30"
+  },
+  "supports": {
+    "axes": ["X", "Y", "Z", "A", "B", "C"],
+    "inverseTime": false,
+    "multiTurnArcs": false,
+    "absoluteArcCenters": true
+  },
+  "comment": {
+    "template": "({text})"
+  }
+}

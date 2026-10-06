@@ -12,10 +12,10 @@ from app.gcode.kernel import execute
 @pytest.mark.parametrize(
     ("name", "motion_count", "cycle_count", "end", "bounds", "diagnostics"),
     [
-        ("basic_turning_cycles.NC", 4028, 3916, (74, 100), (0, 305.4, -224.7, 100), {"UNSUPPORTED_G_CODE"}),
+        ("basic_turning_cycles.NC", 4031, 3916, (74, 100), (0, 305.4, -224.7, 100), {"UNSUPPORTED_G_CODE"}),
         ("compensation_control_off.nc", 190, 153, (128.27, 25.4), (-1.6, 138.43, -112.697, 25.4), set()),
         ("compensation_control_on.nc", 188, 151, (128.27, 25.4), (-1.6, 138.43, -112.697, 25.4), set()),
-        ("cycle71_ID.nc", 38, 37, (72, 1), (0, 89.6, -145, 1), set()),
+        ("cycle71_ID.nc", 39, 37, (72, 100), (0, 89.6, -145, 100), set()),
         ("drill.nc", 118, 55, (0, 16), (0, 0, -19.09, 16), {"UNSUPPORTED_M_CODE"}),
         ("face_groove.nc", 50, 46, (110, 20), (0, 110, -20, 20), set()),
         ("od_rough_finish.nc", 46, 43, (100, 20), (0, 100, -45, 20), set()),

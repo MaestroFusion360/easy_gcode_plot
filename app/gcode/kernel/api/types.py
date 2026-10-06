@@ -170,3 +170,4 @@ class ExecutionResult:
     kinematics_definition: str | None = None
     kinematics_fingerprint: str | None = None
     source_dialect: str = "fanuc"
+    lathe_gcode_system: str = "A"

@@ -13,7 +13,7 @@ import pytest
 from app import cli
 from app.gcode.batch import analyze_directory, write_batch_reports
 from app.gcode.batch_export import export_directory, write_export_reports
-from app.gcode.export.service import ExportRequest
+from app.gcode.export_file import ExportRequest
 from app.gcode.kernel import execute
 from app.gcode.kernel.api.resources import ExecutionBudget, SemanticError, active_budget
 from app.gcode.kernel.frontend import sinumerik

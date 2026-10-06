@@ -5,9 +5,9 @@ import math
 import pytest
 
 from app.gcode.batch_export import export_directory
-from app.gcode.export.options import ExportOptions
-from app.gcode.export.resolved import MILLING_TARGETS, convert_resolved_program
-from app.gcode.export.service import ExportRequest, export_file
+from app.gcode.export.common import ExportOptions
+from app.gcode.export.expanded import MILLING_TARGETS, convert_resolved_program
+from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import motion_length
 
@@ -39,6 +39,17 @@ def test_resolved_conversion_preserves_planes_units_dwell_and_feed(target, scale
     )
 
 
+def test_native_absolute_centers_are_not_exported_as_comments():
+    source = "G17 G90 G0 X10 Y0\nG3 X0 Y10 I=AC(0) J=AC(0) F100\nM30"
+    result = execute(source, language="fanuc_mill", source_dialect="sinumerik")
+    assert result.ok and result.complete
+
+    output = convert_resolved_program(result, "fanuc_mill", ExportOptions(delimiter=True))
+
+    assert "(0)" not in output
+    assert "G3 X0 Y10 Z0 I-10 J0" in output
+
+
 @pytest.mark.parametrize("dialect,source", SOURCES)
 @pytest.mark.parametrize("target", MILLING_TARGETS)
 def test_resolved_conversion_matrix_preserves_geometry_and_machine_controls(dialect, source, target):
@@ -54,7 +65,7 @@ def test_resolved_conversion_matrix_preserves_geometry_and_machine_controls(dial
         (result.motions[-1].end_x, result.motions[-1].end_y, result.motions[-1].end_z)
     )
     assert replay.motions[-1].tool == result.motions[-1].tool
-    if target == "sinumerik_native" and "TURN=" in source:
+    if target == "sinumerik_840d" and "TURN=" in source:
         assert "TURN=2" in output
         assert max(m.arc.sweep for m in replay.motions if m.arc) > math.tau
 
@@ -65,7 +76,7 @@ def test_resolved_targets_use_single_file_and_batch_service(tmp_path, target):
     source.mkdir()
     path = source / "part.mpf"
     path.write_text(SOURCES[2][1])
-    request = ExportRequest(language="fanuc_mill", mode="resolved", target_dialect=target)
+    request = ExportRequest(language="fanuc_mill", mode="expanded", target_dialect=target)
     output = tmp_path / ("output.nc" if target == "fanuc_mill" else "output.mpf")
     result = export_file(path, output, request)
     assert result.execution.ok and result.output_size_bytes > 0

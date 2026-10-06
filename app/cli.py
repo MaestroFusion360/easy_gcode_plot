@@ -14,10 +14,12 @@ from app.gcode.batch import (
     analysis_status,
     analyze_directory,
     analyze_file,
+    validate_batch_output_directory,
     write_batch_reports,
 )
 from app.gcode.batch_export import export_directory, write_export_reports
-from app.gcode.export.service import ExportRequest, export_file, validate_export_request
+from app.gcode.export.common import is_export_limitation
+from app.gcode.export_file import ExportRequest, export_file, validate_export_request
 from app.gcode.file_io import atomic_write_text, validate_output_paths
 from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
@@ -44,12 +46,14 @@ def _add_export_options(command: argparse.ArgumentParser) -> None:
     command.add_argument("--format", choices=("nc", "dxf"), default="nc", help="Output format")
     command.add_argument(
         "--target-dialect",
-        choices=("fanuc_mill", "sinumerik_iso", "sinumerik_native", "sinumerik840d"),
-        help="Postprocess milling geometry for SINUMERIK 840D",
+        "--post-profile",
+        metavar="NAME_OR_JSON",
+        help=(
+            "Expanded NC post profile: fanuc_mill, fanuc_mill_multiaxis, fanuc_lathe_a/b, "
+            "sinumerik_iso, sinumerik_840d, sinumerik_840d_multiaxis, or JSON path"
+        ),
     )
-    command.add_argument(
-        "--mode", choices=("expanded", "resolved", "full", "cycles"), default="expanded", help="NC export mode"
-    )
+    command.add_argument("--mode", choices=("expanded", "full"), default="expanded", help="NC export mode")
     command.add_argument("--units", choices=("auto", "mm", "inch"), default="auto", help="Output units")
     command.add_argument(
         "--arc-type",
@@ -59,13 +63,13 @@ def _add_export_options(command: argparse.ArgumentParser) -> None:
     )
     command.add_argument("--coordinates", choices=("absolute", "incremental"), default="absolute")
     for name in (
-        "force-addresses",
         "sequence-numbers",
         "sequence-spacing",
         "spaces",
         "leading-zero",
         "comments",
         "safety-line",
+        "modal-feed",
     ):
         command.add_argument(f"--{name}", action=argparse.BooleanOptionalAction, default=None)
     command.add_argument("--sequence-start", type=int, default=1)
@@ -80,13 +84,13 @@ _EXPORT_FLAGS = {
     "--sequence-increment": "sequence_increment",
 }
 for _name in (
-    "force-addresses",
     "sequence-numbers",
     "sequence-spacing",
     "spaces",
     "leading-zero",
     "comments",
     "safety-line",
+    "modal-feed",
 ):
     _EXPORT_FLAGS[f"--{_name}"] = _name.replace("-", "_")
     _EXPORT_FLAGS[f"--no-{_name}"] = _name.replace("-", "_")
@@ -107,7 +111,6 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
         units=args.units,
         arc_type=args.arc_type,
         coordinates=args.coordinates,
-        force_addresses=bool(args.force_addresses),
         sequence_numbers=bool(args.sequence_numbers),
         sequence_start=args.sequence_start,
         sequence_increment=args.sequence_increment,
@@ -116,6 +119,7 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
         leading_zero=bool(args.leading_zero),
         comments=True if args.comments is None else args.comments,
         safety_line=bool(args.safety_line),
+        modal_feed=True if args.modal_feed is None else args.modal_feed,
     ), explicit
 
 
@@ -313,8 +317,17 @@ def _print_batch_summary(report: dict[str, object], json_path: Path, csv_path: P
     print(f"CSV report:  {csv_path}")
 
 
+def _result_status(result: ExecutionResult) -> str:
+    if result.ok and result.complete:
+        return "WARNINGS" if result.diagnostics else "CLEAN"
+    errors = [diagnostic for diagnostic in result.diagnostics if diagnostic.severity == "error"]
+    if errors and all(is_export_limitation(diagnostic) for diagnostic in errors):
+        return "UNSUPPORTED"
+    return "ERRORS"
+
+
 def _print_program_result(command: str, path: Path, result: ExecutionResult, output: Path | None = None) -> None:
-    status = "ERRORS" if not result.ok or not result.complete else "WARNINGS" if result.diagnostics else "CLEAN"
+    status = _result_status(result)
     print(f"{command.capitalize()}: {path}")
     print(f"Result: {status}")
     print(
@@ -335,6 +348,23 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
     extensions = tuple(item.strip() for item in args.extensions.split(",") if item.strip())
     print(f"Analyzing NC programs in {Path(args.directory).resolve()} ({args.lang or 'auto'})", flush=True)
     try:
+        validate_batch_output_directory(
+            args.directory,
+            args.output_dir,
+            extensions=extensions,
+            generated_extensions=(".json", ".csv"),
+            recursive=not args.top_level_only,
+            label="Report output",
+        )
+        if args.html is not None:
+            validate_batch_output_directory(
+                args.directory,
+                args.html,
+                extensions=extensions,
+                generated_extensions=(".html",),
+                recursive=not args.top_level_only,
+                label="HTML output",
+            )
         profile_map = _read_kinematics_map(args.kinematics_map)
         report = analyze_directory(
             args.directory,
@@ -406,10 +436,10 @@ def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: 
     print(f"\nResult: {report['status']}")
     print(
         f"Processed: {summary['files_total']}  Exported: {summary['exported']}  "
-        f"Warnings: {summary['warnings']}  Errors: {summary['errors']}"
+        f"Unsupported: {summary['unsupported']}  Warnings: {summary['warnings']}  Errors: {summary['errors']}"
     )
     print(f"JSON report: {json_path}\nCSV report:  {csv_path}")
-    return 2 if report["status"] in {"ERRORS", "NO_FILES"} else 0
+    return 2 if report["status"] in {"ERRORS", "UNSUPPORTED", "NO_FILES"} else 0
 
 
 def _run_single(args: argparse.Namespace) -> int:

@@ -6,7 +6,7 @@ import pytest
 
 from app.cli import main
 from app.gcode.batch import analyze_directory
-from app.gcode.export.service import ExportRequest, export_file
+from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import motion_length, render_trace, sample_motion, trace_statistics
 from app.ui.plot.playback import build_playback_movements
@@ -125,8 +125,12 @@ def test_native_tcp_reaches_cli_batch_and_export_stays_closed(tmp_path):
     )
     assert report["status"] == "CLEAN"
     request = ExportRequest(language="fanuc_mill", kinematics="5ax_table_ac_angled")
-    for mode in ("expanded", "resolved", "full"):
+    for mode in ("expanded", "full"):
         output = tmp_path / f"{mode}.nc"
+        if mode == "full":
+            exported = export_file(source, output, replace(request, mode=mode))
+            assert exported.execution.ok and "TRAORI" in output.read_text()
+            continue
         try:
             exported = export_file(source, output, replace(request, mode=mode))
         except ValueError:

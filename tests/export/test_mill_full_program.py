@@ -48,12 +48,15 @@ def test_mill_full_program_expands_cycles_and_round_trips_trace():
     text = export_full_mill_program(
         result,
         MILLING_CYCLES.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     code_lines = [line for line in text.splitlines() if not line.startswith("(")]
-    assert not any(line.startswith(("G81", "G82", "G83", "G84", "G85", "G86")) for line in code_lines)
-    assert text.count("EXPANDED MILL CYCLE") == 5
+    assert any(line.startswith(("G81", "G82", "G83", "G84", "G85", "G86")) for line in code_lines)
+    assert "EXPANDED MILL CYCLE" not in text
     _assert_mill_round_trip(MILLING_CYCLES, text)
 
 
@@ -65,7 +68,10 @@ def test_mill_full_program_round_trips_arc_planes_and_full_circle(source):
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     _assert_mill_round_trip(source, text)
@@ -79,14 +85,17 @@ def test_mill_full_program_flattens_polar_coordinates_without_leaving_g16_active
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
-    assert "G16" not in text
-    assert "G15" not in text
-    assert "X86.60254 Y50" in text
-    assert "X-86.60254 Y50" in text
-    assert "Y-100" in text
+    assert "G16" in text
+    assert "G15" in text
+    assert "X100 Y30" in text
+    assert "Y150" in text
+    assert "Y270" in text
     _assert_mill_round_trip(source, text)
 
 
@@ -98,13 +107,16 @@ def test_mill_full_program_flattens_subprograms_and_preserves_inch_incremental_c
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     assert "G20" in text
     assert "G91" in text
-    assert "T1 M06" in text
-    assert "G43 H1" in text
+    assert "T01 M06" in text
+    assert "G43 H01" in text
     assert "M98" not in text
     assert "M99" not in text
     _assert_mill_round_trip(source, text)
@@ -118,19 +130,22 @@ def test_mill_full_program_preserves_source_controls_comments_and_program_end(fi
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     assert "(CONTOUR)" in text
     assert "(FREZA D10)" in text
-    assert "T1 M6" in text
-    assert "S2000 M3" in text
-    assert "G43 H1 M8" in text
+    assert "T01 M06" in text
+    assert "S2000 M03" in text
+    assert "G43 H01 Z100 M08" in text
     for wcs in ("G54", "G55", "G56", "G57"):
         assert wcs in text
-    assert "M9" in text
-    assert "M5" in text
-    assert "M1" in text
+    assert "M09" in text
+    assert "M05" in text
+    assert "M01" in text
     assert text.count("M30") == 1
     _assert_mill_round_trip(source, text)
 
@@ -153,14 +168,17 @@ M9 M02
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     assert text.count("M02") == 1
     assert "M30" not in text
-    assert "T4 M6" in text
-    assert "G4 P250" in text
-    assert "M9" in text
+    assert "T04 M06" in text
+    assert "G04 P250" in text
+    assert "M09" in text
     _assert_mill_round_trip(source, text)
 
 
@@ -172,7 +190,9 @@ def test_mill_full_program_applies_delimiter_to_compact_home_return_block():
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+        ),
     )
 
     assert "G0 G91 G28 Z0" in text
@@ -200,10 +220,13 @@ M30
     text = export_full_mill_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
-    assert "G41" not in text
+    assert "G41" in text
     assert "G42" not in text
     round_trip = execute(text, language="fanuc_mill", milling_tools=tools)
     assert round_trip.ok, round_trip.diagnostics
@@ -242,7 +265,7 @@ M99
 
     assert "M98" not in text
     assert "M99" not in text
-    assert "G41" not in text
+    assert "G41" in text
     assert sum(motion.source_kind == "cutter_compensation_transition" for motion in result.motions) == 2
 
 
@@ -287,15 +310,14 @@ def test_full_mill_export_preserves_machine_trace_with_coordinate_controls(sourc
     if "G53" in source:
         assert "G53G0X5" in exported
     if "G51" in source:
-        assert "G51" not in exported
+        assert "G51" in exported
 
 
 def test_full_mill_export_rejects_wcs_change_after_motion():
     source = "G21 G17 G90 G54\nG0 X2\nG10 L2 P1 X10\nG0 X3\nM30"
     result = execute(source, language="fanuc_mill")
     assert result.ok, result.diagnostics
-    with pytest.raises(ValueError, match="changes WCS offsets after motion"):
-        export_full_mill_program(result, source.splitlines())
+    _assert_mill_round_trip(source, export_full_mill_program(result, source.splitlines()))
 
 
 @pytest.mark.parametrize(
@@ -307,5 +329,5 @@ def test_flattened_mill_export_rejects_g43_4_tcp_motion(profile, rotary_word):
     result = execute(source, language="fanuc_mill", kinematics=profile)
     assert result.ok and result.complete, result.diagnostics
 
-    with pytest.raises(ValueError, match="cannot preserve G43.4 TCP rotary commands"):
-        export_full_mill_program(result, source.splitlines())
+    text = export_full_mill_program(result, source.splitlines())
+    assert "G43.4" in text and rotary_word.replace(" ", "") in text

@@ -3,24 +3,23 @@
 import logging
 import os
 import time
-from copy import deepcopy
-from dataclasses import replace
 from pathlib import Path
 from threading import Event
 
 from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QTimer
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
-from app.gcode.comments import SEMICOLON
-from app.gcode.export import DXF_MODE, MILL_FULL_PROGRAM_MODE, ExportOptions, _window_export_options, export_program
-from app.gcode.export.dxf import export_dxf
-from app.gcode.export.options import EXPANDED_EXECUTION_MODE
-from app.gcode.export.resolved import convert_resolved_program
-from app.gcode.export.sinumerik import convert_full_program_to_fanuc, convert_full_program_to_sinumerik
-from app.gcode.export.source_formatting import format_full_program_source, is_native_full_program
-from app.gcode.export.validation import validate_full_program_dialect_conversion
-from app.gcode.file_io import atomic_export, protect_source
-from app.gcode.kernel.api.resources import ExecutionLimits
+from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, normalize_comment_style
+from app.gcode.export import DXF_MODE
+from app.gcode.export.common import (
+    EXPANDED_EXECUTION_MODE,
+    MILL_FULL_PROGRAM_MODE,
+    TURN_FULL_PROGRAM_MODE,
+    ExportLimitation,
+    is_export_limitation,
+)
+from app.gcode.export_file import ExportRequest, write_export
+from app.gcode.file_io import protect_source
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
 from app.gcode.source_mode import (
     SINUMERIK_MODE_SIEMENS,
@@ -30,7 +29,6 @@ from app.gcode.source_mode import (
     source_dialect_for_path,
 )
 from app.gcode.trace_tools import format_tool_list, trace_statistics
-from app.settings import GENERATED_MOTIONS_DEFAULT
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
 from app.ui.windows.execution_worker import run_execution
@@ -216,136 +214,88 @@ def _ensure_current_export_trace(owner) -> bool:
     return True
 
 
-def _text_export_snapshot(owner):
-    source = str(owner.ui.editor.text())
-    source_dialect = source_dialect_for_path(getattr(owner, "curFile", None), source)
-    inference = deepcopy(getattr(owner, "program_tool_inference", {}) or {})
-    execution_options = {
-        "current_tools": deepcopy(getattr(owner, "millingTools", {}) or {}),
-        "library_tools": deepcopy(getattr(owner, "millingToolLibrary", {}) or {}),
-        "previous_inference": deepcopy(inference.get("millingTools", {})),
-        "correction_enabled": bool(getattr(owner, "correctionEnabled", True)),
-        "lathe_gcode_system": getattr(owner, "latheGcodeSystem", "A"),
-        "kinematics": deepcopy(getattr(owner, "rotaryKinematics", None)),
-        "source_arc_type": getattr(owner, "_document_arc_type", None) or getattr(owner, "arc_type", 1),
-        "autodetect_arc_type": getattr(owner, "autodetectArcType", True)
-        and not getattr(owner, "_manual_arc_type_override", False)
-        and getattr(owner, "_document_arc_type", None) is None,
-        "skip_optional_blocks": bool(getattr(owner, "ignoreBlockSkip", False)),
-        "arc_tolerance": float(getattr(owner, "arcTolerance", 0.01)),
-        "default_unit_scale": 25.4 if getattr(owner, "defaultUnits", "mm") == "inch" else 1.0,
-        "home_x": float(getattr(owner, "xPosMach", 0.0)),
-        "home_y": float(getattr(owner, "yPosMach", 0.0)),
-        "home_z": float(getattr(owner, "zPosMach", 0.0)),
-        "wcs_offsets": deepcopy(getattr(owner, "wcsOffsets", None)),
-        "emulate_g28_home": bool(getattr(owner, "homeConfigured", True)),
-        "include_instructions": False,
-        "limits": ExecutionLimits(
-            generated_motions=max(1, int(getattr(owner, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)))
-        ),
-    }
-    return (
-        source,
-        int(owner.exportMode),
-        int(owner.exportArcMode),
-        _window_export_options(owner, arc_mode=0),
-        getattr(owner, "fileEncoding", "utf-8"),
-        int(getattr(owner, "exportTargetCnc", 0)),
-        source_dialect,
-        execution_options,
-    )
+_ARC_TYPES = ("ijk-relative", "ijk-absolute", "radius", "linearized")
 
 
-def _convert_full_program_dialect(source, result, target_cnc, source_dialect, options, execution_options):
-    options = options or ExportOptions()
-    if target_cnc == 3 and is_native_full_program(result):
-        return format_full_program_source(source, options, native=True)
-    targets = {
-        1: (SOURCE_DIALECT_FANUC, convert_full_program_to_fanuc),
-        2: (SOURCE_DIALECT_SINUMERIK, convert_full_program_to_sinumerik),
-    }
-    try:
-        target_dialect, converter = targets[target_cnc]
-    except KeyError as exc:
-        raise ValueError("Unknown target CNC type") from exc
-    if source_dialect == target_dialect:
-        target_name = "SINUMERIK ISO-M" if target_cnc == 2 else "FANUC milling"
-        raise ValueError(f"The source is already {target_name}; choose the other CNC type or As source")
-    if target_cnc == 2:
-        unsafe_compensation = {"UNVERIFIED_CUTTER_COMPENSATION", "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION"}
-        if any(item.code in unsafe_compensation for item in result.diagnostics):
-            raise ValueError("SINUMERIK conversion requires cutter compensation to be resolved by the kernel")
-    converted = (
-        converter(
-            format_full_program_source(source, options), source_result=result, execution_options=execution_options
-        )
-        if target_cnc == 2
-        else converter(source, source_result=result, execution_options=execution_options, export_options=options)
+def _target_dialect(owner) -> str | None:
+    """Resolve the target post profile name for the EXPANDED target combo."""
+    target = int(getattr(owner, "exportTargetCnc", 0))
+    if target == 0:
+        return None
+    turning = bool(getattr(owner, "latheMode", False))
+    return {
+        1: "fanuc_lathe_a" if turning else "fanuc_mill",
+        2: "fanuc_lathe_b" if turning else "sinumerik_iso",
+        3: "sinumerik_840d",
+        4: "fanuc_mill_multiaxis",
+        5: "sinumerik_840d_multiaxis",
+    }.get(target)
+
+
+def _export_request(owner) -> tuple[ExportRequest, str, str]:
+    """Build the shared export request from the dialog/window settings.
+
+    The GUI performs no target mapping or conversion of its own: it only fills
+    the same contract the CLI and batch export use.
+    """
+    editor = getattr(getattr(owner, "ui", None), "editor", None)
+    source = str(editor.text()) if editor is not None else ""
+    mode = int(getattr(owner, "exportMode", EXPANDED_EXECUTION_MODE))
+    format_name = "dxf" if mode == DXF_MODE else "nc"
+    nc_mode = "full" if mode in (TURN_FULL_PROGRAM_MODE, MILL_FULL_PROGRAM_MODE) else "expanded"
+    target_dialect = None if nc_mode == "full" else _target_dialect(owner)
+    request = ExportRequest(
+        language="fanuc_turn" if bool(getattr(owner, "latheMode", False)) else "fanuc_mill",
+        target_dialect=target_dialect,
+        lathe_gcode_system=getattr(owner, "latheGcodeSystem", "A"),
+        kinematics=getattr(owner, "rotaryKinematics", None),
+        encoding=getattr(owner, "fileEncoding", "utf-8"),
+        format=format_name,
+        mode=nc_mode,
+        units="auto",
+        arc_type=_ARC_TYPES[int(getattr(owner, "exportArcMode", 0)) % len(_ARC_TYPES)],
+        coordinates="incremental" if bool(getattr(owner, "incrMode", False)) else "absolute",
+        sequence_numbers=bool(getattr(owner, "seqNum", False)),
+        sequence_start=int(getattr(owner, "seqNumStart", 1)),
+        sequence_increment=int(getattr(owner, "seqNumIncr", 1)),
+        sequence_spacing=bool(getattr(owner, "seqNumSpacing", False)),
+        spaces=bool(getattr(owner, "delim", True)),
+        leading_zero=bool(getattr(owner, "leadingZero", False)),
+        comments=True,
+        comment_style=normalize_comment_style(getattr(owner, "commentStyle", DEFAULT_COMMENT_STYLE)),
+        safety_line=bool(getattr(owner, "safLine", False)),
+        start_program=str(getattr(owner, "startPgmExp", "") or ""),
+        end_program=str(getattr(owner, "endPgmExp", "") or ""),
+        modal_feed=bool(getattr(owner, "modalFeed", True)),
+        decimal_places=int(getattr(owner, "exportDecimalPlaces", 6)),
+        decimal_places_explicit=True,
+        force_decimal=bool(getattr(owner, "exportForceDecimal", False)),
+        force_decimal_explicit=True,
+        plus_output=bool(getattr(owner, "exportPlusOutput", False)),
+        plus_output_explicit=True,
     )
-    converted_source = converted
-    validate_full_program_dialect_conversion(
+    return request, source, request.encoding
+
+
+def _write_export(owner, *, path, result, request, source, render_points, cancellation):
+    """Serialize through the shared writer; raise limitations for the GUI dialog."""
+    exported = write_export(
         result,
-        converted_source,
-        "fanuc_mill",
-        source_dialect=target_dialect,
-        execution_options=execution_options,
+        source,
+        path,
+        request,
+        render_points=render_points,
+        cancelled=cancellation.is_set,
     )
-    return converted_source
-
-
-def _write_export(
-    _unused,
-    *,
-    dxf_export,
-    path,
-    result,
-    render_points,
-    lathe_mode,
-    text_snapshot,
-    cancellation,
-):
-    if cancellation.is_set():
-        return False
-    if dxf_export:
-        atomic_export(
-            path,
-            lambda temporary: export_dxf(
-                result,
-                temporary,
-                turning=lathe_mode,
-                render_points=render_points,
-                cancelled=cancellation.is_set,
-            ),
-            cancelled=cancellation.is_set,
+    if not (exported.execution.ok and exported.execution.complete):
+        limitation = next(
+            (diagnostic for diagnostic in exported.execution.diagnostics if is_export_limitation(diagnostic)),
+            None,
         )
-        return True
-    assert text_snapshot is not None
-    source, mode, export_arc_mode, export_options, file_encoding, target_cnc, source_dialect, execution_options = (
-        text_snapshot
-    )
-    if target_cnc and not lathe_mode and mode == EXPANDED_EXECUTION_MODE:
-        target = {1: "fanuc_mill", 2: "sinumerik_iso", 3: "sinumerik_native"}[target_cnc]
-        resolved_options = replace(export_options or ExportOptions(), arc_mode=export_arc_mode)
-        text = convert_resolved_program(result, target, resolved_options, cancelled=cancellation.is_set)
-    elif target_cnc:
-        if lathe_mode or mode != MILL_FULL_PROGRAM_MODE:
-            raise ValueError("SINUMERIK/FANUC dialect conversion is available only for milling Full Program export")
-        text = _convert_full_program_dialect(
-            source, result, target_cnc, source_dialect, export_options, execution_options
-        )
-    else:
-        text = export_program(
-            result,
-            source,
-            mode=mode,
-            lathe_mode=lathe_mode,
-            options=export_options,
-            export_arc_mode=export_arc_mode,
-            cancelled=cancellation.is_set,
-        )
-    if cancellation.is_set():
-        return False
-    _atomic_write(path, text, encoding=file_encoding)
+        if limitation is not None:
+            raise ExportLimitation(limitation.message, code=limitation.code)
+        messages = "; ".join(diagnostic.message for diagnostic in exported.execution.diagnostics)
+        raise OSError(messages or "Export failed")
     return True
 
 
@@ -816,7 +766,7 @@ class MainWindowFileMixin:
         target = _export_target(self)
         if target is None:
             return
-        path, dxf_export = target
+        path, _dxf_export = target
         started = time.time()
         if not _ensure_current_export_trace(self):
             result = getattr(self, "execution_result", None)
@@ -832,6 +782,7 @@ class MainWindowFileMixin:
                 )
             return
         result = self.execution_result
+        request, source, _encoding = _export_request(self)
         cancellation = Event()
         try:
             written = run_execution(
@@ -839,12 +790,11 @@ class MainWindowFileMixin:
                 _write_export,
                 None,
                 {
-                    "dxf_export": dxf_export,
                     "path": path,
                     "result": result,
+                    "request": request,
+                    "source": source,
                     "render_points": self.render_points,
-                    "lathe_mode": bool(self.latheMode),
-                    "text_snapshot": None if dxf_export else _text_export_snapshot(self),
                     "cancellation": cancellation,
                 },
                 cancellation.set,
@@ -860,6 +810,17 @@ class MainWindowFileMixin:
                 self,
                 QCoreApplication.translate("MainWindow", "Export"),
                 QCoreApplication.translate("MainWindow", "Export cancelled."),
+            )
+            return
+        except ExportLimitation as exc:
+            LOGGER.info("export_limitation path=%s code=%s", path, getattr(exc, "code", ""))
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("MainWindow", "Export unavailable"),
+                QCoreApplication.translate(
+                    "MainWindow",
+                    "The selected post cannot represent this program.\n\n{0}",
+                ).format(exc),
             )
             return
         except Exception as exc:  # Export/file-system errors are surfaced to the GUI.

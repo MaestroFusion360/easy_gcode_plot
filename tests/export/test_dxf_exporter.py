@@ -9,8 +9,9 @@ import pytest
 from ezdxf import units
 
 from app.gcode.dxf_exporter import CUT_LAYER, RAPID_LAYER, build_dxf_document, export_dxf
+from app.gcode.export.common import scale_motion
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace_tools import render_trace, sample_motion
 
 
 def _document(source: str, language: str = "fanuc_mill"):
@@ -29,6 +30,24 @@ def test_dxf_exports_trace_lines_in_rapid_and_cut_layers():
     assert tuple(entities[0].dxf.end) == pytest.approx((1.0, 2.0, 3.0))
     assert tuple(entities[1].dxf.start) == pytest.approx((1.0, 2.0, 3.0))
     assert tuple(entities[1].dxf.end) == pytest.approx((4.0, 5.0, 6.0))
+
+
+def test_scaled_oriented_motion_scales_origin_and_preserves_sampled_geometry():
+    source = "G21 G90 G17\nG68.2 X10 Y20 Z30 I0 J90 K0\nG53.1\nG0 X10 Y0 Z0\nG3 X0 Y10 I-10 J0 F100\nM30\n"
+    result = execute(source, language="fanuc_mill", kinematics="5ax_table_bc_angled")
+    assert result.ok and result.complete, result.diagnostics
+    motion = result.motions[-1]
+    scaled = scale_motion(motion, 25.4)
+
+    assert scaled.orientation_offset == pytest.approx(tuple(value / 25.4 for value in motion.orientation_offset))
+    original_points = sample_motion(motion, 0, chord_error=0.001)
+    scaled_points = sample_motion(scaled, 0, chord_error=0.001 / 25.4)
+    assert len(scaled_points) == len(original_points)
+    for original, converted in zip(original_points, scaled_points, strict=True):
+        assert (converted.x, converted.y, converted.z) == pytest.approx(
+            (original.x / 25.4, original.y / 25.4, original.z / 25.4),
+            abs=1e-9,
+        )
 
 
 def test_dxf_units_match_trace_physical_millimetres_for_inch_source():
@@ -106,7 +125,7 @@ def test_dxf_milling_keeps_3d_lines_and_uses_plot_points_for_helix():
     assert len(vertices) == 25
 
 
-def test_dxf_write_round_trip_and_incomplete_result_rejection(tmp_path):
+def test_dxf_write_round_trip_and_incomplete_result_keeps_available_geometry(tmp_path):
     result = execute("G21 G90\nG1 X2 Y3 Z4 F100\nM30", language="fanuc_mill")
     output = tmp_path / "trace.dxf"
     export_dxf(result, output)
@@ -114,8 +133,12 @@ def test_dxf_write_round_trip_and_incomplete_result_rejection(tmp_path):
     loaded = ezdxf.readfile(output)
     assert loaded.units == units.MM
     assert len(loaded.modelspace()) == 1
-    with pytest.raises(ValueError, match="complete"):
-        build_dxf_document(replace(result, complete=False))
+
+    incomplete = build_dxf_document(replace(result, ok=False, complete=False))
+    assert len(incomplete.modelspace()) == 1
+    line = list(incomplete.modelspace())[0]
+    assert line.dxftype() == "LINE"
+    assert tuple(line.dxf.end) == pytest.approx((2.0, 3.0, 4.0))
 
 
 def test_flange_plate_benchmark_executes_subprograms_compensates_contours_and_exports_dxf(fixture_text):

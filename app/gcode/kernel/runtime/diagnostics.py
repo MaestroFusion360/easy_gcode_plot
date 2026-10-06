@@ -115,11 +115,15 @@ def turning_code_diagnostics(block, evaluated, system="A") -> tuple[Diagnostic, 
     for code in dict.fromkeys(evaluated.source_gcodes):
         if code in supported_codes(system) or is_extended_wcs_gcode(code):
             continue
-        geometric = position or code in {17, 19}
+        other_system = "B" if system == "A" else "A"
+        wrong_system = code in supported_codes(other_system)
+        geometric = position or code in {17, 19} or wrong_system
         diagnostics.append(
             Diagnostic(
                 "UNSUPPORTED_G_CODE",
-                f"G{code:g} is not modeled for fanuc_turn",
+                f"G{code:g} belongs to FANUC lathe Type {other_system}; selected source is Type {system}"
+                if wrong_system
+                else f"G{code:g} is not modeled for fanuc_turn",
                 "error" if geometric else "warning",
                 "unsupported" if geometric else "unverified",
                 block.index + 1,

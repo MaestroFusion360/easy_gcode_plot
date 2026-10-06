@@ -179,7 +179,14 @@ def test_supplied_full_cam_program_reaches_m30_without_suppressing_compensation_
     first_arc = next(m.arc for m in result.motions if m.arc is not None)
     assert first_arc.radius == pytest.approx(11.500224084773304)
     assert len(result.execution_steps) == len(result.program.blocks) == 5232
-    assert [d.code for d in result.diagnostics] == ["UNVERIFIED_CUTTER_COMPENSATION"]
+    # Compensation warnings are attached to every affected source block, not aggregated.
+    assert {d.code for d in result.diagnostics} == {"UNVERIFIED_CUTTER_COMPENSATION"}
+    compensation = [d for d in result.diagnostics if d.code == "UNVERIFIED_CUTTER_COMPENSATION"]
+    assert compensation
+    assert all(d.line is not None and d.raw for d in compensation)
+    assert not any(d.raw.strip().startswith("%") for d in compensation)
+    first_compensated = min(compensation, key=lambda d: d.line or 0)
+    assert "G41" in first_compensated.raw or "G42" in first_compensated.raw
 
 
 @pytest.mark.parametrize("distance", ["G90 X0 Y10", "G91 X-10 Y10"])

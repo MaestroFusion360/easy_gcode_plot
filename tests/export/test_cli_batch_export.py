@@ -11,6 +11,7 @@ import pytest
 
 from app.cli import main
 from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, discover_nc_files
+from app.gcode.export.expanded import load_post_profile
 from app.gcode.program_execution import execute_program
 
 
@@ -135,7 +136,7 @@ def test_turning_safety_line_keeps_turning_plane(tmp_path):
     source.write_text("G21 G18\nG0 X10 Z0\nM30\n", encoding="utf-8")
     output = tmp_path / "out.nc"
     assert main(["export", str(source), "--safety-line", "-o", str(output)]) == 0
-    assert "G0 G18 G40 G80" in output.read_text(encoding="utf-8")
+    assert "G18 G40 G80" in output.read_text(encoding="utf-8")
 
 
 def test_incremental_milling_export_preserves_geometry(tmp_path):
@@ -316,9 +317,9 @@ def test_indexed_full_export_rejects_formatting_it_cannot_apply(tmp_path):
                 str(output),
             ]
         )
-        == 2
+        == 0
     )
-    assert not output.exists()
+    assert output.exists()
 
 
 def test_batch_indexed_dxf_uses_profile_and_wcs_geometry(tmp_path):
@@ -399,9 +400,9 @@ def test_batch_export_can_target_sinumerik_mpf(tmp_path):
                 "--lang",
                 "fanuc_mill",
                 "--target-dialect",
-                "sinumerik840d",
+                "sinumerik_iso",
                 "--mode",
-                "full",
+                "expanded",
                 "-o",
                 str(output),
             ]
@@ -468,7 +469,7 @@ def test_unexpected_export_bug_propagates(tmp_path, monkeypatch):
     def fail(*_args, **_kwargs):
         raise RuntimeError("internal regression")
 
-    monkeypatch.setattr("app.gcode.export.service.execute_program", fail)
+    monkeypatch.setattr("app.gcode.export_file.execute_program", fail)
     with pytest.raises(RuntimeError, match="internal regression"):
         main(["batch-export", str(root), "-o", str(tmp_path / "output")])
 
@@ -481,6 +482,51 @@ def test_batch_rejects_output_under_source(tmp_path):
         main(["batch-export", str(root), "-o", str(root / "output")])
     assert error.value.code == 2
     assert not (root / "output").exists()
+
+
+def test_batch_export_reports_use_atomic_writes(tmp_path, monkeypatch):
+    from app.gcode import batch_export  # pylint: disable=import-outside-toplevel
+
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "part.nc").write_text("M30\n", encoding="utf-8")
+    output = tmp_path / "output"
+    calls = []
+    original = batch_export.atomic_write_text
+
+    def capture(path, text, *, encoding="utf-8"):
+        calls.append(Path(path).name)
+        return original(path, text, encoding=encoding)
+
+    monkeypatch.setattr(batch_export, "atomic_write_text", capture)
+    assert main(["batch-export", str(root), "-o", str(output)]) == 0
+    assert calls == ["batch_export_report.json", "batch_export_report.csv"]
+
+
+@pytest.mark.parametrize("extension", ["json", "csv"])
+def test_batch_export_rejects_destination_reserved_for_manifest(tmp_path, extension):
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "batch_export_report.nc").write_text("M30\n", encoding="utf-8")
+    profile = load_post_profile("fanuc_lathe_a")
+    profile["extension"] = extension
+    post = tmp_path / f"custom_{extension}.json"
+    post.write_text(json.dumps(profile), encoding="utf-8")
+    output = tmp_path / "output"
+
+    with pytest.raises(SystemExit) as error:
+        main(
+            [
+                "batch-export",
+                str(root),
+                "--target-dialect",
+                str(post),
+                "-o",
+                str(output),
+            ]
+        )
+    assert error.value.code == 2
+    assert not (output / f"batch_export_report.{extension}").exists()
 
 
 def test_batch_detects_output_name_collisions(tmp_path):

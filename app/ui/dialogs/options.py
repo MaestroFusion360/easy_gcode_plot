@@ -214,7 +214,10 @@ class OptionsDialog(QDialog):
         self.ui.latheGcodeSystemCombo.setObjectName("latheGcodeSystemCombo")
         self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type A", "A")
         self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type B", "B")
-        self.ui.generalForm.addRow(QLabel("Lathe G-code system", self), self.ui.latheGcodeSystemCombo)
+        self.ui.latheGcodeSystemCombo.setToolTip(
+            "Dialect of the source program. Select the output controller in Export / Target CNC."
+        )
+        self.ui.generalForm.addRow(QLabel("Source lathe G-code system", self), self.ui.latheGcodeSystemCombo)
         self._configure_rotary_kinematics_controls()
         self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (

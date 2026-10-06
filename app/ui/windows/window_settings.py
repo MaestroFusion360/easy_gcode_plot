@@ -14,7 +14,6 @@ from app.gcode.export import (
     DXF_MODE,
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
-    PLOT_DATA_MODE,
     TURN_FULL_PROGRAM_MODE,
 )
 from app.settings import (
@@ -179,8 +178,7 @@ _GENERAL_SETTINGS = (
 )
 
 _EXPORT_SETTINGS = (
-    _SettingSpec("TARGET_CNC", "exportTargetCnc", 0, int, lambda value: value if value in {0, 1, 2, 3} else 0),
-    _SettingSpec("FORCE_ADDRESS", "forceAdr", False, bool),
+    _SettingSpec("TARGET_CNC", "exportTargetCnc", 0, int, lambda value: value if value in {0, 1, 2, 3, 4, 5} else 0),
     _SettingSpec("INCREMENTAL_MODE", "incrMode", False, bool),
     _SettingSpec("START_PROGRAM", "startPgmExp", "O0001", str),
     _SettingSpec("END_PROGRAM", "endPgmExp", "M30", str),
@@ -191,6 +189,16 @@ _EXPORT_SETTINGS = (
     _SettingSpec("SEQ_NUM_SPACING", "seqNumSpacing", False, bool),
     _SettingSpec("DELIMITER", "delim", False, bool),
     _SettingSpec("LEADING_ZERO", "leadingZero", False, bool),
+    _SettingSpec("MODAL_FEED", "modalFeed", True, bool),
+    _SettingSpec(
+        "DECIMAL_PLACES",
+        "exportDecimalPlaces",
+        6,
+        int,
+        lambda value: value if isinstance(value, int) and 0 <= value <= 12 else 6,
+    ),
+    _SettingSpec("FORCE_DECIMAL", "exportForceDecimal", False, bool),
+    _SettingSpec("PLUS_OUTPUT", "exportPlusOutput", False, bool),
     _SettingSpec("ER_CHAR", "er", "%", str),
 )
 
@@ -344,13 +352,15 @@ class MainWindowSettingsMixin:
                 self.exportMode = MILL_FULL_PROGRAM_MODE
                 self.exportArcMode = 0
             elif legacy_mode == 4:
-                self.exportMode = PLOT_DATA_MODE
+                self.exportMode = EXPANDED_EXECUTION_MODE
                 self.exportArcMode = 0
             else:
                 self.exportMode = EXPANDED_EXECUTION_MODE
                 self.exportArcMode = legacy_mode if legacy_mode in range(4) else 0
         else:
             mode = self.settings.value("EXPORT_OPT/MODE", EXPANDED_EXECUTION_MODE, type=int)
+            if self.settings.value("EXPORT_OPT/MODE_SCHEMA", 1, type=int) < 2:
+                mode = DXF_MODE if mode == 4 else EXPANDED_EXECUTION_MODE if mode == 3 else mode
             self.exportMode = mode if mode in range(DXF_MODE + 1) else EXPANDED_EXECUTION_MODE
             arc_mode = self.settings.value("EXPORT_OPT/ARC_MODE", 0, type=int)
             self.exportArcMode = arc_mode if arc_mode in range(4) else 0
@@ -637,6 +647,7 @@ class MainWindowSettingsMixin:
         self.settings.endGroup()
         self.settings.beginGroup("EXPORT_OPT")
         self.settings.setValue("MODE", self.exportMode)
+        self.settings.setValue("MODE_SCHEMA", 2)
         self.settings.setValue("ARC_MODE", self.exportArcMode)
         self.settings.remove("LANGUAGE")
         self._save_setting_group(_EXPORT_SETTINGS)

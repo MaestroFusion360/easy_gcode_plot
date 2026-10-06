@@ -1143,6 +1143,28 @@ X17.0
           </p>
         </article>
       </div>
+      <div class="workflow" id="export-dialog">
+        <h3>Export Data dialog</h3>
+        <p>The dialog is split into two columns. The left column holds the export type, the target
+          controller, arc output and the expanded output representation (modal feed, decimal places,
+          force decimal and plus sign). The right column holds the program-text wrappers (start/end
+          text and safety line) and the coordinates/formatting block (coordinates, sequence numbers,
+          delimiter and leading zero). Groups are separated visually without titles so the dialog
+          mirrors the export contract directly.</p>
+        <p><strong>EXPANDED EXECUTION</strong> is one universal serializer of the resolved execution.
+          <strong>Target CNC</strong> selects the target syntax and post profile, while every user
+          output option stays available and is honored for FANUC&nbsp;&rarr;&nbsp;FANUC,
+          FANUC&nbsp;&rarr;&nbsp;SINUMERIK ISO, FANUC&nbsp;&rarr;&nbsp;SINUMERIK native and
+          SINUMERIK&nbsp;&rarr;&nbsp;FANUC. Profile defaults apply only to options the user does not
+          set, and the mandatory controller frame (G290/G291) always stays first.</p>
+        <p><strong>Auto (source controller)</strong> is not a separate mode: it automatically selects
+          the post profile matching the source controller and dialect. <strong>Modal Feed</strong>
+          controls whether F is restated when feed and mode are unchanged. <strong>Safety Line</strong>
+          inserts the profile's declared safe restart block after the user start text.</p>
+        <p>The desktop dialog, the single-file <code>export</code> command and
+          <code>batch-export</code> all use the same export contract and conversion code, so CLI and
+          batch output matches the GUI for the same settings.</p>
+      </div>
     </section>
     <section id="execution" class="section">
       <div class="section-heading">
@@ -1221,32 +1243,14 @@ X17.0
       <div class="feature-grid">
         <article>
           <h3>NC</h3>
-          <p>
-            Full Program preserves the source structure within the supported
-            export scope. Expanded Execution exports calculated moves after
-            expanding cycles, macros and subprograms.
-          </p>
-          <p>
-            Native SINUMERIK → FANUC milling Full Program normalizes supported
-            semantics through the kernel and validates the emitted program.
-            Safe source metadata warnings remain available in diagnostics.
-            CYCLE81/82/83/84 export follows the cycle mappings below.
-            Unsupported frames and rotary/TCP semantics block conversion.
-            FANUC → native Full Program remains unavailable.
-          </p>
-          <p>
-            Native → native Full Program preserves the original commands, expressions,
-            CYCLE800 and TRAORI while applying numbering and address formatting.
-            Select As source/native in the GUI or use
-            <code>--mode full --target-dialect sinumerik_native</code> in the CLI.
-          </p>
+          <p>FULL normalizes source blocks using the execution map and unfolds Macro B, IF/GOTO,
+          subprograms and turning G70–G76 cycles. EXPANDED is one universal serializer of the
+          resolved execution through a configurable JSON controller profile. Every user output
+          option stays available across targets; the profile only supplies syntax and defaults.</p>
         </article>
         <article>
-          <h3>DXF / Plot Data</h3>
-          <p>
-            Export calculated toolpath geometry to DXF or motion data to Plot
-            Data.
-          </p>
+          <h3>DXF</h3>
+          <p>Export resolved toolpath geometry to DXF.</p>
         </article>
         <article>
           <h3>The same kernel without the GUI</h3>
@@ -1257,40 +1261,29 @@ X17.0
         </article>
       </div>
       <div class="workflow" id="dialect-conversion">
-        <h3>Milling dialect conversion</h3>
-        <p>In the GUI, choose <strong>MILL FULL PROGRAM</strong> and the required <strong>Target CNC</strong>.
-          The CLI and batch export use the same converter and execute the target program again before writing it.</p>
-        <div class="table-wrap" role="region" aria-label="Milling conversion directions" tabindex="0">
-          <table>
-            <thead><tr><th scope="col">Direction</th><th scope="col">Full Program output</th><th scope="col">Scope</th></tr></thead>
-            <tbody>
-              <tr><td>FANUC Mill → SINUMERIK ISO-M</td><td>Adds <code>G291</code>; preserves supported ISO source blocks
-                and milling cycles. The O number becomes a comment; standalone % delimiters are removed.</td>
-                <td>Verified three-axis ISO-M subset. Target: <code>sinumerik_iso</code>;
-                  legacy alias: <code>sinumerik840d</code>.</td></tr>
-              <tr><td>SINUMERIK native → FANUC Mill</td><td>Normalizes supported native commands and evaluated parameters;
-                retains operation order and comments. Emits FANUC motion, tool offsets and supported drilling operations.</td>
-                <td>Supported three-axis native milling. Target: <code>fanuc_mill</code>.</td></tr>
-              <tr><td>SINUMERIK lathe / ISO Dialect T</td><td colspan="2"><strong>Not supported yet.</strong>
-                Siemens turning execution and conversion to/from FANUC turning are unavailable.</td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p><strong>Native drilling:</strong> CYCLE81/82 become <code>G81</code> without dwell or <code>G82 P...</code>
-          with dwell in milliseconds. CYCLE83 uses explicit local <code>G0/G1</code> pecks to preserve Siemens degression,
-          feed factor and reentry/return planes. Supported metric right-hand single-pass CYCLE84 uses
-          <code>M29</code>, <code>G99 G84</code>, feed withdrawal to the safety plane, then <code>G80</code> and rapid
-          return to RTP. Bare MCALL cancels an active target canned cycle.</p>
-        <p><strong>Conversion limits:</strong> actual rotary 4-axis, active CYCLE800 3+2 and TRAORI/TCP 5-axis programs
-          are rejected. An empty/bare CYCLE800 frame reset in an XYZ-only native program is accepted. Named tools,
-          native source control flow and unmodeled geometry-changing commands block Full Program conversion;
-          safe metadata warnings alone do not.</p>
-        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode full --target-dialect sinumerik_iso -o iso_part.mpf
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full --target-dialect fanuc_mill -o fanuc_part.nc</code></pre>
-        <p><strong>Resolved / Expanded Execution</strong> exports executed XYZ geometry in a zero-offset G54 frame,
-          expanding cycles and evaluating variables. It does not preserve source program structure and also rejects
-          rotary/TCP geometry. Full Program preserves the supported operation structure; CYCLE83 expansion stays local
-          to drilling holes. The original source remains unchanged.</p>
+        <h3>Controller postprocessing</h3>
+        <p>Choose <strong>EXPANDED EXECUTION</strong> and the target controller. Kernel geometry and states
+          are emitted through JSON profiles fanuc_mill, fanuc_mill_multiaxis, fanuc_lathe_a, fanuc_lathe_b, sinumerik_iso, sinumerik_840d and sinumerik_840d_multiaxis.
+          <strong>Auto (source controller)</strong> picks the profile matching the source; select an external
+          profile with <code>--post-profile path/to/post.json</code>.</p>
+        <p>Target profiles define syntax, mandatory frames, capabilities and defaults. User formatting options —
+          G90/G91 coordinates, sequence numbers, delimiter, leading zero, modal feed,
+          decimal precision, force decimal, plus sign, arc output and start/end program text — are honored
+          across FANUC and SINUMERIK targets; a profile default is used only when the user does not choose.
+          Cycles and variables are resolved into geometry; physical coordinates use a zero-offset G54 frame.
+          Rotary/TWP/TCP and unverified geometry-changing commands are rejected.</p>
+        <p>The profile's <code>format.words</code> controls frame-word order and mandatory output. Each token
+          (<code>motion</code>, <code>X</code>, <code>Y</code>, <code>Z</code>, <code>A</code>, <code>B</code>,
+          <code>C</code>, <code>I</code>, <code>J</code>, <code>K</code>, <code>R</code>) has an <code>order</code>
+          and a <code>required</code> flag with optional <code>decimals</code>/<code>sign</code>. <code>required</code>
+          forces an address to be emitted when it has a resolved value; <code>motion.required=false</code> makes the
+          motion code modal. An axis entry is only valid when the axis is declared in <code>supports.axes</code>, and
+          <code>F</code> is excluded because feed is controlled by Modal Feed.</p>
+        <p><strong>FULL</strong> preserves the source dialect and ordinary blocks, unfolding only flow-dependent
+          Macro B / IF/GOTO / subprogram constructs and turning G70–G76 when required for safe normalization.
+          <strong>DXF</strong> writes motion geometry independently of NC post formatting.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>
       </div>
       <div class="workflow" id="batch-analysis">
         <h3>Analyze a folder and collect reports</h3>
@@ -1308,12 +1301,11 @@ X17.0
       </div>
       <div class="workflow" id="batch-export">
         <h3>Export a folder while keeping its structure</h3>
-        <p>Apply one export configuration to every program: expanded NC, supported Full Program conversion,
-          native-source formatting or DXF. Results go to a separate directory with the same relative subdirectories.</p>
+        <p>Apply one export configuration to every program: expanded NC, FULL source normalization or DXF. Results go to a separate directory with the same relative subdirectories.</p>
         <pre class="command-example"><code>.\easy_gcode_plot_cli.exe batch-export ".\programs\milling" --lang fanuc_mill &#96;
   --mode expanded -o ".\exported"</code></pre>
-        <p>For DXF toolpaths, add <code>--format dxf</code>. To format existing native SINUMERIK files, use
-          <code>--mode full --target-dialect sinumerik_native</code>.</p>
+        <p>For DXF toolpaths, add <code>--format dxf</code>. Use <code>--mode full</code> for source-preserving
+          normalization, or <code>--mode expanded --post-profile ...</code> for controller postprocessing.</p>
         <ul class="workflow-results">
           <li>Exported NC or DXF files follow the input directory structure.</li>
           <li><code>batch_export_report.csv</code> and <code>batch_export_report.json</code> record output paths,
@@ -1321,7 +1313,9 @@ X17.0
           <li>A failed file is reported while processing continues with the remaining files.</li>
         </ul>
         <p>The output directory must be outside the input tree. Choose the machine type and supported target for the
-          folder; unsupported conversion is recorded as an error rather than silently changing the program.</p>
+          folder; unsupported conversion is recorded as an error rather than silently changing the program. The four
+          shipped conversion scripts are covered by a semantic regression gate that re-executes successfully exported
+          programs and compares their trajectory signature with the source.</p>
       </div>
       <details class="code-table">
         <summary>Scanning, encodings and rotary profiles</summary>

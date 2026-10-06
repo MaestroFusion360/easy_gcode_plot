@@ -9,7 +9,6 @@ import pytest
 from app.gcode.exporter import (
     EXPANDED_EXECUTION_MODE,
     MILL_FULL_PROGRAM_MODE,
-    PLOT_DATA_MODE,
     TURN_FULL_PROGRAM_MODE,
     export_pgm,
 )
@@ -38,7 +37,6 @@ def _window_export_harness(
         exportArcMode=arc_mode,
         latheMode=language == "fanuc_turn",
         incrMode=False,
-        forceAdr=False,
         seqNum=False,
         seqNumStart=1,
         seqNumIncr=1,
@@ -64,17 +62,9 @@ def test_gui_export_dispatch_keeps_text_modes_and_arc_options():
     converted_text = export_pgm(converted)
     assert " R10" in converted_text
 
-    converted.exportMode = PLOT_DATA_MODE
-    plot_text = export_pgm(converted)
-    assert "G2 " not in plot_text and "G3 " not in plot_text
-
-    converted.incrMode = True
-    plot_text = export_pgm(converted)
-    assert "G91" not in plot_text
-
     converted.exportMode = TURN_FULL_PROGRAM_MODE
     turn_full = export_pgm(converted)
-    assert "EXPANDED TURN PROGRAM" in turn_full
+    assert "G3 X40 Z-10 I0 K-10 F100" in turn_full
 
     mill_source = "G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nM30"
     mill = _window_export_harness(
@@ -83,7 +73,7 @@ def test_gui_export_dispatch_keeps_text_modes_and_arc_options():
         export_mode=MILL_FULL_PROGRAM_MODE,
     )
     mill_full = export_pgm(mill)
-    assert "EXPANDED MILL PROGRAM" in mill_full
+    assert "G1 X10 Y0 Z0 F100" in mill_full
 
 
 def test_expanded_execution_exports_the_trace_after_block_skip():

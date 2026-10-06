@@ -3,7 +3,7 @@
 import pytest
 
 from app.gcode.batch import execute_analysis_program
-from app.gcode.export.service import ExportRequest, export_file
+from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.kernel import execute
 
 

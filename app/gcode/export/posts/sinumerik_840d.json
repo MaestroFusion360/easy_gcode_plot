@@ -1,0 +1,107 @@
+{
+  "id": "sinumerik_840d",
+  "machine": "mill",
+  "extension": "mpf",
+  "options": {
+    "incrementalMode": false,
+    "delimiter": true,
+    "leadingZero": false,
+    "decimalPlaces": 6,
+    "forceDecimal": false,
+    "plusOutput": false,
+    "units": "mm"
+  },
+  "format": {
+    "outputArcs": true,
+    "arcMode": "IJK",
+    "arcCenter": "absolute",
+    "absoluteCenterSyntax": "AC",
+    "radiusAddress": "CR=",
+    "multiTurnArcs": true,
+    "words": {
+      "motion": {"order": 10, "required": true},
+      "X": {"order": 20, "required": false},
+      "Y": {"order": 30, "required": false},
+      "Z": {"order": 40, "required": false},
+      "I": {"order": 50, "required": false},
+      "J": {"order": 60, "required": false},
+      "K": {"order": 70, "required": false},
+      "R": {"order": 80, "required": false}
+    }
+  },
+  "motion": {
+    "rapidMove": "G0",
+    "linearMove": "G1",
+    "circularMoveCW": "G2",
+    "circularMoveCCW": "G3",
+    "planeXY": "G17",
+    "planeXZ": "G18",
+    "planeYZ": "G19",
+    "threadMove": "G33"
+  },
+  "positioning": {
+    "absolute": "G90",
+    "incremental": "G91",
+    "incrementalAxes": {}
+  },
+  "home": {
+    "G28": {
+      "X": "SUPA X0",
+      "Y": "SUPA Y0",
+      "Z": "SUPA Z0"
+    },
+    "G53": {}
+  },
+  "tool": {
+    "toolChange": "{tool} D0 {code}"
+  },
+  "spindle": {
+    "cw": "M3",
+    "ccw": "M4",
+    "stop": "M5",
+    "cssOn": "G96 {speed}",
+    "cssOff": "G97 {speed}",
+    "maxSpeed": "LIMS={value}"
+  },
+  "coolant": {
+    "mist": "M7",
+    "flood": "M8",
+    "off": "M9"
+  },
+  "feed": {
+    "perMinute": "G94",
+    "perRev": "G95",
+    "inverseTime": "G93"
+  },
+  "units": {
+    "inch": "G700",
+    "metric": "G710"
+  },
+  "dwell": {
+    "command": "G4 {dwell}",
+    "address": "F",
+    "scale": 1
+  },
+  "program": {
+    "start": "",
+    "mode": "G290",
+    "preamble": [
+      "G17 G90 G94 G40 D0 G54"
+    ],
+    "safety": [
+      "G17 G40 G90"
+    ],
+    "stop": "M0",
+    "optionalStop": "M1",
+    "end": "M30"
+  },
+  "supports": {
+    "axes": ["X", "Y", "Z"],
+    "inverseTime": true,
+    "multiTurnArcs": true,
+    "absoluteArcCenters": true
+  },
+  "comment": {
+    "template": "; {text}"
+  }
+}

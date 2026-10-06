@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.gcode.export.resolved import convert_resolved_program
+from app.gcode.export.expanded import convert_resolved_program
 from app.gcode.kernel import execute
 
 

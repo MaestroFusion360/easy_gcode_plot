@@ -71,10 +71,15 @@ G-code source
                 +--> GUI rendering / playback
                 +--> statistics
                 +--> batch / CLI trace
-                `--> NC / DXF export
+                +--> EXPANDED postprocessor
+                `--> DXF geometry
+
+G-code source + execution map
+                |
+                `--> FULL source normalizer
 ```
 
-The frontend constructs Program/AST once per shared execution. Tool setup consumes that same object before motion execution; the Cython/Python source scanner supplies literal tool candidates, comments and dimensions. Library lookup and manual overrides resolve the tool geometry, and the kernel owns execution semantics. Rendering, statistics and export consume ExecutionResult rather than interpreting G-code independently. Python fallback is supported in source checkouts, including individual complex blocks. Packaged releases require all three native extensions; missing extensions are explicit runtime errors.
+The frontend constructs Program/AST once per shared execution. Tool setup consumes that same object before motion execution; the Cython/Python source scanner supplies literal tool candidates, comments and dimensions. Library lookup and manual overrides resolve the tool geometry, and the kernel owns execution semantics. FULL uses the exact source together with the authoritative execution map; EXPANDED and DXF consume resolved execution geometry/state. None of these paths implements a second CNC interpreter. Python fallback is supported in source checkouts, including individual complex blocks. Packaged releases require all three native extensions; missing extensions are explicit runtime errors.
 
 Unsupported or ambiguous controller behavior is reported explicitly instead of being converted into guessed geometry.
 
@@ -114,7 +119,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - GUI/CLI/kernel TRAORI/TRAFOOF TCP on the angled AC/BC table profiles, including G2/G3 with rotary interpolation.
 - Native CYCLE800 static frames and TRAORI/TRAFOOF TCP on angled AC/BC tables. Numeric A/B/C, direct R references and incremental IC values are supported for configured axes; DC selects the shortest absolute rotary approach; ambiguous half turns remain rejected.
 - `TURN=` multi-revolution arc handling.
-- Resolved conversion between supported FANUC, SINUMERIK ISO-M and SINUMERIK native milling geometry.
+- EXPANDED serialization of resolved three-axis geometry between supported FANUC, SINUMERIK ISO-M and SINUMERIK native targets.
 
 See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current limitations.
 
@@ -138,9 +143,8 @@ See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current
 
 - Full Program export.
 - Expanded Execution export.
-- Plot Data export.
 - DXF export.
-- CLI `parse`, `trace`, `analyze`, `report`, `batch`, `export` and `batch-export`.
+- CLI `parse`, `trace`, `analyze`, `batch`, `export` and `batch-export`.
 - JSON and CSV batch reports.
 - Native Cython acceleration with compatible Python fallback.
 
@@ -263,55 +267,64 @@ Native declarations, `G290/G291` switches and controller operations break an acc
 
 ## Export model
 
-Exporters consume the resolved kernel result instead of interpreting G-code independently.
+The GUI and CLI expose three export families: **FULL**, **EXPANDED** and **DXF**.
 
-This is intentional: controller execution is resolved once, then downstream consumers serialize or visualize the same geometry.
+**FULL** is a source-preserving NC normalizer. It keeps ordinary source blocks, comments, controller dialect,
+modal commands and supported cycles. Constructs whose meaning depends on labels or execution flow are unfolded
+from the authoritative execution map before sequence numbers can be changed: FANUC Macro B / evaluated variables,
+IF/GOTO/WHILE flow, G65 and M98/M99 calls, and FANUC turning G70–G76. FULL is not a controller-conversion mode.
 
-### Resolved conversion
+**EXPANDED** is one universal serializer of the resolved execution. Target CNC selects the target
+syntax and post profile; the bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`,
+`fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d` and `sinumerik_840d_multiaxis`, and a JSON path can be supplied
+with `--post-profile`.
+`Auto (source controller)` selects the profile matching the source controller and dialect. Profiles
+define syntax, mandatory frames, capabilities and defaults, but they do not disable user output
+options: coordinates, sequence numbers, delimiter, leading zero, modal feed,
+decimal precision, force decimal, plus sign, arc output and start/end program text remain available
+and are honored for FANUC→FANUC, FANUC→SINUMERIK ISO, FANUC→SINUMERIK native and SINUMERIK→FANUC. A
+profile default is used only when the user did not choose a value.
 
-Resolved Program Conversion supports:
+Expanded arcs can be emitted as relative IJK, absolute IJK, radius or linearized motion. The profile defines the
+controller spelling: native SINUMERIK uses `I=AC(...)` / `J=AC(...)` / `K=AC(...)` for absolute centers and `CR=`
+for radius output, while FANUC/ISO profiles use their configured IJK/R forms. Source comments are preserved through
+the post's comment template. Native SINUMERIK emits its `G290`/`G291` language mode as the physically first program
+line, and user start text is emitted after it.
 
-- `fanuc_mill`
-- `sinumerik_iso`
-- `sinumerik_native`
+EXPANDED output is modal by default: `Modal Feed` controls whether `F` is restated (`Yes` only when the feed value
+or feed mode changes, `No` on every cutting motion). Safety Line emits the profile-declared `program.safety` block
+after the user start text. Word order and mandatory output are controlled by the post profile's `format.words`: each
+token (`motion`, `X`, `Y`, `Z`, `A`, `B`, `C`, `I`, `J`, `K`, `R`) has an `order` and a `required` flag. `required`
+forces an address to be emitted even when unchanged or zero (for example `Y0`); `motion.required=false` makes the
+motion code modal. Per-word `decimals`/`sign` live in the same object, and an axis entry is only valid when the axis
+is declared in `supports.axes`. `F` is intentionally not part of `format.words` because feed is managed by Modal
+Feed. Other profile sections (`format.turnsWord`/`radiusSplitAngle`/`arcSplitAngle`/`fullCircle`, and `supports`
+declaring `axes`/`inverseTime`/`multiTurnArcs`/`absoluteArcCenters`) keep working and make unsupported requests fail
+closed as `UNSUPPORTED` instead of writing partial NC. Multi-axis geometry (rotary A/B/C, `G68.2`/`G53.1`, `G43.4`,
+`CYCLE800`, `TRAORI`/TCP) remains unsupported by the three-axis postprocessor and is reported as a limitation, not an
+error.
 
-for supported three-axis milling input.
+Cycles, variables and subprogram flow are already executed before EXPANDED serialization. Physical XYZ is emitted
+in one zero-offset G54 frame. Actual rotary/TWP/TCP geometry is rejected by the three-axis postprocessor; merely
+having a kinematics profile selected does not make an otherwise XYZ-only program rotary. Reference returns are
+emitted through the target profile (`G28`/`G53` or native `SUPA`) and unresolved position gaps fail closed.
 
-Example:
+**DXF** writes the available resolved motion geometry without NC formatting or controller postprocessing. Rapid and
+cutting moves use separate layers. Planar arcs/circles are written analytically where representable; helices and
+multi-revolution geometry are sampled as polylines when required. Turning uses the plot-aligned Z/X view.
+
+Examples from a source checkout:
 
 ```powershell
-.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode resolved --target-dialect sinumerik_native -o native_part.mpf
-
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode resolved --target-dialect fanuc_mill -o resolved_part.nc
+.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --mode full --sequence-numbers -o normalized.nc
+.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_840d.json -o posted.mpf
+.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --format dxf -o toolpath.dxf
 ```
 
-Cycles and variables are evaluated before serialization. Resolved output is written in a zero-offset frame.
-
-SINUMERIK native output uses explicit I=AC/J=AC/K=AC absolute centers and can preserve `TURN=`.
-
-### Full Program conversion
-
-Native SINUMERIK source can also be formatted without dialect conversion: use Milling Full Program with **As source** or **SINUMERIK native** in the GUI, or `--mode full --target-dialect sinumerik_native` in the CLI. This preserves expressions, native calls, modal commands, CYCLE800 and TRAORI, while applying numbering, address spacing, leading zeros and comment inclusion. Native comments retain semicolon syntax. XYZ/rotary geometry is not rebuilt.
-
-```powershell
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full --target-dialect sinumerik_native --sequence-numbers -o formatted.mpf
-```
-
-Source-preserving `--mode full` supports verified FANUC ↔ SINUMERIK ISO-M conversion and bounded native SINUMERIK → FANUC normalization.
-
-SINUMERIK native → FANUC milling `--mode full` uses validated kernel normalization before FANUC emission and target re-execution. Supported units (`G70/G71/G700/G710`), inverse-time feed (`G93`), evaluated parameters and radius arcs retain their executed semantics. Safe metadata warnings remain in source diagnostics without blocking conversion. Unrepresentable native cycles, frames, orientation, diameter modes and rotary/TCP semantics still block export. FANUC → native Full Program remains unavailable; FANUC → ISO-M (`G291`) is unchanged.
-
-```powershell
-.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full -o fanuc_part.nc
-```
-
-Programs containing unsupported rotary/TCP/tilted-plane semantics are rejected before NC output is written. The exporter does not invent `TRAORI`, `TRAFOOF`, `CYCLE800` or controller-switching sequences.
-
-### GUI export
-
-The GUI provides the verified SINUMERIK 840D ISO-M (`G291`) target.
-
-Native SINUMERIK resolved conversion is currently a CLI capability.
+The GUI exposes the same FULL / EXPANDED / DXF split in the Export Data dialog. Target-controller selection belongs
+to EXPANDED (including `Auto (source controller)`); FULL keeps the source controller/dialect. The GUI, single-file
+`export` and `batch-export` all use the same export contract and conversion code, so CLI and batch output matches the
+GUI for the same settings.
 
 ---
 
@@ -470,9 +483,9 @@ SINUMERIK examples:
 ```powershell
 .\easy_gcode_plot_cli.exe analyze part.mpf --lang fanuc_mill
 
-.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode resolved --target-dialect fanuc_mill -o part.nc
+.\easy_gcode_plot_cli.exe export part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o part.nc
 
-.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode resolved --target-dialect sinumerik_native -o part.mpf
+.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_840d.json -o part.mpf
 ```
 
 ### Batch analysis
@@ -539,28 +552,36 @@ batch_export_report.csv
 
 Source files are never modified.
 
+The same single-file export contract backs `export`, `batch-export` and the GUI, so the same settings produce the same
+output. The four preset conversion scripts below are covered by a semantic regression gate
+(`tests/export/test_batch_export_semantics.py`) that re-executes successfully exported programs and compares their
+trajectory signature with the source.
+
 Files with invalid or incomplete execution are skipped while the remaining inputs continue.
 
 For mixed indexed batches, `--kinematics-map` can assign a profile per relative input path.
 
-### Preset scripts
+### Preset conversion scripts
+
+The development tree contains four EXPANDED batch-export checks. They use the built CLI and explicit JSON post
+profiles, writing below `tmp/test_export`.
 
 Windows:
 
 ```powershell
-.\scripts\ps1\batch\batch_mill.ps1
-.\scripts\ps1\batch\batch_turn.ps1
-.\scripts\ps1\batch\batch_export_mill.ps1
-.\scripts\ps1\batch\batch_export_turn.ps1
+.\scripts\ps1\batch\fanuc_mill_to_sinumerik_native.ps1
+.\scripts\ps1\batch\fanuc_mill_to_sinumerik_iso.ps1
+.\scripts\ps1\batch\fanuc_lathe_a_to_b.ps1
+.\scripts\ps1\batch\sinumerik_native_to_fanuc_mill.ps1
 ```
 
 Linux:
 
 ```bash
-bash scripts/sh/batch/batch_mill.sh
-bash scripts/sh/batch/batch_turn.sh
-bash scripts/sh/batch/batch_export_mill.sh
-bash scripts/sh/batch/batch_export_turn.sh
+bash scripts/sh/batch/fanuc_mill_to_sinumerik_native.sh
+bash scripts/sh/batch/fanuc_mill_to_sinumerik_iso.sh
+bash scripts/sh/batch/fanuc_lathe_a_to_b.sh
+bash scripts/sh/batch/sinumerik_native_to_fanuc_mill.sh
 ```
 
 Run:

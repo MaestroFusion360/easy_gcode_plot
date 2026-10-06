@@ -61,6 +61,7 @@ try {
         '--hidden-import', 'app.gcode.kernel.milling._native_executor',
         '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}.",
         '--add-data', "$(Join-Path $projectRoot 'app\gcode\kernel\milling\rotary_profiles.json')${separator}app/gcode/kernel/milling",
+        '--add-data', "$(Join-Path $projectRoot 'app\gcode\export\posts')${separator}app/gcode/export/posts",
         '--add-data', "$(Join-Path $projectRoot 'app\gcode\templates')${separator}app/gcode/templates"
     )
 

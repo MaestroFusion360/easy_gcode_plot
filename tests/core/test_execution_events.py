@@ -114,13 +114,16 @@ M99
     text = export_full_program(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
 
     assert "M98" not in text
     assert "M99" not in text
-    assert text.count("G20 M8") == 1
-    assert text.count("M9") == 1
+    assert text.count("G20 M08") == 1
+    assert text.count("M09") == 1
     assert text.count("M02") == 1
 
 
@@ -151,19 +154,14 @@ M99
         ),
     ).splitlines()
 
-    assert lines[:2] == ["O1000", "(EXPANDED FROM LOGICAL MOTION TRACE - ANALYSIS ONLY)"]
-    assert [line for line in lines if line.startswith("N")] == [
-        "N10 T0101",
-        "N20 G0 X20 Z0",
-        "N30 T0202",
-        "N40 G1 X30 Z-5 F100",
-        "N50 T0202",
-        "N60 M30",
-    ]
-    assert lines.count("(SUBPROGRAM O2000 START - CALL 1)") == 1
-    assert lines.count("(SUBPROGRAM O2000 END - CALL 1)") == 1
-    assert lines.count("(SUBPROGRAM O2000 START - CALL 2)") == 1
-    assert lines.count("(SUBPROGRAM O2000 END - CALL 2)") == 1
+    executable = [line.split(" ", 1)[1] for line in lines if line.startswith("N")]
+    first_tool = executable.index("T0101")
+    second_tool = executable.index("T0202")
+    first_motion = next(index for index, line in enumerate(executable) if line.startswith("G0 X20"))
+    second_motion = next(index for index, line in enumerate(executable) if line.startswith("G1 X30"))
+    assert first_tool < first_motion < second_tool < second_motion
+    assert executable.count("T0202") == 2
+    assert not any("M98" in line or "M99" in line for line in lines)
 
 
 def test_expanded_milling_tool_change_occurs_at_m6_event_not_t_preselection():
@@ -179,11 +177,16 @@ M30
     result = execute(source, language="fanuc_mill")
     assert result.ok, result.diagnostics
 
-    lines = export_result(result, ExportOptions(delimiter=True, analysis_banner=False)).splitlines()
+    lines = export_result(
+        result,
+        ExportOptions(
+            delimiter=True,
+        ),
+    ).splitlines()
 
-    first_motion = lines.index("G0 X1 Z0")
+    first_motion = next(index for index, line in enumerate(lines) if line.startswith("G0 X1"))
     tool_change = lines.index("T1 M06")
-    second_motion = lines.index("G0 X2 Z0")
+    second_motion = next(index for index, line in enumerate(lines) if line.startswith("G0 X2"))
     assert first_motion < tool_change < second_motion
 
 
@@ -212,19 +215,19 @@ M30
             sequence_start=10,
             sequence_increment=10,
             sequence_spacing=True,
-            analysis_banner=False,
         ),
     ).splitlines()
     numbered = [line for line in lines if line.startswith("N")]
     executable = [line.split(" ", 1)[1] for line in numbered]
 
-    assert "G18 G54" in executable
-    assert "G96 S180 M3" in executable
+    assert "G18 G40 G80 G54 G98" in executable
+    assert "G96 S180" in executable and "M3" in executable
     assert "M8" in executable
     assert "G4 P500" in executable
     assert any(line.startswith("G32 ") and line.endswith("F2") for line in executable)
-    assert "G28 U0 W0" in executable
-    assert "G97 S1200 M4" in executable
+    assert "G28 U0 W0" not in executable
+    assert "G28 U0" in executable and "G28 W0" in executable
+    assert "G97 S1200" in executable and "M4" in executable
     assert "M9 M5" in executable
     assert [int(line.split(" ", 1)[0][1:]) for line in numbered] == list(range(10, 10 * (len(numbered) + 1), 10))
 
@@ -248,13 +251,23 @@ M30
     )
     assert result.ok, result.diagnostics
 
-    lines = export_result(result, ExportOptions(delimiter=True, analysis_banner=False)).splitlines()
+    lines = export_result(
+        result,
+        ExportOptions(
+            delimiter=True,
+        ),
+    ).splitlines()
 
-    assert "G17 G54" in lines
+    assert "G17 G90 G94 G40 G49 G54" in lines
     assert "S1200 M3 M8" in lines
-    assert "G0 X1 Y2 Z3" in lines
-    assert "G55" in lines
-    assert lines.count("G53 G0 Z0") == 1
+    assert "G0 X11 Y22 Z33" in lines
+    assert "G55" not in lines
+    assert "G0 X11 Y22 Z0" in lines
+    replay = execute("\n".join(lines), language="fanuc_mill")
+    assert replay.ok and replay.complete
+    assert [(m.end_x, m.end_y, m.end_z) for m in replay.motions] == [
+        (m.end_x, m.end_y, m.end_z) for m in result.motions
+    ]
     assert "M9 M5" in lines
 
 
@@ -275,9 +288,17 @@ M99
     full = full_exporter(
         result,
         source.splitlines(),
-        ExportOptions(delimiter=True, leading_zero=True, analysis_banner=False),
+        ExportOptions(
+            delimiter=True,
+            leading_zero=True,
+        ),
     )
-    expanded = export_result(result, ExportOptions(delimiter=True, analysis_banner=False))
+    expanded = export_result(
+        result,
+        ExportOptions(
+            delimiter=True,
+        ),
+    )
 
     for text in (full, expanded):
         assert "G65" not in text

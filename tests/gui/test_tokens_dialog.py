@@ -73,6 +73,18 @@ def test_tokens_show_unverified_milling_diagnostics_without_own_support_table():
     assert rows[3].values[15] == "OK"
 
 
+def test_tokens_attach_unverified_cutter_compensation_to_each_affected_block():
+    source = "G90 G17\nG0 X0 Y0\nG41 G1 X10 Y0 F100\nG1 X10 Y10\nG40 G1 X20\nM30"
+    rows = rows_from_execution(source, execute(source, language="fanuc_mill"))
+
+    assert rows[0].values[15] == "OK"
+    assert rows[1].values[15] == "OK"
+    for row in rows[2:4]:
+        assert row.values[15] == "UNVERIFIED"
+        assert "UNVERIFIED_CUTTER_COMPENSATION" in row.values[16]
+    assert rows[4].values[15] == "OK"
+
+
 def test_tokens_preserve_fatal_diagnostics_on_their_source_lines():
     source = "G999\nGOTO999"
     rows = rows_from_execution(source, execute(source, language="fanuc_turn"))

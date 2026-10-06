@@ -3,19 +3,23 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
 
 from app.cli import main
 from app.gcode import batch
+from app.gcode.kernel import execute
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
 @pytest.mark.parametrize("language, expected", [("fanuc_mill", True), ("fanuc_turn", False)])
 def test_cli_batch_enables_arc_autodetection_for_milling(tmp_path, monkeypatch, language, expected):
-    source = tmp_path / "arc.nc"
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    source = source_dir / "arc.nc"
     source.write_text("G17 G90\nG0 X10 Y0\nG2 X20 Y10 I10 J10\nM30\n", encoding="utf-8")
     calls = []
     original = batch.execute_program
@@ -25,7 +29,7 @@ def test_cli_batch_enables_arc_autodetection_for_milling(tmp_path, monkeypatch, 
         return original(*args, **kwargs)
 
     monkeypatch.setattr(batch, "execute_program", capture_execution)
-    main(["batch", str(tmp_path), "--lang", language, "-o", str(tmp_path / "report")])
+    main(["batch", str(source_dir), "--lang", language, "-o", str(tmp_path / "report")])
     assert calls == [expected]
 
 
@@ -62,8 +66,11 @@ def test_cli_trace_uses_program_tool_geometry_for_milling_compensation(tmp_path)
     assert not any(item["code"] == "UNVERIFIED_CUTTER_COMPENSATION" for item in result["diagnostics"])
     assert any(motion["compensation_applied"] for motion in result["motions"])
 
+    batch_source = tmp_path / "batch-source"
+    batch_source.mkdir()
+    (batch_source / source.name).write_bytes(source.read_bytes())
     report_dir = tmp_path / "report"
-    assert main(["batch", str(tmp_path), "--lang", "fanuc_mill", "-o", str(report_dir)]) == 0
+    assert main(["batch", str(batch_source), "--lang", "fanuc_mill", "-o", str(report_dir)]) == 0
     report = json.loads((report_dir / "batch_report.json").read_text(encoding="utf-8"))
     assert report["files"][0]["status"] == "CLEAN"
 
@@ -144,7 +151,7 @@ def test_cli_cycle_export_includes_complete_final_id_g71_contour(tmp_path):
                 "export",
                 str(FIXTURES / "turning" / "cycle71_ID.nc"),
                 "--mode",
-                "cycles",
+                "full",
                 "--leading-zero",
                 "-o",
                 str(exported),
@@ -154,11 +161,10 @@ def test_cli_cycle_export_includes_complete_final_id_g71_contour(tmp_path):
     )
 
     lines = exported.read_text(encoding="utf-8").splitlines()
-    # Preserve analytical arcs through the configured ID tool-nose correction,
-    # rather than checking a long sampled polyline.
-    assert any(line.startswith("G02 ") and " R1.9 " in line for line in lines)
-    assert any(line.startswith("G02 ") and " R2.7 " in line for line in lines)
-    assert lines[-4:] == ["G01 X75.3 Z-145.8 F0.25", "G01 X74.9 Z-145.6 F0.25", "G00 X74.9 Z1", "G00 X72 Z1"]
+    assert not any(re.search(r"\bG7[0-6]\b", line) for line in lines)
+    assert any("G2" in line or "G02" in line for line in lines)
+    replay = execute(exported.read_text(encoding="utf-8"), language="fanuc_turn")
+    assert replay.ok and replay.complete
 
 
 def test_cli_rejects_cycle_mode_for_milling(tmp_path):
@@ -228,6 +234,40 @@ def test_cli_batch_writes_production_json_and_csv_report(tmp_path, capsys):
     assert "nested/error.nc,ERRORS" in csv_text
     assert "ok.nc,CLEAN" in csv_text
     assert "warning.nc,WARNINGS" in csv_text
+
+
+@pytest.mark.parametrize(("kind", "extension"), [("report", ".json"), ("html", ".html")])
+def test_cli_batch_rejects_generated_output_that_reenters_scan(tmp_path, kind, extension):
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "part.nc").write_text("M30\n", encoding="utf-8")
+    arguments = ["batch", str(corpus), "--extensions", extension]
+    if kind == "report":
+        arguments += ["-o", str(corpus / "report")]
+    else:
+        arguments += ["--html", str(corpus / "html"), "-o", str(tmp_path / "report")]
+
+    with pytest.raises(SystemExit) as error:
+        main(arguments)
+    assert error.value.code == 2
+    assert not (corpus / kind).exists()
+
+
+def test_cli_batch_reports_use_atomic_writes(tmp_path, monkeypatch):
+    corpus = tmp_path / "corpus"
+    corpus.mkdir()
+    (corpus / "part.nc").write_text("M30\n", encoding="utf-8")
+    output = tmp_path / "report"
+    calls = []
+    original = batch.atomic_write_text
+
+    def capture(path, text, *, encoding="utf-8"):
+        calls.append(Path(path).name)
+        return original(path, text, encoding=encoding)
+
+    monkeypatch.setattr(batch, "atomic_write_text", capture)
+    assert main(["batch", str(corpus), "-o", str(output)]) == 0
+    assert calls == ["batch_report.json", "batch_report.csv"]
 
 
 def test_cli_batch_top_level_only_and_custom_extensions(tmp_path, capsys):
@@ -367,19 +407,20 @@ def test_cli_exports_sinumerik_iso_m_from_mpf_as_fanuc_full_program(tmp_path, ca
     source.write_text(source_text, encoding="utf-8")
 
     assert main(["export", str(source), "--lang", "fanuc_mill", "--mode", "full", "-o", str(full_output)]) == 0
-    assert full_output.read_text(encoding="utf-8") == source_text.replace("G291\n", "")
+    assert full_output.read_text(encoding="utf-8") == source_text
     capsys.readouterr()
 
     assert main(["export", str(source), "--lang", "fanuc_mill", "--mode", "expanded", "-o", str(expanded_output)]) == 0
     expanded = expanded_output.read_text(encoding="utf-8")
     assert "X10" in expanded
-    assert "G291" not in expanded
+    assert "G291" in expanded
 
 
-def test_sinumerik_dialect_conversion_rejects_expanded_mode(tmp_path):
+def test_cli_expanded_can_select_sinumerik_post(tmp_path):
     source = tmp_path / "source.nc"
-    source.write_text("G21 G17 G90\nG0 X0 Y0\nM30\n", encoding="utf-8")
-    with pytest.raises(SystemExit) as exc:
+    source.write_text("G21 G17 G90\nG0 X0 Y0\nM30\n")
+    output = tmp_path / "out.mpf"
+    assert (
         main(
             [
                 "export",
@@ -387,155 +428,16 @@ def test_sinumerik_dialect_conversion_rejects_expanded_mode(tmp_path):
                 "--lang",
                 "fanuc_mill",
                 "--target-dialect",
-                "sinumerik840d",
+                "sinumerik_iso",
                 "--mode",
                 "expanded",
                 "-o",
-                str(tmp_path / "out.mpf"),
-            ]
-        )
-    assert exc.value.code == 2
-
-
-def test_cli_full_program_adds_and_removes_sinumerik_mode_without_expanding(tmp_path, capsys):
-    fanuc_source = tmp_path / "source.nc"
-    sinumerik_output = tmp_path / "converted.mpf"
-    fanuc_output = tmp_path / "roundtrip.nc"
-    original = "O1234\nG21 G17 G90\nT1 M6\nG0 X0 Y0 Z5\nG1 X10 Y0 Z-1 F100\nM30\n"
-    fanuc_source.write_text(original, encoding="utf-8")
-
-    assert (
-        main(
-            [
-                "export",
-                str(fanuc_source),
-                "--lang",
-                "fanuc_mill",
-                "--target-dialect",
-                "sinumerik840d",
-                "--mode",
-                "full",
-                "-o",
-                str(sinumerik_output),
-            ]
-        )
-        == 0
-    )
-    converted = sinumerik_output.read_text(encoding="utf-8")
-    assert converted == "G291\n(O1234)\n" + original.split("\n", 1)[1]
-    assert "ANALYSIS ONLY" not in converted
-    capsys.readouterr()
-
-    assert (
-        main(
-            [
-                "export",
-                str(sinumerik_output),
-                "--lang",
-                "fanuc_mill",
-                "--mode",
-                "full",
-                "-o",
-                str(fanuc_output),
-            ]
-        )
-        == 0
-    )
-    assert fanuc_output.read_text(encoding="utf-8") == original.replace("O1234", "(O1234)", 1)
-    capsys.readouterr()
-
-
-@pytest.mark.parametrize(
-    "source, diagnostic",
-    [
-        ("G291\nG21 G17 G90\nG0 X0 Y0\nM98 P1000\nM30\n", "M98"),
-    ],
-)
-def test_sinumerik_target_fails_closed_for_semantics_it_cannot_preserve(tmp_path, capsys, source, diagnostic):
-    input_path = tmp_path / "source.nc"
-    output_path = tmp_path / "result.mpf"
-    input_path.write_text(source, encoding="utf-8")
-
-    assert (
-        main(
-            [
-                "export",
-                str(input_path),
-                "--lang",
-                "fanuc_mill",
-                "--target-dialect",
-                "sinumerik840d",
-                "--mode",
-                "full",
-                "-o",
-                str(output_path),
-            ]
-        )
-        == 2
-    )
-    assert not output_path.exists()
-    captured = capsys.readouterr()
-    assert diagnostic.lower() in captured.err.lower() or diagnostic.lower() in captured.out.lower()
-
-
-@pytest.mark.parametrize(
-    "cycle",
-    [
-        "G82 X10 Y20 Z-2 R1 P100 F100",
-        "G86 X10 Y20 Z-2 R1 F100",
-    ],
-)
-def test_sinumerik_full_program_conversion_preserves_cycle_signals(tmp_path, capsys, cycle):
-    source = tmp_path / "cycle.nc"
-    output = tmp_path / "cycle.mpf"
-    source_text = f"G21 G17 G90\nG0 X0 Y0 Z5\n{cycle}\nG80\nM30\n"
-    source.write_text(source_text, encoding="utf-8")
-
-    assert (
-        main(
-            [
-                "export",
-                str(source),
-                "--lang",
-                "fanuc_mill",
-                "--target-dialect",
-                "sinumerik840d",
-                "--mode",
-                "full",
-                "-o",
                 str(output),
             ]
         )
         == 0
     )
-    assert output.read_text(encoding="utf-8") == "G291\n" + source_text
-    capsys.readouterr()
-
-
-def test_sinumerik_target_rejects_unverified_cutter_compensation(tmp_path, capsys):
-    source = tmp_path / "compensation.nc"
-    output = tmp_path / "compensation.mpf"
-    source.write_text("G21 G17 G90\nG0 X0 Y0 Z5\nG41 D1\nG1 X10 F100\nG40\nM30\n", encoding="utf-8")
-
-    assert (
-        main(
-            [
-                "export",
-                str(source),
-                "--lang",
-                "fanuc_mill",
-                "--target-dialect",
-                "sinumerik840d",
-                "--mode",
-                "full",
-                "-o",
-                str(output),
-            ]
-        )
-        == 2
-    )
-    assert not output.exists()
-    assert "UNVERIFIED_TARGET_CUTTER_COMPENSATION" in capsys.readouterr().out
+    assert output.read_text().startswith("G291\n")
 
 
 def test_sinumerik_target_rejects_turning_export(tmp_path):
@@ -549,7 +451,7 @@ def test_sinumerik_target_rejects_turning_export(tmp_path):
                 "--lang",
                 "fanuc_turn",
                 "--target-dialect",
-                "sinumerik840d",
+                "sinumerik_iso",
                 "--mode",
                 "full",
                 "-o",

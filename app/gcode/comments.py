@@ -46,9 +46,30 @@ def strip_comments(line: str, style: object | None = None) -> str:
 
 
 def extract_comments(line: str) -> list[str]:
-    """Extract comments from either supported input syntax."""
-    comments = [match.group(1).strip() for match in re.finditer(r"\((.*?)\)", line) if match.group(1).strip()]
-    _code, separator, comment = line.partition(";")
-    if separator and comment.strip():
-        comments.append(comment.strip())
+    """Extract comments without mistaking SINUMERIK AC(...) expressions for comments.
+
+    A ``;`` that appears inside a parenthesized comment is part of that comment,
+    not a second semicolon comment, so it must not be extracted twice.
+    """
+    comments: list[str] = []
+    depth = 0
+    body_start = -1
+    skip_body = False
+    for index, character in enumerate(str(line)):
+        if character == "(":
+            if depth == 0:
+                skip_body = line[:index].rstrip().upper().endswith("AC")
+                body_start = index + 1
+            depth += 1
+        elif character == ")" and depth:
+            depth -= 1
+            if depth == 0 and not skip_body:
+                body = line[body_start:index].strip()
+                if body:
+                    comments.append(body)
+        elif character == ";" and depth == 0:
+            comment = line[index + 1 :].strip()
+            if comment:
+                comments.append(comment)
+            break
     return comments
