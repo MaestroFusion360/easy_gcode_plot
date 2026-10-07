@@ -76,6 +76,27 @@ def test_cli_multiaxis_export_is_nonzero_and_unsupported(tmp_path, capsys):
     assert "Result: UNSUPPORTED" in terminal
 
 
+@pytest.mark.parametrize(
+    "command,code",
+    [("G43.4 H1", "UNSUPPORTED_TCP_EXPANDED_EXPORT"), ("G68.2 X0 Y0 Z0 I0 J30 K0", "UNSUPPORTED_TWP_EXPANDED_EXPORT")],
+)
+@pytest.mark.parametrize("newline", ["\n", "\r\n"])
+def test_export_blocker_identifies_its_source_line_in_batch_report(tmp_path, command, code, newline):
+    root = tmp_path / "source"
+    root.mkdir()
+    source = f"; CAM setup\n\nG90 G0 X0 Y0 Z0\n{command}\nG1 X10 F100\nM30\n"
+    (root / "part.nc").write_bytes(source.replace("\n", newline).encode("utf-8"))
+    output = tmp_path / "output"
+    report = export_directory(root, output, ExportRequest(language="fanuc_mill", kinematics="5ax_table_bc_angled"))
+    item = report["files"][0]
+    assert item["status"] == "UNSUPPORTED"
+    diagnostic = next(d for d in item["diagnostics"] if d["code"] == code)
+    assert diagnostic["line"] == 4
+    assert diagnostic["raw"] == command
+    assert diagnostic["severity"] == "error"
+    assert not (output / "part.nc").exists()
+
+
 def test_real_failure_still_reports_errors(tmp_path):
     root = tmp_path / "src"
     root.mkdir()

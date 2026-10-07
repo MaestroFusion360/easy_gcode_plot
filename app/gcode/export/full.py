@@ -55,10 +55,10 @@ def normalize_full_program(result, source, options=None, *, cancelled=None):
         raise ValueError("FULL source does not match the executed program")
     options = options or ExportOptions()
     # Validate the map even when no blocks need expansion.
-    steps = list(_execution_slices(result))
+    steps = list(_cancellable(_execution_slices(result), cancelled))
     native = is_native_full_program(result)
     if not _dangerous_source(result):
-        return format_full_program_source(source, options, native=native)
+        return format_full_program_source(source, options, native=native, cancelled=cancelled)
     _require_continuous_motions(result, allow_source_rapids=True, allow_rotary_index_gaps=True)
     if native:
         raise ValueError("Unsafe native control flow cannot be normalized with an ISO execution map")
@@ -73,7 +73,7 @@ def normalize_full_program(result, source, options=None, *, cancelled=None):
         lines.insert(0, "%")
     if source_lines and source_lines[-1].strip() == "%":
         lines.append("%")
-    return format_full_program_source("\n".join(lines) + "\n", options)
+    return format_full_program_source("\n".join(lines) + "\n", options, cancelled=cancelled)
 
 
 def _full_execution_lines(result, steps, options, cancelled):
@@ -165,9 +165,10 @@ def export_full_program(result, source_lines, options=None, *, cancelled=None):
 
 
 def format_full_program_source(
-    source: str, options: ExportOptions, *, native: bool = False, uppercase_comments: bool = False
+    source: str, options: ExportOptions, *, native: bool = False, uppercase_comments: bool = False, cancelled=None
 ) -> str:
     """Apply formatting-only options to source blocks without rebuilding geometry."""
+    _check_cancelled(cancelled)
     source = _apply_full_program_text_options(source, options, native=native)
     has_jump_flow = re.search(r"\bGOTO[FB]?\b", source, flags=re.IGNORECASE) is not None
     has_sequence_labels = re.search(r"(?im)^\s*/?\s*N\d+\b", source) is not None
@@ -176,7 +177,7 @@ def format_full_program_source(
 
     output: list[str] = []
     sequence = options.sequence_start
-    for raw_line in source.splitlines(keepends=True):
+    for raw_line in _cancellable(source.splitlines(keepends=True), cancelled):
         raw_line = _format_source_comments(raw_line, options, native=native, uppercase_comments=uppercase_comments)
         line_ending = _line_ending(raw_line)
         line = raw_line[: -len(line_ending)] if line_ending else raw_line

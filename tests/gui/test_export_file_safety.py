@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+from app.gcode.export.common import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
 from app.gcode.export_file import ExportRequest
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
@@ -19,6 +20,45 @@ from app.ui.windows import main_window_file_ops as ops
 @pytest.fixture
 def qt_app():
     return QApplication.instance() or QApplication([])
+
+
+@pytest.mark.parametrize("turning", [False, True])
+@pytest.mark.parametrize("target", [1, 2, 3, 4, 5])
+def test_export_dialog_target_filter_and_extension(tmp_path, monkeypatch, turning, target):
+    siemens = target in (3, 5) or (target == 2 and not turning)
+    suffix = ".mpf" if siemens else ".nc"
+    expected_filter = ops.SINUMERIK_FILE_FILTER if siemens else ops.NC_PROGRAM_FILTER
+    owner = SimpleNamespace(
+        curFile=str(tmp_path / "part.mpf"),
+        exportMode=EXPANDED_EXECUTION_MODE,
+        exportTargetCnc=target,
+        latheMode=turning,
+    )
+
+    def save_dialog(parent, title, suggested, filters, initial_filter):
+        assert parent is owner
+        assert Path(suggested).name == "part_export" + suffix
+        assert filters == ops.SAVE_FILE_FILTER
+        assert initial_filter == expected_filter
+        return str(tmp_path / "output"), initial_filter
+
+    monkeypatch.setattr(ops.QFileDialog, "getSaveFileName", save_dialog)
+    assert ops._export_target(owner) == (str(tmp_path / "output") + suffix, False)
+
+
+@pytest.mark.parametrize("source_suffix", [".nc", ".mpf", ".SPF"])
+@pytest.mark.parametrize("mode", [EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE])
+def test_auto_and_full_export_defaults_follow_source_container(tmp_path, source_suffix, mode):
+    owner = SimpleNamespace(
+        curFile=str(tmp_path / ("part" + source_suffix)),
+        exportMode=mode,
+        exportTargetCnc=0 if mode == EXPANDED_EXECUTION_MODE else 1,
+        latheMode=False,
+    )
+    suggested, selected, suffix = ops._export_file_defaults(owner, False)
+    assert suffix == source_suffix.lower()
+    assert Path(suggested).name == "part_export" + suffix
+    assert selected == (ops.NC_PROGRAM_FILTER if suffix == ".nc" else ops.SINUMERIK_FILE_FILTER)
 
 
 @pytest.mark.parametrize("failure", ["write", "cancel"])

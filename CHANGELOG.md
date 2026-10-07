@@ -1,6 +1,14 @@
 # Changelog
 
-## 1.9.4 - Unreleased
+## Unreleased
+
+- Fix GUI export file defaults for FANUC lathe system B and SINUMERIK multiaxis targets. Share target-index mapping and extension selection across export callers; Full Program defaults follow the source controller regardless of the saved Expanded target.
+- Preserve SINUMERIK `.mpf`/`.spf` extensions during batch Auto export instead of naming SINUMERIK output `.nc`.
+- Attach source-line numbers and source text to TCP and tilted-work-plane export preflight blockers. Strip line endings from diagnostic source text for consistent LF/CRLF reporting.
+- Honor Full Program cancellation while traversing the execution map and formatting source lines, preserving existing output files when export is cancelled.
+- Add regressions for GUI target filters and suggested extensions, Full Program source defaults, batch Auto output and manifests, LF/CRLF blocker locations, and cancellation during formatting. Correct GUI file-dialog tests to distinguish Full Program from Expanded mode.
+
+## 1.9.4 - 2026-10-07
 
 - Reconstruct the verified indexed A/B/C, simultaneous table-C and angled AC/BC TCP subsets through multiaxis posts. Tilted-plane/CYCLE800 reconstruction and indexed export about a displaced WCS remain unsupported.
 - Emit supported drilling and tapping operations through the selected post's cycle templates, preserving resolved geometry and machine state. Native SINUMERIK posts retain separate classic 01/2008 and extended 03/2009 cycle interfaces.

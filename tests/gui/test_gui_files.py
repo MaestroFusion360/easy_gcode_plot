@@ -263,17 +263,21 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "source_name,target,expected_name,siemens",
+    "source_name,mode,target,expected_name,siemens",
     [
-        ("part.mpf", 1, "part_export.nc", False),
-        ("part.nc", 2, "part_export.mpf", True),
-        ("part.nc", 3, "part_export.mpf", True),
-        ("part.spf", 0, "part_export.spf", True),
-        ("part.nc", 0, "part_export.nc", False),
+        ("part.mpf", EXPANDED_EXECUTION_MODE, 1, "part_export.nc", False),
+        ("part.nc", EXPANDED_EXECUTION_MODE, 2, "part_export.mpf", True),
+        ("part.nc", EXPANDED_EXECUTION_MODE, 3, "part_export.mpf", True),
+        ("part.nc", EXPANDED_EXECUTION_MODE, 5, "part_export.mpf", True),
+        ("part.spf", EXPANDED_EXECUTION_MODE, 0, "part_export.spf", True),
+        ("part.nc", EXPANDED_EXECUTION_MODE, 0, "part_export.nc", False),
+        ("part.mpf", MILL_FULL_PROGRAM_MODE, 1, "part_export.mpf", True),
+        ("part.nc", MILL_FULL_PROGRAM_MODE, 2, "part_export.nc", False),
+        ("part.nc", MILL_FULL_PROGRAM_MODE, 3, "part_export.nc", False),
     ],
 )
 def test_export_dialog_prefills_target_extension_directory_and_filter(
-    monkeypatch, tmp_path, source_name, target, expected_name, siemens
+    monkeypatch, tmp_path, source_name, mode, target, expected_name, siemens
 ):
     calls = []
 
@@ -282,7 +286,9 @@ def test_export_dialog_prefills_target_extension_directory_and_filter(
         return args[2], args[4]
 
     monkeypatch.setattr(main_window_file_ops.QFileDialog, "getSaveFileName", select)
-    owner = SimpleNamespace(curFile=str(tmp_path / source_name), exportMode=1, exportTargetCnc=target)
+    owner = SimpleNamespace(
+        curFile=str(tmp_path / source_name), exportMode=mode, exportTargetCnc=target, latheMode=False
+    )
     assert main_window_file_ops._export_target(owner) == (str(tmp_path / expected_name), False)
     assert calls[0][3] == main_window_file_ops.SAVE_FILE_FILTER
     expected_filter = main_window_file_ops.SINUMERIK_FILE_FILTER if siemens else main_window_file_ops.NC_PROGRAM_FILTER

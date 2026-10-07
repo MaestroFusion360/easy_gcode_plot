@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..post_profiles import load_post_profile
+from ..post_profiles import load_post_profile, target_post_for_index
 from .common import (
     DXF_MODE,
     EXPANDED_EXECUTION_MODE,
@@ -80,13 +80,7 @@ def _window_target_post(window):
     target = int(getattr(window, "exportTargetCnc", 0))
     if target == 0:
         return _window_auto_post(window)
-    return {
-        1: "fanuc_lathe_a" if turning else "fanuc_mill",
-        2: "fanuc_lathe_b" if turning else "sinumerik_iso",
-        3: "sinumerik_840d",
-        4: "fanuc_mill_multiaxis",
-        5: "sinumerik_840d_multiaxis",
-    }.get(target)
+    return target_post_for_index(target, turning=turning)
 
 
 def _window_auto_post(window):

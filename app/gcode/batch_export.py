@@ -17,7 +17,7 @@ from app.gcode.export.common import is_export_limitation
 from app.gcode.export_file import ExportRequest, export_file, request_document
 from app.gcode.file_io import atomic_write_text
 from app.gcode.kinematics_report import kinematics_report_fields
-from app.gcode.post_profiles import load_post_profile
+from app.gcode.post_profiles import export_file_suffix
 from app.gcode.source_mode import source_dialect_for_path
 
 REPORT_BASENAME = "batch_export_report"
@@ -28,13 +28,7 @@ def _destination(
     path: Path, root: Path, output_root: Path, request: ExportRequest, source_extensions: Iterable[str]
 ) -> Path:
     destination = output_root / path.relative_to(root)
-    suffix = (
-        ".dxf"
-        if request.format == "dxf"
-        else "." + load_post_profile(request.target_dialect)["extension"]
-        if request.target_dialect
-        else ".nc"
-    )
+    suffix = export_file_suffix(path, target=request.target_dialect, dxf=request.format == "dxf")
     if path.suffix.lower() in source_extensions:
         return destination.with_suffix(suffix)
     return destination.with_name(destination.name + suffix)

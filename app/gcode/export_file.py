@@ -200,12 +200,27 @@ def _dxf_has_unrepresentable_indexed_arcs(result: ExecutionResult, request: Expo
     return request.format == "dxf" and bool(result.kinematics_profile) and _has_unrepresentable_indexed_arcs(result)
 
 
-def _failed_export(result: ExecutionResult, code: str, message: str, started: float) -> ExportResult:
+def _failed_export(
+    result: ExecutionResult, code: str, message: str, started: float, *, source_block: int | None = None
+) -> ExportResult:
+    block = (
+        result.program.blocks[source_block]
+        if result.program is not None and source_block is not None and 0 <= source_block < len(result.program.blocks)
+        else None
+    )
+    diagnostic = Diagnostic(
+        code,
+        message,
+        "error",
+        "unsupported",
+        line=block.index + 1 if block is not None else None,
+        raw=block.raw.rstrip("\r\n") if block is not None else None,
+    )
     failed = replace(
         result,
         ok=False,
         complete=False,
-        diagnostics=result.diagnostics + (Diagnostic(code, message, "error", "unsupported"),),
+        diagnostics=result.diagnostics + (diagnostic,),
     )
     return ExportResult(failed, 0, None, None, round((perf_counter() - started) * 1000, 3))
 
@@ -230,7 +245,7 @@ def _preflight_export_failure(result, request, started):
         for event in result.events:
             if event.kind in unsupported:
                 code, message = unsupported[event.kind]
-                return _failed_export(result, code, message, started)
+                return _failed_export(result, code, message, started, source_block=event.source_block)
     if _dxf_has_unrepresentable_indexed_arcs(result, request):
         return _failed_export(
             result, "UNSUPPORTED_INDEXED_MULTIAXIS_EXPORT", "DXF cannot represent tilted indexed arcs safely", started

@@ -27,6 +27,27 @@ POST_TARGETS = (
 MILLING_TARGETS = ("fanuc_mill", "sinumerik_iso", "sinumerik_840d")
 
 
+def target_post_for_index(target: int, *, turning: bool) -> str | None:
+    """Resolve the shared GUI target selector; zero selects the source controller."""
+    return {
+        1: "fanuc_lathe_a" if turning else "fanuc_mill",
+        2: "fanuc_lathe_b" if turning else "sinumerik_iso",
+        3: "sinumerik_840d",
+        4: "fanuc_mill_multiaxis",
+        5: "sinumerik_840d_multiaxis",
+    }.get(target)
+
+
+def export_file_suffix(source_path, *, target: str | None = None, dxf: bool = False) -> str:
+    """Choose a post's extension, preserving MPF/SPF containers in Auto mode."""
+    if dxf:
+        return ".dxf"
+    if target:
+        return "." + load_post_profile(target)["extension"]
+    suffix = Path(source_path).suffix.casefold() if source_path else ""
+    return suffix if suffix in {".mpf", ".spf"} else ".nc"
+
+
 def load_post_profile(target):
     """Load a bundled controller or a user-supplied JSON post profile."""
     path = Path(__file__).parent / "export" / "posts" / f"{target}.json" if target in POST_TARGETS else Path(target)

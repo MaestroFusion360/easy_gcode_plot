@@ -15,6 +15,26 @@ from app.gcode.export.expanded import load_post_profile
 from app.gcode.program_execution import execute_program
 
 
+@pytest.mark.parametrize("mode", ["expanded", "full"])
+@pytest.mark.parametrize("suffix,mode_line", [(".nc", ""), (".mpf", "G290"), (".SPF", "G291")])
+def test_batch_auto_preserves_source_controller_extension(tmp_path, mode, suffix, mode_line):
+    root = tmp_path / "source"
+    root.mkdir()
+    source = root / ("part" + suffix)
+    source.write_text(f"{mode_line}\nG17 G90\nG0 X0 Y0\nG1 X10 Y5 F100\nM30\n", encoding="utf-8")
+    output = tmp_path / "output"
+    single = tmp_path / ("single" + suffix.lower())
+    options = ["--lang", "fanuc_mill", "--mode", mode]
+    assert main(["export", str(source), *options, "-o", str(single)]) == 0
+    assert main(["batch-export", str(root), *options, "-o", str(output)]) == 0
+    exported = output / ("part" + suffix.lower())
+    assert exported.read_bytes() == single.read_bytes()
+    report = json.loads((output / "batch_export_report.json").read_text(encoding="utf-8"))
+    assert report["files"][0]["output_relative_path"] == exported.name
+    if suffix.lower() != ".nc":
+        assert not (output / "part.nc").exists()
+
+
 def test_batch_extension_order_does_not_change_discovery(tmp_path):
     (tmp_path / "O1234").write_text("O1234\nG0 X1\nM30")
     (tmp_path / "part.nc").write_text("G0 X1\nM30")

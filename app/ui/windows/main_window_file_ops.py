@@ -21,6 +21,7 @@ from app.gcode.export.common import (
 from app.gcode.export_file import ExportRequest, write_export
 from app.gcode.file_io import protect_source
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
+from app.gcode.post_profiles import export_file_suffix, target_post_for_index
 from app.gcode.source_mode import (
     SINUMERIK_MODE_SIEMENS,
     SOURCE_DIALECT_FANUC,
@@ -163,12 +164,10 @@ def _show_export_error(owner, error, result) -> None:
 
 def _export_file_defaults(owner, dxf_export):
     source = Path(owner.curFile) if getattr(owner, "curFile", None) else None
-    target = int(getattr(owner, "exportTargetCnc", 0))
-    source_suffix = source.suffix.casefold() if source else ""
-    siemens = target in (2, 3) or (target == 0 and source_suffix in (".mpf", ".spf"))
-    suffix = ".dxf" if dxf_export else ".mpf" if siemens else ".nc"
-    if target == 0 and siemens and not dxf_export:
-        suffix = source_suffix
+    mode = int(getattr(owner, "exportMode", EXPANDED_EXECUTION_MODE))
+    target = _target_dialect(owner) if mode == EXPANDED_EXECUTION_MODE else None
+    suffix = export_file_suffix(source, target=target, dxf=dxf_export)
+    siemens = suffix in (".mpf", ".spf")
     selected = "DXF (*.dxf)" if dxf_export else SINUMERIK_FILE_FILTER if siemens else NC_PROGRAM_FILTER
     suggested = source.with_name(source.stem + "_export" + suffix) if source else Path("program_export" + suffix)
     return str(suggested), selected, suffix
@@ -219,17 +218,9 @@ _ARC_TYPES = ("ijk-relative", "ijk-absolute", "radius", "linearized")
 
 def _target_dialect(owner) -> str | None:
     """Resolve the target post profile name for the EXPANDED target combo."""
-    target = int(getattr(owner, "exportTargetCnc", 0))
-    if target == 0:
-        return None
-    turning = bool(getattr(owner, "latheMode", False))
-    return {
-        1: "fanuc_lathe_a" if turning else "fanuc_mill",
-        2: "fanuc_lathe_b" if turning else "sinumerik_iso",
-        3: "sinumerik_840d",
-        4: "fanuc_mill_multiaxis",
-        5: "sinumerik_840d_multiaxis",
-    }.get(target)
+    return target_post_for_index(
+        int(getattr(owner, "exportTargetCnc", 0)), turning=bool(getattr(owner, "latheMode", False))
+    )
 
 
 def _export_request(owner) -> tuple[ExportRequest, str, str]:

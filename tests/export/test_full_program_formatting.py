@@ -2,10 +2,53 @@
 
 from __future__ import annotations
 
+from threading import Event
+
 import pytest
 
+from app.gcode.export import full
 from app.gcode.export.full import format_full_program_source
+from app.gcode.export_file import ExportRequest, write_export
 from app.gcode.exporter import ExportOptions
+from app.gcode.kernel import execute
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_full_formatter_honors_cancellation_between_source_lines(native):
+    checks = 0
+
+    def cancelled():
+        nonlocal checks
+        checks += 1
+        return checks == 5
+
+    source = "G1 X10 F100\n" * 100
+    with pytest.raises(InterruptedError, match="Export cancelled"):
+        format_full_program_source(source, ExportOptions(), native=native, cancelled=cancelled)
+    assert checks == 5
+
+
+def test_full_export_cancel_during_formatting_preserves_previous_output(tmp_path, monkeypatch):
+    source = "G90 G0 X0 Y0\nG1 X10 F100\nM30\n"
+    result = execute(source, language="fanuc_mill")
+    assert result.ok and result.complete
+    output = tmp_path / "part.nc"
+    output.write_bytes(b"PREVIOUS EXPORT")
+    cancellation = Event()
+    format_addresses = full._format_source_addresses  # pylint: disable=protected-access
+
+    def cancel_after_first_line(body, options):
+        formatted = format_addresses(body, options)
+        cancellation.set()
+        return formatted
+
+    monkeypatch.setattr(full, "_format_source_addresses", cancel_after_first_line)
+    with pytest.raises(InterruptedError, match="Export cancelled"):
+        write_export(
+            result, source, output, ExportRequest(language="fanuc_mill", mode="full"), cancelled=cancellation.is_set
+        )
+    assert output.read_bytes() == b"PREVIOUS EXPORT"
+    assert not list(tmp_path.glob(".part.nc.*"))
 
 
 def test_full_program_formatter_numbers_blocks_and_pads_controller_addresses():
