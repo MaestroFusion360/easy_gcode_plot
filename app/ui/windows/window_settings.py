@@ -108,6 +108,7 @@ _PLOT_SETTINGS = (
 )
 
 _CNC_SETTINGS = (
+    _SettingSpec("SINUMERIK_840D_SL", "sinumerik840dSl", True, bool),
     _SettingSpec("HOME_CONFIGURED", "homeConfigured", True, bool),
     _SettingSpec("DEFAULT_UNITS", "defaultUnits", "mm", str),
     _SettingSpec(

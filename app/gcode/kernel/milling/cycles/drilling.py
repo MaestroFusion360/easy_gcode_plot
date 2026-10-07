@@ -7,8 +7,9 @@ from dataclasses import dataclass, replace
 from ...api.resources import SemanticError, checkpoint
 from ...api.types import MachineSignal, TraceMotion
 from ...runtime.cycles import CycleContext, CycleOutcome, apply_cycle_outcome
-from ...runtime.drilling import axial_cycle_moves
+from ...runtime.drilling import AxialMove, axial_cycle_moves
 from ..state import MillState, _machine, _xyz
+from .events import drilling_event, drilling_orientation
 
 
 @dataclass(frozen=True)
@@ -138,6 +139,28 @@ def _resolve_drilling_cycle(state: MillState, words) -> _ResolvedDrillingCycle |
     )
 
 
+def _drilling_axial_moves(state, resolved):
+    # Feed withdrawal ends at R; G98 adds a rapid to the saved initial plane.
+    return_z = resolved.retract_z if resolved.behavior.feed_return else resolved.return_z
+    segments = axial_cycle_moves(
+        resolved.retract_z,
+        resolved.target_z,
+        step=resolved.step,
+        retract_distance=state.g73_retract_distance,
+        reentry_clearance=(
+            state.g83_clearance if resolved.behavior.peck and not resolved.behavior.high_speed_peck else None
+        ),
+        full_retract=not resolved.behavior.high_speed_peck,
+        retract_after_final=False,
+        return_to=return_z,
+        return_feed=resolved.behavior.feed_return,
+        tolerance=1e-9,
+    )
+    if return_z != resolved.return_z:
+        segments += (AxialMove(0, return_z, resolved.return_z),)
+    return segments
+
+
 def _expand_drilling_cycle(
     context: CycleContext,
     state: MillState,
@@ -175,6 +198,7 @@ def _expand_drilling_cycle(
                 compensation_mode=state.cutter_comp,
                 compensation_applied=False,
                 tool=state.active_tool,
+                orientation=drilling_orientation(state),
             )
         )
 
@@ -182,24 +206,7 @@ def _expand_drilling_cycle(
     x, y = resolved.x, resolved.y
     add(0, start, (x, y, start[2]))
     add(0, (x, y, start[2]), (x, y, resolved.retract_z))
-    segments = (
-        axial_moves
-        if axial_moves is not None
-        else axial_cycle_moves(
-            resolved.retract_z,
-            resolved.target_z,
-            step=resolved.step,
-            retract_distance=state.g73_retract_distance,
-            reentry_clearance=(
-                state.g83_clearance if resolved.behavior.peck and not resolved.behavior.high_speed_peck else None
-            ),
-            full_retract=not resolved.behavior.high_speed_peck,
-            retract_after_final=False,
-            return_to=resolved.return_z,
-            return_feed=resolved.behavior.feed_return,
-            tolerance=1e-9,
-        )
-    )
+    segments = axial_moves if axial_moves is not None else _drilling_axial_moves(state, resolved)
     for segment in segments:
         add(
             segment.move,
@@ -243,4 +250,5 @@ def execute_milling_cycle(context: CycleContext, *, emit_geometry: bool = True) 
         signals=_drilling_cycle_signals(context.block, trial_state, context.words),
         modal_updates=modal_updates + _cycle_parameter_updates(trial_state),
         position_update=(("x", resolved.x), ("y", resolved.y), ("z", resolved.return_z)),
+        events=(drilling_event(context, trial_state, resolved, motions),),
     )

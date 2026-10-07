@@ -236,3 +236,11 @@ def test_native_modal_cycle_tracks_tool_changes_and_cancellation():
     )
     assert tools["T1"]["type"] == tools["T2"]["type"] == "drill"
     assert tools["T3"]["type"] == "mill_flat"
+
+
+def test_python_fallback_discovery_handles_empty_parenthesized_cycle_call():
+    source = "N10 T4 M6\nN20 CYCLE800()\nN30 G1 X0 Y0 F100\n"
+    headers, occurrences, operations = _scan_source_python(source, False, 1.0)
+    assert headers == {}
+    assert operations == {}
+    assert [key for key, *_ in occurrences] == ["T4"]

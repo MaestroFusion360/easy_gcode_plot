@@ -54,7 +54,7 @@ def _tool_key(value, turning):
 
 
 def _comments(line):
-    return [" ".join((match[1] or match[2]).split()) for match in _COMMENTS.finditer(line)]
+    return [" ".join((match[1] if match[1] is not None else match[2]).split()) for match in _COMMENTS.finditer(line)]
 
 
 def _hint_text(description):

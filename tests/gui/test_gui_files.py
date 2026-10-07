@@ -465,6 +465,56 @@ def test_full_program_normalization_validates_with_the_gui_wcs_offsets(tmp_path)
     ]
 
 
+@pytest.mark.parametrize(("target", "mode"), [(2, "G291"), (3, "G290"), (5, "G290")])
+def test_export_dialog_accept_keeps_sinumerik_mode_first_with_custom_wrappers(
+    qt_app, tmp_path, monkeypatch, target, mode
+):
+    source = "G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nM30"
+    result = execute(source, language="fanuc_mill")
+    window = main_window.MainWindow()
+    output = tmp_path / "dialog-output.mpf"
+    window.latheMode = False
+    window.ui.editor.setText(source)
+
+    def save_export():
+        request, request_source, _encoding = main_window_file_ops._export_request(window)
+        main_window_file_ops._write_export(
+            window,
+            path=str(output),
+            result=result,
+            request=request,
+            source=request_source,
+            render_points=(),
+            cancellation=Event(),
+        )
+
+    monkeypatch.setattr(window, "export", save_export)
+    try:
+        dialog = window.exportDlg
+        dialog.show()
+        qt_app.processEvents()
+        dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
+        dialog.targetCncCombo.setCurrentIndex(target)
+        dialog.ui.arcOutputCmbBox.setCurrentIndex(1)
+        dialog.ui.startLineEdit.setText("123")
+        dialog.ui.endLineEdit.setText("1234")
+        dialog.ui.safLineCmbBox.setCurrentIndex(0)
+        dialog.ui.seqNumCmbBox.setCurrentIndex(1)
+        dialog.ui.seqStartSpinBox.setValue(1)
+        dialog.ui.seqIntervalSpinBox.setValue(1)
+        dialog.ui.delimCmbBox.setCurrentIndex(0)
+        dialog.accept()
+
+        lines = output.read_text(encoding="utf-8").splitlines()
+        assert lines[0] == mode
+        assert lines[1] == "N1123"
+        assert lines[-1].endswith("1234")
+        assert any(line.startswith("N1") for line in lines)
+        assert window.exportTargetCnc == target
+    finally:
+        window.deleteLater()
+
+
 def test_gui_expanded_export_uses_owner_output_fields(qt_app, tmp_path):
     source = "G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nX20\nM30"
     result = execute(source, language="fanuc_mill")
@@ -818,4 +868,76 @@ def test_supplied_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
         assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
         assert all(d.status != "unsupported" for d in result.diagnostics)
     finally:
+        window.deleteLater()
+
+
+def test_sinumerik_checkbox_reexecutes_native_cycles_with_selected_interface(qt_app, tmp_path, monkeypatch):
+    path = tmp_path / "sl.mpf"
+    path.write_text("G710 G90\nF100\nG0 Z5\nMCALL CYCLE81(5,0,2,-5,,0,0,1,12)\nX2\nMCALL\nM30")
+    window = main_window.MainWindow()
+    original = window.sinumerik840dSl
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    try:
+        window.sinumerik840dSl = True
+        window.loadFile(str(path))
+        assert window.updateData()
+        assert window.execution_result.ok
+        for enabled in (False, True):
+            dialog = window.optionsDlg
+            dialog.show()
+            qt_app.processEvents()
+            dialog.ui.sinumerik840dSlCheck.setChecked(enabled)
+            dialog.accept()
+            result = window.execution_result
+            assert result.sinumerik_840d_sl == enabled
+            assert result.ok == enabled, result.diagnostics
+            if not enabled:
+                assert any(d.code == "UNSUPPORTED_SINUMERIK_CYCLE" for d in result.diagnostics)
+    finally:
+        window.sinumerik840dSl = original
+        window.saveSettings()
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("enabled,parameter_count", [(False, 5), (True, 9)])
+def test_gui_sinumerik_checkbox_selects_native_cycle_post(qt_app, tmp_path, enabled, parameter_count):
+    source = "G21 G17 G90\nG0 Z5\nG98 G81 X-25 Y10 Z-17 R4 F400\nX25\nG80\nM30"
+    window = main_window.MainWindow()
+    original = window.sinumerik840dSl
+    output = tmp_path / "native.mpf"
+    try:
+        window.optionsDlg.show()
+        qt_app.processEvents()
+        window.optionsDlg.ui.fileTypeCombo.setCurrentIndex(1)
+        window.optionsDlg.ui.sinumerik840dSlCheck.setChecked(enabled)
+        window.optionsDlg.accept()
+        window.latheMode = False
+        window.exportMode = EXPANDED_EXECUTION_MODE
+        window.exportTargetCnc = 3
+        window.ui.editor.setText(source)
+        result = execute(source, language="fanuc_mill", sinumerik_840d_sl=enabled)
+        request, request_source, _encoding = main_window_file_ops._export_request(window)
+        assert request.sinumerik_840d_sl == enabled
+        main_window_file_ops._write_export(
+            window,
+            path=str(output),
+            result=result,
+            request=request,
+            source=request_source,
+            render_points=(),
+            cancellation=Event(),
+        )
+        text = output.read_text(encoding="utf-8")
+        call = next(line for line in text.splitlines() if "MCALL CYCLE81(" in line)
+        assert len(call.split("(")[1].removesuffix(")").split(",")) == parameter_count
+        replay = execute(text, language="fanuc_mill", source_dialect="sinumerik", sinumerik_840d_sl=enabled)
+        assert replay.ok, replay.diagnostics
+        assert [event.drilling.position for event in replay.events if event.drilling is not None] == [
+            (-25, 10, -17),
+            (25, 10, -17),
+        ]
+    finally:
+        window.sinumerik840dSl = original
+        window.saveSettings()
         window.deleteLater()

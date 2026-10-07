@@ -10,6 +10,7 @@ from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import MILLING_TARGETS, convert_resolved_program, load_post_profile
 from app.gcode.export_file import ExportRequest, export_file, validate_export_request
 from app.gcode.kernel import execute
+from app.gcode.post_profiles import load_post_profile as dedicated_load_post_profile
 from app.gcode.trace_tools import motion_length
 
 
@@ -23,12 +24,15 @@ from app.gcode.trace_tools import motion_length
         "CYCLE84(5,0,2,-9,,0,3,,1.25,0,500,500)",
     ],
 )
-def test_native_drilling_is_postprocessed_from_geometry(cycle, target):
-    source = f"T1 M6\nS500 M3\nG17 G0 X2 Y3 Z5\nMCALL {cycle}\nX2 Y3\nMCALL\nM30\n"
+def test_native_drilling_is_postprocessed_from_resolved_operation(cycle, target):
+    source = f"T1 M6\nS500 M3\nG17 G0 X2 Y3 Z5 F100\nMCALL {cycle}\nX2 Y3\nMCALL\nM30\n"
     result = execute(source, language="fanuc_mill", source_dialect="sinumerik")
     assert result.ok and result.complete, result.diagnostics
     output = convert_resolved_program(result, target, ExportOptions(delimiter=True))
-    assert "CYCLE" not in output and "MCALL" not in output
+    if target == "sinumerik_840d":
+        assert "MCALL CYCLE" in output
+    else:
+        assert "CYCLE" not in output and "MCALL" not in output
     replay = execute(output, language="fanuc_mill", source_dialect="fanuc" if target == "fanuc_mill" else "sinumerik")
     assert replay.ok and replay.complete, replay.diagnostics
     assert sum(map(motion_length, replay.motions)) == pytest.approx(sum(map(motion_length, result.motions)), abs=1e-5)
@@ -66,6 +70,10 @@ def test_external_profile_controls_preamble_dwell_and_program_end(tmp_path):
 def test_full_has_no_target_conversion():
     with pytest.raises(ValueError, match="expanded"):
         validate_export_request(ExportRequest(language="fanuc_mill", mode="full", target_dialect="sinumerik_iso"))
+
+
+def test_post_profile_loader_has_dedicated_module():
+    assert load_post_profile is dedicated_load_post_profile
 
 
 def test_post_profiles_are_packaged():

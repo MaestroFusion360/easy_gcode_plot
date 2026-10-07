@@ -112,8 +112,10 @@ def apply_swivel(block, frame, state, events):
             )
         )
     if frame is None or frame.reset:
+        was_active = state.twp.active
         _cancel_twp(state)
-        events.append(ExecutionEvent("TILTED_WORK_PLANE_OFF", block.index, code="CYCLE800"))
+        if was_active:
+            events.append(ExecutionEvent("TILTED_WORK_PLANE_OFF", block.index, code="CYCLE800"))
         return
     old = tuple(state.rotary_angles[axis] for axis in ("A", "B", "C"))
     configure_tilted_frame(state, frame.origin, frame.angles, frame.orientation, block.index)
@@ -136,6 +138,7 @@ def apply_swivel(block, frame, state, events):
                     kind,
                     block.index,
                     code="CYCLE800",
+                    axes=tuple(axis for i, axis in enumerate(("A", "B", "C")) if old[i] != new[i]),
                     old_abc=old,
                     new_abc=new,
                     twp_orientation=frame.orientation,

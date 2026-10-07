@@ -447,3 +447,33 @@ def test_lathe_gcode_system_option_is_saved_and_restored(qt_app):
         window.latheGcodeSystem = original
         window.saveSettings()
         window.deleteLater()
+
+
+def test_sinumerik_extended_cycles_option_is_in_general_saved_and_restored(qt_app):
+    window = MainWindow()
+    original = window.sinumerik840dSl
+    restored = None
+    try:
+        options = window.optionsDlg
+        options.show()
+        qt_app.processEvents()
+        checkbox = options.ui.sinumerik840dSlCheck
+        assert checkbox.parent() is options.ui.generalTab
+        assert checkbox.text() == "840D Extended cycles"
+        assert checkbox.isChecked() == original
+        checkbox.setChecked(not original)
+        options.accept()
+        assert window.sinumerik840dSl == (not original)
+        assert window.settings.value("CNC/SINUMERIK_840D_SL", type=bool) == (not original)
+        restored = MainWindow()
+        assert restored.sinumerik840dSl == (not original)
+        restored.optionsDlg.show()
+        qt_app.processEvents()
+        assert restored.optionsDlg.ui.sinumerik840dSlCheck.isChecked() == (not original)
+        restored.optionsDlg.reject()
+    finally:
+        if restored is not None:
+            restored.deleteLater()
+        window.sinumerik840dSl = original
+        window.saveSettings()
+        window.deleteLater()

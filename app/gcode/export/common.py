@@ -15,7 +15,16 @@ DEFAULT_WORD_ORDER = ("motion", "turns", "x", "y", "z", "i", "j", "k", "r", "fee
 
 WORD_ORDER_TOKENS = frozenset(DEFAULT_WORD_ORDER)
 
-WORD_SIGNS = frozenset({"auto", "always", "never"})
+
+def _compact_post_line(line, options):
+    """Remove optional word spacing while retaining native keyword boundaries."""
+    if options.delimiter:
+        return line
+    words = line.split()
+    return "".join(
+        (" " if index and (words[index - 1].isalpha() or word.isalpha()) else "") + word
+        for index, word in enumerate(words)
+    )
 
 
 class ExportLimitation(ValueError):
@@ -86,6 +95,7 @@ class ExportOptions:
     word_required: dict[str, bool] | None = None
     rotary_axes: tuple[str, ...] = ()
     rotary_values: dict[str, float] | None = None
+    rotary_start_values: dict[str, float] | None = None
     turns_word: str = "TURN={turns}"
     radius_split_angle: float = 90.0
     arc_split_angle: float = 180.0
@@ -287,14 +297,25 @@ def _check_cancelled(cancelled) -> None:
         raise InterruptedError("Export cancelled")
 
 
-def _require_continuous_motions(result, *, allow_source_rapids=False, allow_reference_rapids=False):
+def _require_continuous_motions(
+    result,
+    *,
+    allow_source_rapids=False,
+    allow_reference_rapids=False,
+    allow_rotary_index_gaps=False,
+):
     verified_rapids = set()
+    verified_rotary_gaps = set()
     cursor = 0
     for step in result.execution_steps:
         if allow_source_rapids and step.absolute and ("G", 0.0) in step.words and step.emitted_count:
             verified_rapids.add(cursor)
+        if allow_rotary_index_gaps and any(event.kind in {"ROTARY_INDEX", "TOOL_AXIS_ORIENT"} for event in step.events):
+            verified_rotary_gaps.add(cursor)
         cursor += step.emitted_count
     for index, (previous, motion) in enumerate(zip(result.motions, result.motions[1:]), 1):
+        if index in verified_rotary_gaps:
+            continue
         if motion.move == 0 and (
             index in verified_rapids or allow_reference_rapids and motion.source_kind == "reference_resume"
         ):

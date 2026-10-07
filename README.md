@@ -1,6 +1,6 @@
 # Easy G-Code Plot
 
-Desktop G-code editor, analyzer, backplotter and trace exporter for FANUC-style turning and milling, with native SINUMERIK 840D milling support.
+Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC-style turning and milling, with native SINUMERIK 840D milling support.
 
 [![Build and release](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml)
 
@@ -111,7 +111,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 
 ### SINUMERIK 840D
 
-- Native three-axis milling for `.mpf` / `.spf`.
+- Native milling for `.mpf` / `.spf`, including the configured rotary subset described below.
 - Native `G0/G1/G2/G3`, `CR=`, work offsets, compensation and common tool/spindle/coolant commands.
 - `G290/G291` native / ISO Dialect M switching.
 - Modal `MCALL CYCLE81/82/83/84`.
@@ -119,7 +119,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - GUI/CLI/kernel TRAORI/TRAFOOF TCP on the angled AC/BC table profiles, including G2/G3 with rotary interpolation.
 - Native CYCLE800 static frames and TRAORI/TRAFOOF TCP on angled AC/BC tables. Numeric A/B/C, direct R references and incremental IC values are supported for configured axes; DC selects the shortest absolute rotary approach; ambiguous half turns remain rejected.
 - `TURN=` multi-revolution arc handling.
-- EXPANDED serialization of resolved three-axis geometry between supported FANUC, SINUMERIK ISO-M and SINUMERIK native targets.
+- EXPANDED serialization of resolved three-axis geometry plus configured indexed A/B/C, verified `4ax_table_c` simultaneous motion and AC/BC TCP through the bundled multiaxis FANUC/SINUMERIK profiles. Tilted-plane/CYCLE800 reconstruction remains fail-closed.
 
 See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current limitations.
 
@@ -184,6 +184,8 @@ Every `.mpf` / `.spf` file is treated as a SINUMERIK container.
 - CLI commands still use `--lang fanuc_mill` for the common milling geometry model.
 
 MPF/SPF documents retain the selected rotary-kinematics profile. Settings and Options expose the enabled profiles; native CYCLE800/TRAORI require a supported angled AC/BC table. The kernel rejects incompatible axes, profiles and ISO-M rotary commands.
+
+**Options > General > 840D Extended cycles** selects the native cycle interface for reading and EXPANDED export: checked uses Siemens 03/2009 (9/9/20/24 arguments for CYCLE81/82/83/84), unchecked uses the classic 01/2008 interface (5/6/17/18 arguments). The setting defaults to checked and is saved. These are explicit cycle-interface profiles, not a claim that every powerline/sl installation uses that interface; verify the installed cycle package. Native JSON posts contain both templates under `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`. CLI uses `--sinumerik-cycles classic|sl`.
 
 ### Native subset
 
@@ -305,21 +307,34 @@ closed as `UNSUPPORTED` instead of writing partial NC. Multi-axis geometry (rota
 error.
 
 Cycles, variables and subprogram flow are already executed before EXPANDED serialization. Physical XYZ is emitted
-in one zero-offset G54 frame. Actual rotary/TWP/TCP geometry is rejected by the three-axis postprocessor; merely
-having a kinematics profile selected does not make an otherwise XYZ-only program rotary. Reference returns are
-emitted through the target profile (`G28`/`G53` or native `SUPA`) and unresolved position gaps fail closed.
+in one zero-offset G54 frame. The three-axis posts reject rotary/TWP/TCP geometry; the bundled multiaxis posts also
+reconstruct configured indexed A/B/C, the verified `4ax_table_c` continuous subset and supported AC/BC TCP. Tilted
+working planes/CYCLE800 remain fail-closed. Merely having a kinematics profile selected does not make an otherwise
+XYZ-only program rotary. Reference returns are emitted through the target profile (`G28`/`G53` or native `SUPA`) and
+unresolved position gaps fail closed.
+
+Indexed rotary EXPANDED export about a non-zero WCS origin remains fail-closed as
+`UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`: the current post contract does not reconstruct target frame offsets.
+Split/linearized TCP arcs distribute rotary angles over their XYZ segments; incremental angle output avoids
+cumulative rounding drift. Reference traces retain the table frame separately from tool/head orientation.
 
 **DXF** writes the available resolved motion geometry without NC formatting or controller postprocessing. Rapid and
 cutting moves use separate layers. Planar arcs/circles are written analytically where representable; helices and
 multi-revolution geometry are sampled as polylines when required. Turning uses the plot-aligned Z/X view.
 
-Examples from a source checkout:
+Examples using the packaged CLI:
 
 ```powershell
 .\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --mode full --sequence-numbers -o normalized.nc
 .\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_840d.json -o posted.mpf
+.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --post-profile sinumerik_840d -o actual.mpf --compare-with expected.mpf
 .\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --format dxf -o toolpath.dxf
 ```
+
+For NC export, `--compare-with FILE` compares the generated output with a UTF-8 reference file.
+LF and CRLF line endings are treated equally; spaces, comments and the final newline are compared.
+Exit codes are `0` for a match, `1` for a mismatch (unified diff on stdout, reference first), and `2`
+for export or file errors. The generated NC is retained on mismatch; the reference is never overwritten.
 
 The GUI exposes the same FULL / EXPANDED / DXF split in the Export Data dialog. Target-controller selection belongs
 to EXPANDED (including `Auto (source controller)`); FULL keeps the source controller/dialect. The GUI, single-file
@@ -669,7 +684,18 @@ Exporters consume the kernel's authoritative execution result instead of interpr
 
 New CNC semantics belong in the kernel and should be covered by deterministic regression tests.
 
-See [FAQ.md](FAQ.md#development) for package structure, Qt generation, detailed settings and release notes.
+See [FAQ.md](FAQ.md#development-and-architecture) for package structure, Qt generation, detailed settings and release notes.
+
+---
+
+## Community and project direction
+
+- [Contributing](CONTRIBUTING.md): development principles, checks and pull requests.
+- [Roadmap](ROADMAP.md): implemented release scope and remaining work.
+- [Changelog](CHANGELOG.md): changes by version.
+- [Code of Conduct](CODE_OF_CONDUCT.md): participation rules and reporting concerns.
+- [Security Policy](SECURITY.md): vulnerability reporting and CNC semantics issues.
+- [Report a bug or request an improvement](https://github.com/MaestroFusion360/easy_gcode_plot/issues/new/choose).
 
 ---
 

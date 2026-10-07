@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import sys
 from dataclasses import asdict
@@ -20,7 +21,7 @@ from app.gcode.batch import (
 from app.gcode.batch_export import export_directory, write_export_reports
 from app.gcode.export.common import is_export_limitation
 from app.gcode.export_file import ExportRequest, export_file, validate_export_request
-from app.gcode.file_io import atomic_write_text, validate_output_paths
+from app.gcode.file_io import atomic_write_text, same_file, validate_output_paths
 from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.kinematics_report import kinematics_report_fields
@@ -104,6 +105,7 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
         language=args.lang,
         target_dialect=getattr(args, "target_dialect", None),
         lathe_gcode_system=args.lathe_gcode_system,
+        sinumerik_840d_sl=args.sinumerik_cycles == "sl",
         kinematics=args.kinematics,
         encoding=args.encoding,
         format=args.format,
@@ -150,6 +152,12 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
             help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
         )
         command.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
+        command.add_argument(
+            "--sinumerik-cycles",
+            choices=("classic", "sl"),
+            default="sl",
+            help="Native cycles: classic 01/2008 or 840D Extended cycles (03/2009)",
+        )
         command.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
         if name in {"trace", "analyze"}:
             command.add_argument("-o", "--output", type=Path, help="Write detailed JSON to this file")
@@ -158,6 +166,12 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
             command.add_argument("--inches", action="store_true", help="Display HTML statistics in inches")
         if name == "export":
             command.add_argument("-o", "--output", type=Path, required=True, help="Export destination")
+            command.add_argument(
+                "--compare-with",
+                type=Path,
+                metavar="FILE",
+                help="Compare generated NC with a UTF-8 reference; print unified diff and exit 1 on mismatch",
+            )
             _add_export_options(command)
 
     batch = sub.add_parser(
@@ -176,6 +190,12 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     batch.add_argument("--html", type=Path, metavar="DIRECTORY", help="Save one HTML statistics/SVG report per NC file")
     batch.add_argument("--inches", action="store_true", help="Display HTML statistics in inches")
     batch.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
+    batch.add_argument(
+        "--sinumerik-cycles",
+        choices=("classic", "sl"),
+        default="sl",
+        help="Native cycles: classic 01/2008 or 840D Extended cycles (03/2009)",
+    )
     batch.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8", help="Input file encoding")
     batch.add_argument("-o", "--output-dir", type=Path, default=Path("batch-report"), help="Report directory")
     batch.add_argument(
@@ -203,6 +223,12 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     _add_kinematics_option(batch_export)
     batch_export.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn")
     batch_export.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
+    batch_export.add_argument(
+        "--sinumerik-cycles",
+        choices=("classic", "sl"),
+        default="sl",
+        help="Native cycles: classic 01/2008 or 840D Extended cycles (03/2009)",
+    )
     batch_export.add_argument("--encoding", choices=SUPPORTED_NC_ENCODINGS, default="utf-8")
     batch_export.add_argument("-o", "--output-dir", type=Path, required=True, help="Separate output directory")
     batch_export.add_argument("--extensions", default=",".join(DEFAULT_BATCH_EXTENSIONS))
@@ -225,6 +251,7 @@ def _load(
     for_analysis: bool = False,
     kinematics: str | None = None,
     lathe_gcode_system: str = "A",
+    sinumerik_840d_sl: bool = True,
 ) -> tuple[str, ExecutionResult]:
     if for_analysis:
         return analyze_file(
@@ -233,6 +260,7 @@ def _load(
             language=language,
             kinematics=kinematics,
             lathe_gcode_system=lathe_gcode_system,
+            sinumerik_840d_sl=sinumerik_840d_sl,
         )
     source = read_nc_text(path, encoding=encoding)
     result, _tools, _inferred = execute_program(
@@ -240,6 +268,7 @@ def _load(
         language=language,
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
+        sinumerik_840d_sl=sinumerik_840d_sl,
         source_dialect=source_dialect_for_path(path, source),
     )
     return source, result
@@ -376,6 +405,7 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
             kinematics=args.kinematics,
             kinematics_by_file=profile_map,
             lathe_gcode_system=args.lathe_gcode_system,
+            sinumerik_840d_sl=args.sinumerik_cycles == "sl",
             html_dir=args.html,
             inches=args.inches,
         )
@@ -386,14 +416,43 @@ def _run_batch(args: argparse.Namespace, parser: argparse.ArgumentParser) -> int
     return 2 if report["status"] in {"ERRORS", "NO_FILES"} else 0
 
 
+def _compare_nc_output(output: Path, reference: Path, expected: str) -> int:
+    actual = output.read_text(encoding="utf-8")
+    if actual == expected:
+        print(f"Comparison: MATCH ({reference})")
+        return 0
+    print(f"Comparison: DIFFERENT ({reference})")
+    for line in difflib.unified_diff(
+        expected.splitlines(keepends=True),
+        actual.splitlines(keepends=True),
+        fromfile=reference.as_posix(),
+        tofile=output.as_posix(),
+    ):
+        sys.stdout.write(line)
+        if not line.endswith("\n"):
+            sys.stdout.write("\n\\ No newline at end of file\n")
+    return 1
+
+
 def _run_export(args: argparse.Namespace, request: ExportRequest) -> int:
     try:
+        expected = None
+        if args.compare_with is not None:
+            if request.format != "nc":
+                raise ValueError("--compare-with requires --format nc")
+            if same_file(args.output, args.compare_with):
+                raise ValueError("Export output must differ from the comparison reference file")
+            expected = args.compare_with.read_text(encoding="utf-8")
         exported = export_file(args.file, args.output, request)
+        _print_program_result("export", args.file, exported.execution, args.output)
+        if not exported.execution.ok or not exported.execution.complete:
+            return 2
+        if expected is not None:
+            return _compare_nc_output(args.output, args.compare_with, expected)
     except (OSError, UnicodeError, ValueError) as exc:
         print(f"Export error: {exc}", file=sys.stderr)
         return 2
-    _print_program_result("export", args.file, exported.execution, args.output)
-    return 0 if exported.execution.ok and exported.execution.complete else 2
+    return 0
 
 
 def _read_kinematics_map(path: Path | None) -> dict[str, str] | None:
@@ -451,6 +510,7 @@ def _run_single(args: argparse.Namespace) -> int:
         for_analysis=args.command == "analyze",
         kinematics=getattr(args, "kinematics", None),
         lathe_gcode_system=args.lathe_gcode_system,
+        sinumerik_840d_sl=args.sinumerik_cycles == "sl",
     )
     if args.command == "parse":
         _print_program_result("parse", args.file, result)

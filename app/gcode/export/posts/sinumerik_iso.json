@@ -44,17 +44,36 @@
     "incremental": "G91",
     "incrementalAxes": {}
   },
+  "reference": {
+    "rapid": "G53 G0 {axes}",
+    "linear": "G53 G1 {axes} {feed}"
+  },
   "home": {
     "G28": {
+      "all": "G0 G91 G28 {axes}",
       "X": "G91 G28 X0",
       "Y": "G91 G28 Y0",
       "Z": "G91 G28 Z0"
     },
     "G53": {
+      "all": "G0 G90 G53 {axes}",
       "X": "G53 X0",
       "Y": "G53 Y0",
       "Z": "G53 Z0"
     }
+  },
+  "cycles": {
+    "syntax": "iso",
+    "cancel": "G80",
+    "returnInitial": "G98",
+    "returnSafety": "G99",
+    "drill": "G81 X{x} Y{y} Z{depth} R{retractHeight} F{feed}",
+    "drillDwell": "G82 X{x} Y{y} Z{depth} R{retractHeight} P{dwellWord} F{feed}",
+    "peckDrill": "G83 X{x} Y{y} Z{depth} R{retractHeight} Q{peckFirst} F{feed}",
+    "highSpeedPeck": "G73 X{x} Y{y} Z{depth} R{retractHeight} Q{peckFirst} F{feed}",
+    "tap": "G84 X{x} Y{y} Z{depth} R{retractHeight} P{dwellWord} F{feed}",
+    "boreFeed": "G85 X{x} Y{y} Z{depth} R{retractHeight} F{feed}",
+    "boreStop": "G86 X{x} Y{y} Z{depth} R{retractHeight} F{feed}"
   },
   "tool": {
     "toolChange": "{tool} {code}"

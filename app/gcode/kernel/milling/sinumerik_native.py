@@ -395,18 +395,20 @@ def apply_native_declaration(block, evaluated, state, events):
     elif syntax.kind in ("swivel", "frame_reset"):
         apply_swivel(block, evaluated.native_payload, state, events)
     elif syntax.kind in ("traori", "trafoof"):
+        was_tcp_active = state.tcp_control
         if syntax.kind == "traori":
             _activate_tcp(state)
         else:
             _cancel_tcp(state)
-        events.append(
-            ExecutionEvent(
-                "TCP_CONTROL_ON" if syntax.kind == "traori" else "TCP_CONTROL_OFF",
-                block.index,
-                code=syntax.kind.upper(),
-                kinematics_profile=state.kinematics.id if state.kinematics else None,
+        if state.tcp_control != was_tcp_active:
+            events.append(
+                ExecutionEvent(
+                    "TCP_CONTROL_ON" if state.tcp_control else "TCP_CONTROL_OFF",
+                    block.index,
+                    code=syntax.kind.upper(),
+                    kinematics_profile=state.kinematics.id if state.kinematics else None,
+                )
             )
-        )
     elif syntax.kind == "parameter_assignment":
         index, value = evaluated.native_payload
         state.siemens_parameters[index] = value

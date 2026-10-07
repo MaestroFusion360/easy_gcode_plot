@@ -8,7 +8,6 @@ The two phases of this gate protect both Macro B evaluation and numeric dispatch
 import re
 
 from ...comments import strip_comments
-from ..milling.kinematics import TCP_TABLE_PROFILES
 from ..milling.sinumerik_iso import (
     _diag,
     mode_switch_code,
@@ -79,10 +78,6 @@ def _rotary_diagnostic(block, words, mode, state):
 def _native_rotary_profile_diagnostic(block, words, state):
     if state.kinematics is None:
         return _diag(block, "ROTARY_KINEMATICS_REQUIRED", "Native rotary addresses require a selected profile")
-    if state.kinematics.id not in TCP_TABLE_PROFILES:
-        return _diag(
-            block, "UNSUPPORTED_SINUMERIK_ROTARY", "Native rotary subset requires an angled AC/BC table profile"
-        )
     if any(axis in words and axis not in state.kinematics.addresses for axis in ("A", "B", "C")):
         return _diag(block, "UNCONFIGURED_ROTARY_AXIS", "Rotary address is not configured in the selected profile")
     return None

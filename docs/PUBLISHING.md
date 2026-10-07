@@ -1,11 +1,11 @@
 # Publishing the landing page
 
 The English page is `index.html`; the Russian page is `ru/index.html`. Both
-share `styles.css` and the images in `assets/`. There is no build step,
+share `styles.css` and the images in `assets/`. Plain JavaScript handles page interactions and release download links. There is no build step,
 JavaScript framework dependency or Jekyll configuration. `.nojekyll` disables Jekyll.
 
 The landing page is a compact technical overview of Easy G-Code Plot. It
-is intentionally not a replacement for `FAQ.md` / `FAQ_RU.md`: exact command
+is intentionally not a replacement for [FAQ.md](../FAQ.md) / [FAQ_RU.md](../FAQ_RU.md): exact command
 semantics, diagnostics, controller limits, CLI options and export contracts
 belong in the FAQ.
 

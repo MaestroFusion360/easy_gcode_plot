@@ -248,6 +248,7 @@ def _export_request(owner) -> tuple[ExportRequest, str, str]:
         language="fanuc_turn" if bool(getattr(owner, "latheMode", False)) else "fanuc_mill",
         target_dialect=target_dialect,
         lathe_gcode_system=getattr(owner, "latheGcodeSystem", "A"),
+        sinumerik_840d_sl=getattr(owner, "sinumerik840dSl", True),
         kinematics=getattr(owner, "rotaryKinematics", None),
         encoding=getattr(owner, "fileEncoding", "utf-8"),
         format=format_name,

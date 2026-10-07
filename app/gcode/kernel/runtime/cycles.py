@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..api.types import Diagnostic, MachineSignal
+from ..api.types import Diagnostic, ExecutionEvent, MachineSignal
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,6 +34,7 @@ class CycleOutcome:
     diagnostics: tuple[Diagnostic, ...] = ()
     modal_updates: tuple[tuple[str, object], ...] = ()
     position_update: tuple[tuple[str, float], ...] = ()
+    events: tuple[ExecutionEvent, ...] = ()
 
 
 def apply_cycle_outcome(state: object, outcome: CycleOutcome) -> None:

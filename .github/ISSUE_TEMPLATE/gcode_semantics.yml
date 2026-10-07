@@ -1,0 +1,99 @@
+name: G-code / export semantics bug
+description: Report incorrect toolpath, coordinates, cycles, rotary/TCP/TWP behavior, or controller conversion
+title: "[G-code] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this template when Easy GCode Plot changes machining semantics, produces incorrect resolved motion, or exports a program that does not replay equivalently. Do not run unverified output on a real machine.
+  - type: input
+    id: version
+    attributes:
+      label: Easy GCode Plot version
+      placeholder: "e.g. 1.9.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: machine
+    attributes:
+      label: Machine mode
+      options:
+        - Milling 3-axis
+        - Milling 4-axis
+        - Milling 5-axis
+        - Turning
+        - Unknown / not applicable
+    validations:
+      required: true
+  - type: input
+    id: controller
+    attributes:
+      label: Controller / dialect
+      description: Include the controller family and dialect if known.
+      placeholder: "e.g. FANUC milling, SINUMERIK native, SINUMERIK ISO-M"
+    validations:
+      required: true
+  - type: input
+    id: kinematics
+    attributes:
+      label: Kinematics profile
+      description: Required for rotary/multiaxis problems when known.
+      placeholder: "e.g. 4ax_table_c, 5ax_table_bc_angled"
+  - type: dropdown
+    id: path
+    attributes:
+      label: Affected path
+      options:
+        - Parser / native dialect
+        - Execution / resolved trajectory
+        - Visualization
+        - Full Program export
+        - Expanded Execution export
+        - Controller conversion
+        - CLI / batch export
+        - GUI export
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: source
+    attributes:
+      label: Minimal source program
+      description: Prefer the smallest program that still reproduces the semantic difference.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected machining semantics
+      description: Describe expected positions, trajectory, modal state, rotary angles, TCP/TWP state, cycle behavior, or reference move.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual result
+      description: Describe the incorrect geometry/state or paste the generated NC output and diagnostics.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Reference / evidence
+      description: Controller manual section, known-good output, CAM result, machine documentation, or another reproducible reference.
+  - type: textarea
+    id: replay
+    attributes:
+      label: Round-trip / replay result
+      description: If applicable, include source vs exported motion count, trajectory signature, final position, rotary state, or diagnostics.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: I have not treated Easy GCode Plot output as machine-safe solely because it rendered or passed a test.
+          required: true
+        - label: I identified whether this should work according to the current ROADMAP, rather than assuming planned functionality is already supported.
+          required: true

@@ -334,6 +334,7 @@ def _execute_impl(
     *,
     x_is_diameter: bool = True,
     lathe_gcode_system: str = "A",
+    sinumerik_840d_sl: bool = True,
     skip_optional_blocks: bool = False,
     supplementary_angles: bool = False,
     pq_mm_for_g74758384: bool = False,
@@ -397,6 +398,7 @@ def _execute_impl(
                 include_instructions=include_instructions,
                 kinematics=kinematics,
                 source_dialect=source_dialect,
+                sinumerik_840d_sl=sinumerik_840d_sl,
                 tool_resolver=tool_resolver,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
@@ -605,6 +607,7 @@ def execute(
             result,
             source_dialect=options.get("source_dialect", "fanuc"),
             lathe_gcode_system=validate_system(options.get("lathe_gcode_system", "A")),
+            sinumerik_840d_sl=options.get("sinumerik_840d_sl", True),
         )
         effective_arc_type = _effective_arc_type(result, language, autodetect_arc_type, arc_tolerance, source_arc_type)
         motions, motion_step_owners, geometry_diagnostics, cursor = [], [], [], 0

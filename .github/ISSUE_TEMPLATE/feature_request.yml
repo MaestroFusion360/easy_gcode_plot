@@ -1,0 +1,59 @@
+name: Feature request
+description: Propose a focused capability that fits the project direction
+title: "[Feature] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please check `ROADMAP.md` first. Requests that duplicate planned work are more useful when they add a concrete controller/program example or acceptance criteria.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the real workflow or limitation, not only the desired UI/control.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe what Easy GCode Plot should do.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Parser / dialect
+        - Execution / kernel
+        - Turning
+        - Milling
+        - Multiaxis / kinematics
+        - Visualization
+        - Analysis / diagnostics
+        - Export / postprocessing
+        - GUI
+        - CLI / batch
+        - Documentation
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Example
+      description: Add a representative G-code program, controller command, workflow, or expected output if applicable.
+  - type: textarea
+    id: reference
+    attributes:
+      label: Documentation / reference
+      description: For controller-specific behavior, identify the controller/manual/version when possible.
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: I checked `ROADMAP.md` and this request is not merely asking for already completed functionality.
+          required: true

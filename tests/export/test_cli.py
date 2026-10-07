@@ -15,6 +15,91 @@ from app.gcode.kernel import execute
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
 
+@pytest.mark.parametrize("matches", [True, False])
+def test_cli_compares_generated_native_cycle_nc_with_reference(tmp_path, capsys, matches):
+    source = tmp_path / "source.nc"
+    output = tmp_path / "actual.mpf"
+    reference = tmp_path / "expected.mpf"
+    source.write_text("G21 G17 G90\nG0 X0 Y0 Z5\nG98 G81 X2 Y3 Z-5 R2 F100\nG80\nM30\n", encoding="utf-8")
+    expected = (
+        "G290\nG17 G90 G94 G40 D0 G54\nG710\nG90\nG0 X0 Z5\nG90\nG17\nG94\nG0 X2 Y3\nF100\n"
+        "MCALL CYCLE81(5,2,0,-5,,0,0,1,12)\nX2 Y3\nMCALL\nG90\nM30\n"
+    )
+    baseline = expected if matches else expected.replace("F100", "F200")
+    reference.write_bytes(baseline.replace("\n", "\r\n").encode("utf-8"))
+    arguments = [
+        "export",
+        str(source),
+        "--lang",
+        "fanuc_mill",
+        "--post-profile",
+        "sinumerik_840d",
+        "-o",
+        str(output),
+        "--compare-with",
+        str(reference),
+    ]
+    assert main(arguments) == (0 if matches else 1)
+    terminal = capsys.readouterr()
+    assert terminal.err == ""
+    assert output.read_text(encoding="utf-8") == expected
+    if matches:
+        assert "Comparison: MATCH" in terminal.out
+        assert "@@" not in terminal.out
+    else:
+        assert "Comparison: DIFFERENT" in terminal.out
+        diff = terminal.out[terminal.out.index("--- ") :]
+        assert diff.startswith(f"--- {reference.as_posix()}\n+++ {output.as_posix()}\n@@")
+        assert "-F200\n+F100\n" in diff
+        assert main(arguments) == 1
+        repeated = capsys.readouterr().out
+        assert repeated[repeated.index("--- ") :] == diff
+    assert reference.read_bytes() == baseline.replace("\n", "\r\n").encode("utf-8")
+
+
+def test_cli_comparison_detects_missing_final_newline(tmp_path, capsys):
+    source = tmp_path / "source.nc"
+    output = tmp_path / "actual.nc"
+    reference = tmp_path / "expected.nc"
+    source.write_text("M30\n", encoding="utf-8")
+    reference.write_bytes(b"M30")
+    assert (
+        main(
+            [
+                "export",
+                str(source),
+                "--mode",
+                "full",
+                "-o",
+                str(output),
+                "--compare-with",
+                str(reference),
+            ]
+        )
+        == 1
+    )
+    assert "-M30\n\\ No newline at end of file\n+M30\n" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize("failure", ["same_file", "missing", "dxf"])
+def test_cli_comparison_preflight_returns_error_without_writing(tmp_path, capsys, failure):
+    source = tmp_path / "source.nc"
+    output = tmp_path / "actual.nc"
+    reference = output if failure == "same_file" else tmp_path / "expected.nc"
+    source.write_text("M30\n", encoding="utf-8")
+    if failure != "missing":
+        reference.write_bytes(b"reference\n")
+    arguments = ["export", str(source), "-o", str(output), "--compare-with", str(reference)]
+    if failure == "dxf":
+        arguments += ["--format", "dxf"]
+    assert main(arguments) == 2
+    assert "Export error:" in capsys.readouterr().err
+    if failure == "same_file":
+        assert output.read_bytes() == b"reference\n"
+    else:
+        assert not output.exists()
+
+
 @pytest.mark.parametrize("language, expected", [("fanuc_mill", True), ("fanuc_turn", False)])
 def test_cli_batch_enables_arc_autodetection_for_milling(tmp_path, monkeypatch, language, expected):
     source_dir = tmp_path / "source"

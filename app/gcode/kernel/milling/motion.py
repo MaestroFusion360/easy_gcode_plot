@@ -8,6 +8,7 @@ from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.home import reference_return
 from .cycles import execute_milling_cycle
 from .kinematics import TCP_TABLE_PROFILES, effective_orientation, point_orientation, transform_point
+from .reference import append_reference_event
 from .state import MillState, _coordinate_transform, _machine, _orient_vector, _wcs_offset, _xyz
 
 
@@ -148,7 +149,7 @@ def _motion(
         offset = _wcs_offset(wcs_offsets, state.active_wcs)
         arc_vector = tuple(arc_vector[i] + offset[i] for i in range(3))
     has_arc_definition = state.move in (2, 3) and any(key in words for key in ("I", "J", "K", "R"))
-    if start_m == end_m and not has_arc_definition and not tcp_rotary:
+    if start_m == end_m and not has_arc_definition and not (tcp_rotary or continuous_c):
         return None
     return TraceMotion(
         move=state.move,
@@ -217,7 +218,9 @@ def _motion(
     )
 
 
-def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offsets) -> TraceMotion | None:
+def _machine_coordinate_motion(
+    block, state: MillState, words, *, home, wcs_offsets, events=None, call_depth=0
+) -> TraceMotion | None:
     """Resolve G53/SUPA using the application's configured reference zero."""
     start_machine = _raw_machine_position(state, wcs_offsets)
     end_machine = list(start_machine)
@@ -233,6 +236,20 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
 
     if not supa or words.get("Z") == 0.0:
         _validate_reference_retract(state, start_machine, end_machine, words, wcs_offsets)
+    append_reference_event(
+        events,
+        block,
+        state,
+        words,
+        home,
+        start_machine,
+        end_machine,
+        ((start_machine, tuple(end_machine)),) if start_machine != tuple(end_machine) else (),
+        code="SUPA" if supa else "G53",
+        orientation=_reference_orientation(state),
+        offset=_wcs_offset(wcs_offsets, state.active_wcs),
+        call_depth=call_depth,
+    )
     _set_raw_machine_position(state, end_machine, wcs_offsets)
     if start_machine == tuple(end_machine):
         return None
@@ -251,6 +268,8 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
         source_nlabel=block.nlabel,
         source_raw=block.raw,
         source_kind="supa" if supa else "g53",
+        orientation=_reference_orientation(state),
+        orientation_offset=tuple(_wcs_offset(wcs_offsets, state.active_wcs)),
         start_tool_orientation=(
             effective_orientation(state.kinematics, state.rotary_angles) if state.kinematics else None
         ),
@@ -259,31 +278,6 @@ def _machine_coordinate_motion(block, state: MillState, words, *, home, wcs_offs
         compensation_applied=False,
         tool=state.active_tool,
     )
-
-
-def _g53_home_axes(
-    state: MillState,
-    words,
-    home: tuple[float, float, float],
-    *,
-    wcs_offsets,
-) -> tuple[str, ...]:
-    """Return addressed G53 axes that deterministically target configured home."""
-    start_m = _raw_machine_position(state, wcs_offsets)
-    axes: list[str] = []
-    for index, letter in enumerate(("X", "Y", "Z")):
-        if letter not in words:
-            continue
-        if state.absolute:
-            target = words[letter] * state.unit_scale
-            if target == 0.0:
-                target = home[index]
-        else:
-            target = start_m[index] + words[letter] * state.unit_scale
-        if abs(target - home[index]) > 1e-9:
-            return ()
-        axes.append(letter)
-    return tuple(axes)
 
 
 def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets, rotary_start_angles):
@@ -301,7 +295,14 @@ def _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets,
     return False
 
 
-def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offsets, *, rotary_start_angles=None):
+def _append_cycle_events(events, outcome):
+    if events is not None:
+        events.extend(outcome.events)
+
+
+def _emit_milling_motions(
+    block, state, words, gcodes, motions, home, wcs_offsets, *, rotary_start_angles=None, events=None, call_depth=0
+):
     if _emit_simple_modal_motion(block, state, words, gcodes, motions, wcs_offsets, rotary_start_angles):
         return ()
 
@@ -331,6 +332,7 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
         emit_geometry=not cycle_geometry_blocked,
     )
     apply_cycle_outcome(state, cycle_outcome)
+    _append_cycle_events(events, cycle_outcome)
     if cycle_outcome.handled:
         motions.extend(cycle_outcome.motions)
         return cycle_outcome.signals
@@ -338,7 +340,9 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
     if 4 in gcodes or any(g in gcodes for g in (10, 50, 51, 52, 53.1, 68, 68.2, 69)):
         pass
     elif 53 in gcodes:
-        m = _machine_coordinate_motion(block, state, words, home=home, wcs_offsets=wcs_offsets)
+        m = _machine_coordinate_motion(
+            block, state, words, home=home, wcs_offsets=wcs_offsets, events=events, call_depth=call_depth
+        )
         if m:
             checkpoint("generated_motions")
             motions.append(m)
@@ -353,6 +357,21 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
             tuple(axis in words for axis in ("X", "Y", "Z")),
         )
         _validate_reference_path(state, path.segments, words, wcs_offsets)
+        append_reference_event(
+            events,
+            block,
+            state,
+            words,
+            home,
+            start_machine,
+            path.target,
+            path.segments,
+            code="G28",
+            intermediate=tuple(intermediate_machine),
+            orientation=_reference_orientation(state),
+            offset=_wcs_offset(wcs_offsets, state.active_wcs),
+            call_depth=call_depth,
+        )
         for machine_start, machine_end in path.segments:
             segment_start = _display_machine_position(machine_start, state, wcs_offsets)
             segment_end = _display_machine_position(machine_end, state, wcs_offsets)
@@ -371,6 +390,8 @@ def _emit_milling_motions(block, state, words, gcodes, motions, home, wcs_offset
                     source_nlabel=block.nlabel,
                     source_raw=block.raw,
                     source_kind="g28",
+                    orientation=_reference_orientation(state),
+                    orientation_offset=tuple(_wcs_offset(wcs_offsets, state.active_wcs)),
                     start_tool_orientation=(
                         effective_orientation(state.kinematics, state.rotary_angles) if state.kinematics else None
                     ),

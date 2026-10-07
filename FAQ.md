@@ -202,9 +202,13 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Are exporters separate G-code interpreters?](#are-exporters-separate-g-code-interpreters)
     - [What does Full Program mean?](#what-does-full-program-mean)
     - [What does Expanded Execution mean?](#what-does-expanded-execution-mean)
+    - [What does Auto (source controller) mean?](#what-does-auto-source-controller-mean)
+    - [How does Modal Feed work?](#how-does-modal-feed-work)
+    - [Can I choose formatting options when converting to a specific controller?](#can-i-choose-formatting-options-when-converting-to-a-specific-controller)
     - [What does DXF contain?](#what-does-dxf-contain)
     - [Does DXF parse the G-code again?](#does-dxf-parse-the-g-code-again)
     - [Which NC formatting options exist?](#which-nc-formatting-options-exist)
+    - [How does a post profile control word order and mandatory addresses?](#how-does-a-post-profile-control-word-order-and-mandatory-addresses)
     - [Which milling Expanded arc output modes exist?](#which-milling-expanded-arc-output-modes-exist)
     - [What happens when a full circle is exported in R mode?](#what-happens-when-a-full-circle-is-exported-in-r-mode)
     - [Can Expanded NC be converted between millimetres and inches?](#can-expanded-nc-be-converted-between-millimetres-and-inches)
@@ -213,6 +217,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Can comments be removed from export?](#can-comments-be-removed-from-export)
     - [Are exports written atomically by the CLI service?](#are-exports-written-atomically-by-the-cli-service)
     - [Can CLI export overwrite the source file?](#can-cli-export-overwrite-the-source-file)
+    - [Can CLI export be compared directly with an expected NC file?](#can-cli-export-be-compared-directly-with-an-expected-nc-file)
   - [SINUMERIK 840D input](#sinumerik-840d-input)
     - [What SINUMERIK support is included?](#what-sinumerik-support-is-included)
     - [How are MPF and SPF files detected?](#how-are-mpf-and-spf-files-detected)
@@ -1958,6 +1963,8 @@ EXPANDED is the controller-conversion path. One generic postprocessor emits reso
 
 Bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`, `fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d` and `sinumerik_840d_multiaxis`; an external JSON path can be supplied with `--post-profile`. The `*_multiaxis` profiles declare `supports.axes` `X/Y/Z/A/B/C` and emit explicit resolved rotary coordinates; the three-axis profiles stay XYZ-only and still reject rotary geometry.
 
+Indexed rotary about a displaced WCS origin remains fail-closed as `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`: zero-offset output cannot preserve the center of indexing without target frame-offset reconstruction. TCP arc subdivision distributes ABC with XYZ; G91 rotary output avoids cumulative rounding drift. With a custom G93-capable profile, subdivision preserves the original block duration and restores the source feed for later motions. Unverified compensation and ignored native geometry-changing commands return `UNSUPPORTED_UNVERIFIED_GEOMETRY_EXPANDED_EXPORT`, including the concrete execution diagnostic codes.
+
 ### What does Auto (source controller) mean?
 
 `Auto (source controller)` is not a separate capability mode. It automatically selects the post profile that matches the source controller and dialect: FANUC turning uses the Type A/B lathe profile, FANUC milling uses `fanuc_mill`, SINUMERIK ISO uses `sinumerik_iso` and native SINUMERIK uses `sinumerik_840d`. EXPANDED always re-serializes the resolved execution, so even "Auto" is a conversion; it simply does not require you to name a target.
@@ -2046,9 +2053,25 @@ Yes. The CLI export service writes to a temporary file in the output directory a
 
 No. Source and output must be different paths.
 
+### Can CLI export be compared directly with an expected NC file?
+
+Yes. Add `--compare-with FILE` to single-file NC `export`, in either FULL or EXPANDED mode:
+
+```powershell
+.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --post-profile sinumerik_840d -o actual.mpf --compare-with expected.mpf
+```
+
+The CLI compares the actually generated output with the UTF-8 reference. LF and CRLF line endings are treated equally; spaces, comments and the final newline are compared. Exit code `0` means a match, `1` means a mismatch, and `2` means an export or file error. A mismatch prints a unified diff on stdout, with the reference first (`---`) and generated output second (`+++`), without timestamps. The generated file is retained; the reference cannot be the output destination and is never overwritten. This option is not available for DXF or `batch-export`.
+
+This is a direct text regression check. Execution/replay tests remain the check for machining-semantic equivalence when different NC text can represent the same operation.
+
 ---
 
 ## SINUMERIK 840D input
+
+**Options > General > 840D Extended cycles** selects the cycle interface for native input and native EXPANDED output. Checked (default): the Siemens 03/2009 interface, CYCLE81/82/83/84 with 9/9/20/24 parameters. Unchecked: the classic 01/2008 interface with 5/6/17/18 parameters. Short compatible calls remain accepted; 840D Extended cycles signatures in classic mode produce diagnostics. Changing the setting re-executes the current program. This selection does not change G290/G291 or the rotary-kinematics profile; the installed cycle package, rather than the platform name alone, determines compatibility. CLI uses `--sinumerik-cycles classic|sl`; native post JSON stores both sets in `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`.
+
+The corpus also includes [ext_cycles.mpf](tests/fixtures/milling/sinumerik/ext_cycles.mpf) and [no_ext_cycles.mpf](tests/fixtures/milling/sinumerik/no_ext_cycles.mpf), retained as posted. They are mixed supported/unsupported audit programs, not examples of complete successful execution. Common CYCLE81/82/83 operations have matching geometry in their respective profiles. The extended file first stops at line 216 on deep/chip-breaking CYCLE84; the classic file first stops at line 200 because its CYCLE84 declaration has 21 positional parameters, beyond the current classic limit of 18. Left-hand/deep tapping, CYCLE85/86/87/89 and native M19 are not modeled. Selecting the extended interface does not enable those operations.
 
 Arc-center interpretation follows the executed controller mode: native and ISO-M (`G291`) use incremental IJK centers; native I=AC/J=AC/K=AC explicitly selects absolute centers. Mixed `G290/G291` input resolves each arc in its active mode; document arc settings and automatic detection do not override these semantics. Configured native rotary axes are supported by the bounded TCP/indexing subset; rotary A/B/C in G291 remains rejected.
 
@@ -2097,7 +2120,7 @@ Numeric R assignments (`R1=500`) and direct references in `F/S/XYZ/IJK=Rn`, `CR=
 
 Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc (IJK or CR, G40, no active MCALL), according to [Siemens](https://support.industry.siemens.com/cs/attachments/104985512/802Dsl_BPF_1006_en.pdf). The trace keeps one analytical arc/helix with the total sweep. Rendering, playback and statistics retain those turns; DXF uses a sampled polyline, and FANUC/ISO exporters split arcs only during serialization. The existing stock material-removal timeline supports turning; this release does not add milling stock removal. Standalone native `G4 F...` uses seconds and leaves modal feed unchanged; spindle-revolution dwell is not modeled.
 
-The GUI/CLI/kernel also supports a bounded TRAORI/TRAFOOF TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured numeric A/B/C assignments and direct R references follow G90/G91; rotary TCP arcs retain analytical Cartesian geometry and orientation endpoints. The GUI preserves rotary selection and executes native AC/BC programs through the same kernel. CYCLE800 builds its own Siemens rotation matrix and uses the common TWP solver/rebasing. FR0/1/2 are logical retract requests, with no OEM retract trajectory; FR_I must be zero/blank and DMODE0/1 is supported. DIR chooses the principal first-table-joint branch. IC(numeric/direct R) is incremental independently of G90/G91. ORI*, TRANS/AROT, FGROUP, FL[], FGREF[], SPOS, CUT3DC/CUT3DF/CUT3DFF and path-control extensions are parsed with unverified warnings; their effects are not simulated. Arbitrary Siemens subprogram calls remain fail-closed. Cancel TCP before G290/G291; active TCP transitions are rejected. Native MCALL and G41/G42 cannot be activated under TCP, and active MCALL must be cancelled before rotary positioning. No multi-axis controller conversion is enabled.
+The GUI/CLI/kernel also supports a bounded TRAORI/TRAFOOF TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured numeric A/B/C assignments and direct R references follow G90/G91; rotary TCP arcs retain analytical Cartesian geometry and orientation endpoints. The GUI preserves rotary selection and executes native AC/BC programs through the same kernel. CYCLE800 builds its own Siemens rotation matrix and uses the common TWP solver/rebasing. FR0/1/2 are logical retract requests, with no OEM retract trajectory; FR_I must be zero/blank and DMODE0/1 is supported. DIR chooses the principal first-table-joint branch. IC(numeric/direct R) is incremental independently of G90/G91. ORI*, TRANS/AROT, FGROUP, FL[], FGREF[], SPOS, CUT3DC/CUT3DF/CUT3DFF and path-control extensions are parsed with unverified warnings; their effects are not simulated. Arbitrary Siemens subprogram calls remain fail-closed. Cancel TCP before G290/G291; active TCP transitions are rejected. Native MCALL and G41/G42 cannot be activated under TCP, and active MCALL must be cancelled before rotary positioning. The bundled multiaxis posts reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset across FANUC and SINUMERIK; tilted-plane/CYCLE800 export remains fail-closed.
 
 EXPANDED profiles are tested by re-executing output and comparing geometry, feeds and machine signals. FULL preserves the source dialect.
 
@@ -2119,7 +2142,7 @@ Yes. Choose **EXPANDED EXECUTION** and the target controller. The postprocessor 
 
 ### Can SINUMERIK native milling programs be converted to FANUC?
 
-Yes, for supported three-axis geometry. Parameters and CYCLE81/82/83/84 have already been executed by the kernel; EXPANDED emits the resulting motions, feeds, dwell and machine signals. Source MCALL and cycle definitions are absent from the output. Rotary/TWP/TCP and unverified geometry-changing commands are rejected.
+Yes. Parameters and CYCLE81/82/83/84 have already been executed by the kernel; EXPANDED emits the resulting motions, feeds, dwell and machine signals. Source MCALL and cycle definitions are absent from the output. The three-axis `fanuc_mill` profile rejects rotary/TCP geometry; `fanuc_mill_multiaxis` can reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset. Tilted-plane/CYCLE800 and unverified geometry-changing commands remain rejected.
 
 ```powershell
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc
@@ -2129,14 +2152,14 @@ Yes, for supported three-axis geometry. Parameters and CYCLE81/82/83/84 have alr
 
 **FULL** answers “keep this controller program, but normalize it safely.” It preserves ordinary source structure and the source controller/dialect; only execution-flow constructs that cannot safely survive renumbering are unfolded.
 
-**EXPANDED** answers “emit this executed three-axis result for this controller.” It serializes resolved geometry/state through one of the JSON post profiles. Physical XYZ uses one zero-offset G54 frame; source cycles, macro variables and subprogram calls are not recreated.
+**EXPANDED** answers “emit this resolved execution for this controller.” It serializes resolved geometry/state through one of the JSON post profiles. Three-axis profiles remain XYZ-only; bundled multiaxis profiles additionally reconstruct the verified rotary/TCP subsets. Physical XYZ uses one zero-offset G54 frame; supported milling drilling/tapping operations are emitted through the post cycle templates when representable. Other operations retain their resolved motions; macro variables and subprogram calls are not recreated.
 
 ```powershell
 .\easy_gcode_plot_cli.exe batch-export C:\Fanuc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o C:\SiemensISO
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode full -o normalized.mpf
 ```
 
-GUI and CLI use the same FULL / EXPANDED / DXF split. Target-controller selection belongs to EXPANDED. Actual rotary/TWP/TCP geometry is rejected by the current controller postprocessor; a selected kinematics profile by itself does not make an XYZ-only program multi-axis. DXF is an independent geometry output and has no NC post profile.
+GUI and CLI use the same FULL / EXPANDED / DXF split. Target-controller selection belongs to EXPANDED. Three-axis posts reject rotary/TCP geometry, while the bundled multiaxis posts reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and supported AC/BC TCP. Tilted-plane/CYCLE800 export remains fail-closed. A selected kinematics profile by itself does not make an XYZ-only program multi-axis. DXF is an independent geometry output and has no NC post profile.
 
 ### Is SINUMERIK lathe supported?
 
@@ -2217,7 +2240,7 @@ Add `--html C:\Reports\html` to save a separate statistics report with a tool se
 
 `batch-export` discovers a directory tree and calls the same single-file export service for every input program.
 
-For indexed A/B programs, choose a profile with `--kinematics PROFILE_ID` when all files use one machine, or pass `--kinematics-map profiles.json` for different machines. Both `batch` and `batch-export` accept the map. It is a JSON object from input-relative paths to profile IDs, for example `{"a.nc":"4ax_table_a","sub/b.nc":"4ax_table_b"}`. Use `--mode full` to preserve the rotary NC words. Without a profile, affected files fail with `ROTARY_KINEMATICS_REQUIRED`; indexed expanded NC export is also rejected. Full indexed NC is preserved verbatim, so formatting options that would otherwise be ignored are rejected. DXF uses resolved geometry and the selected profile.
+For indexed A/B programs, choose a profile with `--kinematics PROFILE_ID` when all files use one machine, or pass `--kinematics-map profiles.json` for different machines. Both `batch` and `batch-export` accept the map. It is a JSON object from input-relative paths to profile IDs, for example `{"a.nc":"4ax_table_a","sub/b.nc":"4ax_table_b"}`. Without a profile, affected files fail with `ROTARY_KINEMATICS_REQUIRED`. EXPANDED requires a multiaxis target post for rotary output and rejects geometry it cannot reconstruct. FULL preserves the source rotary commands while applying supported text normalization. DXF uses resolved geometry and the selected profile.
 
 ```powershell
 .\easy_gcode_plot_cli.exe batch-export C:\Programs --lang fanuc_mill -o C:\Normalized
@@ -2443,6 +2466,7 @@ Per file:
 ```text
 EXPORTED
 WARNINGS
+UNSUPPORTED
 ERRORS
 ```
 
@@ -2451,6 +2475,7 @@ Overall:
 ```text
 CLEAN
 WARNINGS
+UNSUPPORTED
 ERRORS
 NO_FILES
 ```
@@ -2610,7 +2635,7 @@ The M-code is not modeled as a machine effect. Batch keeps the geometric trace w
 
 ### Export unit conversion is refused
 
-EXPANDED unit conversion operates on resolved geometry/state rather than scaling source text. If conversion is refused, inspect the reported execution/postprocessor diagnostic (for example unsupported rotary/TWP/TCP or incomplete execution). FULL intentionally supports only `--units auto`.
+EXPANDED unit conversion operates on resolved geometry/state rather than scaling source text. If conversion is refused, inspect the reported execution/postprocessor diagnostic (for example unsupported TWP/CYCLE800 or other unverified geometry, or incomplete execution). FULL intentionally supports only `--units auto`.
 
 ### Batch-export says the output directory is invalid
 
@@ -2693,7 +2718,7 @@ The package is intentionally small:
 - `full.py` — source-preserving FULL normalization using source + execution map;
 - `expanded.py` — the single JSON-profile postprocessor for resolved geometry/state;
 - `dxf.py` — DXF geometry output;
-- `posts/*.json` — the five bundled controller profiles.
+- `posts/*.json` — the seven bundled controller profiles.
 
 Single-file CLI orchestration lives in `app/gcode/export_file.py`; `batch_export.py` only applies that contract to a directory tree. No export path contains a second G-code interpreter.
 

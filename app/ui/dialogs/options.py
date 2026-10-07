@@ -9,6 +9,7 @@ from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import QCoreApplication, QRegularExpression
 from PyQt6.QtGui import QColor, QFont, QRegularExpressionValidator
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QColorDialog,
     QComboBox,
     QDialog,
@@ -57,6 +58,7 @@ def _option_snapshot(window):
         "correction": getattr(window, "correctionEnabled", True),
         "autodetect_arc_type": getattr(window, "autodetectArcType", True),
         "lathe_gcode_system": getattr(window, "latheGcodeSystem", "A"),
+        "sinumerik_840d_sl": getattr(window, "sinumerik840dSl", True),
         "ignore_block_skip": getattr(window, "ignoreBlockSkip", False),
         "comment_style": getattr(window, "commentStyle", DEFAULT_COMMENT_STYLE),
         "arc_sampling_preset": getattr(window, "arcSamplingPreset", ARC_SAMPLING_PRESET_DEFAULT),
@@ -103,6 +105,7 @@ def _execution_semantics_changed(
     previous_ignore_block_skip,
     previous_generated_motions,
     previous_lathe_gcode_system,
+    previous_sinumerik_840d_sl,
 ):
     return any(
         (
@@ -113,6 +116,7 @@ def _execution_semantics_changed(
             previous_ignore_block_skip != window.ignoreBlockSkip,
             previous_generated_motions != window.maxGeneratedMotions,
             previous_lathe_gcode_system != window.latheGcodeSystem,
+            previous_sinumerik_840d_sl != window.sinumerik840dSl,
         )
     )
 
@@ -218,6 +222,7 @@ class OptionsDialog(QDialog):
             "Dialect of the source program. Select the output controller in Export / Target CNC."
         )
         self.ui.generalForm.addRow(QLabel("Source lathe G-code system", self), self.ui.latheGcodeSystemCombo)
+        self._configure_sinumerik_cycles_control()
         self._configure_rotary_kinematics_controls()
         self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (
@@ -245,6 +250,21 @@ class OptionsDialog(QDialog):
         self._correction_preview_applied = False
         self._show_stock_before_show = None
         self._rotary_before_show = None
+
+    def _configure_sinumerik_cycles_control(self):
+        self.ui.sinumerik840dSlCheck = QCheckBox(
+            QCoreApplication.translate("OptionsDlg", "840D Extended cycles"), self.ui.generalTab
+        )
+        self.ui.sinumerik840dSlCheck.setObjectName("sinumerik840dSlCheck")
+        self.ui.sinumerik840dSlCheck.setToolTip(
+            QCoreApplication.translate(
+                "OptionsDlg",
+                "Checked: 840D Extended cycles interface (Siemens 03/2009). "
+                "Unchecked: classic cycle interface (Siemens 01/2008). "
+                "Applies to native source cycles and native SINUMERIK export.",
+            )
+        )
+        self.ui.generalForm.addRow(self.ui.sinumerik840dSlCheck)
 
     def _configure_rotary_kinematics_controls(self):
         self.ui.rotaryKinematicsLabel = QLabel(
@@ -320,6 +340,7 @@ class OptionsDialog(QDialog):
         )
         self.ui.unitsCombo.setCurrentIndex(1 if getattr(window, "defaultUnits", "mm") == "inch" else 0)
         self.ui.latheGcodeSystemCombo.setCurrentIndex(1 if getattr(window, "latheGcodeSystem", "A") == "B" else 0)
+        self.ui.sinumerik840dSlCheck.setChecked(getattr(window, "sinumerik840dSl", True))
         self.ui.languageCombo.setCurrentIndex(1 if getattr(window, "uiLanguage", "en") == "ru" else 0)
         self.ui.themeCombo.setCurrentIndex(1 if getattr(window, "uiTheme", "light") == "dark" else 0)
         icon_size = getattr(window, "toolbarIconSize", DEFAULT_TOOLBAR_ICON_SIZE)
@@ -503,6 +524,7 @@ class OptionsDialog(QDialog):
         previous_sampling = _arc_sampling_snapshot(window)
         previous_autodetect_arc_type = getattr(window, "autodetectArcType", True)
         previous_lathe_gcode_system = getattr(window, "latheGcodeSystem", "A")
+        previous_sinumerik_840d_sl = getattr(window, "sinumerik840dSl", True)
         previous_ignore_block_skip = getattr(window, "ignoreBlockSkip", False)
         previous_generated_motions = getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)
         previous_show_stock = (
@@ -540,6 +562,7 @@ class OptionsDialog(QDialog):
         window.maxGeneratedMotions = self.ui.maxGeneratedMotionsSpin.value()
         _apply_cnc_options(window, self.ui)
         window.latheGcodeSystem = self.ui.latheGcodeSystemCombo.currentData()
+        window.sinumerik840dSl = self.ui.sinumerik840dSlCheck.isChecked()
         window.fontFamily = self.ui.fontCombo.currentFont().family()
         window.sizeTxt = self.ui.fontSizeSpin.value()
         window.caretLine = self.ui.caretLineCheck.isChecked()
@@ -579,6 +602,7 @@ class OptionsDialog(QDialog):
             previous_ignore_block_skip=previous_ignore_block_skip,
             previous_generated_motions=previous_generated_motions,
             previous_lathe_gcode_system=previous_lathe_gcode_system,
+            previous_sinumerik_840d_sl=previous_sinumerik_840d_sl,
         )
         _refresh_after_option_changes(
             window,
@@ -672,6 +696,7 @@ class OptionsDialog(QDialog):
 
     def restore_defaults(self):
         LOGGER.debug("options_restore_defaults_requested")
+        self.ui.sinumerik840dSlCheck.setChecked(True)
         self.hotkeyEditor.reset_defaults()
         self.ui.encodingCombo.setCurrentIndex(0)
         self.ui.fileTypeCombo.setCurrentIndex(0)

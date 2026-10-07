@@ -1,13 +1,15 @@
-"""Multiaxis EXPANDED post profiles: explicit resolved rotary coordinates only."""
+"""Multiaxis EXPANDED post profiles, indexed geometry and TCP reconstruction."""
 
 from __future__ import annotations
 
 import re
 
 import pytest
+from export_signatures import motion_traces_match
 
 from app.gcode.export.common import ExportLimitation, ExportOptions
 from app.gcode.export.expanded import convert_resolved_program, load_post_profile
+from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.kernel import execute
 
 MULTIAXIS_TARGETS = ("fanuc_mill_multiaxis", "sinumerik_840d_multiaxis")
@@ -29,6 +31,8 @@ def test_multiaxis_profile_declares_all_rotary_axes(target):
     words = profile["format"]["words"]
     assert {"A", "B", "C"} <= set(words)
     assert all(words[axis]["required"] is False for axis in "ABC")
+    assert profile["supports"]["tcp"] is True
+    assert set(profile["multiaxis"]) == {"tcpOn", "tcpOff"}
 
 
 @pytest.mark.parametrize("target", MULTIAXIS_TARGETS)
@@ -47,19 +51,167 @@ def test_rotary_program_exports_only_through_multiaxis_profiles(source, kinemati
     for target in MULTIAXIS_TARGETS:
         text = convert_resolved_program(result, target, ExportOptions(delimiter=True))
         assert re.search(rf"(?<![A-Z]){axis}[-+]?\d", text), text
+        replay = execute(
+            text,
+            language="fanuc_mill",
+            source_dialect="sinumerik" if target.startswith("sinumerik") else "fanuc",
+            kinematics=kinematics,
+        )
+        assert replay.ok and replay.complete, replay.diagnostics
+        _assert_multiaxis_replay_matches(result, replay)
 
     for target in THREE_AXIS_TARGETS:
         with pytest.raises(ExportLimitation):
             convert_resolved_program(result, target, ExportOptions(delimiter=True))
 
 
-@pytest.mark.parametrize("target", MULTIAXIS_TARGETS)
-def test_multiaxis_profile_still_rejects_tcp(target):
-    source = "G90 G0 X0 Y0 Z0\nG43.4 H1\nG1 X10 Y20 Z30 B30 C45 F100\nG49\nM30"
-    result = execute(source, language="fanuc_mill", kinematics="5ax_table_bc_angled")
-    assert result.ok and result.complete, result.diagnostics
-    with pytest.raises(ExportLimitation, match="TCP"):
-        convert_resolved_program(result, target, ExportOptions(delimiter=True))
+def _assert_matrix_matches(actual, expected):
+    if expected is None:
+        assert actual is None
+        return
+    assert actual is not None
+    assert tuple(value for row in actual for value in row) == pytest.approx(
+        tuple(value for row in expected for value in row)
+    )
+
+
+def _assert_multiaxis_replay_matches(source, generated):
+    assert motion_traces_match(source, generated)
+    assert source.rotary_angles == generated.rotary_angles
+    assert len(source.motions) == len(generated.motions)
+    for expected, actual in zip(source.motions, generated.motions, strict=True):
+        _assert_matrix_matches(actual.start_tool_orientation, expected.start_tool_orientation)
+        _assert_matrix_matches(actual.tool_orientation, expected.tool_orientation)
+
+
+@pytest.mark.parametrize(
+    ("target", "dialect"),
+    [("fanuc_mill_multiaxis", "fanuc"), ("sinumerik_840d_multiaxis", "sinumerik")],
+)
+def test_table_c_continuous_rotary_replays_through_multiaxis_posts(target, dialect):
+    source = "G90 G0 X10 Y0 Z0\nG1 C90 F100\nG91 C-180\nM30"
+    original = execute(source, language="fanuc_mill", kinematics="4ax_table_c")
+    assert original.ok and original.complete, original.diagnostics
+
+    text = convert_resolved_program(original, target, ExportOptions(delimiter=True))
+    replay = execute(
+        text,
+        language="fanuc_mill",
+        source_dialect=dialect,
+        kinematics="4ax_table_c",
+    )
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)
+
+
+def test_fanuc_tcp_exports_to_sinumerik_multiaxis_and_replays():
+    source = """G21 G17 G90 G94
+G0 B20 C0
+G0 X0 Y0 Z5
+G43.4
+G1 X10 Y0 Z0 B30 C45 F100
+G3 X0 Y10 R10 B40 C90
+G1 B45 C100
+G49
+M30
+"""
+    original = execute(source, language="fanuc_mill", kinematics="5ax_table_bc_angled")
+    assert original.ok and original.complete, original.diagnostics
+
+    text = convert_resolved_program(original, "sinumerik_840d_multiaxis", ExportOptions(delimiter=True))
+    assert "TRAORI" in text and "TRAFOOF" in text
+    replay = execute(
+        text,
+        language="fanuc_mill",
+        source_dialect="sinumerik",
+        kinematics="5ax_table_bc_angled",
+    )
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)
+
+
+def test_shared_export_service_allows_tcp_for_multiaxis_target(tmp_path):
+    source = tmp_path / "five_axis.nc"
+    source.write_text(
+        "G21 G17 G90\nG0 B20 C0\nG0 X0 Y0 Z5\nG43.4\nG1 X10 Y0 Z0 B30 C45 F100\nG49\nM30\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "five_axis.mpf"
+    exported = export_file(
+        source,
+        output,
+        ExportRequest(
+            language="fanuc_mill",
+            kinematics="5ax_table_bc_angled",
+            target_dialect="sinumerik_840d_multiaxis",
+        ),
+    )
+    assert exported.execution.ok and exported.execution.complete, exported.execution.diagnostics
+    assert output.exists() and "TRAORI" in output.read_text(encoding="utf-8")
+
+
+def test_sinumerik_tcp_exports_to_fanuc_multiaxis_and_replays():
+    source = """G710 G17 G90 G94
+G0 A=20 C=0
+G0 X0 Y0 Z5
+TRAORI
+G1 X10 Y0 Z0 A=30 C=45 F100
+G3 X0 Y10 CR=10 A=40 C=90
+G1 A=45 C=100
+TRAFOOF
+M30
+"""
+    original = execute(
+        source,
+        language="fanuc_mill",
+        source_dialect="sinumerik",
+        kinematics="5ax_table_ac_angled",
+    )
+    assert original.ok and original.complete, original.diagnostics
+
+    text = convert_resolved_program(original, "fanuc_mill_multiaxis", ExportOptions(delimiter=True))
+    assert "G43.4" in text and "G49" in text
+    replay = execute(text, language="fanuc_mill", kinematics="5ax_table_ac_angled")
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)
+
+
+def test_indexed_rotary_is_emitted_as_a_separate_frame_and_replays():
+    source = "G21 G17 G90\nG0 X0 Y0 Z5\nB90\nG0 X10 Y0 Z5\nG1 Z0 F100\nM30"
+    original = execute(source, language="fanuc_mill", kinematics="4ax_table_b")
+    assert original.ok and original.complete, original.diagnostics
+
+    text = convert_resolved_program(original, "fanuc_mill_multiaxis", ExportOptions(delimiter=True))
+    assert "G0 B90" in text
+    assert not re.search(r"G[01][^\n]*X[^\n]*B90", text)
+    replay = execute(text, language="fanuc_mill", kinematics="4ax_table_b")
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)
+
+
+@pytest.mark.parametrize(
+    ("fixture", "kinematics"),
+    (("impeller.ptp", "5ax_table_bc_angled"), ("impeller2.ptp", "5ax_table_ac_angled")),
+)
+def test_full_fanuc_five_axis_fixture_exports_to_sinumerik_multiaxis(fixture_text, fixture, kinematics):
+    original = execute(
+        fixture_text(f"milling/fanuc/{fixture}"),
+        language="fanuc_mill",
+        kinematics=kinematics,
+        home_z=500.0,
+    )
+    assert original.ok and original.complete, original.diagnostics
+
+    text = convert_resolved_program(original, "sinumerik_840d_multiaxis", ExportOptions(delimiter=True))
+    replay = execute(
+        text,
+        language="fanuc_mill",
+        source_dialect="sinumerik",
+        kinematics=kinematics,
+        home_z=500.0,
+    )
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)
 
 
 @pytest.mark.parametrize("target", MULTIAXIS_TARGETS)

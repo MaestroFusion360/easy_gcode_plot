@@ -18,6 +18,7 @@ from .twp import TiltedWorkPlane, euler_zxz, solve_table_orientation, supports_t
 
 @dataclass
 class MillState(MachineRuntimeState):
+    sinumerik_840d_sl: bool = True
     native_feed_scale: float = 1.0
     native_programmed_feed: float | None = None
     native_previous_feed_mode: str = "per_minute"
@@ -143,6 +144,8 @@ def _cancel_tcp(state: MillState) -> None:
 
 def _activate_tcp(state: MillState) -> None:
     """Enable TCP without changing the current physical machine point."""
+    if state.tcp_control:
+        return
     transform = _coordinate_transform(state)
     point = transform.apply((state.x, state.y, state.z))
     point = _orient_point(point, state)
@@ -433,14 +436,13 @@ def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_o
             state.cutter_comp = g
         elif g == 43:
             state.tool_length_comp = True
-            state.tcp_control = False
+            _cancel_tcp(state)
             if "H" in words:
                 h_value = words["H"]
                 state.tool_length_h = int(h_value) if float(h_value).is_integer() else None
         elif g == 43.4:
             # FANUC Type 1 enables TCP after the activation block executes.
             state.tool_length_comp = True
-            state.tcp_control = False
             if "H" in words:
                 h_value = words["H"]
                 state.tool_length_h = int(h_value) if float(h_value).is_integer() else None

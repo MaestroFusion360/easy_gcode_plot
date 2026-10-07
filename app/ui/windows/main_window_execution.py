@@ -328,6 +328,7 @@ class MainWindowExecutionMixin:
                     getattr(self, "turningToolLibrary" if turning else "millingToolLibrary", {}) or {}
                 ),
                 "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
+                "sinumerik_840d_sl": getattr(self, "sinumerik840dSl", True),
                 "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
                 "source_dialect": getattr(self, "_document_source_dialect", "fanuc"),
                 "source_arc_type": getattr(self, "_document_arc_type", None) or getattr(self, "arc_type", 1),

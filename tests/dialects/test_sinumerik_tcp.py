@@ -105,6 +105,44 @@ def test_unverified_native_modes_fail_closed(profile, source, code):
     assert dict(result.rotary_angles) == {"A": 0, "B": 0, "C": 0}
 
 
+@pytest.mark.parametrize(
+    ("source", "dialect"),
+    [
+        ("G17 G90 G49\nG0 X1 Y2 Z3\nM30", "fanuc"),
+        ("G710 G90\nG0 SUPA Z0 D0\nM30", "sinumerik"),
+        ("G710 G90\nTRAFOOF\nG0 X1 Y2 Z3\nM30", "sinumerik"),
+    ],
+)
+def test_inactive_tcp_cancellation_does_not_create_control_events(source, dialect):
+    result = execute(
+        source,
+        language="fanuc_mill",
+        source_dialect=dialect,
+        kinematics="5ax_table_ac_angled",
+        home_z=100.0,
+    )
+    assert result.ok and result.complete, result.diagnostics
+    assert not [event for event in result.events if event.kind.startswith("TCP_CONTROL_")]
+
+
+def test_tcp_events_record_state_edges_only():
+    fanuc = execute(
+        "G90 G43.4\nG43.4\nG49\nG49\nM30",
+        language="fanuc_mill",
+        kinematics="5ax_table_ac_angled",
+    )
+    native_result = native(
+        "G710 G90\nTRAORI\nTRAORI\nTRAFOOF\nTRAFOOF\nM30",
+        kinematics="5ax_table_ac_angled",
+    )
+    for result in (fanuc, native_result):
+        assert result.ok and result.complete, result.diagnostics
+        assert [event.kind for event in result.events if event.kind.startswith("TCP_CONTROL_")] == [
+            "TCP_CONTROL_ON",
+            "TCP_CONTROL_OFF",
+        ]
+
+
 def test_rotary_parameter_reference_and_incremental_mode():
     result = native(
         "R11=15\nTRAORI\nG90 G1 X1 A=R11 C=30 F100\nG91 X1 A=5 C=10\nTRAFOOF\nM30", kinematics="5ax_table_ac_angled"

@@ -23,12 +23,14 @@ def _window_export_harness(
     arc_mode: int = 0,
     skip_optional_blocks: bool = False,
     kinematics: str | None = None,
+    source_dialect: str = "fanuc",
 ):
     result = execute(
         source,
         language=language,
         skip_optional_blocks=skip_optional_blocks,
         kinematics=kinematics,
+        source_dialect=source_dialect,
     )
     assert result.ok, result.diagnostics
     return SimpleNamespace(
@@ -90,6 +92,33 @@ def test_expanded_execution_exports_the_trace_after_block_skip():
 
         assert "X10" not in exported
         assert "X20" in exported
+
+
+@pytest.mark.parametrize(("target", "mode"), [(2, "G291"), (3, "G290"), (5, "G290")])
+@pytest.mark.parametrize("numbered", [False, True])
+def test_gui_expanded_fanuc_to_sinumerik_keeps_selected_post_mode_first(target, mode, numbered):
+    source = "G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nM30"
+    window = _window_export_harness(source, language="fanuc_mill", export_mode=EXPANDED_EXECUTION_MODE)
+    window.exportTargetCnc = target
+    window.seqNum = numbered
+    window.startPgmExp = "O9999"
+
+    lines = export_pgm(window).splitlines()
+
+    assert lines[0] == mode
+    assert sum(mode in line for line in lines) == 1
+    assert "O9999" in lines[1:]
+
+
+@pytest.mark.parametrize("mode", ["G290", "G291"])
+def test_gui_expanded_auto_uses_sinumerik_source_controller(mode):
+    source = f"{mode}\nG90 G0 X0 Y0 Z5\nG1 X10 F100\nM30"
+    window = _window_export_harness(
+        source, language="fanuc_mill", export_mode=EXPANDED_EXECUTION_MODE, source_dialect="sinumerik"
+    )
+    window.exportTargetCnc = 0
+
+    assert export_pgm(window).splitlines()[0] == mode
 
 
 @pytest.mark.parametrize(

@@ -29,6 +29,7 @@ def _motion_trace_signature(result: ExecutionResult) -> tuple:
                 round(motion.arc.radius, 8),
                 round(motion.arc.sweep, 8),
             ),
+            motion.tool,
         )
         for motion in result.motions
     )
@@ -41,6 +42,8 @@ _ARC = 13
 
 
 def _entries_match(left: tuple, right: tuple, tolerance: float) -> bool:
+    if left[-1] != right[-1]:
+        return False
     if left[_MOVE] != right[_MOVE] or left[_PLANE] != right[_PLANE] or left[_FEED_MODE] != right[_FEED_MODE]:
         return False
     if any(abs(left[index] - right[index]) > tolerance for index in _LINEAR_FIELDS):
@@ -59,6 +62,7 @@ def motion_traces_match(
     replay: ExecutionResult,
     *,
     tolerance: float = 1e-5,
+    allow_split_cycle_rapids: bool = False,
 ) -> bool:
     """Return True when two executions contain the same ordered logical motions.
 
@@ -68,8 +72,35 @@ def motion_traces_match(
     because they encode the source center convention (R versus IJK versus
     ``AC(...)``); the resolved arc geometry already captures that information.
     """
-    expected = _motion_trace_signature(reference)
-    actual = _motion_trace_signature(replay)
+    expected = (
+        _cycle_rapid_signature(reference, tolerance) if allow_split_cycle_rapids else _motion_trace_signature(reference)
+    )
+    actual = _cycle_rapid_signature(replay, tolerance) if allow_split_cycle_rapids else _motion_trace_signature(replay)
     return len(expected) == len(actual) and all(
         _entries_match(left, right, tolerance) for left, right in zip(expected, actual)
     )
+
+
+def _cycle_rapid_signature(result, tolerance):
+    """A cycle may return in two collinear Z rapids instead of one Z rapid."""
+    normalized = []
+    for entry, motion in zip(_motion_trace_signature(result), result.motions, strict=True):
+        if normalized and _same_cycle_return(normalized[-1], (entry, motion.cycle_generated), tolerance):
+            previous, cycle = normalized.pop()
+            combined = previous[:6] + entry[6:9] + previous[9:]
+            normalized.append((combined, cycle or motion.cycle_generated))
+        else:
+            normalized.append((entry, motion.cycle_generated))
+    return tuple(entry for entry, _cycle in normalized)
+
+
+def _same_cycle_return(previous, current, tolerance):
+    left, _left_cycle = previous
+    right, _right_cycle = current
+    if left[:3] != right[:3] or left[_MOVE] != 0 or left[-1] != right[-1]:
+        return False
+    if any(abs(left[i] - right[i - 3]) > tolerance for i in (6, 7, 8)):
+        return False
+    if any(abs(entry[i] - entry[i + 3]) > tolerance for entry in (left, right) for i in (3, 4)):
+        return False
+    return (left[8] - left[5]) * (right[8] - right[5]) > 0

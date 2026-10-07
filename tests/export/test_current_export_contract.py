@@ -175,7 +175,8 @@ def test_current_expanded_preserves_cycle_effects_that_192_lost():
     replay82 = execute(output82, language="fanuc_mill")
     assert _dwell_seconds(result82) == pytest.approx(0.2)
     assert _dwell_seconds(replay82) == pytest.approx(_dwell_seconds(result82))
-    assert output82.count("G4 P100") == 2
+    assert output82.count("G82 ") == 2
+    assert output82.count("P100") == 2
     _assert_path_matches(result82, replay82)
 
     cycle84 = "G21 G17 G90\nT1 M6\nS500 M3\nG0 Z5\nG99 G84 X2 Y3 Z-5 R2 P100 F100\nX4\nG80\nM30"
@@ -183,8 +184,7 @@ def test_current_expanded_preserves_cycle_effects_that_192_lost():
     output84 = convert_resolved_program(result84, "fanuc_mill", ExportOptions(delimiter=True))
     replay84 = execute(output84, language="fanuc_mill")
     assert _dwell_seconds(replay84) == pytest.approx(_dwell_seconds(result84))
-    assert output84.count("M4") == 2
-    assert output84.count("M3") >= 3
+    assert output84.count("G84 ") == 2
     _assert_path_matches(result84, replay84)
 
 

@@ -26,14 +26,19 @@ def _native(source, **options):
     return execute(source, language="fanuc_mill", source_dialect="sinumerik", **options)
 
 
-def test_rotary_is_rejected_in_both_modes_and_fanuc_still_executes():
+def test_native_rotary_uses_selected_profile_while_iso_m_stays_closed():
     for axis, profile in (("A", "4ax_table_a"), ("B", "4ax_table_b"), ("C", "4ax_table_c")):
         source = f"G0 {axis}10\nM30"
-        for prefix in ("", "G291\n"):
-            result = _native(prefix + source, kinematics=profile)
-            assert not result.ok and not result.complete
-            assert result.diagnostics[0].code == "UNSUPPORTED_SINUMERIK_ROTARY"
-            assert not result.motions and not any(event.kind == "ROTARY_INDEX" for event in result.events)
+        native = _native(source, kinematics=profile)
+        assert native.ok and native.complete, native.diagnostics
+        assert dict(native.rotary_angles)[axis] == 10
+        assert any(event.kind.startswith("ROTARY_") for event in native.events)
+
+        iso_m = _native("G291\n" + source, kinematics=profile)
+        assert not iso_m.ok and not iso_m.complete
+        assert iso_m.diagnostics[0].code == "UNSUPPORTED_SINUMERIK_ROTARY"
+        assert not iso_m.motions and not any(event.kind.startswith("ROTARY_") for event in iso_m.events)
+
         fanuc = execute(source, language="fanuc_mill", kinematics=profile)
         assert fanuc.ok and fanuc.complete
         assert dict(fanuc.rotary_angles)[axis] == 10

@@ -19,8 +19,9 @@ from .export.common import (
     ExportLimitation,
     ExportOptions,
 )
-from .export.expanded import convert_resolved_program, load_post_profile
+from .export.expanded import convert_resolved_program
 from .export.full import is_native_full_program, normalize_full_program
+from .post_profiles import load_post_profile
 
 ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
 
@@ -38,6 +39,7 @@ class ExportRequest:
     language: str
     target_dialect: str | None = None
     lathe_gcode_system: str = "A"
+    sinumerik_840d_sl: bool = True
     kinematics: str | None = None
     encoding: str = "utf-8"
     format: str = "nc"
@@ -212,16 +214,19 @@ def _preflight_export_failure(result, request, started):
     if not result.ok or not result.complete:
         return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
     if request.format == "nc" and request.mode == "expanded":
+        profile = load_post_profile(_target_post(result, request))
+        supports_tcp = bool((profile.get("supports") or {}).get("tcp"))
         unsupported = {
-            "TCP_CONTROL_ON": (
-                "UNSUPPORTED_TCP_EXPANDED_EXPORT",
-                "Expanded NC cannot preserve G43.4 TCP rotary commands",
-            ),
             "TILTED_WORK_PLANE_ON": (
                 "UNSUPPORTED_TWP_EXPANDED_EXPORT",
-                "Expanded NC cannot preserve G68.2 tilted working-plane commands",
+                "Expanded multiaxis export does not yet reconstruct G68.2/CYCLE800 tilted working-plane semantics",
             ),
         }
+        if not supports_tcp:
+            unsupported["TCP_CONTROL_ON"] = (
+                "UNSUPPORTED_TCP_EXPANDED_EXPORT",
+                "Selected post cannot preserve G43.4 TCP rotary commands / TRAORI or reconstruct resolved TCP motion",
+            )
         for event in result.events:
             if event.kind in unsupported:
                 code, message = unsupported[event.kind]
@@ -236,7 +241,9 @@ def _preflight_export_failure(result, request, started):
 def _nc_output(source, result, request, options, *, cancelled=None):
     if request.mode == "full":
         return normalize_full_program(result, source, options, cancelled=cancelled)
-    return convert_resolved_program(result, _target_post(result, request), options, cancelled=cancelled)
+    return convert_resolved_program(
+        result, _target_post(result, request), options, cancelled=cancelled, sinumerik_840d_sl=request.sinumerik_840d_sl
+    )
 
 
 def _target_post(result, request):
@@ -264,6 +271,7 @@ def export_file(source_path: Path, output_path: Path, request: ExportRequest) ->
         source,
         language=request.language,
         lathe_gcode_system=request.lathe_gcode_system,
+        sinumerik_840d_sl=request.sinumerik_840d_sl,
         autodetect_arc_type=True,
         kinematics=request.kinematics,
         source_dialect=source_dialect,

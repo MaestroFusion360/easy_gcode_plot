@@ -95,6 +95,62 @@ class MachineSignal:
 
 
 @dataclass(frozen=True, slots=True)
+class ResolvedDrillingOperation:
+    """Controller-neutral hole parameters, in physical millimetres and seconds."""
+
+    kind: str
+    start: tuple[float, float, float]
+    position: tuple[float, float, float]
+    safety: tuple[float, float, float]
+    reference: tuple[float, float, float]
+    returned: tuple[float, float, float]
+    feed: float
+    feed_mode: str
+    dwell_bottom: float = 0.0
+    peck_first: float = 0.0
+    peck_reduction: float = 0.0
+    peck_minimum: float = 0.0
+    peck_return_height: float = 0.0
+    feed_return_height: float = 0.0
+    full_retract: bool = True
+    reentry_clearance: float = 0.0
+    retract_distance: float = 1.0
+    first_feed_factor: float = 1.0
+    spindle_speed: float = 0.0
+    rigid_tapping: bool = False
+    emitted_count: int = 0
+    orientation: tuple[tuple[float, float, float], ...] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class ReferenceSegment:
+    """One resolved leg of a reference move, in machine millimetres."""
+
+    start: tuple[float, float, float]
+    end: tuple[float, float, float]
+    axes: tuple[str, ...]
+    phase: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResolvedReferenceMove:
+    """Machine-coordinate evidence independent of the displayed work frame."""
+
+    start: tuple[float, float, float]
+    target: tuple[float, float, float]
+    home: tuple[float, float, float]
+    segments: tuple[ReferenceSegment, ...]
+    intermediate: tuple[float, float, float] | None = None
+    move: int = 0
+    feed: float | None = None
+    orientation: tuple[tuple[float, float, float], ...] | None = None
+    offset: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    coordinate_space: str = "machine"
+    home_axes: tuple[str, ...] = ()
+    rotary_target: tuple[tuple[str, float], ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class ExecutionEvent:
     """One deterministic structural fact observed during actual execution."""
 
@@ -114,6 +170,8 @@ class ExecutionEvent:
     twp_origin: tuple[float, float, float] | None = None
     twp_angles: tuple[float, float, float] | None = None
     twp_orientation: tuple[tuple[float, float, float], ...] | None = None
+    reference: ResolvedReferenceMove | None = None
+    drilling: ResolvedDrillingOperation | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -171,3 +229,4 @@ class ExecutionResult:
     kinematics_fingerprint: str | None = None
     source_dialect: str = "fanuc"
     lathe_gcode_system: str = "A"
+    sinumerik_840d_sl: bool = True

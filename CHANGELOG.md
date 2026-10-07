@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.9.4 - Unreleased
+
+- Reconstruct the verified indexed A/B/C, simultaneous table-C and angled AC/BC TCP subsets through multiaxis posts. Tilted-plane/CYCLE800 reconstruction and indexed export about a displaced WCS remain unsupported.
+- Emit supported drilling and tapping operations through the selected post's cycle templates, preserving resolved geometry and machine state. Native SINUMERIK posts retain separate classic 01/2008 and extended 03/2009 cycle interfaces.
+- Use the display name `840D Extended cycles` in Options, help and diagnostics. Keep the saved `CNC/SINUMERIK_840D_SL` setting, CLI `--sinumerik-cycles classic|sl` values and JSON cycle-profile identifiers compatible.
+- Add direct NC reference comparison to CLI `export` with `--compare-with FILE`: print a deterministic unified diff and return 1 on mismatch, 0 on a match, or 2 on export/read errors. Protect the reference from overwrite.
+- Add the supplied `ext_cycles.mpf` and `no_ext_cycles.mpf` programs to the fixture corpus, checking common drilling geometry, supported extended tapping, export replay and explicit rejection of unmodeled operations.
+- Audit multiaxis reconstruction with real fixture replay in absolute and incremental output. Preserve physical position on repeated G43.4 and G43 cancellation, distribute ABC over split/linearized TCP arcs without cumulative incremental angle drift, and preserve inverse-time block duration after subdivision.
+- Keep rotary feed motion at the table-C origin in the trace, retain table-frame metadata on reference returns independently of head orientation, validate every emitted rotary axis against the post, and invalidate modal motion after explicit rotary control frames.
+- Allow already-resolved zero-distance reference returns and source-preserving macro/index normalization. Reject indexed export about a displaced WCS until target frame offsets can be reconstructed; classify unverified compensation/ignored native geometry as export limitations with their concrete diagnostic codes.
+- Prototype controller-neutral multiaxis EXPANDED reconstruction. Multiaxis posts can declare target TCP control frames; bundled FANUC and SINUMERIK multiaxis profiles map resolved `G43.4`/`G49` and `TRAORI`/`TRAFOOF` semantics across controllers instead of rejecting all TCP execution.
+- Emit verified indexed `A/B/C` changes as dedicated rotary rapid frames instead of folding an index into the next XYZ motion. Reconstruct indexed-table XYZ/arc geometry in the rotary frame before postprocessing so replay does not rotate physical coordinates twice.
+- Reconstruct the verified non-TCP `4ax_table_c` continuous rotary subset through FANUC and SINUMERIK multiaxis posts. Indexed A/B/C and simultaneous table-C output now re-execute with matching geometry and final rotary state; other unresolved continuous-rotary semantics remain fail-closed.
+- Record TCP controls as real state transitions instead of source-word echoes: inactive `G49`, native `D0` and `TRAFOOF` no longer manufacture `TCP_CONTROL_OFF`, and repeated activation/cancellation does not duplicate semantic edges.
+- Allow native SINUMERIK A/B/C positioning on any selected profile that actually configures those axes; ISO-M rotary remains fail-closed and TRAORI still requires the supported angled AC/BC TCP profiles.
+- Keep tilted working planes/CYCLE800 fail-closed in EXPANDED until their controller reconstruction contract is implemented.
+- Add semantic replay regressions for FANUC↔SINUMERIK TCP conversion, indexed/continuous rotary output, TCP edge events, the shared `export_file` path, and both full FANUC five-axis impeller fixtures.
+
 ## 1.9.3 - 2026-10-06
 
 - Consolidate user-facing export into three paths: FULL source-preserving normalization, EXPANDED controller postprocessing from resolved execution, and DXF geometry output. Remove Plot Data and separate cycle-export modes from the current export contract.

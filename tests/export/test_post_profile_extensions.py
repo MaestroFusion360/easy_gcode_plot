@@ -59,7 +59,10 @@ def test_format_words_motion_can_be_modal(tmp_path):
     assert "X3 Z0" in text
 
 
-@pytest.mark.parametrize(("target", "mode"), [("sinumerik_iso", "G291"), ("sinumerik_840d", "G290")])
+@pytest.mark.parametrize(
+    ("target", "mode"),
+    [("sinumerik_iso", "G291"), ("sinumerik_840d", "G290"), ("sinumerik_840d_multiaxis", "G290")],
+)
 def test_sinumerik_mode_is_first_program_line(target, mode):
     result = execute("G21 G17 G90\nG0 X0 Y0 Z5\nG1 X10 Y0 Z0 F100\nM30", language="fanuc_mill")
     text = convert_resolved_program(

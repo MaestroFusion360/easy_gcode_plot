@@ -1,0 +1,85 @@
+name: Bug report
+description: Report a reproducible application, GUI, CLI, parser, or analysis defect
+title: "[Bug] "
+labels: []
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please provide a minimal reproducible case. For incorrect G-code execution, controller conversion, or exported motion, use the **G-code / export semantics bug** template instead.
+  - type: input
+    id: version
+    attributes:
+      label: Easy GCode Plot version
+      placeholder: "e.g. 1.9.4"
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Operating system
+      options:
+        - Windows
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - GUI
+        - CLI
+        - Parser / dialect
+        - Execution / kernel
+        - Visualization
+        - Analysis / diagnostics
+        - Import / file handling
+        - Build / packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior and why it is incorrect.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      placeholder: |
+        1. Open ...
+        2. Select ...
+        3. Run ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics / traceback
+      description: Paste relevant CLI output, traceback, or diagnostics. Remove private data.
+      render: text
+  - type: textarea
+    id: sample
+    attributes:
+      label: Minimal sample or fixture
+      description: Attach or paste the smallest input that reproduces the problem when applicable.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Confirmation
+      options:
+        - label: I checked the current ROADMAP and existing issues for the same problem.
+          required: true
+        - label: I removed credentials, private paths, and other sensitive data from the report.
+          required: true

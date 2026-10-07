@@ -262,7 +262,11 @@ M30
     assert "S1200 M3 M8" in lines
     assert "G0 X11 Y22 Z33" in lines
     assert "G55" not in lines
-    assert "G0 X11 Y22 Z0" in lines
+    assert "G0 G90 G53 Z0" in lines
+    assert "G0 X11 Y22 Z0" not in lines
+    reference = next(event.reference for event in result.events if event.reference is not None)
+    assert reference.home_axes == ("Z",)
+    assert reference.target == (11, 22, 0)
     replay = execute("\n".join(lines), language="fanuc_mill")
     assert replay.ok and replay.complete
     assert [(m.end_x, m.end_y, m.end_z) for m in replay.motions] == [

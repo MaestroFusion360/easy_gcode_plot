@@ -14,10 +14,10 @@ from typing import Callable, Iterable
 
 from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, _normalize_extensions, discover_nc_files
 from app.gcode.export.common import is_export_limitation
-from app.gcode.export.expanded import load_post_profile
 from app.gcode.export_file import ExportRequest, export_file, request_document
 from app.gcode.file_io import atomic_write_text
 from app.gcode.kinematics_report import kinematics_report_fields
+from app.gcode.post_profiles import load_post_profile
 from app.gcode.source_mode import source_dialect_for_path
 
 REPORT_BASENAME = "batch_export_report"

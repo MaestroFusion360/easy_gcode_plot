@@ -2217,6 +2217,16 @@ Do you want to reload it from disk?</source>
         <translation>Нет</translation>
     </message>
     <message>
+        <location filename="../app/ui/dialogs/options.py" line="256"/>
+        <source>840D Extended cycles</source>
+        <translation>840D Расширенные циклы</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="262"/>
+        <source>Checked: 840D Extended cycles interface (Siemens 03/2009). Unchecked: classic cycle interface (Siemens 01/2008). Applies to native source cycles and native SINUMERIK export.</source>
+        <translation>Включено: интерфейс расширенных циклов 840D (Siemens 03/2009). Выключено: классический интерфейс циклов (Siemens 01/2008). Применяется к native-циклам исходной программы и native-экспорту SINUMERIK.</translation>
+    </message>
+    <message>
         <location filename="../app/ui/dialogs/options.py" line="426"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>

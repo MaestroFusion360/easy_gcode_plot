@@ -1270,8 +1270,13 @@ X17.0
           G90/G91 coordinates, sequence numbers, delimiter, leading zero, modal feed,
           decimal precision, force decimal, plus sign, arc output and start/end program text — are honored
           across FANUC and SINUMERIK targets; a profile default is used only when the user does not choose.
-          Cycles and variables are resolved into geometry; physical coordinates use a zero-offset G54 frame.
-          Rotary/TWP/TCP and unverified geometry-changing commands are rejected.</p>
+          Cycles and variables are resolved by the kernel; supported drilling and tapping operations use the selected post's cycle templates.
+          Physical coordinates use a zero-offset G54 frame. Three-axis posts reject rotary/TCP geometry;
+          multiaxis posts reconstruct configured indexed A/B/C, verified simultaneous table-C motion and supported angled AC/BC TCP.
+          Tilted-plane/CYCLE800 reconstruction, indexed export about a displaced WCS origin and unverified geometry-changing commands remain unsupported.</p>
+        <p><strong>Options → General → 840D Extended cycles</strong> selects the native cycle interface:
+          checked uses Siemens 03/2009, unchecked uses classic 01/2008. CLI retains
+          <code>--sinumerik-cycles classic|sl</code>; this selection does not enable unsupported cycle operations.</p>
         <p>The profile's <code>format.words</code> controls frame-word order and mandatory output. Each token
           (<code>motion</code>, <code>X</code>, <code>Y</code>, <code>Z</code>, <code>A</code>, <code>B</code>,
           <code>C</code>, <code>I</code>, <code>J</code>, <code>K</code>, <code>R</code>) has an <code>order</code>
@@ -1284,6 +1289,10 @@ X17.0
           <strong>DXF</strong> writes motion geometry independently of NC post formatting.</p>
         <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>
+        <p>Compare generated NC directly with a UTF-8 reference using <code>--compare-with expected.mpf</code>.
+          Exit codes: 0 for a match, 1 for a mismatch with unified diff on stdout, 2 for an error.
+          LF/CRLF differences are ignored; spaces, comments and the final newline are compared. The reference is protected from overwrite.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --post-profile sinumerik_840d -o actual.mpf --compare-with expected.mpf</code></pre>
       </div>
       <div class="workflow" id="batch-analysis">
         <h3>Analyze a folder and collect reports</h3>

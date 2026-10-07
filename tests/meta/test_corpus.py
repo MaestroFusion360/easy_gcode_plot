@@ -45,6 +45,8 @@ EXPECTED_FIXTURES = {
     "milling/sinumerik/contur_2d_sin840d.mpf",
     "milling/fanuc/cycles_fanuc.nc",
     "milling/sinumerik/cycles_sin840d.mpf",
+    "milling/sinumerik/ext_cycles.mpf",
+    "milling/sinumerik/no_ext_cycles.mpf",
     "milling/fanuc/tapping_fanuc.nc",
     "milling/sinumerik/tapping_sin840d.mpf",
     "milling/fanuc/terraced_ramp.nc",

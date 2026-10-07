@@ -17,6 +17,7 @@ from ...runtime.drilling import AxialMove
 from ..sinumerik_parameters import parameter_value
 from ..state import _xyz
 from .drilling import _DRILL_BEHAVIOR, _expand_drilling_cycle, _ResolvedDrillingCycle
+from .events import drilling_event
 
 
 @dataclass(frozen=True)
@@ -43,15 +44,24 @@ def _unsupported(message):
     raise SemanticError("UNSUPPORTED_SINUMERIK_CYCLE", message, "unsupported")
 
 
-def _arguments(syntax, parameters, variables=None):
+def _arguments(syntax, parameters, variables=None, *, solution_line=True):
     count = {83: 20, 84: 24}.get(syntax.cycle_code, 9)
+    maximum = count if solution_line else {81: 5, 82: 6, 83: 17, 84: 18}.get(syntax.cycle_code, 0)
     args = syntax.cycle_args
-    # Older CYCLE81 calls omit DTB: (...,DPR,GMODE,DMODE,AMODE).
-    if syntax.cycle_code == 81 and len(args) == 8:
+    # Some CAM calls omit DTB and end with AMODE=10/12. A shortened SL
+    # declaration instead ends with DMODE, so its dwell must not be shifted.
+    if (
+        solution_line
+        and syntax.cycle_code == 81
+        and len(args) == 8
+        and args[-1]
+        and parameter_value(args[-1], parameters, variables) in (10, 12)
+    ):
         args = args[:5] + ("",) + args[5:]
     minimum = 4 if syntax.cycle_code == 81 else 5
-    if syntax.cycle_code not in (81, 82, 83, 84) or not minimum <= len(args) <= count:
-        _unsupported("Only native MCALL CYCLE81/82/83/84 with modeled positional arguments is supported")
+    if syntax.cycle_code not in (81, 82, 83, 84) or not minimum <= len(args) <= maximum:
+        generation = "840D Extended cycles (03/2009)" if solution_line else "classic (01/2008)"
+        _unsupported(f"Cycle signature is outside the selected {generation} interface")
     values = tuple(parameter_value(arg, parameters, variables) if arg else None for arg in args) + (None,) * (
         count - len(args)
     )
@@ -76,8 +86,10 @@ def _mode_checks(values, code, state):
     if code == 84:
         return
     gmode, dmode, amode = (values[index] or 0 for index in ((17, 18, 19) if code == 83 else (6, 7, 8)))
-    if gmode != 0 or dmode not in (0, 1) or amode not in ((0, 1001110) if code == 83 else (0, 10)):
+    if gmode != 0 or dmode not in (0, 1) or amode not in ((0, 1001110) if code == 83 else (0, 2, 10, 12)):
         _unsupported("Cycle geometry/axis/alternative modes are outside the modeled subset")
+    if code != 83 and amode in (2, 12) and values[3] is None:
+        _unsupported("Absolute drilling mode requires explicit DP")
 
 
 def compile_native_cycle(syntax, state):
@@ -89,7 +101,9 @@ def compile_native_cycle(syntax, state):
 
 
 def _compile_native_cycle(syntax, state):
-    values = _arguments(syntax, state.siemens_parameters, state.siemens_variables)
+    values = _arguments(
+        syntax, state.siemens_parameters, state.siemens_variables, solution_line=state.sinumerik_840d_sl
+    )
     _mode_checks(values, syntax.cycle_code, state)
     rtp, rfp, sdis = values[:3]
     depth = _depth(values, rfp)
@@ -227,7 +241,13 @@ def execute_native_cycle(context):
             MachineSignal(kind, context.block.index, "CYCLE84")
             for kind in ("rigid_tapping", "spindle_sync", "spindle_reverse")
         )
-    return CycleOutcome(True, motions, signals, position_update=(("x", x), ("y", y), ("z", cycle.return_z)))
+    return CycleOutcome(
+        True,
+        motions,
+        signals,
+        position_update=(("x", x), ("y", y), ("z", cycle.return_z)),
+        events=(drilling_event(context, state, resolved, motions, native=cycle),),
+    )
 
 
 def _native_axial_moves(cycle, state):

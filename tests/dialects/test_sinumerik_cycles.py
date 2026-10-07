@@ -4,6 +4,7 @@ from math import dist
 from pathlib import Path
 
 import pytest
+from export_signatures import motion_traces_match
 
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import export_result
@@ -46,10 +47,7 @@ def test_native_cycle_trace_export_roundtrip(events):
     trace = export_result(native, ExportOptions(safety_line=True, delimiter=True))
     replay = execute(trace, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
-    assert len(replay.motions) == len(native.motions)
-    for source, target in zip(native.motions, replay.motions, strict=True):
-        assert source.move == target.move
-        assert dist(_end(source), _end(target)) < 0.000002
+    assert motion_traces_match(native, replay, tolerance=0.000002, allow_split_cycle_rapids=True)
     assert "MCALL" not in trace and "CYCLE83" not in trace
 
 

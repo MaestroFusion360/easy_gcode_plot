@@ -59,7 +59,7 @@ def normalize_full_program(result, source, options=None, *, cancelled=None):
     native = is_native_full_program(result)
     if not _dangerous_source(result):
         return format_full_program_source(source, options, native=native)
-    _require_continuous_motions(result, allow_source_rapids=True)
+    _require_continuous_motions(result, allow_source_rapids=True, allow_rotary_index_gaps=True)
     if native:
         raise ValueError("Unsafe native control flow cannot be normalized with an ISO execution map")
     # Geometry expansion while retaining a source transform would apply it twice.

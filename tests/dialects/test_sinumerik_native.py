@@ -75,7 +75,7 @@ def test_native_trace_export_roundtrips_to_fanuc_geometry():
         language="fanuc_mill",
         source_dialect="sinumerik",
     )
-    nc = export_result(native, ExportOptions(safety_line=True, delimiter=True))
+    nc = export_result(native, ExportOptions(safety_line=True, delimiter=True), target="fanuc_mill")
     replay = execute(nc, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
     assert len(replay.motions) == len(native.motions)
@@ -100,9 +100,14 @@ def test_supa_zero_uses_configured_reference_with_nonzero_home_and_wcs():
     assert _end(supa) == (11, 22, 500)
     assert supa.source_kind == "supa"
     assert _end(result.motions[-1]) == (11, 22, 104)
-    assert not any(event.kind == "HOME_RETURN" and event.source_block == 3 for event in result.events)
-    nc = export_result(result, ExportOptions(safety_line=True, delimiter=True))
-    replay = execute(nc, language="fanuc_mill")
+    event = next(event for event in result.events if event.source_block == 3 and event.reference is not None)
+    assert event.kind == "home_return"
+    assert event.code == "SUPA"
+    assert event.reference.home_axes == ("Z",)
+    assert event.reference.target == (11, 22, 500)
+    nc = export_result(result, ExportOptions(safety_line=True, delimiter=True), target="fanuc_mill")
+    assert "G53 Z0" in nc
+    replay = execute(nc, language="fanuc_mill", home_z=500)
     assert replay.ok and replay.complete and not replay.diagnostics
     assert [_end(m) for m in replay.motions] == [_end(m) for m in result.motions]
 

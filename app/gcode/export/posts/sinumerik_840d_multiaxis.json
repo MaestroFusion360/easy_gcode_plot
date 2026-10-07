@@ -19,17 +19,50 @@
     "radiusAddress": "CR=",
     "multiTurnArcs": true,
     "words": {
-      "motion": {"order": 10, "required": true},
-      "X": {"order": 20, "required": false},
-      "Y": {"order": 30, "required": false},
-      "Z": {"order": 40, "required": false},
-      "A": {"order": 50, "required": false},
-      "B": {"order": 60, "required": false},
-      "C": {"order": 70, "required": false},
-      "I": {"order": 80, "required": false},
-      "J": {"order": 90, "required": false},
-      "K": {"order": 100, "required": false},
-      "R": {"order": 110, "required": false}
+      "motion": {
+        "order": 10,
+        "required": true
+      },
+      "X": {
+        "order": 20,
+        "required": false
+      },
+      "Y": {
+        "order": 30,
+        "required": false
+      },
+      "Z": {
+        "order": 40,
+        "required": false
+      },
+      "A": {
+        "order": 50,
+        "required": false
+      },
+      "B": {
+        "order": 60,
+        "required": false
+      },
+      "C": {
+        "order": 70,
+        "required": false
+      },
+      "I": {
+        "order": 80,
+        "required": false
+      },
+      "J": {
+        "order": 90,
+        "required": false
+      },
+      "K": {
+        "order": 100,
+        "required": false
+      },
+      "R": {
+        "order": 110,
+        "required": false
+      }
     }
   },
   "motion": {
@@ -47,13 +80,28 @@
     "incremental": "G91",
     "incrementalAxes": {}
   },
+  "reference": {
+    "rapid": "G0 SUPA {axes}",
+    "linear": "G53 G1 {axes} {feed}"
+  },
   "home": {
     "G28": {
+      "all": "G0 SUPA {axes}",
       "X": "SUPA X0",
       "Y": "SUPA Y0",
       "Z": "SUPA Z0"
     },
-    "G53": {}
+    "G53": {
+      "all": "G0 SUPA {axes}"
+    }
+  },
+  "cycles": {
+    "syntax": "native",
+    "cancel": "MCALL",
+    "drill": "MCALL CYCLE81({clearance},{referenceHeight},{secondClearance},{depth},,0,0,1,12)",
+    "drillDwell": "MCALL CYCLE82({clearance},{referenceHeight},{secondClearance},{depth},,{dwellBottom},0,1,12)",
+    "peckDrill": "MCALL CYCLE83({clearance},{referenceHeight},{secondClearance},{depth},,{firstDepth},,{peckReduction},{dwellBottom},{dwellTop},{firstFeedFactor},{fullRetract},3,{peckMinimum},{retractDistance},0,{reentryClearance},0,1,0)",
+    "tap": "MCALL CYCLE84({clearance},{referenceHeight},{secondClearance},{depth},,{dwellBottom},3,0,{threadPitch},0,{spindleSpeedTap},{spindleSpeedReturn},3,1,0,0,0,0,,,,0,1,1001002)"
   },
   "tool": {
     "toolChange": "{tool} D0 {code}"
@@ -99,12 +147,42 @@
     "end": "M30"
   },
   "supports": {
-    "axes": ["X", "Y", "Z", "A", "B", "C"],
+    "axes": [
+      "X",
+      "Y",
+      "Z",
+      "A",
+      "B",
+      "C"
+    ],
     "inverseTime": true,
     "multiTurnArcs": true,
-    "absoluteArcCenters": true
+    "absoluteArcCenters": true,
+    "tcp": true
   },
   "comment": {
     "template": "; {text}"
+  },
+  "multiaxis": {
+    "tcpOn": "TRAORI",
+    "tcpOff": "TRAFOOF"
+  },
+  "cycleProfiles": {
+    "classic_0108": {
+      "syntax": "native",
+      "cancel": "MCALL",
+      "drill": "MCALL CYCLE81({clearance},{referenceHeight},{secondClearance},{depth},)",
+      "drillDwell": "MCALL CYCLE82({clearance},{referenceHeight},{secondClearance},{depth},,{dwellBottom})",
+      "peckDrill": "MCALL CYCLE83({clearance},{referenceHeight},{secondClearance},{depth},,{firstDepth},,{peckReduction},{dwellBottom},{dwellTop},{firstFeedFactor},{fullRetract},3,{peckMinimum},{retractDistance},0,{reentryClearance})",
+      "tap": "MCALL CYCLE84({clearance},{referenceHeight},{secondClearance},{depth},,{dwellBottom},3,0,{threadPitch},0,{spindleSpeedTap},{spindleSpeedReturn},3,1,0,0,0,0)"
+    },
+    "sl_0309": {
+      "syntax": "native",
+      "cancel": "MCALL",
+      "drill": "MCALL CYCLE81({clearance},{referenceHeight},{secondClearance},{depth},,0,0,1,12)",
+      "drillDwell": "MCALL CYCLE82({clearance},{referenceHeight},{secondClearance},{depth},,{dwellBottom},0,1,12)",
+      "peckDrill": "MCALL CYCLE83({clearance},{referenceHeight},{secondClearance},{depth},,{firstDepth},,{peckReduction},{dwellBottom},{dwellTop},{firstFeedFactor},{fullRetract},3,{peckMinimum},{retractDistance},0,{reentryClearance},0,1,0)",
+      "tap": "MCALL CYCLE84({clearance},{referenceHeight},{secondClearance},{depth},,{dwellBottom},3,0,{threadPitch},0,{spindleSpeedTap},{spindleSpeedReturn},3,1,0,0,0,0,,,,0,1,1001002)"
+    }
   }
 }

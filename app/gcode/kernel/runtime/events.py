@@ -10,6 +10,7 @@ SUBPROGRAM_START = "subprogram_start"
 SUBPROGRAM_END = "subprogram_end"
 TOOL_CHANGE = "tool_change"
 HOME_RETURN = "home_return"
+MACHINE_COORDINATE_MOVE = "machine_coordinate_move"
 
 
 def program_start_event(block, program_number: int | None) -> ExecutionEvent:

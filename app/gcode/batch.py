@@ -152,6 +152,7 @@ def execute_analysis_program(
     include_instructions: bool = True,
     kinematics: str | None = None,
     lathe_gcode_system: str = "A",
+    sinumerik_840d_sl: bool = True,
     source_dialect: str = "fanuc",
 ) -> ExecutionResult:
     """Use the same execution options and diagnostics for single and batch analysis."""
@@ -162,6 +163,7 @@ def execute_analysis_program(
         autodetect_arc_type=language == "fanuc_mill",
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
+        sinumerik_840d_sl=sinumerik_840d_sl,
         source_dialect=source_dialect,
     )
     return result
@@ -221,6 +223,7 @@ def _file_report(
     encoding: str,
     kinematics: str | None = None,
     lathe_gcode_system: str = "A",
+    sinumerik_840d_sl: bool = True,
     html_dir: Path | None = None,
     inches: bool = False,
 ) -> dict[str, object]:
@@ -262,6 +265,7 @@ def _file_report(
         include_instructions=False,
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
+        sinumerik_840d_sl=sinumerik_840d_sl,
     )
     result, html_path = _export_file_statistics(result, path, root, html_dir, inches)
     diagnostics = result.diagnostics
@@ -320,6 +324,7 @@ def analyze_directory(
     kinematics: str | None = None,
     kinematics_by_file: dict[str, str] | None = None,
     lathe_gcode_system: str = "A",
+    sinumerik_840d_sl: bool = True,
     html_dir: str | Path | None = None,
     inches: bool = False,
 ) -> dict[str, object]:
@@ -352,6 +357,7 @@ def analyze_directory(
             encoding=encoding,
             kinematics=selected,
             lathe_gcode_system=lathe_gcode_system,
+            sinumerik_840d_sl=sinumerik_840d_sl,
             html_dir=Path(html_dir) if html_dir is not None else None,
             inches=inches,
         )

@@ -67,3 +67,15 @@ def test_positive_modal_feed_is_valid_without_repeating_f_on_cycle():
     result = mill("F100\nG99 G81 X5 Z-5 R2\nX10\nG80\nM30")
     assert result.ok, result.diagnostics
     assert [m.feed for m in result.motions if m.move == 1] == [100, 100]
+
+
+@pytest.mark.parametrize("cycle", [84, 85])
+@pytest.mark.parametrize("dialect,mode", [("fanuc", ""), ("sinumerik", "G291\n")])
+def test_g98_feed_withdrawal_ends_at_r_then_rapids_to_initial_plane(cycle, dialect, mode):
+    result = mill(mode + f"G90 G0 Z28\nS400 M3\nG98 G{cycle} X2 Z-1 R17 F400\nX4\nG80\nM30", dialect)
+    assert result.ok, result.diagnostics
+    withdrawals = [(m.move, m.start_z, m.end_z) for m in result.motions if m.end_z > m.start_z]
+    assert withdrawals[-4:] == [(1, -1, 17), (0, 17, 28)] * 2
+    operations = [event.drilling for event in result.events if event.drilling is not None]
+    assert [operation.feed_return_height for operation in operations] == [17, 17]
+    assert [operation.returned[2] for operation in operations] == [28, 28]

@@ -98,7 +98,7 @@ def test_batch_export_preserves_motion_traces(scenario, tmp_path):
             f"{relative_root} -> {target}: {input_path.name} did not re-execute: "
             f"{[diagnostic.code for diagnostic in replay.diagnostics]}"
         )
-        assert motion_traces_match(original, replay), (
+        assert motion_traces_match(original, replay, allow_split_cycle_rapids=True), (
             f"{relative_root} -> {target}: semantic trajectory changed for {input_path.name} "
             f"({len(original.motions)} -> {len(replay.motions)} motions)"
         )

@@ -58,7 +58,7 @@ def test_resolved_conversion_matrix_preserves_geometry_and_machine_controls(dial
     output = convert_resolved_program(result, target)
     replay = execute(output, language="fanuc_mill", source_dialect="fanuc" if target == "fanuc_mill" else "sinumerik")
     assert replay.ok and replay.complete and not replay.diagnostics
-    assert "MCALL" not in output and "#1" not in output and "R1=" not in output
+    assert "#1" not in output and "R1=" not in output
     assert output.startswith("G291\n") == (target == "sinumerik_iso")
     assert sum(map(motion_length, replay.motions)) == pytest.approx(sum(map(motion_length, result.motions)), abs=1e-5)
     assert (replay.motions[-1].end_x, replay.motions[-1].end_y, replay.motions[-1].end_z) == pytest.approx(

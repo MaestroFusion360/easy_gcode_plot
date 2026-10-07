@@ -75,6 +75,8 @@ def _native_metadata(body):
         return NativeMillingSyntax("unmodeled", ignored_native_commands=((frame[1].upper() if frame else "FGROUP"),))
     if body.upper() in {"TRAORI", "TRAFOOF", "COMPOF"}:
         return NativeMillingSyntax(body.lower())
+    if re.fullmatch(r"TRAORI\s*\(\s*1\s*\)", body, re.I):
+        return NativeMillingSyntax("traori")
     hsc = _HSC.fullmatch(body)
     if hsc is not None:
         args = tuple(arg.strip() for arg in hsc[1].split(",")) if hsc[1].strip() else ()
