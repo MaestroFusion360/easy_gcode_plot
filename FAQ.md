@@ -317,7 +317,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
 
 ### What is Easy G-Code Plot?
 
-Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling and SINUMERIK 840D milling programs. Supported native SINUMERIK input includes CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
+Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling and SINUMERIK 840D milling programs. Supported native SINUMERIK input includes bounded R expressions and WHILE/GOTO/IF flow, plus CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
 
 Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 using postprocessors for SINUMERIK 840D and FANUC. Coverage applies to the tested commands and configured kinematics described in this FAQ.
 
@@ -489,7 +489,7 @@ Y-axis motion is not modeled in `fanuc_turn` and produces `UNSUPPORTED_AXIS`.
 
 ### What about unsupported M-codes?
 
-The core tracks modeled program-control and machine signals. Unmodeled auxiliary M codes produce non-blocking `UNSUPPORTED_M_CODE` warnings in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. This rule applies to GUI execution and CLI/batch analysis. M2/M30/M99 retain controller-specific program-flow semantics; FANUC M98 retains its modeled subprogram-call behavior.
+The core tracks modeled program-control and machine signals. Unmodeled auxiliary M codes produce non-blocking `UNSUPPORTED_M_CODE` warnings in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. This rule applies to GUI execution and CLI/batch analysis. M2/M30 end programs. FANUC M98/M99 retain modeled call/return behavior; native SINUMERIK M17/M96/M97/M99 stop with unsupported-flow diagnostics. Native M66/M98 produce auxiliary warnings; M98 does not call a FANUC subprogram.
 
 ### Are conflicting modal codes detected?
 
@@ -1314,7 +1314,7 @@ This table lists the G codes recognized by the `fanuc_mill` kernel. Details and 
 | M29 | Prepare rigid tapping; S on this block sets spindle RPM for the following G84 |
 | M98 / M99 | Call / return from subprogram |
 
-Unknown auxiliary M codes produce `UNSUPPORTED_M_CODE` warnings and let execution continue in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. M0/M1 record machine-stop signals without stopping the trace; M2/M30/M99 retain their controller-specific program-flow semantics. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
+Unknown auxiliary M codes produce `UNSUPPORTED_M_CODE` warnings and let execution continue in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. M0/M1 record machine-stop signals without stopping the trace; M2/M30 end programs; FANUC M98/M99 model call/return. Native SINUMERIK M17/M96/M97/M99 stop with unsupported-flow diagnostics, while native M66/M98 produce auxiliary warnings without subprogram dispatch. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
 
 `M29 S500` followed by `G84` marks rigid tapping in the trace. With `G95`, `F1.5` is 1.5 mm per revolution in metric mode; with `G94`, the equivalent feed at 500 RPM is `F750` mm/min. `G80` clears the rigid-tapping preparation. M29 syntax and whether it is required depend on the machine configuration. The kernel records synchronization semantics but does not simulate an encoder or spindle acceleration.
 
@@ -1983,7 +1983,7 @@ No. FULL uses the exact source together with its authoritative execution map. EX
 
 ### What does Full Program mean?
 
-FULL preserves ordinary source blocks, comments, modal commands, controller dialect and supported cycles. Flow/label-dependent constructs are unfolded from the execution map before renumbering: evaluated Macro B, IF/GOTO/WHILE, G65 and M98/M99 calls, and FANUC turning G70–G76. FULL does not convert the program to another controller.
+FULL preserves ordinary source blocks, comments, modal commands, controller dialect and supported cycles. FANUC flow/label-dependent constructs are unfolded from the execution map before renumbering: evaluated Macro B, IF/GOTO/WHILE, G65 and M98/M99 calls, and turning G70–G76. Supported native SINUMERIK expressions and WHILE/GOTO/IF flow remain in the source; numeric jump labels are preserved and sequence renumbering is rejected for programs with native jumps. FULL does not convert the program to another controller.
 
 ### What does Expanded Execution mean?
 
@@ -2099,13 +2099,13 @@ This is a direct text regression check. Execution/replay tests remain the check 
 
 **Options > General > 840D Extended cycles** selects the cycle interface for native input and native EXPANDED output. Checked (default): the Siemens 03/2009 interface, CYCLE81/82/83/84 with 9/9/20/24 parameters. Unchecked: the classic 01/2008 interface with 5/6/17/18 parameters. Short compatible calls remain accepted; 840D Extended cycles signatures in classic mode produce diagnostics. Changing the setting re-executes the current program. This selection does not change G290/G291 or the rotary-kinematics profile; the installed cycle package, rather than the platform name alone, determines compatibility. CLI uses `--sinumerik-cycles classic|sl`; native post JSON stores both sets in `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`.
 
-The corpus also includes [ext_cycles.mpf](tests/fixtures/milling/sinumerik/ext_cycles.mpf) and [no_ext_cycles.mpf](tests/fixtures/milling/sinumerik/no_ext_cycles.mpf), retained as posted. They are mixed supported/unsupported audit programs, not examples of complete successful execution. Common CYCLE81/82/83 operations have matching geometry in their respective profiles. The extended file first stops at line 216 on deep/chip-breaking CYCLE84; the classic file first stops at line 200 because its CYCLE84 declaration has 21 positional parameters, beyond the current classic limit of 18. Left-hand/deep tapping, CYCLE85/86/87/89 and native M19 are not modeled. Selecting the extended interface does not enable those operations.
+The corpus also includes [ext_cycles.mpf](tests/fixtures/milling/sinumerik/ext_cycles.mpf) and [no_ext_cycles.mpf](tests/fixtures/milling/sinumerik/no_ext_cycles.mpf), retained as posted. They are mixed supported/unsupported audit programs, not examples of complete successful execution. Common CYCLE81/82/83 operations have matching geometry in their respective profiles. The extended file first stops at line 216 on deep/chip-breaking CYCLE84; the classic file first stops at line 200 because its CYCLE84 declaration has 21 positional parameters, beyond the current classic limit of 18. Left-hand/deep tapping and CYCLE85/86/87/89 are not modeled. Native M19 is supported as a spindle-orientation signal. Selecting the extended interface does not enable those operations.
 
 Arc-center interpretation follows the executed controller mode: native and ISO-M (`G291`) use incremental IJK centers; native I=AC/J=AC/K=AC explicitly selects absolute centers. Mixed `G290/G291` input resolves each arc in its active mode; document arc settings and automatic detection do not override these semantics. Configured native rotary axes are supported by the bounded TCP/indexing subset; rotary A/B/C in G291 remains rejected.
 
 Structured execution and CLI/batch reports include `source_dialect` (`fanuc` or `sinumerik`) independently of the shared `fanuc_mill` geometry language. This identifies the source family, not one controller mode for the entire mixed program. Unsupported SINUMERIK G/M diagnostics contribute concrete codes to batch summaries; unsupported syntax and features do not become fabricated G/M entries.
 
-The SINUMERIK scope is **visualization of trajectories using native commands and cycles emitted by CAM postprocessors**. Full support for the complex internal Siemens macro language is outside scope; implementing it is not feasible for a project maintained by one person. Executing subprograms from SDI mode is currently unavailable. Opening an SPF file is supported as a document, but arbitrary Siemens subprogram invocation is not.
+The SINUMERIK scope includes **native CAM trajectories and bounded parametric programs**: R arithmetic, WHILE/ENDWHILE and numeric-label GOTO/IF GOTO. This is a documented subset of the Siemens language; arrays, system variables and arbitrary subprogram calls remain unsupported. Executing subprograms from SDI mode is currently unavailable. Opening an SPF file is supported as a document, but arbitrary Siemens subprogram invocation is not.
 
 MPF/SPF documents preserve the selected rotary profile. Settings and Options remain available. Native CYCLE800/TRAORI supports the angled AC/BC table profiles; incompatible profiles, axes and ISO-M rotary commands produce kernel diagnostics.
 
@@ -2125,7 +2125,12 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `CHF/CHR/RND/RNDM/FRC/FRCM` | Parsed with warnings; no geometry/feed changes. Chamfers, rounding and corner feed are not simulated. RNDM=0 is recognized without geometric effect; resolved NC export is rejected |
 | `G60/G64` | Exact-stop / continuous-path metadata; acceleration, stop time and blending are not simulated |
 | `G500` | Modal work-offset deactivation with coordinate rebasing; zero G500/base frame by default, API `wcs_offsets[500]` can supply translation; OEM base-frame rotations, mirroring and scaling are not modeled |
-| `DEF REAL`, direct scalar assignments | Bounded underscore-named `DEF REAL` scalars used by CAM setup and direct scalar assignments are accepted |
+| R assignments and address/cycle expressions | Bounded `+ - * /`, parentheses, comparisons and `SIN/COS/ABS/SQRT`; trigonometry in degrees; separate Siemens R state |
+| `WHILE/ENDWHILE`, `GOTO N...`, `IF condition GOTO N...` | Nested loops and numeric-label jumps with shared execution/iteration limits and cancellation; invalid flow stops with source-line diagnostics |
+| `M19` | Spindle-orientation signal without motion or a spindle-state change |
+| `G96/G961`, `G97/G971` | CSS or RPM with per-revolution/per-minute feed respectively; CSS retains surface speed without inferring milling RPM |
+| `ANG`, `SCALE/ASCALE`, `MIRROR/AMIRROR` | Recognized but geometry is unmodeled; execution stops before motion |
+| `DEF REAL`, direct named-scalar assignments | Bounded underscore-named `DEF REAL` scalars used by CAM setup and direct numeric/R/scalar assignments are accepted; compound named-scalar assignments remain unsupported |
 | `T`, `M6`, `D0..D12`, `S`, basic M codes | Tool change, modeled cutting-edge selection/cancellation, spindle and coolant signals; controller-specific offset tables are not simulated |
 | Named tools with `M6` | Named tool changes are accepted; if cutter geometry is unavailable, `G41/G42` remains unverified rather than assuming a radius |
 | `G0 SUPA ... D0` | Nonmodal absolute XYZ and configured A/B/C positioning, independent of G91. In the application's reference-coordinate model, zero XYZ addresses use the configured G28/SUPA return coordinates, as FANUC G53 does. WCS and the current rotary frame determine the displayed return. Rotary zero means A/B/C=0; `SUPA G0 B0 C0 D0` requires a compatible BC profile |
@@ -2140,7 +2145,7 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `CIP` | Spatial circle through the start, intermediate I1/J1/K1 and end points, independent of G17/G18/G19. G90/G91 and explicit AC/IC intermediate coordinates are supported. Fixed frames and G40 are required; concurrent rotary motion is rejected. Plot/Playback retain the circle; EXPANDED emits G1 chords within the configured linearization tolerance. |
 | `TRANS/ATRANS`, `ROT/AROT`, `RPL=` | Programmable rigid frames: replacement/reset or composition in local axes, preserving physical tool position. Spatial rotation uses RPY (MD10600=1); RPL rotates in the active plane. Combination with active TWP/TCP, polar mode, cycles or cutter compensation is rejected |
 | `G505`–`G599`, `G601/G641/G642/G645` | Parsed with unverified warnings; their controller-specific effects are not simulated |
-| Unknown auxiliary M codes | Non-blocking `UNSUPPORTED_M_CODE` warnings in native and ISO-M; motion and known commands in the same block still execute. M2/M30/M99 retain controller-specific program-flow semantics |
+| Unknown auxiliary M codes | Non-blocking `UNSUPPORTED_M_CODE` warnings; motion and known commands in the same block still execute. M2/M30 end programs. Native M17/M96/M97/M99 stop with unsupported-flow diagnostics; M66/M98 warn without subprogram dispatch |
 
 Unsaved editor text selects native SINUMERIK when executable commands such as SUPA, CIP, MCALL, TRANS or CYCLE800 are present. Comments and quoted strings do not select a dialect; Undo/Redo updates the selection. Named files retain their extension-based source contract.
 
@@ -2152,7 +2157,9 @@ Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf, or unn
 
 Cython accelerates contiguous literal position runs, with per-block capability validation before state changes. Controller-specific declarations and G290/G291 switches interrupt the current run, after which eligible positions resume acceleration. Positions inside an active MCALL cycle stay on the Python reference path until cancellation. Metadata or a native cycle elsewhere in the file does not disable acceleration for the whole program.
 
-Numeric R assignments (`R1=500`) and direct references in `F/S/XYZ/IJK=Rn`, `CR=Rn`, `TURN=Rn` and supported cycle parameters are available. Siemens R state is independent of FANUC `#` variables and is fresh for each execution. Undefined references fail before the block changes state; cycle references are validated at declaration and each hole. Arithmetic such as `R1=R2+10` or `F=R1*0.8`, arrays, system variables, Siemens control flow and arbitrary subprogram calls remain unsupported. SPF recognition does not enable subprogram execution.
+R assignments, address values and supported cycle parameters accept bounded arithmetic (`+ - * /`), parentheses, comparisons and `SIN/COS/ABS/SQRT`. Trigonometry uses degrees. Siemens R state is independent of FANUC `#` variables and is fresh for each execution. Undefined references, malformed expressions, invalid domains and division by zero fail closed. Native `WHILE/ENDWHILE` supports nesting; `GOTO N...` and `IF condition GOTO N...` use numeric sequence labels. Missing/duplicate targets and unmatched loops produce source-line diagnostics. Shared execution, iteration and cancellation limits apply. Directional `GOTOF/GOTOB/GOTOC`, `RET`, arrays, system variables and arbitrary subprogram calls remain unsupported; SPF recognition does not enable subprogram execution.
+
+Native `M19` emits a spindle-orientation signal without moving the tool or changing spindle state. `G96/G961` enable CSS with revolution/linear feed respectively; `G97/G971` select RPM with revolution/linear feed. CSS retains programmed surface speed without inferring an instantaneous RPM from a milling X coordinate. FULL preserves supported native expressions and flow; EXPANDED exports resolved geometry, but rejects CSS without a reliable reference axis. `ANG`, `SCALE/ASCALE` and `MIRROR/AMIRROR` are recognized but their geometry is unmodeled, so execution stops before motion. Native `M17/M96/M97/M99` flow is unsupported; `M66` and `M98` retain explicit auxiliary warnings, and native M98 never enters FANUC subprogram dispatch.
 
 Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc (IJK or CR, G40, no active MCALL), according to [Siemens](https://support.industry.siemens.com/cs/attachments/104985512/802Dsl_BPF_1006_en.pdf). The trace keeps one analytical arc/helix with the total sweep. Rendering, playback and statistics retain those turns; DXF uses a sampled polyline, and FANUC/ISO exporters split arcs only during serialization. The existing stock material-removal timeline supports turning; this release does not add milling stock removal. Standalone native `G4 F...` uses seconds and leaves modal feed unchanged; spindle-revolution dwell is not modeled.
 
@@ -2186,7 +2193,7 @@ Yes. Parameters and CYCLE81/82/83/84 have already been executed by the kernel. E
 
 ### How do Full Program and Expanded Execution differ?
 
-**FULL** answers “keep this controller program, but normalize it safely.” It preserves ordinary source structure and the source controller/dialect; only execution-flow constructs that cannot safely survive renumbering are unfolded.
+**FULL** answers “keep this controller program, but normalize it safely.” It preserves ordinary source structure and the source controller/dialect; FANUC execution-flow constructs that cannot safely survive renumbering are unfolded. Supported native SINUMERIK expressions and WHILE/GOTO/IF remain intact; native jump labels are preserved and sequence renumbering is rejected.
 
 **EXPANDED** answers “emit this resolved execution for this controller.” It serializes resolved geometry/state through one of the JSON post profiles. Three-axis profiles remain XYZ-only; bundled multiaxis profiles additionally reconstruct the verified rotary/TCP subsets. Physical XYZ uses one zero-offset G54 frame; supported milling drilling/tapping operations are emitted through the post cycle templates when representable. Other operations retain their resolved motions; macro variables and subprogram calls are not recreated.
 

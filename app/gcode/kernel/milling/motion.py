@@ -185,6 +185,9 @@ def _motion(
         tool=state.active_tool,
         feed_mode=state.feed_mode,
         spindle_rpm=state.spindle_rpm,
+        spindle_mode=state.spindle_mode,
+        surface_speed_m_min=state.surface_speed_m_min,
+        spindle_running=state.spindle_running,
         compensation_status="UNVERIFIED" if state.cutter_comp in (41, 42) else "NOT_APPLIED",
         orientation=(
             state.twp.orientation
@@ -355,7 +358,7 @@ def _emit_milling_motions(
         if g in (0, 1, 2, 3, 28, 53, 73, 80, 81, 82, 83, 84, 85, 86):
             action_g = g
     if action_g is not None and action_g not in (73, 80, 81, 82, 83, 84, 85, 86):
-        # Match CncKernelCli: an explicit motion/reference command ends
+        # An explicit motion/reference command ends
         # a modal drilling cycle even without a separate G80 block.
         state.cycle = 80
 

@@ -160,6 +160,9 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                     j_value,
                     feed_mode=state.feed_mode,
                     spindle_rpm=state.spindle_rpm,
+                    spindle_mode=state.spindle_mode,
+                    surface_speed_m_min=state.surface_speed_m_min,
+                    spindle_running=state.spindle_running,
                     compensation_status="UNVERIFIED" if state.cutter_comp in (41, 42) else "NOT_APPLIED",
                     source_arc_type=state.source_arc_type,
                     orientation_offset=tuple(offsets),
@@ -187,7 +190,12 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                 state.active_wcs,
                 state.feed_mode,
                 state.spindle_rpm,
+                spindle_mode=state.spindle_mode,
+                surface_speed_m_min=state.surface_speed_m_min,
+                spindle_running=state.spindle_running,
                 variables=runtime.variable_snapshot(),
+                sinumerik_parameters=tuple(sorted(state.siemens_parameters.items())),
+                sinumerik_variables=tuple(sorted(state.siemens_variables.items())),
                 programmed_position=(state.x, state.y, state.z),
             )
         )

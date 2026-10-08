@@ -195,7 +195,8 @@ h1 {
 figure {
   margin: 0;
 }
-img {
+img,
+.hero-image video {
   display: block;
   width: 100%;
   height: auto;
@@ -204,6 +205,7 @@ img {
   margin-top: 40px;
 }
 .hero-image img,
+.hero-image video,
 .story img {
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -578,4 +580,79 @@ footer {
 }
 .code-table[open] > summary {
   border-bottom: 1px solid var(--line);
+}
+
+.screenshot-gallery {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.screenshot-gallery > summary {
+  padding: 20px 24px;
+  cursor: pointer;
+  font-weight: 550;
+}
+.screenshot-gallery > summary:hover {
+  color: var(--accent);
+}
+.gallery-count {
+  float: right;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 400;
+}
+.screenshot-gallery[open] > summary {
+  border-bottom: 1px solid var(--line);
+}
+.screenshot-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  padding: 24px;
+}
+.screenshot-card {
+  min-width: 0;
+}
+.screenshot-card > a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 4 / 3;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--bg);
+}
+.screenshot-card > a:hover {
+  border-color: var(--accent);
+}
+.screenshot-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.screenshot-card figcaption {
+  padding: 10px 0 0;
+  font-size: 14px;
+  color: var(--text);
+}
+@media (max-width: 900px) {
+  .screenshot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .screenshot-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 16px;
+  }
+  .screenshot-gallery > summary {
+    padding: 16px;
+  }
+  .gallery-count {
+    float: none;
+    display: block;
+    padding-left: 19px;
+  }
 }

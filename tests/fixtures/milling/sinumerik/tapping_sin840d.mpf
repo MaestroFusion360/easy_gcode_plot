@@ -1,4 +1,4 @@
-; CYCLE84 and hole positions from CncKernelCli-main/test/sin840d.mpf
+; CYCLE84 tapping and hole positions
 G17 G90 G94 G54
 S500 M3
 G0 X-20 Y20

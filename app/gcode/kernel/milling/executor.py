@@ -8,7 +8,9 @@ from enum import Enum, auto
 
 from app.native import native_symbol
 
+from ..api.resources import SemanticError
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, MachineSignal, TraceMotion
+from ..frontend.ast import SinumerikFlowAstNode
 from ..frontend.program import EvaluatedWords, parse_program
 from ..frontend.sinumerik import parse_sinumerik_program
 from ..runtime.capabilities import COMMON_ISO_M_CODES, controller_capability_gate
@@ -20,6 +22,7 @@ from .cycles.sinumerik import execute_native_cycle
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .kinematics import TCP_TABLE_PROFILES, MachineKinematics, effective_orientation, kinematics_snapshot
 from .motion import _emit_milling_motions
+from .sinumerik_flow import build_native_loop_maps, native_flow_destination
 from .sinumerik_native import (
     apply_native_declaration,
     apply_native_tcp_edge,
@@ -484,12 +487,14 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
     """Report unknown codes and fail closed for position-bearing G codes."""
     words = evaluated_block.words
     codes = evaluated_block.codes
-    native_wcs = {93, 500} if ctx.runtime.controller_mode == "sinumerik_native" else set()
+    native_wcs = {93, 96, 97, 500, 961, 971} if ctx.runtime.controller_mode == "sinumerik_native" else set()
     unknown_g = tuple(g for g in codes.all_g if g not in MILLING_RECOGNIZED_G_CODES | native_wcs)
     position_words = any(letter in words for letter in ("X", "Y", "Z", "A", "B", "C"))
     _report_unknown_g_codes(block_diagnostics, unknown_g, position_words, block)
     controller = ctx.runtime.controller_mode
     recognized_m = MILLING_RECOGNIZED_M_CODES if controller == "fanuc" else COMMON_ISO_M_CODES
+    if controller == "sinumerik_native":
+        recognized_m = recognized_m | {19}
     _report_unknown_m_codes(
         block_diagnostics,
         codes.all_m,
@@ -778,6 +783,17 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
 
 
 def _dispatch_milling_macro(ctx, block, occurrence_events):
+    if ctx.runtime.controller_mode == "sinumerik_native":
+        node = ctx.program.ast.nodes[ctx.runtime.pc]
+        if isinstance(node, SinumerikFlowAstNode):
+            return _BlockOutcome(
+                action=_BlockAction.JUMP,
+                next_pc=native_flow_destination(
+                    node, ctx.runtime.pc, ctx.program, ctx.state, ctx.state.native_loop_pairs
+                ),
+                events=tuple(occurrence_events),
+            )
+        return None
     flow = ctx.runtime.dispatch_macro(block, ctx.runtime.pc, ctx.program.blocks)
     if flow.handled:
         return _BlockOutcome(
@@ -820,6 +836,7 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
         return early_outcome
 
     # Phases 3–5 validate and apply state before program-flow transfer.
+    ctx.state.native_spindle_semantics = ctx.runtime.controller_mode == "sinumerik_native"
     early_outcome, prepared = _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
     if early_outcome is not None:
         return early_outcome
@@ -888,10 +905,13 @@ def execute_milling(
 
     try:
         _validate_g73_retract_distance(state.g73_retract_distance)
+        if source_dialect == "sinumerik":
+            state.native_loop_pairs = build_native_loop_maps(program)
         _validate_g83_clearance(state.g83_clearance)
         while 0 <= runtime.pc < len(program.blocks):
             simple_blocks_available = (
                 not contains_rotary
+                and state.spindle_mode != "css"
                 and not state.twp.active
                 and not state.tcp_control
                 and kinematics is None
@@ -906,7 +926,10 @@ def execute_milling(
             if block.optional_skip and skip_optional_blocks:
                 runtime.advance()
                 continue
-            outcome = _execute_milling_block(ctx, block)
+            try:
+                outcome = _execute_milling_block(ctx, block)
+            except SemanticError as error:
+                raise SemanticError(error.code, f"{error} at line {block.index + 1}", error.status) from error
             if _finalize_milling_block(
                 ctx,
                 block,
@@ -921,6 +944,9 @@ def execute_milling(
                 stopped_due_error = any(d.severity == "error" for d in outcome.diagnostics)
                 break
     except Exception as exc:
+        if isinstance(exc, SemanticError) and " at line " not in str(exc) and "line " not in str(exc):
+            line = program.blocks[min(runtime.pc, len(program.blocks) - 1)].index + 1 if program.blocks else 1
+            exc = SemanticError(exc.code, f"{exc} at line {line}", exc.status)
         diagnostics.append(_execution_diagnostic(exc, program))
         return ExecutionResult(
             False,

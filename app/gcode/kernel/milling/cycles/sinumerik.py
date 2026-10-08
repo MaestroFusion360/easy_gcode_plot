@@ -7,6 +7,7 @@ No text conversion or FANUC canned-cycle dispatch is used for native cycles.
 """
 
 import math
+import re
 from dataclasses import dataclass, replace
 
 from ...api.resources import SemanticError, checkpoint, require_progress
@@ -48,6 +49,7 @@ def _arguments(syntax, parameters, variables=None, *, solution_line=True):
     count = {83: 20, 84: 24}.get(syntax.cycle_code, 9)
     maximum = count if solution_line else {81: 5, 82: 6, 83: 17, 84: 18}.get(syntax.cycle_code, 0)
     args = syntax.cycle_args
+    trees = dict(syntax.scalar_expressions)
     # Some CAM calls omit DTB and end with AMODE=10/12. A shortened SL
     # declaration instead ends with DMODE, so its dwell must not be shifted.
     if (
@@ -55,16 +57,16 @@ def _arguments(syntax, parameters, variables=None, *, solution_line=True):
         and syntax.cycle_code == 81
         and len(args) == 8
         and args[-1]
-        and parameter_value(args[-1], parameters, variables) in (10, 12)
+        and parameter_value(args[-1], parameters, variables, trees.get(args[-1])) in (10, 12)
     ):
         args = args[:5] + ("",) + args[5:]
     minimum = 4 if syntax.cycle_code == 81 else 5
     if syntax.cycle_code not in (81, 82, 83, 84) or not minimum <= len(args) <= maximum:
         generation = "840D Extended cycles (03/2009)" if solution_line else "classic (01/2008)"
         _unsupported(f"Cycle signature is outside the selected {generation} interface")
-    values = tuple(parameter_value(arg, parameters, variables) if arg else None for arg in args) + (None,) * (
-        count - len(args)
-    )
+    values = tuple(parameter_value(arg, parameters, variables, trees.get(arg)) if arg else None for arg in args) + (
+        None,
+    ) * (count - len(args))
     if any(value is not None and not math.isfinite(value) for value in values):
         _unsupported("Cycle arguments must be finite numeric literals")
     if any(values[index] is None for index in (0, 1, 2)):
@@ -95,7 +97,7 @@ def _mode_checks(values, code, state):
 def compile_native_cycle(syntax, state):
     """Validate the complete declaration before committing modal cycle state."""
     cycle = _compile_native_cycle(syntax, state)
-    if any(arg.upper().startswith(("R", "_")) for arg in syntax.cycle_args):
+    if any(re.search(r"\bR\d+\b|_[A-Z][A-Z0-9_]*", arg, re.I) for arg in syntax.cycle_args):
         cycle = replace(cycle, parameter_syntax=syntax)
     return cycle
 

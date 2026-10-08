@@ -25,7 +25,7 @@ from .sinumerik_swivel import apply_swivel, compile_swivel
 from .state import _activate_tcp, _cancel_tcp
 
 IGNORED_NATIVE_G_CODES = frozenset(range(505, 600)) | {601, 641, 642, 645}
-NATIVE_G_CODES = IGNORED_NATIVE_G_CODES | frozenset({41, 42, 60, 64, 70, 71, 93, 500, 700, 710})
+NATIVE_G_CODES = IGNORED_NATIVE_G_CODES | frozenset({41, 42, 60, 64, 70, 71, 93, 96, 97, 500, 700, 710, 961, 971})
 IGNORED_CONTOUR_WORDS = frozenset({"CHF", "CHR", "RND", "RNDM", "FRC", "FRCM"})
 
 
@@ -51,10 +51,13 @@ def native_operation_code(block):
 def evaluate_native_block(block, state):
     tokens = tuple(WordToken("R" if token.letter == "CR" else token.letter, token.expr) for token in block.parsed_words)
     words = EvaluatedWords()
+    trees = dict(block.native_syntax.scalar_expressions)
     for token in tokens:
         if token.letter in IGNORED_CONTOUR_WORDS:
             continue
-        words.add(token, parameter_value(token.expr, state.siemens_parameters, state.siemens_variables))
+        words.add(
+            token, parameter_value(token.expr, state.siemens_parameters, state.siemens_variables, trees.get(token.expr))
+        )
     _resolve_incremental_rotary(block, words, state)
     _resolve_incremental_linear(block, words, state)
     _resolve_direct_rotary(block, words, state)
@@ -196,18 +199,36 @@ def normalize_native_block(block, evaluated, state):
     syntax = block.native_syntax
     if syntax is None:
         return evaluated, None
-    cip_diagnostic = _cip_diagnostic(block, evaluated, state)
-    if cip_diagnostic is not None:
-        return evaluated, cip_diagnostic
-    diagnostic = native_feed_diagnostic(block, evaluated, state)
-    if diagnostic is not None:
-        return evaluated, diagnostic
-    diagnostic = _native_tcp_combination_diagnostic(block, evaluated, state)
+    diagnostic = (
+        _native_syntax_diagnostic(block)
+        or _native_spindle_mode_diagnostic(block, evaluated)
+        or _cip_diagnostic(block, evaluated, state)
+        or native_feed_diagnostic(block, evaluated, state)
+        or _native_tcp_combination_diagnostic(block, evaluated, state)
+    )
     if diagnostic is not None:
         return evaluated, diagnostic
     if syntax.kind != "words":
         return _normalize_native_declaration(block, evaluated, state)
     return _normalize_native_words(block, evaluated, state)
+
+
+def _native_syntax_diagnostic(block):
+    syntax = block.native_syntax
+    if syntax.kind in ("invalid_expression", "unmodeled_geometry"):
+        return _diag(
+            block,
+            "INVALID_SINUMERIK_EXPRESSION" if syntax.kind == "invalid_expression" else "UNMODELED_SINUMERIK_GEOMETRY",
+            syntax.syntax_error or f"{', '.join(syntax.ignored_native_commands)} is recognized; geometry is unmodeled",
+        )
+    return None
+
+
+def _native_spindle_mode_diagnostic(block, evaluated):
+    modes = [g for g in evaluated.codes.all_g if g in (96, 97, 961, 971)]
+    if len(modes) > 1:
+        return _diag(block, "CONFLICTING_SINUMERIK_SPINDLE_MODES", "Select one native spindle mode per block")
+    return None
 
 
 def _cip_diagnostic(block, evaluated, state):
@@ -373,7 +394,11 @@ def _normalize_native_declaration(block, evaluated, state):
         return evaluated, _tcp_declaration_diagnostic(block, state)
     if block.native_syntax.kind == "parameter_assignment":
         index, value = block.native_syntax.parameter_assignment
-        return replace(evaluated, native_payload=(index, parameter_value(value, {}))), None
+        tree = dict(block.native_syntax.scalar_expressions).get(value)
+        return replace(
+            evaluated,
+            native_payload=(index, parameter_value(value, state.siemens_parameters, state.siemens_variables, tree)),
+        ), None
     if block.native_syntax.kind == "frame_reset" and (
         state.tcp_control or state.native_cycle is not None or state.cycle != 80 or state.cutter_comp != 40
     ):

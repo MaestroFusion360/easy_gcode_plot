@@ -1036,6 +1036,11 @@ def _require_valid_trace_export(result: ExecutionResult, profile: dict, *, allow
             "Selected post cannot represent inverse-time feed (G93)",
             code="UNSUPPORTED_INVERSE_TIME_EXPANDED_EXPORT",
         )
+    if any(step.spindle_mode == "css" for step in result.execution_steps) and result.source_dialect == "sinumerik":
+        raise ExportLimitation(
+            "Native CSS reference axis and instantaneous RPM are unavailable",
+            code="UNSUPPORTED_SINUMERIK_CSS_EXPANDED_EXPORT",
+        )
     ignored_native = {
         "IGNORED_SINUMERIK_DIAMETER_MODE",
         "UNMODELED_SINUMERIK_CHF",

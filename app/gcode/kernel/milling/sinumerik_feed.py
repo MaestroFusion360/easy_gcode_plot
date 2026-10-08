@@ -8,7 +8,9 @@ def native_feed_diagnostic(block, evaluated, state):
     units = [g for g in codes if g in (70, 71, 700, 710)]
     if len(units) > 1:
         return _diag(block, "CONFLICTING_SINUMERIK_UNITS", "Select one native unit mode per block")
-    inverse = next((g == 93 for g in reversed(codes) if g in (93, 94, 95)), state.feed_mode == "inverse_time")
+    inverse = next(
+        (g == 93 for g in reversed(codes) if g in (93, 94, 95, 96, 97, 961, 971)), state.feed_mode == "inverse_time"
+    )
     if not inverse:
         return None
     if state.native_cycle is not None or block.native_syntax.kind == "cycle" or any(g in range(81, 90) for g in codes):
@@ -35,7 +37,7 @@ def apply_native_feed_state(block, state, words):
     scale = next((25.4 if g in (20, 700) else 1.0 for g in reversed(codes) if g in (20, 21, 700, 710)), None)
     if scale is not None:
         state.native_feed_scale = scale
-    if any(g in (93, 94, 95) for g in codes) and "F" not in words:
+    if any(g in (93, 94, 95, 96, 97, 961, 971) for g in codes) and "F" not in words:
         # Reissuing the same mode preserves F; switching requires a new F.
         previous = getattr(state, "native_previous_feed_mode", "per_minute")
         if previous != state.feed_mode:

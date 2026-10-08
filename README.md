@@ -36,6 +36,66 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
   <p align="center">
     <img src="docs/assets/4ax_table.gif" alt="Indexed rotary-axis milling">
   </p>
+  <p>Current dialogs and tools. Click a screenshot to view it at full size.</p>
+
+  <table>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/assets/export.png"><img src="docs/assets/export.png" width="400" alt="Export"></a><br>
+        Export
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/assets/optons.png"><img src="docs/assets/optons.png" width="400" alt="Options"></a><br>
+        Options
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/assets/tool_library.png"><img src="docs/assets/tool_library.png" width="400" alt="Tool library · milling"></a><br>
+        Tool library · milling
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/assets/tool_library2.png"><img src="docs/assets/tool_library2.png" width="400" alt="Tool library · turning"></a><br>
+        Tool library · turning
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/assets/hole_calculator.png"><img src="docs/assets/hole_calculator.png" width="400" alt="Hole calculator · circular"></a><br>
+        Hole calculator · circular
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/assets/hole_calculator2.png"><img src="docs/assets/hole_calculator2.png" width="400" alt="Hole calculator · grid"></a><br>
+        Hole calculator · grid
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/assets/poctet_calculator.png"><img src="docs/assets/poctet_calculator.png" width="400" alt="Pocket calculator · circular"></a><br>
+        Pocket calculator · circular
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/assets/poctet_calculator2.png"><img src="docs/assets/poctet_calculator2.png" width="400" alt="Pocket calculator · rectangular"></a><br>
+        Pocket calculator · rectangular
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/assets/snippets.png"><img src="docs/assets/snippets.png" width="400" alt="Snippets"></a><br>
+        Snippets
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/assets/stl_objects.png"><img src="docs/assets/stl_objects.png" width="400" alt="STL objects"></a><br>
+        STL objects
+      </td>
+    </tr>
+    <tr>
+      <td align="center" width="50%">
+        <a href="docs/assets/statistics.html.png"><img src="docs/assets/statistics.html.png" width="400" alt="Toolpath statistics"></a><br>
+        Toolpath statistics
+      </td>
+    </tr>
+  </table>
 </details>
 
 ---
@@ -116,7 +176,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - Native `G0/G1/G2/G3`, `CR=`, work offsets, compensation and common tool/spindle/coolant commands.
 - `G290/G291` native / ISO Dialect M switching.
 - Modal `MCALL CYCLE81/82/83/84`.
-- Native R parameters for the supported numeric subset.
+- Native R arithmetic, degree trigonometry, nested WHILE/ENDWHILE and numeric-label GOTO/IF GOTO.
 - GUI/CLI/kernel TRAORI/TRAFOOF TCP on the angled AC/BC table profiles, including G2/G3 with rotary interpolation.
 - Native CYCLE800 static frames and TRAORI/TRAFOOF TCP on angled AC/BC tables. Numeric A/B/C, direct R references and incremental IC values are supported for configured axes; DC selects the shortest absolute rotary approach; ambiguous half turns remain rejected.
 - `TURN=` multi-revolution arc handling.
@@ -206,6 +266,7 @@ Native support currently includes:
 - `G40/G41/G42`
 - `D0..D12`
 - tool, spindle and coolant commands
+- `M19` spindle-orientation signal; `G96/G961/G97/G971` CSS/RPM and associated feed modes
 - `G0 SUPA`, including configured A/B/C rotary axes (absolute even under G91); zero XYZ addresses use the application's configured G28/SUPA return position, shared with FANUC G53
 - `MSG`
 - `WORKPIECE`
@@ -218,11 +279,13 @@ CYCLE800 uses Siemens bit-coded axis order, not FANUC Euler ZXZ. Modes 57/54/39/
 
 ### R parameters
 
-The supported native subset accepts numeric assignments such as:
+The supported native subset accepts numeric assignments and bounded expressions such as:
 
 ```text
 R1=500
 R2=6000
+R3=R1/2+10
+R4=R3*COS(30)
 ```
 
 and references in supported addresses and cycles, including:
@@ -237,11 +300,15 @@ TURN=R1
 
 R state is separate from FANUC `#` variables and resets for each execution.
 
-Undefined references, arithmetic/control flow, arrays and Siemens system variables are outside the current subset.
+Supported expressions use `+ - * /`, parentheses, comparisons and `SIN/COS/ABS/SQRT`; trigonometry uses degrees. Undefined references, invalid domains and division by zero stop execution with source-line diagnostics.
+
+Native `WHILE/ENDWHILE` supports nesting; `GOTO N...` and `IF condition GOTO N...` use numeric sequence labels. Execution/iteration budgets and cancellation apply. Directional `GOTOF/GOTOB/GOTOC`, `RET`, symbolic labels, arrays, system variables and arbitrary Siemens subprogram calls remain unsupported.
+
+`M19` emits an orientation signal without motion or a spindle-state change. `G96/G961` select CSS with per-revolution/per-minute feed; `G97/G971` select RPM with per-revolution/per-minute feed. CSS retains surface speed without inferring instantaneous RPM from a milling X coordinate. Recognized `ANG`, `SCALE/ASCALE` and `MIRROR/AMIRROR` geometry is unmodeled and stops execution before motion.
 
 ### MCALL cycles
 
-Modal `MCALL CYCLE81/82/83/84` expands supported numeric parameters into resolved motions. Bare `MCALL` cancels the active cycle.
+Modal `MCALL CYCLE81/82/83/84` expands supported parameters and bounded expressions into resolved motions; R references are resolved for each hole. Bare `MCALL` cancels the active cycle.
 
 `CYCLE84` implements the supported CAM-oriented single-pass metric right-hand tapping subset. It models trajectory and logical spindle signals, not spindle-angle simulation.
 
@@ -282,7 +349,10 @@ The GUI and CLI expose three export families: **FULL**, **EXPANDED** and **DXF**
 **FULL** is a source-preserving NC normalizer. It keeps ordinary source blocks, comments, controller dialect,
 modal commands and supported cycles. Constructs whose meaning depends on labels or execution flow are unfolded
 from the authoritative execution map before sequence numbers can be changed: FANUC Macro B / evaluated variables,
-IF/GOTO/WHILE flow, G65 and M98/M99 calls, and FANUC turning G70–G76. FULL is not a controller-conversion mode.
+IF/GOTO/WHILE flow, G65 and M98/M99 calls, and FANUC turning G70–G76. Supported native SINUMERIK expressions
+and WHILE/GOTO/IF flow are preserved; native jumps keep their numeric labels and reject sequence renumbering.
+FULL is not a controller-conversion mode. EXPANDED exports resolved native macro geometry, but rejects CSS
+without a reliable reference axis.
 
 **EXPANDED** is one universal serializer of the resolved execution. Target CNC selects the target
 syntax and post profile; the bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`,

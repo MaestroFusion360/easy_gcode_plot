@@ -49,7 +49,10 @@
           motion code modal. An axis entry is only valid when the axis is declared in <code>supports.axes</code>, and
           <code>F</code> is excluded because feed is controlled by Modal Feed.</p>
         <p><strong>FULL</strong> preserves the source dialect and ordinary blocks, unfolding only flow-dependent
-          Macro B / IF/GOTO / subprogram constructs and turning G70–G76 when required for safe normalization.
+          FANUC Macro B / IF/GOTO / subprogram constructs and turning G70–G76 when required for safe normalization.
+          Supported native SINUMERIK expressions and WHILE/GOTO/IF flow are preserved; native jumps retain
+          numeric labels and reject sequence renumbering. EXPANDED resolves their executed geometry, but CSS
+          export requires a reliable reference axis.
           <strong>DXF</strong> writes motion geometry independently of NC post formatting.</p>
         <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>

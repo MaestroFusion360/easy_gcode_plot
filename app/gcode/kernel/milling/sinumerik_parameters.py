@@ -1,25 +1,13 @@
-"""Minimal Siemens numeric literals/R references, independent of Macro B."""
+"""Bounded Siemens scalar expressions and variables, independent of Macro B."""
 
 import math
 
 from ..api.resources import SemanticError
+from ..frontend.sinumerik_expression import compile_expression, evaluate_expression
 
 
-def parameter_value(expression, parameters, variables=None):
-    if expression.startswith("_"):
-        name = expression.upper()
-        if variables is None or name not in variables:
-            raise SemanticError("UNDEFINED_SINUMERIK_VARIABLE", f"{name} is not declared", "unsupported")
-        value = variables[name]
-        if value is None:
-            raise SemanticError("UNINITIALIZED_SINUMERIK_VARIABLE", f"Assign {name} before use", "unsupported")
-    elif expression.upper().startswith("R"):
-        index = int(expression[1:])
-        if index not in parameters:
-            raise SemanticError("UNDEFINED_SINUMERIK_PARAMETER", f"R{index} is not assigned", "unsupported")
-        value = parameters[index]
-    else:
-        value = float(expression)
+def parameter_value(expression, parameters, variables=None, tree=None):
+    value = evaluate_expression(compile_expression(expression) if tree is None else tree, parameters, variables)
     if not math.isfinite(value):
         raise SemanticError("INVALID_SINUMERIK_PARAMETER", "Siemens parameter must be finite", "unsupported")
     return value
@@ -28,6 +16,7 @@ def parameter_value(expression, parameters, variables=None):
 def compile_variables(syntax, state):
     """Validate all declaration/assignment effects before committing the block."""
     values = dict(state.siemens_variables)
+    trees = dict(syntax.scalar_expressions)
     for name in syntax.real_declarations:
         if name in values:
             raise SemanticError("DUPLICATE_SINUMERIK_VARIABLE", f"{name} is already declared", "unsupported")
@@ -35,5 +24,5 @@ def compile_variables(syntax, state):
     for name, expression in syntax.named_assignments:
         if name not in values:
             raise SemanticError("UNDEFINED_SINUMERIK_VARIABLE", f"{name} is not declared", "unsupported")
-        values[name] = parameter_value(expression, state.siemens_parameters, values)
+        values[name] = parameter_value(expression, state.siemens_parameters, values, trees.get(expression))
     return values

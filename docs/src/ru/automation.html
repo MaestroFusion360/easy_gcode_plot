@@ -52,7 +52,10 @@
           делает код движения модальным. Ось допустима только если объявлена в <code>supports.axes</code>, а
           <code>F</code> исключён, поскольку подачей управляет Modal Feed.</p>
         <p><strong>FULL</strong> сохраняет диалект и обычные исходные кадры, раскрывая только зависящие от потока
-          Macro B / IF/GOTO / подпрограммы и токарные G70–G76, когда это нужно для безопасной нормализации.
+          FANUC Macro B / IF/GOTO / подпрограммы и токарные G70–G76, когда это нужно для безопасной нормализации.
+          Поддержанные native-выражения SINUMERIK и поток WHILE/GOTO/IF сохраняются; native-переходы сохраняют
+          числовые метки и запрещают перенумерацию кадров. EXPANDED выводит исполненную геометрию,
+          но экспорт CSS требует достоверной опорной оси.
           <strong>DXF</strong> записывает геометрию движений независимо от NC-постформатирования.</p>
         <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>

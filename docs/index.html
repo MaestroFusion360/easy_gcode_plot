@@ -34,7 +34,8 @@
       <p class="lead">
         Edit turning and milling programs, calculate toolpaths and inspect
         tool motion in a 3D scene. Supports FANUC turning/milling and SINUMERIK
-        840D milling, including supported native 3+2 and continuous five-axis CAM toolpaths.
+        840D milling, including bounded native R expressions and WHILE/GOTO/IF flow,
+        plus supported 3+2 and continuous five-axis CAM toolpaths.
         Analyze folders of programs, compare tool statistics and prepare exports with the same calculation kernel.
       </p>
       <p>
@@ -65,8 +66,11 @@
         <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">release page</a>.
       </p>
       <figure class="hero-image">
-        <img src="assets/img2.gif" width="1280" height="640" alt="Milling toolpath in Easy G-Code Plot"
-          fetchpriority="high" decoding="async" />
+        <video width="1280" height="640" autoplay muted loop playsinline controls preload="metadata"
+          aria-label="Milling toolpath in Easy G-Code Plot">
+          <source src="assets/easy_gcode_plot.mp4" type="video/mp4" />
+          <a href="assets/easy_gcode_plot.mp4">Watch the toolpath demonstration</a>
+        </video>
         <figcaption>Program editor and 3D toolpath view</figcaption>
       </figure>
     </section>
@@ -1047,7 +1051,8 @@ X17.0
                 <tr>
                   <td>Unknown auxiliary M codes</td>
                   <td>Non-blocking warnings; motion and known commands in mixed blocks still execute.
-                    M2/M30/M99 retain controller-specific program-flow semantics.</td>
+                    M2/M30 end programs. Native M17/M96/M97/M99 stop with unsupported-flow diagnostics;
+                    M66/M98 warn without subprogram dispatch.</td>
                 </tr>
                 <tr>
                   <td><code>CIP / I1= / J1= / K1=</code></td>
@@ -1056,9 +1061,9 @@ X17.0
                     linearization tolerance. Requires a fixed frame, G40 and no active cycle.</td>
                 </tr>
                 <tr>
-                  <td><code>DEF REAL / assignments</code></td>
+                  <td><code>DEF REAL / named-scalar assignments</code></td>
                   <td>Underscore-named scalar variables default to zero; direct numeric, R and scalar assignments are
-                    supported. Arrays and compound expressions are rejected.</td>
+                    supported. Arrays and compound named-scalar assignments are rejected; R expressions use the separate subset below.</td>
                 </tr>
                 <tr>
                   <td><code>I/J/K / AC(...)</code></td>
@@ -1096,6 +1101,26 @@ X17.0
                   <td>Shortest-path absolute approach for configured rotary axes; exactly 180-degree ambiguity
                     is rejected.</td>
                 </tr>
+                <tr>
+                  <td><code>R assignments / address and cycle expressions</code></td>
+                  <td>Bounded + - * /, parentheses, comparisons and SIN/COS/ABS/SQRT; trigonometry in degrees. Siemens R state is separate from FANUC variables.</td>
+                </tr>
+                <tr>
+                  <td><code>WHILE / ENDWHILE / GOTO / IF GOTO</code></td>
+                  <td>Nested loops and numeric N-label jumps. Shared execution/iteration limits and cancellation apply; invalid flow stops with source-line diagnostics.</td>
+                </tr>
+                <tr>
+                  <td><code>M19</code></td>
+                  <td>Spindle-orientation signal without motion or a spindle-state change.</td>
+                </tr>
+                <tr>
+                  <td><code>G96 / G961 / G97 / G971</code></td>
+                  <td>CSS / CSS / RPM / RPM with per-revolution / per-minute / per-revolution / per-minute feed. CSS retains surface speed; instantaneous milling RPM is not inferred.</td>
+                </tr>
+                <tr>
+                  <td><code>ANG / SCALE / ASCALE / MIRROR / AMIRROR</code></td>
+                  <td>Recognized but geometry is unmodeled; execution stops before motion.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1111,11 +1136,15 @@ X17.0
           G93 uses 1/F minutes per cutting motion, including rotary TCP motion; F must be positive.
           Reprogram F on G93/G94/G95 changes. G93 cycles and cutter compensation are unsupported.
           ORI*, FGROUP, FL[], FGREF[], SPOS and CUT3D* are warning-only and unverified. SCALE/ASCALE and
-          MIRROR/AMIRROR remain unsupported. Arbitrary Siemens
-          subprogram
-          calls are unsupported. R
-          parameters support numeric assignments and direct references;
-          arithmetic expressions and Siemens control flow are unsupported.
+          MIRROR/AMIRROR and ANG are recognized with unmodeled geometry and stop execution.
+          R parameters support bounded arithmetic, comparisons, parentheses and SIN/COS/ABS/SQRT;
+          trigonometry uses degrees. WHILE/ENDWHILE supports nesting, and GOTO/IF GOTO use numeric N labels.
+          Missing targets, malformed flow and invalid expressions fail closed; execution and iteration limits
+          and cancellation remain active. GOTOF/GOTOB/GOTOC, RET and arbitrary subprogram calls are unsupported.
+          M19 emits spindle orientation without motion or a spindle-state change. G96/G961 select CSS with
+          revolution/linear feed; G97/G971 select RPM with revolution/linear feed. CSS stores surface speed
+          without inferring instantaneous RPM from milling X. FULL preserves supported native flow;
+          EXPANDED exports resolved geometry but rejects CSS without a reliable reference axis.
           CYCLE84 is limited to single-pass metric right-hand tapping; deep
           tapping, left-hand tapping and unequal entry/withdrawal speeds
           produce diagnostics.
@@ -1223,6 +1252,83 @@ X17.0
           <code>batch-export</code> all use the same export contract and conversion code, so CLI and
           batch output matches the GUI for the same settings.</p>
       </div>
+    </section>
+    <section class="section screenshot-section" id="screenshots" aria-labelledby="screenshots-title">
+      <div class="section-heading">
+        <h2 id="screenshots-title">Dialogs and tools</h2>
+      </div>
+      <p class="note">Click any screenshot to open the full image in a new tab.</p>
+      <details class="screenshot-gallery">
+        <summary><span>Explore the interface</span><span class="gallery-count">11 screenshots</span></summary>
+        <div class="screenshot-grid">
+          <figure class="screenshot-card">
+            <a href="assets/export.png" target="_blank" rel="noopener" aria-label="Export">
+              <img src="assets/export.png" width="622" height="462" alt="Export" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Export</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/optons.png" target="_blank" rel="noopener" aria-label="Options">
+              <img src="assets/optons.png" width="662" height="588" alt="Options" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Options</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/tool_library.png" target="_blank" rel="noopener" aria-label="Tool library · milling">
+              <img src="assets/tool_library.png" width="942" height="652" alt="Tool library · milling" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Tool library · milling</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/tool_library2.png" target="_blank" rel="noopener" aria-label="Tool library · turning">
+              <img src="assets/tool_library2.png" width="942" height="652" alt="Tool library · turning" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Tool library · turning</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/hole_calculator.png" target="_blank" rel="noopener" aria-label="Hole calculator · circular">
+              <img src="assets/hole_calculator.png" width="687" height="392" alt="Hole calculator · circular" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Hole calculator · circular</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/hole_calculator2.png" target="_blank" rel="noopener" aria-label="Hole calculator · grid">
+              <img src="assets/hole_calculator2.png" width="687" height="392" alt="Hole calculator · grid" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Hole calculator · grid</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/poctet_calculator.png" target="_blank" rel="noopener" aria-label="Pocket calculator · circular">
+              <img src="assets/poctet_calculator.png" width="861" height="452" alt="Pocket calculator · circular" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Pocket calculator · circular</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/poctet_calculator2.png" target="_blank" rel="noopener" aria-label="Pocket calculator · rectangular">
+              <img src="assets/poctet_calculator2.png" width="861" height="454" alt="Pocket calculator · rectangular" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Pocket calculator · rectangular</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/snippets.png" target="_blank" rel="noopener" aria-label="Snippets">
+              <img src="assets/snippets.png" width="728" height="462" alt="Snippets" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Snippets</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/stl_objects.png" target="_blank" rel="noopener" aria-label="STL objects">
+              <img src="assets/stl_objects.png" width="1326" height="733" alt="STL objects" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>STL objects</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="assets/statistics.html.png" target="_blank" rel="noopener" aria-label="Toolpath statistics">
+              <img src="assets/statistics.html.png" width="721" height="623" alt="Toolpath statistics" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Toolpath statistics</figcaption>
+          </figure>
+        </div>
+      </details>
     </section>
     <section id="execution" class="section">
       <div class="section-heading">
@@ -1343,7 +1449,10 @@ X17.0
           motion code modal. An axis entry is only valid when the axis is declared in <code>supports.axes</code>, and
           <code>F</code> is excluded because feed is controlled by Modal Feed.</p>
         <p><strong>FULL</strong> preserves the source dialect and ordinary blocks, unfolding only flow-dependent
-          Macro B / IF/GOTO / subprogram constructs and turning G70–G76 when required for safe normalization.
+          FANUC Macro B / IF/GOTO / subprogram constructs and turning G70–G76 when required for safe normalization.
+          Supported native SINUMERIK expressions and WHILE/GOTO/IF flow are preserved; native jumps retain
+          numeric labels and reject sequence renumbering. EXPANDED resolves their executed geometry, but CSS
+          export requires a reliable reference axis.
           <strong>DXF</strong> writes motion geometry independently of NC post formatting.</p>
         <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>

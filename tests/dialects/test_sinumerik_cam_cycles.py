@@ -103,12 +103,12 @@ def test_unsupported_cam_operations_stop_before_cutting(fixture, extended, title
 
 
 @pytest.mark.parametrize("fixture,extended", PROFILES)
-def test_back_boring_auxiliary_m_codes_warn_without_stopping(fixture, extended):
+def test_back_boring_m19_emits_orientation_without_stopping(fixture, extended):
     result = _native(_section(fixture, "Back boring"), extended)
     assert result.ok and result.complete
     assert any(motion.move == 1 for motion in result.motions)
-    assert result.diagnostics
-    assert all(d.code == "UNSUPPORTED_M_CODE" and d.severity == "warning" for d in result.diagnostics)
+    assert not result.diagnostics
+    assert any(signal.kind == "spindle_orient" for signal in result.signals)
 
 
 @pytest.mark.parametrize("fixture,extended", PROFILES)

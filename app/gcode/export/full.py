@@ -38,10 +38,19 @@ def is_native_full_program(result):
 def _dangerous_source(result):
     """Flow and label-dependent cycles must never survive renumbering."""
     return any(event.kind in {SUBPROGRAM_START, SUBPROGRAM_END} for event in result.events) or any(
-        block.flow_node is not None
-        or re.search(r"#|\b(?:IF|GOTO[FB]?|WHILE|END)\b|\bM0?(?:98|99)\b|\bG0?65\b", _strip_comments(block.raw), re.I)
-        or result.language == "fanuc_turn"
-        and _g_codes(_strip_comments(block.raw)) & set(range(70, 77))
+        not (
+            result.source_dialect == "sinumerik"
+            and block.native_syntax is not None
+            and block.native_syntax.kind in ("while", "endwhile", "goto", "if_goto", "parameter_assignment")
+        )
+        and (
+            block.flow_node is not None
+            or re.search(
+                r"#|\b(?:IF|GOTO[FB]?|WHILE|END)\b|\bM0?(?:98|99)\b|\bG0?65\b", _strip_comments(block.raw), re.I
+            )
+            or result.language == "fanuc_turn"
+            and _g_codes(_strip_comments(block.raw)) & set(range(70, 77))
+        )
         for block in result.program.blocks
     )
 
@@ -170,9 +179,9 @@ def format_full_program_source(
     """Apply formatting-only options to source blocks without rebuilding geometry."""
     _check_cancelled(cancelled)
     source = _apply_full_program_text_options(source, options, native=native)
-    has_jump_flow = re.search(r"\bGOTO[FB]?\b", source, flags=re.IGNORECASE) is not None
+    has_jump_flow = re.search(r"\bGOTO[FBC]?\b", source, flags=re.IGNORECASE) is not None
     has_sequence_labels = re.search(r"(?im)^\s*/?\s*N\d+\b", source) is not None
-    if has_jump_flow and (options.sequence_numbers or has_sequence_labels):
+    if has_jump_flow and (options.sequence_numbers or (has_sequence_labels and not native)):
         raise ValueError("Sequence numbers cannot be changed in a program that uses GOTO labels")
 
     output: list[str] = []
@@ -193,6 +202,8 @@ def format_full_program_source(
         if body.startswith("/"):
             body = body[1:].lstrip()
             block_skip = "/"
+        label = re.match(r"N\d+\s*", body, re.I) if native and has_jump_flow else None
+        prefix = label[0] if label else ""
         body = _without_sequence_number(body)
         if not body:
             output.append(indentation + block_skip + comment + line_ending)
@@ -202,6 +213,8 @@ def format_full_program_source(
             continue
 
         body = _format_source_addresses(body, options)
+        if prefix:
+            body = prefix + body
         if options.sequence_numbers:
             spacer = " " if options.sequence_spacing or options.delimiter else ""
             body = f"N{sequence}{spacer}{body}"

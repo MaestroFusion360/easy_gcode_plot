@@ -69,7 +69,7 @@ def test_mcall_r_parameters_are_rechecked_at_each_hole():
 
 
 @pytest.mark.parametrize(
-    "source", ["X=R99", "R1=R2+10", "R1=1\nF=R1*0.8", "R1=1\nIF R1==1 GOTO10", "R[1]=2", "$AA_IM[X]=2"]
+    "source", ["X=R99", "R1=R2+10", "R1=1\nF=R1**0.8", "R1=1\nIF R1==1 GOTO10", "R[1]=2", "$AA_IM[X]=2"]
 )
 def test_unmodeled_r_language_fails_closed(source):
     result = native(source)

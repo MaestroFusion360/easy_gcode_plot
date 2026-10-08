@@ -82,7 +82,7 @@ def test_batch_classifies_structured_sinumerik_codes_and_excludes_syntax(tmp_pat
         (tmp_path / name).write_text(source)
     report = analyze_directory(tmp_path, language="fanuc_mill", encoding="utf-8")
     assert {item["code"] for item in report["summary"]["unsupported_g_codes"]} == {"G65", "G66"}
-    assert {item["code"] for item in report["summary"]["unsupported_m_codes"]} == {"M98", "M99", "M19"}
+    assert {item["code"] for item in report["summary"]["unsupported_m_codes"]} == {"M98", "M99"}
     assert all(item["source_dialect"] == "sinumerik" for item in report["files"])
     _, csv_path = write_batch_reports(report, tmp_path / "reports")
     with csv_path.open(encoding="utf-8-sig") as stream:

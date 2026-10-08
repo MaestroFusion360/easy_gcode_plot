@@ -35,7 +35,8 @@
         Редактирование токарных и фрезерных управляющих программ, расчёт
         траекторий и просмотр перемещений инструмента в 3D. Поддерживаются
         токарные/фрезерные программы FANUC и фрезерные программы SINUMERIK 840D,
-        включая поддерживаемые native CAM-траектории 3+2 и непрерывной пятиосевой обработки.
+        включая ограниченные native R-выражения и поток WHILE/GOTO/IF,
+        а также поддерживаемые CAM-траектории 3+2 и непрерывной пятиосевой обработки.
         Анализируйте папки программ, сравнивайте статистику инструментов и готовьте экспорт через общее ядро расчёта.
       </p>
       <p>
@@ -67,8 +68,11 @@
         <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">странице релиза</a>.
       </p>
       <figure class="hero-image">
-        <img src="../assets/img2.gif" width="1280" height="640" alt="Фрезерная траектория в Easy G-Code Plot"
-          fetchpriority="high" decoding="async" />
+        <video width="1280" height="640" autoplay muted loop playsinline controls preload="metadata"
+          aria-label="Фрезерная траектория в Easy G-Code Plot">
+          <source src="../assets/easy_gcode_plot.mp4" type="video/mp4" />
+          <a href="../assets/easy_gcode_plot.mp4">Посмотреть демонстрацию траектории</a>
+        </video>
         <figcaption>
           Редактор управляющей программы и 3D-траектория
         </figcaption>
@@ -1084,7 +1088,8 @@ X17.0
                 <tr>
                   <td>Неизвестные вспомогательные M-коды</td>
                   <td>Неблокирующие предупреждения; движения и известные команды в смешанных кадрах выполняются.
-                    M2/M30/M99 сохраняют семантику потока программы соответствующего контроллера.</td>
+                    M2/M30 завершают программу. Native M17/M96/M97/M99 останавливают исполнение с диагностикой;
+                    M66/M98 предупреждают без вызова подпрограмм.</td>
                 </tr>
                 <tr>
                   <td><code>CIP / I1= / J1= / K1=</code></td>
@@ -1093,9 +1098,10 @@ X17.0
                     Требуются фиксированный фрейм, G40 и отсутствие активного цикла.</td>
                 </tr>
                 <tr>
-                  <td><code>DEF REAL / присваивания</code></td>
+                  <td><code>DEF REAL / присваивания именованных скаляров</code></td>
                   <td>Скалярные переменные с именами, начинающимися с подчёркивания, по умолчанию равны нулю. Поддержаны
-                    прямые присваивания чисел, R-параметров и скаляров; массивы и составные выражения отклоняются.</td>
+                    прямые присваивания чисел, R-параметров и скаляров. Массивы и составные присваивания именованным скалярам
+                    отклоняются; выражения R используют отдельное подмножество ниже.</td>
                 </tr>
                 <tr>
                   <td><code>I/J/K / AC(...)</code></td>
@@ -1134,6 +1140,26 @@ X17.0
                   <td>Кратчайший подход к абсолютному поворотному углу для настроенных осей. Неоднозначный поворот ровно
                     на 180 градусов отклоняется.</td>
                 </tr>
+                <tr>
+                  <td><code>Присваивания R / адресные и цикловые выражения</code></td>
+                  <td>Ограниченные + - * /, скобки, сравнения и SIN/COS/ABS/SQRT; тригонометрия в градусах. Состояние Siemens R отделено от переменных FANUC.</td>
+                </tr>
+                <tr>
+                  <td><code>WHILE / ENDWHILE / GOTO / IF GOTO</code></td>
+                  <td>Вложенные циклы и переходы по числовым меткам N. Общие лимиты исполнения/итераций и отмена; ошибки потока останавливают исполнение с указанием исходной строки.</td>
+                </tr>
+                <tr>
+                  <td><code>M19</code></td>
+                  <td>Сигнал ориентации шпинделя без движения и изменения состояния шпинделя.</td>
+                </tr>
+                <tr>
+                  <td><code>G96 / G961 / G97 / G971</code></td>
+                  <td>CSS / CSS / RPM / RPM с подачей на оборот / в минуту / на оборот / в минуту. CSS сохраняет скорость резания; мгновенные RPM не вычисляются.</td>
+                </tr>
+                <tr>
+                  <td><code>ANG / SCALE / ASCALE / MIRROR / AMIRROR</code></td>
+                  <td>Распознаются, но геометрия не моделируется; исполнение останавливается до движения.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1149,11 +1175,16 @@ X17.0
           При переключении G93/G94/G95 задайте новое F. Циклы и коррекция радиуса под G93 не поддержаны.
           ORI*, FGROUP, FL[], FGREF[], SPOS и CUT3D* принимаются с предупреждением: их эффекты не
           моделируются.
-          SCALE/ASCALE и MIRROR/AMIRROR не поддерживаются.
-          Произвольные вызовы подпрограмм
-          не поддерживаются. Для R-параметров доступны числовые
-          присваивания и прямые ссылки; арифметические выражения и поток
-          управления Siemens не поддерживаются. CYCLE84 ограничен
+          SCALE/ASCALE, MIRROR/AMIRROR и ANG распознаются, но их геометрия не моделируется: исполнение останавливается.
+          R-параметры поддерживают ограниченную арифметику, сравнения, скобки и SIN/COS/ABS/SQRT;
+          тригонометрия использует градусы. WHILE/ENDWHILE допускает вложенные циклы,
+          GOTO/IF GOTO используют числовые N-метки. Ошибки выражений, меток и циклов останавливают исполнение;
+          действуют лимиты исполнения, итераций и отмена. GOTOF/GOTOB/GOTOC, RET и произвольные подпрограммы не поддержаны.
+          M19 создаёт сигнал ориентации без движения и изменения состояния шпинделя.
+          G96/G961 выбирают CSS с подачей на оборот/в минуту; G97/G971 выбирают RPM с соответствующей подачей.
+          CSS хранит скорость резания без вычисления мгновенных RPM по фрезерной координате X.
+          FULL сохраняет поддержанный native-поток; EXPANDED выводит разрешённую геометрию,
+          но отклоняет CSS без достоверной опорной оси. CYCLE84 ограничен
           однопроходным нарезанием правой метрической резьбы; глубокое
           нарезание, левая резьба и разные скорости входа и выхода вызывают
           диагностику.
@@ -1269,6 +1300,83 @@ X17.0
           используют один контракт экспорта и один код конвертации, поэтому вывод CLI и пакетного
           экспорта совпадает с GUI при одинаковых настройках.</p>
       </div>
+    </section>
+    <section class="section screenshot-section" id="screenshots" aria-labelledby="screenshots-title">
+      <div class="section-heading">
+        <h2 id="screenshots-title">Диалоги и инструменты</h2>
+      </div>
+      <p class="note">Нажмите на скриншот, чтобы открыть полный размер в новой вкладке.</p>
+      <details class="screenshot-gallery">
+        <summary><span>Посмотреть интерфейс</span><span class="gallery-count">11 скриншотов</span></summary>
+        <div class="screenshot-grid">
+          <figure class="screenshot-card">
+            <a href="../assets/export.png" target="_blank" rel="noopener" aria-label="Экспорт">
+              <img src="../assets/export.png" width="622" height="462" alt="Экспорт" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Экспорт</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/optons.png" target="_blank" rel="noopener" aria-label="Настройки">
+              <img src="../assets/optons.png" width="662" height="588" alt="Настройки" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Настройки</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/tool_library.png" target="_blank" rel="noopener" aria-label="Библиотека · фрезерование">
+              <img src="../assets/tool_library.png" width="942" height="652" alt="Библиотека · фрезерование" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Библиотека · фрезерование</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/tool_library2.png" target="_blank" rel="noopener" aria-label="Библиотека · точение">
+              <img src="../assets/tool_library2.png" width="942" height="652" alt="Библиотека · точение" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Библиотека · точение</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/hole_calculator.png" target="_blank" rel="noopener" aria-label="Отверстия · окружность">
+              <img src="../assets/hole_calculator.png" width="687" height="392" alt="Отверстия · окружность" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Отверстия · окружность</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/hole_calculator2.png" target="_blank" rel="noopener" aria-label="Отверстия · сетка">
+              <img src="../assets/hole_calculator2.png" width="687" height="392" alt="Отверстия · сетка" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Отверстия · сетка</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/poctet_calculator.png" target="_blank" rel="noopener" aria-label="Карман · круглый">
+              <img src="../assets/poctet_calculator.png" width="861" height="452" alt="Карман · круглый" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Карман · круглый</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/poctet_calculator2.png" target="_blank" rel="noopener" aria-label="Карман · прямоугольный">
+              <img src="../assets/poctet_calculator2.png" width="861" height="454" alt="Карман · прямоугольный" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Карман · прямоугольный</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/snippets.png" target="_blank" rel="noopener" aria-label="Шаблоны кода">
+              <img src="../assets/snippets.png" width="728" height="462" alt="Шаблоны кода" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Шаблоны кода</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/stl_objects.png" target="_blank" rel="noopener" aria-label="STL-объекты">
+              <img src="../assets/stl_objects.png" width="1326" height="733" alt="STL-объекты" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>STL-объекты</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a href="../assets/statistics.html.png" target="_blank" rel="noopener" aria-label="Статистика траектории">
+              <img src="../assets/statistics.html.png" width="721" height="623" alt="Статистика траектории" loading="lazy" decoding="async" />
+            </a>
+            <figcaption>Статистика траектории</figcaption>
+          </figure>
+        </div>
+      </details>
     </section>
     <section id="execution" class="section">
       <div class="section-heading">
@@ -1393,7 +1501,10 @@ X17.0
           делает код движения модальным. Ось допустима только если объявлена в <code>supports.axes</code>, а
           <code>F</code> исключён, поскольку подачей управляет Modal Feed.</p>
         <p><strong>FULL</strong> сохраняет диалект и обычные исходные кадры, раскрывая только зависящие от потока
-          Macro B / IF/GOTO / подпрограммы и токарные G70–G76, когда это нужно для безопасной нормализации.
+          FANUC Macro B / IF/GOTO / подпрограммы и токарные G70–G76, когда это нужно для безопасной нормализации.
+          Поддержанные native-выражения SINUMERIK и поток WHILE/GOTO/IF сохраняются; native-переходы сохраняют
+          числовые метки и запрещают перенумерацию кадров. EXPANDED выводит исполненную геометрию,
+          но экспорт CSS требует достоверной опорной оси.
           <strong>DXF</strong> записывает геометрию движений независимо от NC-постформатирования.</p>
         <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>

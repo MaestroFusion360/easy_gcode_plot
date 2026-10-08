@@ -18,6 +18,11 @@ from .twp import TiltedWorkPlane, euler_zxz, solve_table_orientation, supports_t
 
 @dataclass
 class MillState(MachineRuntimeState):
+    native_spindle_semantics: bool = False
+    native_loop_pairs: dict[int, int] = field(default_factory=dict)
+    spindle_mode: str = "rpm"
+    surface_speed_m_min: float | None = None
+    spindle_running: bool = False
     cip_mode: bool = False
     sinumerik_840d_sl: bool = True
     native_feed_scale: float = 1.0
@@ -329,7 +334,12 @@ def _execution_step(
         active_wcs=state.active_wcs,
         feed_mode=state.feed_mode,
         spindle_rpm=state.spindle_rpm,
+        spindle_mode=state.spindle_mode,
+        surface_speed_m_min=state.surface_speed_m_min,
+        spindle_running=state.spindle_running,
         variables=variables,
+        sinumerik_parameters=tuple(sorted(state.siemens_parameters.items())),
+        sinumerik_variables=tuple(sorted(state.siemens_variables.items())),
         rotary_angles=tuple(
             (axis, state.rotary_angles[axis])
             for axis in ("A", "B", "C")
@@ -396,6 +406,9 @@ def _apply_polar_modal_state(state: MillState, g, *, effective_plane: int, effec
 
 
 def _apply_milling_spindle_state(state: MillState, gcodes, all_m, words) -> None:
+    if state.native_spindle_semantics:
+        _apply_native_spindle_state(state, gcodes, all_m, words)
+        return
     if 93 in gcodes:
         state.feed_mode = "inverse_time"
     if 94 in gcodes:
@@ -410,6 +423,37 @@ def _apply_milling_spindle_state(state: MillState, gcodes, all_m, words) -> None
         state.spindle_rpm = None
     if "F" in words:
         state.feed = words["F"] * (1.0 if state.feed_mode == "inverse_time" else state.unit_scale)
+
+
+def _apply_native_spindle_state(state, gcodes, all_m, words):
+    for code in gcodes:
+        _apply_native_spindle_mode(state, code)
+    if "S" in words and 19 not in all_m:
+        if state.spindle_mode == "css":
+            state.surface_speed_m_min = words["S"] * (0.3048 if state.unit_scale > 1 else 1.0)
+        else:
+            state.spindle_rpm = words["S"]
+    if state.spindle_mode == "css":
+        state.spindle_rpm = None
+    if 3 in all_m or 4 in all_m:
+        state.spindle_running = True
+    if 5 in all_m:
+        state.spindle_running = False
+        state.spindle_rpm = None
+    if "F" in words:
+        state.feed = words["F"] * (1.0 if state.feed_mode == "inverse_time" else state.unit_scale)
+
+
+def _apply_native_spindle_mode(state, code):
+    if code in (96, 97, 961, 971):
+        mode = "css" if code in (96, 961) else "rpm"
+        if state.spindle_mode == "css" and mode == "rpm":
+            # No configured CSS reference axis: last instantaneous RPM is unknown.
+            state.spindle_rpm = None
+        state.spindle_mode = mode
+        state.feed_mode = "per_revolution" if code in (96, 97) else "per_minute"
+    elif code in (93, 94, 95):
+        state.feed_mode = {93: "inverse_time", 94: "per_minute", 95: "per_revolution"}[code]
 
 
 def _apply_pre_flow_modal_state(state: MillState, gcodes, all_m, words, *, wcs_offsets, block_index: int) -> None:

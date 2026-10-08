@@ -46,6 +46,10 @@ class NativeMillingSyntax:
     intermediate_incremental: tuple[str, ...] = ()
     frame_command: str | None = None
     frame_values: tuple[tuple[str, str], ...] = ()
+    flow_condition: tuple | None = None
+    flow_target: int | None = None
+    syntax_error: str | None = None
+    scalar_expressions: tuple[tuple[str, tuple], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +66,11 @@ class AstNode:
 @dataclass(frozen=True, slots=True)
 class SinumerikAstNode(AstNode):
     """Native declaration/metadata node; the source syntax is never lowered."""
+
+
+@dataclass(frozen=True, slots=True)
+class SinumerikFlowAstNode(SinumerikAstNode):
+    """Native instruction-pointer operation, independent of Macro B."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -212,6 +221,8 @@ def _build_native_ast_node(block, common, cache):
     from dataclasses import replace  # pylint: disable=import-outside-toplevel
 
     syntax = block.native_syntax
+    if syntax.kind in ("while", "endwhile", "goto", "if_goto", "invalid_flow"):
+        return SinumerikFlowAstNode("sinumerik_flow", *common, native_syntax=syntax)
     if syntax.kind != "words":
         return SinumerikAstNode("sinumerik", *common, native_syntax=syntax)
     # Reuse the common motion/control builder for shared address semantics.

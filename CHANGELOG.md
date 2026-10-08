@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.9.7 - 2026-10-08
+
+- Extend the immutable native Program/AST and existing milling kernel with SINUMERIK expression precedence, degree trigonometry and stack-based WHILE execution. Support bounded R arithmetic, comparisons, SIN/COS/ABS/SQRT, nested WHILE/ENDWHILE and numeric-label GOTO/IF GOTO with shared cancellation and resource budgets.
+- Keep unsupported directional GOTOF/GOTOB/GOTOC and RET fail-closed. Retain native M98 warning/continuation without FANUC dispatch; reject unmodeled native M17/M96/M97/M99 flow.
+- Support native M19 through the existing spindle-orientation signal. Preserve spindle and position state; add modal G96/G97/G961/G971 feed/spindle behavior with programmed surface speed and unknown RPM when no CSS reference axis exists.
+- Preserve supported native flow and expressions in Full Program export, keep jump labels stable, and export resolved macro drilling geometry through the existing Expanded replay contract. Block Expanded native CSS without a reference axis and recognized but unmodeled ANG/SCALE/MIRROR geometry.
+- Add circular drilling coverage and regressions for expressions, nested flow, malformed programs, budgets, cancellation, parser/executor parity, spindle modes and Full/Expanded replay.
+- Update bilingual FAQ and controller documentation for the native subset and export limits. Add the MP4 demonstration and a collapsible gallery of current dialogs and tools to the project site; extend the existing README screenshot gallery.
+
 ## 1.9.6 - 2026-10-08
 
 - Add the supplied NX `text_NX.mpf` to the fixture corpus. Verify all 571 motions, completion at M30, and unchanged geometry when its five unmodeled auxiliary M codes are removed.

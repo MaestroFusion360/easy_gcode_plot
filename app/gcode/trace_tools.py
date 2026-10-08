@@ -107,8 +107,7 @@ def _plot_move_for_plane(move: int, plane: int) -> int:
     """Map controller G2/G3 to the 2D plotting orientation of a plane.
 
     G18 is XZ, whose handedness is opposite to XY/YZ when represented as the
-    usual 2D (first-axis, second-axis) plotting plane.  CncKernelCli and
-    fanuc_plot both swap G2/G3 here.
+    usual 2D (first-axis, second-axis) plotting plane. Swap G2/G3 accordingly.
     """
     if plane == 18:
         if move == 2:
@@ -131,7 +130,7 @@ def arc_geometry(
     *,
     lathe_radius_view: bool = False,
 ):
-    """Resolve one logical arc using the same plane semantics as CncKernelCli."""
+    """Resolve one logical arc in its controller plane."""
     if m.move not in (2, 3) or m.plane not in (17, 18, 19):
         return None
 

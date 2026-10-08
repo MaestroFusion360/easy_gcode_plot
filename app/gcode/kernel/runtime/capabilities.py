@@ -49,6 +49,13 @@ def _source_diagnostic(block, mode):
 
 def _numeric_diagnostic(block, evaluated, mode, state):
     for code in evaluated.codes.all_m:
+        if mode == "sinumerik_native" and code in (17, 96, 97):
+            return _diag(
+                block,
+                "UNSUPPORTED_SINUMERIK_M_CODE",
+                f"M{code:g} native execution semantics are not modeled",
+                cnc_codes=(f"M{code:g}",),
+            )
         if code == 99:
             return _diag(
                 block,

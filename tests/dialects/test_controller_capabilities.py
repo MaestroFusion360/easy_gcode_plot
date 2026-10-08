@@ -45,7 +45,10 @@ def test_native_common_iso_core_matches_fanuc_geometry_and_signals():
     native = _sinumerik(source)
     fanuc = execute(source, language="fanuc_mill", source_arc_type=1)
     assert native.ok and native.complete, native.diagnostics
-    assert tuple(replace(motion, source_arc_type=None) for motion in native.motions) == fanuc.motions
+    assert (
+        tuple(replace(motion, source_arc_type=None, spindle_running=False) for motion in native.motions)
+        == fanuc.motions
+    )
     assert native.signals == fanuc.signals
     assert native.events == fanuc.events
 

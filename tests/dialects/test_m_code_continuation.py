@@ -78,9 +78,13 @@ def test_unmodeled_sinumerik_m_codes_never_dispatch_fanuc_calls(prefix, block):
         prefix + "G0 X1\n" + block + "\nG1 X2 F100\nM30", language="fanuc_mill", source_dialect="sinumerik"
     )
     assert result.ok and result.complete, result.diagnostics
-    assert result.diagnostics and all(
-        d.code == "UNSUPPORTED_M_CODE" and d.severity == "warning" for d in result.diagnostics
-    )
+    if not prefix and block == "M19":
+        assert not result.diagnostics
+        assert any(signal.kind == "spindle_orient" for signal in result.signals)
+    else:
+        assert result.diagnostics and all(
+            d.code == "UNSUPPORTED_M_CODE" and d.severity == "warning" for d in result.diagnostics
+        )
     assert not any(event.kind == "subprogram_start" for event in result.events)
     assert result.motions[-1].end_x == (1 if "M30" in block else 2)
 

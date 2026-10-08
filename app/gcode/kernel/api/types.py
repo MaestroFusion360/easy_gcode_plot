@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from ..frontend.model import Program
 
@@ -204,6 +204,8 @@ class ExecutionStep:
     twp_orientation: tuple[tuple[float, float, float], ...] | None = None
     tool_axis_control: bool = False
     programmed_position: tuple[float, float, float] | None = None
+    sinumerik_parameters: tuple[tuple[int, float], ...] = field(default=(), kw_only=True)
+    sinumerik_variables: tuple[tuple[str, float], ...] = field(default=(), kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)

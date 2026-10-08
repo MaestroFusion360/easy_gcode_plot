@@ -5,7 +5,8 @@
         Редактирование токарных и фрезерных управляющих программ, расчёт
         траекторий и просмотр перемещений инструмента в 3D. Поддерживаются
         токарные/фрезерные программы FANUC и фрезерные программы SINUMERIK 840D,
-        включая поддерживаемые native CAM-траектории 3+2 и непрерывной пятиосевой обработки.
+        включая ограниченные native R-выражения и поток WHILE/GOTO/IF,
+        а также поддерживаемые CAM-траектории 3+2 и непрерывной пятиосевой обработки.
         Анализируйте папки программ, сравнивайте статистику инструментов и готовьте экспорт через общее ядро расчёта.
       </p>
       <p>
@@ -37,8 +38,11 @@
         <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">странице релиза</a>.
       </p>
       <figure class="hero-image">
-        <img src="../assets/img2.gif" width="1280" height="640" alt="Фрезерная траектория в Easy G-Code Plot"
-          fetchpriority="high" decoding="async" />
+        <video width="1280" height="640" autoplay muted loop playsinline controls preload="metadata"
+          aria-label="Фрезерная траектория в Easy G-Code Plot">
+          <source src="../assets/easy_gcode_plot.mp4" type="video/mp4" />
+          <a href="../assets/easy_gcode_plot.mp4">Посмотреть демонстрацию траектории</a>
+        </video>
         <figcaption>
           Редактор управляющей программы и 3D-траектория
         </figcaption>

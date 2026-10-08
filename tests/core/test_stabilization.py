@@ -582,7 +582,7 @@ def test_macro_boss_final_full_circle_keeps_g41_compensation_until_g40():
     assert (exit_motion.end_x, exit_motion.end_y) == pytest.approx((0.0, 100.0))
 
 
-def test_milling_compensation_entry_arc_and_exit_match_cnckernelcli_state_machine():
+def test_milling_compensation_entry_arc_and_exit_follow_state_machine():
     source = """\
 G21 G17 G90 G40
 T1 M6
