@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current baseline: **1.9.5**. This roadmap tracks remaining work and future priorities. Release history is maintained in [CHANGELOG](CHANGELOG.md).
+Current baseline: **1.9.6**. This roadmap tracks remaining work and future priorities. Release history is maintained in [CHANGELOG](CHANGELOG.md).
 
 Until **2.0.0**, the project is in **feature freeze**.
 
@@ -15,6 +15,17 @@ The export refactor and multiaxis export work are considered architectural compl
 # 1.9.x → 2.0.0 — Stabilization phase
 
 ## Remaining stabilization work toward 2.0.0
+
+### Milling verification priority
+
+Focus the next geometry/post audit on `fanuc_mill` and native SINUMERIK milling:
+
+- indexed 3+1 motion on configured single rotary axes;
+- indexed 3+2 machining with working-plane and WCS transformations;
+- simultaneous four-axis motion, starting with the supported table-C contract;
+- five-axis TCP motion on the supported AC/BC profiles, including arcs and orientation changes.
+
+Use real CAM programs, independently specified geometry and export/re-execution comparisons. Test configured tools, compensation on/off, units, reference returns and displaced WCS origins. Verify native compatibility across cycle interface generations. Extend spatial-arc verification to indexed/TCP frames and target-controller arc reconstruction; planar G2/G3 coverage does not establish support for arbitrary spatial arcs.
 
 ### Export limitations and verification
 

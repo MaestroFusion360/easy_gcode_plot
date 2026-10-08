@@ -19,6 +19,56 @@ from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
 
+def test_lexer_motion_colors_persist_through_theme_file_type_and_cancel(qt_app, monkeypatch):
+    window = MainWindow()
+    controls = (
+        ("editorRapidColor", 1, "#b34567"),
+        ("editorLinearColor", 2, "#579b24"),
+        ("editorCircularColor", 3, "#2367ab"),
+    )
+    try:
+        dialog = window.optionsDlg
+        dialog.load_values()
+        for attribute, _style, color in controls:
+            edit = getattr(dialog.ui, attribute + "Edit")
+            assert dialog.ui.editorColorsGroup.isAncestorOf(edit)
+            monkeypatch.setattr(
+                "app.ui.dialogs.options.QColorDialog.getColor", lambda *args, value=color: QColor(value)
+            )
+            getattr(dialog.ui, attribute + "Button").click()
+            assert edit.text() == color
+        dialog.accept()
+        for file_type, dark in ((1, True), (0, False)):
+            dialog.load_values()
+            dialog.ui.themeCombo.setCurrentIndex(int(dark))
+            dialog.accept()
+            window.changeFileType(file_type)
+            for attribute, style, color in controls:
+                assert getattr(window, attribute) == color
+                assert window.lexer.color(style).name() == color
+        dialog.load_values()
+        dialog.ui.editorRapidColorEdit.setText("#abcdef")
+        dialog.reject()
+        assert window.editorRapidColor == "#b34567"
+    finally:
+        window.deleteLater()
+    restored = MainWindow()
+    try:
+        for attribute, style, color in controls:
+            assert getattr(restored, attribute) == color
+            assert restored.lexer.color(style).name() == color
+        restored.optionsDlg.load_values()
+        restored.optionsDlg.restore_defaults()
+        restored.optionsDlg.accept()
+        assert [restored.lexer.color(style).name() for _attribute, style, _color in controls] == [
+            "#ff0000",
+            "#2ecc71",
+            "#0000ff",
+        ]
+    finally:
+        restored.deleteLater()
+
+
 def test_editor_current_line_color_picker_persists_and_restores_defaults(qt_app, monkeypatch):
     window = MainWindow()
     dialog = window.optionsDlg

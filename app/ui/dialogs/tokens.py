@@ -10,7 +10,16 @@ from typing import Callable
 
 from PyQt6.QtCore import QCoreApplication, Qt
 from PyQt6.QtGui import QAction, QColor, QKeySequence, QShortcut, QStandardItem, QStandardItemModel
-from PyQt6.QtWidgets import QApplication, QDialog, QFileDialog, QMenu, QMessageBox
+from PyQt6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QDialogButtonBox,
+    QFileDialog,
+    QMenu,
+    QMessageBox,
+    QPlainTextEdit,
+    QVBoxLayout,
+)
 
 from app import theme
 from app.gcode.core import format_gcode_number
@@ -43,12 +52,12 @@ VARIABLE_HEADINGS = ("#", "Value")
 _STATUS_COLORS = {
     "light": {
         "OK": QColor("#e7f6e7"),
-        "WARNING": QColor("#ffe6e6"),
+        "WARNING": QColor("#fff0d9"),
         "ERROR": QColor("#ffe6e6"),
     },
     "dark": {
         "OK": QColor("#23331f"),
-        "WARNING": QColor("#3a2323"),
+        "WARNING": QColor("#4a321c"),
         "ERROR": QColor("#3a2323"),
     },
 }
@@ -255,6 +264,7 @@ class TokensDialog(QDialog):
         self.ui.exportCsvButton.clicked.connect(self.export_csv)
         self.ui.resetColumnsButton.clicked.connect(self.reset_columns)
         self.ui.tokenTable.customContextMenuRequested.connect(self._show_context_menu)
+        self.ui.tokenTable.doubleClicked.connect(self._show_row_diagnostics)
         self._copy_shortcut = QShortcut(QKeySequence.StandardKey.Copy, self.ui.tokenTable)
         self._copy_shortcut.activated.connect(self.copy_selected_rows)
         self.ui.tabWidget.currentChanged.connect(self._tab_changed)
@@ -342,6 +352,28 @@ class TokensDialog(QDialog):
         text = self.selected_rows_text()
         if text:
             QApplication.clipboard().setText(text)
+
+    def _show_row_diagnostics(self, index):
+        if not index.isValid():
+            return
+        row = index.row()
+        message = self.model.item(row, TABLE_HEADINGS.index("Action")).text()
+        if not message:
+            return
+        line = self.model.item(row, 0).text()
+        source = self.model.item(row, 1).text()
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"{self.windowTitle()} — {line}")
+        dialog.resize(780, 360)
+        layout = QVBoxLayout(dialog)
+        text = QPlainTextEdit(dialog)
+        text.setReadOnly(True)
+        text.setPlainText(f"{line}: {source}\n\n{message}")
+        layout.addWidget(text)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+        dialog.exec()
 
     def _show_context_menu(self, position):
         menu = QMenu(self)

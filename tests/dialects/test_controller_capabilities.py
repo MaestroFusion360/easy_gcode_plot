@@ -56,7 +56,7 @@ def test_rejected_flow_never_reaches_fanuc_dispatch(monkeypatch):
 
     monkeypatch.setattr(ProgramRuntime, "dispatch_program_flow", forbidden)
     monkeypatch.setattr(ProgramRuntime, "dispatch_g65", forbidden)
-    for operation in ("M98 P123", "M99", "G65 P123", "G74 X10"):
+    for operation in ("M99", "G65 P123", "G74 X10"):
         result = _sinumerik("G291\n" + operation + "\nG0 X99")
         assert not result.ok and not result.complete
         assert result.diagnostics[0].status == "unsupported"
@@ -80,7 +80,7 @@ def test_macro_b_is_rejected_before_evaluation_or_dispatch(monkeypatch):
 
 
 def test_unknown_native_syntax_cannot_be_partially_executed():
-    for operation in ("TRAORI", "CYCLE800(1,2,3)", "R1=R2+10", "G1 X=R99", "ATRANS X10", "CALL PART"):
+    for operation in ("TRAORI", "CYCLE800(1,2,3)", "R1=R2+10", "G1 X=R99", "ASCALE X2", "CALL PART"):
         result = _sinumerik("G0 X1\n" + operation + "\nG0 X99")
         assert not result.ok and not result.complete
         assert result.diagnostics[0].status == "unsupported"
@@ -103,7 +103,7 @@ def test_iso_modal_cycle_cannot_leak_into_native_coordinates():
 
 
 def test_native_rejects_iso_only_cycles_and_tcp_before_state_changes():
-    for operation in ("G81 X10 Z-2 R1 F100", "G43.4 H1", "G68.2 X10 I0 J0 K0", "T2 M98 P123"):
+    for operation in ("G81 X10 Z-2 R1 F100", "G43.4 H1", "G68.2 X10 I0 J0 K0"):
         result = _sinumerik(operation + "\nG0 X99")
         assert not result.ok and not result.complete
         assert result.diagnostics[0].status == "unsupported"

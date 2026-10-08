@@ -6,8 +6,7 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
 
 [![Build and release](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml)
 
-**Project site:** [English](docs/index.html) · [Русский](docs/ru/index.html)
-See [docs/PUBLISHING.md](docs/PUBLISHING.md) for local preview and GitHub Pages setup.
+**Project site:** [English](https://maestrofusion360.github.io/easy_gcode_plot/) · [Русский](https://maestrofusion360.github.io/easy_gcode_plot/ru/)
 
 <!-- markdownlint-disable MD033 -->
 
@@ -182,6 +181,8 @@ The [GUI sandbox](docs/GUI_SANDBOX.md) runs one isolated four-program regression
 
 Every `.mpf` / `.spf` file is treated as a SINUMERIK container.
 
+Unnamed editor text is detected from executable native commands such as SUPA, CIP, MCALL, CYCLE800 and frame operators. Pasting needs no file save or additional Toolbar selector; comments and quoted strings do not select a dialect. Undo/Redo updates the detection. Named files retain their extension-based source contract.
+
 - Native mode is the default.
 - Standalone `G290` selects native Siemens syntax.
 - Standalone `G291` selects ISO Dialect M.
@@ -196,6 +197,7 @@ MPF/SPF documents retain the selected rotary-kinematics profile. Settings and Op
 Native support currently includes:
 
 - `G0/G1/G2/G3`
+- `CIP` spatial arcs through an intermediate point (`I1/J1/K1`), including G90/G91 and explicit AC/IC intermediate coordinates. Plot and Playback retain analytical circles; EXPANDED conversion uses G1 chords within the configured linearization tolerance. Concurrent rotary motion, active cycles and cutter compensation are rejected.
 - `CR=`
 - plane selection
 - absolute / incremental positioning
@@ -212,7 +214,7 @@ Native support currently includes:
 
 `MSG`, `WORKPIECE`, `G64` and comments do not generate phantom geometry.
 
-CYCLE800 uses Siemens bit-coded axis order, not FANUC Euler ZXZ. Modes 57/54/39/27/30/45, ST200000 (new)/200001 (additive), DIR-1/0/1, quoted TISCH/empty data-set names and numeric/direct R arguments are supported on angled AC/BC tables. DIR selects the principal first-table-joint branch; 0 calculates the frame without indexing. Reset uses `CYCLE800()`, bare `CYCLE800`, or a zero frame with TC="0" (ST200000 or compatibility ST110000). FR0/1/2 are accepted as logical retract requests: OEM machine retract paths are not simulated. FR_I must be empty/zero; DMODE0/1 is supported. Other options and arbitrary OEM data sets reject.
+CYCLE800 uses Siemens bit-coded axis order, not FANUC Euler ZXZ. Modes 57/54/39/27/30/45, ST0/200000 (new), ST1/200001 (additive), DIR-1/0/1, quoted TISCH/empty data-set names and numeric/direct R arguments are supported on angled AC/BC tables. Calls with 14, 15 or 16 arguments are accepted; omitted FR_I/DMODE use their defaults. DIR selects the principal first-table-joint branch; 0 calculates the frame without indexing. Reset uses `CYCLE800()`, bare `CYCLE800`, or a zero frame with TC="0" (ST200000 or compatibility ST110000). FR0/1/2 are accepted as logical retract requests: OEM machine retract paths are not simulated. FR_I must be empty/zero; DMODE0/1 is supported. Other options and arbitrary OEM data sets reject.
 
 ### R parameters
 
@@ -255,7 +257,9 @@ The kernel keeps a single resolved arc with the complete sweep. Rendering, playb
 
 Native XYZ geometry and modal cycles are supported; the GUI/CLI/kernel also accepts the bounded TCP subset below.
 
-GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91. Native extensions such as TRANS/AROT, CUT3DC and FL[] are accepted with unmodeled warnings; their effects are not simulated. GUI profile selection reaches the same kernel and plotting path. Supplied CAM examples reach M30 in regression tests, but unmodeled warnings must be reviewed when interpreting the plotted geometry. Tilted-plane/CYCLE800 reconstruction remains unsupported in EXPANDED export.
+GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91. Native extensions such as CUT3DC and FL[] are accepted with unmodeled warnings; their effects are not simulated. GUI profile selection reaches the same kernel and plotting path. Supplied CAM examples reach M30 in regression tests, but unmodeled warnings must be reviewed when interpreting the plotted geometry. Tilted-plane/CYCLE800 reconstruction remains unsupported in EXPANDED export.
+
+Native programmable `TRANS`/`ATRANS` and `ROT`/`AROT` model translation and rigid spatial rotation before the active WCS. `TRANS` and `ROT` replace the entire programmable frame; either command without arguments resets it. Additive commands compose in the current local axes and retain the existing frame. Frame changes preserve the physical tool position and emit no motion. XYZ rotation uses the Siemens default RPY order Z → Y′ → X″ (MD10600=1); machines configured for Euler order require a different policy and are not covered. `RPL=` rotates in G17/G18/G19 around +Z/+Y/+X. Values accept numbers, direct R references and supported named scalars, with each frame instruction in a separate block. Composition with active CYCLE800/TWP, TCP, polar mode, cycles or cutter compensation is rejected. SCALE/MIRROR and their additive forms are outside this subset. FULL retains frame instructions; EXPANDED bakes the frame into resolved coordinates and linearizes arcs outside the standard output plane within the selected tolerance.
 
 `D0` cancels edge selection; `D1` through `D12` select an edge while retaining
 nominal tool geometry. Edges above D1 report `UNVERIFIED_SINUMERIK_EDGE_OFFSETS`
@@ -653,6 +657,8 @@ Explicit Refresh operations are cancellable.
 ---
 
 ## Development
+
+For landing-page sections, local preview and publishing, see [docs/PUBLISHING.md](docs/PUBLISHING.md).
 
 Install development dependencies and run the standard checks:
 

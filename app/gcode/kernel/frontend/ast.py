@@ -41,6 +41,11 @@ class NativeMillingSyntax:
     ignored_diameter_modes: tuple[str, ...] = ()
     ignored_native_commands: tuple[str, ...] = ()
     incremental_linear: tuple[str, ...] = ()
+    cip: bool = False
+    intermediate_absolute: tuple[str, ...] = ()
+    intermediate_incremental: tuple[str, ...] = ()
+    frame_command: str | None = None
+    frame_values: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

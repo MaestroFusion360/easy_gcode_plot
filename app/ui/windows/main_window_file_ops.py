@@ -56,12 +56,14 @@ def _set_arc_action(owner, arc_type: int) -> None:
 
 
 def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
-    """Apply MPF/SPF document defaults without persisting them as user settings."""
+    """Apply named-container or unnamed-text defaults without persisting settings."""
     dialect = source_dialect_for_path(file_name, source)
+    mode = sinumerik_initial_mode(source) if dialect == SOURCE_DIALECT_SINUMERIK else None
     setattr(owner, "_document_source_dialect", dialect)
+    setattr(owner, "_document_initial_mode", mode)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
-    if dialect == SOURCE_DIALECT_SINUMERIK and sinumerik_initial_mode(source) == SINUMERIK_MODE_SIEMENS:
+    if dialect == SOURCE_DIALECT_SINUMERIK and mode == SINUMERIK_MODE_SIEMENS:
         setattr(owner, "_document_arc_type", 1)
         setattr(owner, "_document_comment_style", SEMICOLON)
     comment_style = getattr(owner, "_document_comment_style")
@@ -72,6 +74,7 @@ def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
 
 def _reset_document_source_mode(owner) -> None:
     setattr(owner, "_document_source_dialect", SOURCE_DIALECT_FANUC)
+    setattr(owner, "_document_initial_mode", None)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
     owner.lexer.set_comment_style(owner.commentStyle)
@@ -529,6 +532,18 @@ class MainWindowFileMixin:
             return
         if self.maybeSave():
             self.loadFile(path)
+
+    def _refresh_unnamed_source_mode(self):
+        if getattr(self, "curFile", ""):
+            return
+        source = self.ui.editor.text()
+        dialect = source_dialect_for_path(None, source)
+        mode = sinumerik_initial_mode(source) if dialect == SOURCE_DIALECT_SINUMERIK else None
+        if (dialect, mode) != (
+            getattr(self, "_document_source_dialect", SOURCE_DIALECT_FANUC),
+            getattr(self, "_document_initial_mode", None),
+        ):
+            _configure_document_source_mode(self, "", source)
 
     def newFile(self):
         """Clear editor contents and reset state for a new document."""

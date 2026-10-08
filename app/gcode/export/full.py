@@ -216,7 +216,7 @@ def _format_source_addresses(body, options):
         code = _normalize_numeric_addresses(fragments[index], options)
         if options.delimiter:
             code = _ADDRESS_BOUNDARY_RE.sub(" ", code)
-        else:
+        elif not re.match(r"(?:TRANS|ATRANS|ROT|AROT)\b", body, re.I):
             code = re.sub(r"(?<=[0-9.\]#])\s+(?=[A-Z](?=[+\-]?(?:\d|\.|#|\[)))", "", code, flags=re.IGNORECASE)
         fragments[index] = code
     return "".join(fragments)

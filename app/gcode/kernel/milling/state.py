@@ -18,6 +18,7 @@ from .twp import TiltedWorkPlane, euler_zxz, solve_table_orientation, supports_t
 
 @dataclass
 class MillState(MachineRuntimeState):
+    cip_mode: bool = False
     sinumerik_840d_sl: bool = True
     native_feed_scale: float = 1.0
     native_programmed_feed: float | None = None

@@ -62,6 +62,43 @@ def test_parser_preserves_string_blanks_r_references_and_ast():
     assert result.ok, result.diagnostics
 
 
+@pytest.mark.parametrize("profile", ["5ax_table_ac_angled", "5ax_table_bc_angled"])
+def test_cimco_classic_14_argument_normal_plane_matches_extended_call(profile):
+    command = 'N22 CYCLE800(0, "", 0, 57, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1)'
+    syntax = parse_sinumerik_program(command).blocks[0].native_syntax
+    assert syntax.kind == "swivel"
+    assert syntax.cycle_args[13:] == ("-1", "", "")
+    classic = native(command + "\nG0 X75.575 Y-73.008 Z72.881\nM30", profile)
+    extended = native(command[:-1] + ",,0)\nG0 X75.575 Y-73.008 Z72.881\nM30", profile)
+    assert classic.ok and classic.complete, classic.diagnostics
+    assert not classic.diagnostics
+    assert classic.motions == extended.motions
+    on = next(event for event in classic.events if event.kind == "TILTED_WORK_PLANE_ON")
+    assert on.twp_origin == (0, 0, 0)
+    assert on.twp_orientation == ((1, 0, 0), (0, 1, 0), (0, 0, 1))
+
+
+def test_classic_swivel_new_and_additive_frames_match_documented_offsets():
+    # Siemens Tool and Mold Making 08/2007, p. 71: ST0=new, ST1=additive.
+    source = 'CYCLE800(0,"",0,57,0,25,0,-15,0,0,0,0,0,-1)\n'
+    source += 'CYCLE800(0,"",1,57,8,0,0,0,-8,0,0,0,0,-1)\nG0 X1 Y2 Z3\nM30'
+    modern = source.replace(",0,57,", ",200000,57,").replace(",1,57,", ",200001,57,")
+    classic, extended = native(source), native(modern)
+    assert classic.ok and classic.complete, classic.diagnostics
+    assert extended.ok and extended.complete, extended.diagnostics
+    assert classic.motions == extended.motions
+    frames = [event for event in classic.events if event.kind == "TILTED_WORK_PLANE_ON"]
+    assert frames[0].twp_origin == (0, 25, 0)
+    assert frames[1].twp_origin == pytest.approx((8, 25, 0))
+
+
+def test_classic_swivel_still_requires_kinematics_and_an_existing_additive_frame():
+    normal = 'CYCLE800(0,"",0,57,0,0,0,0,0,0,0,0,0,-1)'
+    assert native(normal, None).diagnostics[-1].code == "TWP_KINEMATICS_REQUIRED"
+    additive = native(normal.replace(",0,57,", ",1,57,"))
+    assert additive.diagnostics[-1].code == "UNSUPPORTED_SINUMERIK_CYCLE800"
+
+
 def test_post_rotation_offset_and_additive_frame_composition():
     first = cycle(direction=0, after=(0, 10, 0))
     second = cycle(54, (7, 0, 0), (35, -24, 0), st=200001, direction=0)

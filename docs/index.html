@@ -646,6 +646,11 @@ X17.0
                   <td>Absolute / incremental programming</td>
                 </tr>
                 <tr>
+                  <td>G93</td>
+                  <td>Inverse-time feed: 1/F minutes per cutting block. Reprogram positive F on G93/G94/G95 changes;
+                    cycles and cutter compensation are unsupported in G93.</td>
+                </tr>
+                <tr>
                   <td>G94 / G95</td>
                   <td>Feed per minute / feed per revolution</td>
                 </tr>
@@ -670,7 +675,7 @@ X17.0
               <tbody>
                 <tr>
                   <td>M00 / M01</td>
-                  <td>Stop / optional-stop signal</td>
+                  <td>Stop / optional-stop signal; trace execution continues</td>
                 </tr>
                 <tr>
                   <td>M02 / M30</td>
@@ -711,6 +716,10 @@ X17.0
                 <tr>
                   <td>M98 / M99</td>
                   <td>Call / return from subprogram</td>
+                </tr>
+                <tr>
+                  <td>Unknown auxiliary M codes</td>
+                  <td>Non-blocking warnings; motion and known commands in mixed blocks still execute.</td>
                 </tr>
               </tbody>
             </table>
@@ -851,6 +860,11 @@ X17.0
                   </td>
                 </tr>
                 <tr>
+                  <td>Unknown auxiliary M codes</td>
+                  <td>Non-blocking warnings, including mixed motion blocks. M98 is not a FANUC subprogram call here;
+                    M99 remains unsupported. M2/M30 end the program.</td>
+                </tr>
+                <tr>
                   <td>Macro B / ISO-T</td>
                   <td>
                     Macro B program flow and ISO Dialect T are unsupported.
@@ -906,6 +920,11 @@ X17.0
                   </td>
                 </tr>
                 <tr>
+                  <td><code>G93 / G94 / G95</code></td>
+                  <td>Inverse-time / per-minute / per-revolution feed. G93 uses 1/F minutes per cutting motion;
+                    reprogram positive F on mode changes. G93 cycles and cutter compensation are unsupported.</td>
+                </tr>
+                <tr>
                   <td><code>G500</code></td>
                   <td>Modal deactivation of the settable work offset until the next G54–G59 call.
                     Coordinates are rebased without motion. Default: zero G500 and base frame;
@@ -947,8 +966,9 @@ X17.0
                   <td><code>G0 SUPA ... D0</code></td>
                   <td>
                     Nonmodal machine-coordinate positioning;
-                    <code>SUPA Z0</code> means machine zero, independently of
-                    the configured home Z
+                    zero XYZ addresses use the configured G28/SUPA return coordinates
+                    in the application's reference-coordinate model, as FANUC G53 does.
+                    WCS and the rotary frame determine the displayed position
                     <br />Configured A/B/C axes are also supported, including
                     rotary-only blocks. SUPA targets remain absolute under G91.
                   </td>
@@ -1009,9 +1029,31 @@ X17.0
                   <td><code>CYCLE800</code></td>
                   <td>
                     GUI/CLI/kernel static frames: modes 57/54/39/27/30/45,
-                    ST0/200000/200001/220000/220001, DIR-1/0/1; legacy 15-argument
-                    R_DATA setup and active-frame reset supported
+                    ST0/1/200000/200001/220000/220001, DIR-1/0/1; 14/15/16-argument
+                    calls, legacy R_DATA setup and active-frame reset supported
                   </td>
+                </tr>
+                <tr>
+                  <td><code>TRANS / ATRANS / ROT / AROT / RPL=</code></td>
+                  <td>Programmable rigid frames: replacement/reset or composition in local axes, preserving physical
+                    tool position. XYZ rotation uses RPY (MD10600=1); RPL rotates in the active plane. FULL preserves
+                    commands; EXPANDED resolves their geometry. Active TWP/TCP, polar mode, cycles and compensation
+                    cannot be combined with these frames.</td>
+                </tr>
+                <tr>
+                  <td><code>G505–G599 / G601 / G641 / G642 / G645</code></td>
+                  <td>Unverified warnings; controller-specific effects are not simulated.</td>
+                </tr>
+                <tr>
+                  <td>Unknown auxiliary M codes</td>
+                  <td>Non-blocking warnings; motion and known commands in mixed blocks still execute.
+                    M2/M30/M99 retain controller-specific program-flow semantics.</td>
+                </tr>
+                <tr>
+                  <td><code>CIP / I1= / J1= / K1=</code></td>
+                  <td>Spatial circular interpolation through three points, including G90/G91 and AC/IC intermediate
+                    coordinates. Plot/Playback preserve the circle; EXPANDED uses G1 chords within the configured
+                    linearization tolerance. Requires a fixed frame, G40 and no active cycle.</td>
                 </tr>
                 <tr>
                   <td><code>DEF REAL / assignments</code></td>
@@ -1044,6 +1086,16 @@ X17.0
                   <td><code>CYCLE81(RTP,RFP,SDIS,DP)</code></td>
                   <td>The four mandatory arguments are accepted; DPR is optional.</td>
                 </tr>
+                <tr>
+                  <td><code>CYCLE800: 14/15/16 arguments</code></td>
+                  <td>Classic calls may omit FR_I/DMODE; new/additive frames use the common swivel model.
+                    OEM machine configuration and retract paths are not inferred.</td>
+                </tr>
+                <tr>
+                  <td><code>DC(...)</code></td>
+                  <td>Shortest-path absolute approach for configured rotary axes; exactly 180-degree ambiguity
+                    is rejected.</td>
+                </tr>
               </tbody>
             </table>
           </div>
@@ -1058,7 +1110,8 @@ X17.0
           G700/G710 also select feed units and retain the modal numeric F.
           G93 uses 1/F minutes per cutting motion, including rotary TCP motion; F must be positive.
           Reprogram F on G93/G94/G95 changes. G93 cycles and cutter compensation are unsupported.
-          ORI*, TRANS/AROT, FGROUP, FL[], FGREF[], SPOS and CUT3D* are warning-only and unverified. Arbitrary Siemens
+          ORI*, FGROUP, FL[], FGREF[], SPOS and CUT3D* are warning-only and unverified. SCALE/ASCALE and
+          MIRROR/AMIRROR remain unsupported. Arbitrary Siemens
           subprogram
           calls are unsupported. R
           parameters support numeric assignments and direct references;

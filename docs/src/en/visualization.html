@@ -1,0 +1,98 @@
+    <section id="visualization" class="section">
+      <div class="section-heading">
+        <h2>Interface and tools</h2>
+      </div>
+      <article class="story">
+        <figure>
+          <img width="1280" height="720" src="assets/impeller.gif" alt="Toolpath playback and STL models" loading="lazy"
+            decoding="async" />
+        </figure>
+        <div>
+          <h3>Toolpath playback and STL models</h3>
+          <p>
+            Step through tool motions and navigate to the corresponding source
+            line. Load ASCII or binary STL models; position, rotate, copy and
+            section them in the same scene.
+          </p>
+        </div>
+      </article>
+      <article class="story">
+        <figure>
+          <img width="1280" height="720" src="assets/stock_removal.gif" alt="Turning stock removal" loading="lazy"
+            decoding="async" />
+        </figure>
+        <div>
+          <h3>Turning stock removal</h3>
+          <p>
+            Material removal is calculated from tool geometry and the executed
+            toolpath. Supports external, internal and face turning, grooves
+            and thread profiles. Playback can move forward and backward.
+          </p>
+          <p>
+            OD/ID/Face checkboxes filter tracing choices in the tool editor;
+            removal follows physical cutter geometry independently of those filters.
+            Thread inserts use a fixed contour with three 60-degree teeth,
+            scaled only by diameter. External P8 points down; internal P6 points up.
+            The thread-removal profile is calculated separately.
+          </p>
+        </div>
+      </article>
+      <article class="story">
+        <figure>
+          <img width="1280" height="720" src="assets/4ax_table.gif" alt="Rotary axes" loading="lazy" decoding="async" />
+        </figure>
+        <div>
+          <h3>Rotary axes</h3>
+          <p>
+            A/B/C table profiles, indexed 3+2 machining with G68.2/G53.1 and a
+            supported subset of G43.4 TCP motion. The selected kinematics
+            profile determines the displayed toolpath.
+          </p>
+        </div>
+      </article>
+      <div class="feature-grid">
+        <article>
+          <h3>Editor</h3>
+          <p>
+            Syntax highlighting, search and replace, block numbering, block
+            skip, snippets, tool-change navigation and macro variable
+            inspection.
+          </p>
+        </article>
+        <article>
+          <h3>Tool library</h3>
+          <p>
+            Turning and milling tool geometry, a saved SQLite library and a
+            separate tool set for the current program.
+          </p>
+        </article>
+        <article>
+          <h3>Geometry generators</h3>
+          <p>
+            Circular and rectangular hole patterns and pockets with a preview.
+          </p>
+        </article>
+      </div>
+      <div class="workflow" id="export-dialog">
+        <h3>Export Data dialog</h3>
+        <p>The dialog is split into two columns. The left column holds the export type, the target
+          controller, arc output and the expanded output representation (modal feed, decimal places,
+          force decimal and plus sign). The right column holds the program-text wrappers (start/end
+          text and safety line) and the coordinates/formatting block (coordinates, sequence numbers,
+          delimiter and leading zero). Groups are separated visually without titles so the dialog
+          mirrors the export contract directly.</p>
+        <p><strong>EXPANDED EXECUTION</strong> is one universal serializer of the resolved execution.
+          <strong>Target CNC</strong> selects the target syntax and post profile, while every user
+          output option stays available and is honored for FANUC&nbsp;&rarr;&nbsp;FANUC,
+          FANUC&nbsp;&rarr;&nbsp;SINUMERIK ISO, FANUC&nbsp;&rarr;&nbsp;SINUMERIK native and
+          SINUMERIK&nbsp;&rarr;&nbsp;FANUC. Profile defaults apply only to options the user does not
+          set, and the mandatory controller frame (G290/G291) always stays first.</p>
+        <p><strong>Auto (source controller)</strong> is not a separate mode: it automatically selects
+          the post profile matching the source controller and dialect. <strong>Modal Feed</strong>
+          controls whether F is restated when feed and mode are unchanged. <strong>Safety Line</strong>
+          inserts the profile's declared safe restart block after the user start text.</p>
+        <p>The desktop dialog, the single-file <code>export</code> command and
+          <code>batch-export</code> all use the same export contract and conversion code, so CLI and
+          batch output matches the GUI for the same settings.</p>
+      </div>
+    </section>

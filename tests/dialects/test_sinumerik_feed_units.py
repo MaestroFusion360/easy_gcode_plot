@@ -93,8 +93,6 @@ def test_pure_rotary_inverse_time():
         "FGREF[C]=50",
         "FGROUP(X,Y,Z,A,C)",
         "SPOS=90",
-        "TRANS X10 Y20",
-        "AROT Z90",
         "G4 S2",
     ],
 )
@@ -119,6 +117,6 @@ def test_inverse_time_native_export_roundtrip(scale):
 
 
 def test_warning_geometry_cannot_be_converted_to_verified_nc():
-    result = native("TRANS X10\nG1 X1 F100\nM30")
+    result = native("FGROUP(X,Y,Z)\nG1 X1 F100\nM30")
     with pytest.raises(ValueError, match="ignored SINUMERIK"):
         convert_resolved_program(result, "sinumerik_840d")

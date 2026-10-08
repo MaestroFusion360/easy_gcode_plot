@@ -133,7 +133,7 @@ def _append_expanded_motion(
             )
         )
         return
-    if options.arc_mode == 3 and motion.move in (2, 3):
+    if (options.arc_mode == 3 or _spatial_arc_output(motion)) and motion.move in (2, 3):
         for line in _linearized_lines(motion, formatting, index, emit_feed=emit_feed, include_motion=include_motion):
             lines.append(_post_motion_line(line, 1, options, profile))
     else:
@@ -160,6 +160,15 @@ def _map_motion_word(word, options, profile):
     if word.startswith("R"):
         word = profile["format"]["radiusAddress"] + word[1:]
     return word
+
+
+def _spatial_arc_output(motion):
+    standard = {17: (0, 0, 1), 18: (0, 1, 0), 19: (1, 0, 0)}
+    return motion.source_kind == "cip" or (
+        motion.arc is not None
+        and motion.arc.normal is not None
+        and any(abs(a - b) > 1e-9 for a, b in zip(motion.arc.normal, standard[motion.plane], strict=True))
+    )
 
 
 def _post_motion_line(line, move, options, profile):

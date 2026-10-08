@@ -18,6 +18,7 @@ from ..runtime.signals import signals_for_words
 from .cycles.sinumerik import compile_native_cycle
 from .kinematics import TCP_TABLE_PROFILES
 from .sinumerik_feed import native_feed_diagnostic
+from .sinumerik_frame import apply_frame, compile_frame
 from .sinumerik_iso import _diag, _normalize_g_codes
 from .sinumerik_parameters import compile_variables, parameter_value
 from .sinumerik_swivel import apply_swivel, compile_swivel
@@ -34,7 +35,7 @@ def native_operation_code(block):
     if syntax is None or syntax.kind == "hsc_ignored":
         return None
     if syntax.kind != "words":
-        return syntax.kind.upper()
+        return syntax.frame_command or syntax.kind.upper()
     if any(token.letter == "G" and float(token.expr) == 4 for token in block.parsed_words) and any(
         token.letter == "F" for token in block.parsed_words
     ):
@@ -195,6 +196,9 @@ def normalize_native_block(block, evaluated, state):
     syntax = block.native_syntax
     if syntax is None:
         return evaluated, None
+    cip_diagnostic = _cip_diagnostic(block, evaluated, state)
+    if cip_diagnostic is not None:
+        return evaluated, cip_diagnostic
     diagnostic = native_feed_diagnostic(block, evaluated, state)
     if diagnostic is not None:
         return evaluated, diagnostic
@@ -204,6 +208,34 @@ def normalize_native_block(block, evaluated, state):
     if syntax.kind != "words":
         return _normalize_native_declaration(block, evaluated, state)
     return _normalize_native_words(block, evaluated, state)
+
+
+def _cip_diagnostic(block, evaluated, state):
+    syntax, words = block.native_syntax, evaluated.words
+    explicit_move = any(g in (0, 1, 2, 3) for g in evaluated.codes.all_g)
+    active = syntax.cip or (state.cip_mode and not explicit_move)
+    intermediate = any(axis in words for axis in ("I1", "J1", "K1"))
+    if not active and intermediate:
+        return _diag(block, "INVALID_SINUMERIK_CIP", "Intermediate point addresses require CIP interpolation")
+    if not active:
+        return None
+    if intermediate and not any(axis in words for axis in "XYZ"):
+        return _diag(block, "INVALID_SINUMERIK_CIP", "CIP requires a distinct endpoint")
+    incompatible = (
+        state.cutter_comp != 40
+        or state.native_cycle is not None
+        or state.cycle != 80
+        or any(g not in (17, 18, 19, 40, 54, 55, 56, 57, 58, 59, 90, 91, 94, 95) for g in evaluated.codes.all_g)
+        or any(axis in words for axis in ("A", "B", "C", "I", "J", "K", "R", "TURN"))
+        or syntax.supa
+    )
+    if incompatible:
+        return _diag(
+            block, "UNSUPPORTED_SINUMERIK_CIP", "CIP requires a fixed frame, G40 and no cycle or rotary motion"
+        )
+    if (syntax.cip or any(axis in words for axis in "XYZ")) and not intermediate:
+        return _diag(block, "INVALID_SINUMERIK_CIP", "CIP requires a new intermediate point for each arc")
+    return None
 
 
 def _native_tcp_combination_diagnostic(block, evaluated, state):
@@ -335,7 +367,7 @@ def _native_modal_cycle_diagnostic(block, evaluated, state):
 def _normalize_native_declaration(block, evaluated, state):
     if block.native_syntax.kind in ("real_declaration", "named_assignment"):
         return replace(evaluated, native_payload=compile_variables(block.native_syntax, state)), None
-    if block.native_syntax.kind in ("swivel", "cycle"):
+    if block.native_syntax.kind in ("swivel", "cycle", "programmed_frame"):
         return _compile_native_declaration(block, evaluated, state)
     if block.native_syntax.kind == "traori":
         return evaluated, _tcp_declaration_diagnostic(block, state)
@@ -352,7 +384,9 @@ def _normalize_native_declaration(block, evaluated, state):
 
 
 def _compile_native_declaration(block, evaluated, state):
-    compiler = compile_swivel if block.native_syntax.kind == "swivel" else compile_native_cycle
+    compiler = {"swivel": compile_swivel, "cycle": compile_native_cycle, "programmed_frame": compile_frame}[
+        block.native_syntax.kind
+    ]
     try:
         payload = compiler(block.native_syntax, state)
     except SemanticError as error:
@@ -363,9 +397,22 @@ def _compile_native_declaration(block, evaluated, state):
 def _tcp_declaration_diagnostic(block, state):
     if state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES:
         return _diag(block, "TCP_KINEMATICS_REQUIRED", "TRAORI requires a supported angled AC/BC table profile")
-    if state.twp.active or state.cycle != 80 or state.native_cycle is not None or state.cutter_comp != 40:
+    transform_active = (
+        state.transform.rotation_active
+        or state.transform.scaling_active
+        or state.transform.translation != (0.0, 0.0, 0.0)
+    )
+    if (
+        state.twp.active
+        or state.cycle != 80
+        or state.native_cycle is not None
+        or state.cutter_comp != 40
+        or transform_active
+    ):
         return _diag(
-            block, "UNSUPPORTED_TCP_COMPOSITION", "Cancel tilted frames, cycles and cutter compensation before TRAORI"
+            block,
+            "UNSUPPORTED_TCP_COMPOSITION",
+            "Cancel programmed/tilted frames, cycles and cutter compensation before TRAORI",
         )
     return None
 
@@ -386,10 +433,11 @@ def apply_native_declaration(block, evaluated, state, events):
         "unmodeled",
         "compof",
         "main_spindle",
+        "programmed_frame",
     ):
         return False
-    if syntax.kind in ("real_declaration", "named_assignment"):
-        state.siemens_variables = evaluated.native_payload
+    if syntax.kind in ("real_declaration", "named_assignment", "programmed_frame"):
+        _apply_native_data(syntax, evaluated.native_payload, state)
     elif syntax.kind in ("hsc_ignored", "unmodeled", "compof", "main_spindle"):
         pass
     elif syntax.kind in ("swivel", "frame_reset"):
@@ -415,3 +463,10 @@ def apply_native_declaration(block, evaluated, state, events):
     elif syntax.kind != "frame_reset":
         state.native_cycle = evaluated.native_payload
     return True
+
+
+def _apply_native_data(syntax, payload, state):
+    if syntax.kind == "programmed_frame":
+        apply_frame(payload, state)
+    else:
+        state.siemens_variables = payload

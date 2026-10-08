@@ -32,6 +32,12 @@ def _source_diagnostic(block, mode):
     code = strip_comments(block.raw).lstrip("/").strip()
     if mode == "sinumerik_native" and block.native_syntax is not None:
         return None
+    if mode == "sinumerik_native" and re.search(r"\b(?:TRANS|ATRANS|ROT|AROT)\b", code, re.I):
+        return _diag(
+            block,
+            "INVALID_SINUMERIK_FRAME",
+            "Frame instructions require a separate block with unique XYZ scalar values or rotation RPL",
+        )
     if block.flow_node is not None or _MACRO.search(code):
         return unsupported_iso_macro_diagnostic(block)
     if code == "%" or _HEADER.fullmatch(code):
@@ -43,7 +49,7 @@ def _source_diagnostic(block, mode):
 
 def _numeric_diagnostic(block, evaluated, mode, state):
     for code in evaluated.codes.all_m:
-        if code not in COMMON_ISO_M_CODES:
+        if code == 99:
             return _diag(
                 block,
                 "UNSUPPORTED_SINUMERIK_M_CODE",
@@ -93,7 +99,7 @@ def common_iso_fast_block(block, runtime, state, words):
     mode switches and all G/M words stay on the reference execution path.
     A rejection stops the run so Python can emit the authoritative diagnostic.
     """
-    if state.feed_mode == "inverse_time":
+    if state.feed_mode == "inverse_time" or state.cip_mode:
         return False
     if block.native_syntax is not None and (
         block.native_syntax.absolute_center
@@ -137,6 +143,10 @@ def _switch_state_diagnostic(block, state, switch):
         return _diag(block, "UNSUPPORTED_SINUMERIK_MODE", "Cancel tilted-frame/TCP control before G290/G291")
     if switch == 290:
         return _native_state_diagnostic(block, state)
+    if state.transform.spatial_rotation is not None and (
+        state.transform.rotation_active or state.transform.translation != (0.0, 0.0, 0.0)
+    ):
+        return _diag(block, "UNSUPPORTED_SINUMERIK_FRAME_COMPOSITION", "Reset the programmable frame before G291")
     if state.cutter_comp != 40:
         return _diag(block, "UNSUPPORTED_SINUMERIK_ISO_G_CODE", "Cancel native G41/G42 with G40 before G291")
     if state.native_cycle is not None:

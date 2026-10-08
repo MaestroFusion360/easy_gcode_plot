@@ -91,7 +91,6 @@ def test_extended_cam_tapping_has_correct_depth_pitch_and_reversal(title):
         ("Boring", "UNSUPPORTED_SINUMERIK_CYCLE"),
         ("Stop boring", "UNSUPPORTED_SINUMERIK_CYCLE"),
         ("Fine boring", "UNSUPPORTED_SINUMERIK_CYCLE"),
-        ("Back boring", "UNSUPPORTED_SINUMERIK_M_CODE"),
     ],
 )
 def test_unsupported_cam_operations_stop_before_cutting(fixture, extended, title, code):
@@ -101,6 +100,15 @@ def test_unsupported_cam_operations_stop_before_cutting(fixture, extended, title
     assert result.diagnostics[0].code == code
     assert all(motion.move == 0 for motion in result.motions)
     assert not any(event.drilling is not None for event in result.events)
+
+
+@pytest.mark.parametrize("fixture,extended", PROFILES)
+def test_back_boring_auxiliary_m_codes_warn_without_stopping(fixture, extended):
+    result = _native(_section(fixture, "Back boring"), extended)
+    assert result.ok and result.complete
+    assert any(motion.move == 1 for motion in result.motions)
+    assert result.diagnostics
+    assert all(d.code == "UNSUPPORTED_M_CODE" and d.severity == "warning" for d in result.diagnostics)
 
 
 @pytest.mark.parametrize("fixture,extended", PROFILES)

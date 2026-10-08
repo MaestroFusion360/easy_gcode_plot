@@ -72,6 +72,9 @@ def _option_snapshot(window):
         "caret_line": getattr(window, "caretLine", True),
         "caret_line_color": getattr(window, "caretLineColor", "#e8e8ff"),
         "caret_line_dark_color": getattr(window, "caretLineDarkColor", "#2a2d2e"),
+        "editor_rapid_color": getattr(window, "editorRapidColor", "#ff0000"),
+        "editor_linear_color": getattr(window, "editorLinearColor", "#2ecc71"),
+        "editor_circular_color": getattr(window, "editorCircularColor", "#0000ff"),
         "eol_visible": getattr(window, "eolVisible", False),
         "whitespace_visible": getattr(window, "spaceVisible", False),
         "margin_visible": getattr(window, "marginArea", True),
@@ -232,6 +235,9 @@ class OptionsDialog(QDialog):
         self._color_controls = (
             (self.ui.caretLineColorButton, self.ui.caretLineColorEdit),
             (self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit),
+            (self.ui.editorRapidColorButton, self.ui.editorRapidColorEdit),
+            (self.ui.editorLinearColorButton, self.ui.editorLinearColorEdit),
+            (self.ui.editorCircularColorButton, self.ui.editorCircularColorEdit),
             (self.ui.rapidColorButton, self.ui.rapidColorEdit),
             (self.ui.linearColorButton, self.ui.linearColorEdit),
             (self.ui.arcColorButton, self.ui.arcColorEdit),
@@ -258,14 +264,21 @@ class OptionsDialog(QDialog):
         self._rotary_before_show = None
 
     def _configure_caret_line_color(self):
-        self.ui.caretLineColorButton, self.ui.caretLineColorEdit = self._caret_line_color_row(
+        self.ui.caretLineColorButton, self.ui.caretLineColorEdit = self._editor_color_row(
             "caretLineColor", QCoreApplication.translate("OptionsDlg", "Current line (light theme)")
         )
-        self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit = self._caret_line_color_row(
+        self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit = self._editor_color_row(
             "caretLineDarkColor", QCoreApplication.translate("OptionsDlg", "Current line (dark theme)")
         )
+        self.ui.editorRapidColorButton, self.ui.editorRapidColorEdit = self._editor_color_row("editorRapidColor", "G0")
+        self.ui.editorLinearColorButton, self.ui.editorLinearColorEdit = self._editor_color_row(
+            "editorLinearColor", "G1"
+        )
+        self.ui.editorCircularColorButton, self.ui.editorCircularColorEdit = self._editor_color_row(
+            "editorCircularColor", "G2 / G3"
+        )
 
-    def _caret_line_color_row(self, name, label):
+    def _editor_color_row(self, name, label):
         button = QPushButton(self.ui.editorColorsGroup)
         button.setObjectName(name + "Button")
         edit = QLineEdit(self.ui.editorColorsGroup)
@@ -406,6 +419,8 @@ class OptionsDialog(QDialog):
     def _load_plot_values(self, window):
         """Populate plot appearance and playback controls."""
         self._reload_rotary_kinematics_combo(getattr(window, "rotaryKinematics", None))
+        for attribute in theme.EDITOR_MOVE_COLOR_ATTRIBUTES.values():
+            getattr(self.ui, attribute + "Edit").setText(getattr(window, attribute))
         self.ui.rapidColorEdit.setText(getattr(window, "plotRapidColor", "#d02020"))
         self.ui.linearColorEdit.setText(window.plotLineColor)
         self.ui.arcColorEdit.setText(getattr(window, "plotArcColor", "#008000"))
@@ -573,7 +588,7 @@ class OptionsDialog(QDialog):
             self.ui.backgroundColorEdit,
             self.ui.stlColorEdit,
         )
-        if not self._valid_colors((*color_edits, self.ui.caretLineColorEdit, self.ui.caretLineDarkColorEdit)):
+        if not self._valid_colors(tuple(edit for _, edit in self._color_controls)):
             return
         if not self._apply_hotkeys(window):
             return
@@ -598,6 +613,7 @@ class OptionsDialog(QDialog):
         window.caretLine = self.ui.caretLineCheck.isChecked()
         window.caretLineColor = self.ui.caretLineColorEdit.text()
         window.caretLineDarkColor = self.ui.caretLineDarkColorEdit.text()
+        self._apply_editor_motion_colors(window)
         window.eolVisible = self.ui.eolCheck.isChecked()
         window.spaceVisible = self.ui.whitespaceCheck.isChecked()
         window.marginArea = self.ui.marginCheck.isChecked()
@@ -726,6 +742,12 @@ class OptionsDialog(QDialog):
         if color.isValid():
             target.setText(color.name())
 
+    def _apply_editor_motion_colors(self, window):
+        for key, attribute in theme.EDITOR_MOVE_COLOR_ATTRIBUTES.items():
+            value = getattr(self.ui, attribute + "Edit").text()
+            setattr(window, attribute, theme.themed_editor_move_value(value, key, window.uiTheme))
+        window._apply_editor_theme()
+
     def restore_defaults(self):
         LOGGER.debug("options_restore_defaults_requested")
         self.ui.sinumerik840dSlCheck.setChecked(True)
@@ -751,6 +773,8 @@ class OptionsDialog(QDialog):
         self.ui.caretLineCheck.setChecked(True)
         self.ui.caretLineColorEdit.setText("#e8e8ff")
         self.ui.caretLineDarkColorEdit.setText("#2a2d2e")
+        for key, attribute in theme.EDITOR_MOVE_COLOR_ATTRIBUTES.items():
+            getattr(self.ui, attribute + "Edit").setText(theme.editor_colors("light")[key])
         self.ui.eolCheck.setChecked(False)
         self.ui.whitespaceCheck.setChecked(False)
         self.ui.marginCheck.setChecked(True)

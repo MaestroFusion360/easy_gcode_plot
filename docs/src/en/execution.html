@@ -1,0 +1,30 @@
+    <section id="execution" class="section">
+      <div class="section-heading">
+        <h2>Toolpath calculation</h2>
+      </div>
+      <div class="prose">
+        <p>
+          The frontend builds Program/AST once. Tool setup uses that same model
+          to classify operations, look up saved tools by T number and retain
+          manual program overrides. The Cython/Python source scanner supplies
+          literal tool candidates, comments and dimensions. The kernel then
+          evaluates flow, variables, cycles, coordinate
+          systems and tool compensation. The resulting moves are used by the
+          3D view, playback, statistics and export. The desktop interface and
+          CLI use the same calculation kernel.
+        </p>
+        <p>
+          Native SINUMERIK CYCLE81–83 select drill defaults and CYCLE84 selects
+          a tap through controller AST facts, including modal MCALL and its
+          cancellation. Matching saved-library tools supply their actual geometry
+          before defaults are used. A found or default tool does not guarantee
+          verified compensation: G41/G42 can still produce UNVERIFIED diagnostics.
+        </p>
+        <p>
+          When an unsupported command affects the tool position, the kernel
+          reports a diagnostic and marks the result as incomplete. The
+          application models toolpath geometry; it does not simulate all
+          physical processes of a CNC machine.
+        </p>
+      </div>
+    </section>

@@ -32,9 +32,9 @@ def _unsupported(message):
 def _validate_options(values, state):
     fr, _, st, mode = values[:4]
     direction, retract, display = values[13:]
-    states = (0, 110000, 200000) if values[1] == "0" else (0, 200000, 200001, 220000, 220001)
+    states = (0, 110000, 200000) if values[1] == "0" else (0, 1, 200000, 200001, 220000, 220001)
     if fr not in (0, 1, 2) or st not in states or display not in (0, 1):
-        _unsupported("CYCLE800 models FR0/1/2, ST200000/200001/220000/220001 and DMODE0/1 only")
+        _unsupported("CYCLE800 models FR0/1/2, ST0/1/200000/200001/220000/220001 and DMODE0/1 only")
     if direction not in (-1, 0, 1) or retract != 0 or mode not in (57, 54, 39, 27, 30, 45):
         _unsupported("CYCLE800 requires an axis-by-axis XYZ permutation, DIR-1/0/1 and no FR_I")
     if state.tcp_control or state.native_cycle is not None or state.cycle != 80 or state.cutter_comp != 40:
@@ -44,7 +44,7 @@ def _validate_options(values, state):
         _unsupported("CYCLE800 composition with programmed transforms is not modeled")
     if values[1] != "0" and (state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES):
         raise SemanticError("TWP_KINEMATICS_REQUIRED", "CYCLE800 requires an angled AC/BC table profile", "unsupported")
-    if st in (200001, 220001) and not state.twp.active:
+    if st in (1, 200001, 220001) and not state.twp.active:
         _unsupported("Additive CYCLE800 requires an active tilted frame")
 
 
@@ -73,7 +73,7 @@ def compile_swivel(syntax, state):
     before = tuple(value * state.unit_scale for value in values[4:7])
     after = transform_vector(matrix, tuple(value * state.unit_scale for value in values[10:13]))
     origin = tuple(before[i] + after[i] for i in range(3))
-    if values[2] in (200001, 220001):
+    if values[2] in (1, 200001, 220001):
         origin = state.twp.apply(origin)
         matrix = _multiply(state.twp.orientation, matrix)
     if not all(math.isfinite(value) for value in origin):

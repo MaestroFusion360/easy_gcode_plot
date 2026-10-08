@@ -44,7 +44,7 @@ def _resolve_oriented_arc(motion, source_arc_type):
 
 
 def resolve_arc(motion, *, source_arc_type=1):
-    if motion.move not in (2, 3):
+    if motion.move not in (2, 3) or motion.arc is not None:
         return motion
     if motion.orientation is not None:
         return _resolve_oriented_arc(motion, source_arc_type)

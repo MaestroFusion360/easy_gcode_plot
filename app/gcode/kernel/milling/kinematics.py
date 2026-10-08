@@ -19,9 +19,18 @@ from typing import Mapping
 
 from app import paths
 
-Vector = tuple[float, float, float]
-Matrix = tuple[Vector, Vector, Vector]
-IDENTITY: Matrix = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0))
+from ..geometry import matrix
+
+# Preserve the established imports while sharing one geometry implementation.
+IDENTITY = matrix.IDENTITY
+Matrix = matrix.Matrix
+Vector = matrix.Vector
+_multiply = matrix.multiply
+_rotation = matrix.rotation
+_transpose = matrix.transpose
+transform_point = matrix.transform_point
+transform_vector = matrix.transform_vector
+
 TCP_TABLE_PROFILES = frozenset({"5ax_table_ac_angled", "5ax_table_bc_angled"})
 CATALOG_PATH = Path(__file__).with_name("rotary_profiles.json")
 LOGGER = logging.getLogger(__name__)
@@ -63,27 +72,6 @@ def kinematics_snapshot(profile: MachineKinematics | None) -> tuple[str | None, 
     return definition, hashlib.sha256(definition.encode("utf-8")).hexdigest()
 
 
-def _multiply(a: Matrix, b: Matrix) -> Matrix:
-    rows = (tuple(sum(a[i][k] * b[k][j] for k in range(3)) for j in range(3)) for i in range(3))
-    return tuple(rows)  # type: ignore[return-value]
-
-
-def _transpose(a: Matrix) -> Matrix:
-    return tuple(tuple(a[j][i] for j in range(3)) for i in range(3))  # type: ignore[return-value]
-
-
-def _rotation(axis: Vector, degrees: float) -> Matrix:
-    x, y, z = axis
-    radians = math.radians(degrees)
-    c, s = math.cos(radians), math.sin(radians)
-    t = 1.0 - c
-    return (
-        (t * x * x + c, t * x * y - s * z, t * x * z + s * y),
-        (t * x * y + s * z, t * y * y + c, t * y * z - s * x),
-        (t * x * z - s * y, t * y * z + s * x, t * z * z + c),
-    )
-
-
 def _branch(joints: tuple[RotaryAxis, ...], angles: dict[str, float]) -> Matrix:
     result = IDENTITY
     for joint in joints:
@@ -102,14 +90,6 @@ def effective_orientation(profile: MachineKinematics, angles: dict[str, float]) 
 def point_orientation(profile: MachineKinematics, angles: dict[str, float]) -> Matrix:
     """Map a machine-frame tool-tip point using the table's signed rotation."""
     return _branch(profile.table_rotary_axes, angles)
-
-
-def transform_vector(orientation: Matrix, vector: Vector) -> Vector:
-    return tuple(sum(row[i] * vector[i] for i in range(3)) for row in orientation)  # type: ignore[return-value]
-
-
-def transform_point(orientation: Matrix, point: Vector) -> Vector:
-    return transform_vector(orientation, point)
 
 
 def _parse_axis(entry: object) -> RotaryAxis:

@@ -143,15 +143,15 @@ def test_supplied_bc_impeller_finishes_without_skipping_cam_header(fixture_text)
     result = native(fixture_text("milling/sinumerik/impeller.mpf"), profile="5ax_table_bc_angled", home_z=300)
     assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
     assert len(result.motions) == 5469
-    assert {d.code for d in result.diagnostics} == {"UNMODELED_SINUMERIK_NATIVE"}
+    assert not result.diagnostics
     assert {motion.tool for motion in result.motions if motion.tool} == {"T60"}
     assert any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events)
     assert any(event.kind == "TCP_CONTROL_ON" for event in result.events)
     assert dict(result.rotary_angles)["B"] == dict(result.rotary_angles)["C"] == 0
 
 
-@pytest.mark.parametrize("command", ["TRANS", "TRANS X10", "AROT Z90", "FGROUP(X,Y,Z)"])
-def test_unmodeled_frame_commands_warn_without_blocking_execution(command):
+@pytest.mark.parametrize("command", ["FGROUP(X,Y,Z)"])
+def test_unmodeled_axis_group_warns_without_blocking_execution(command):
     result = native(f"G0 X1\n{command}\nG1 X2 F100\nM30")
     assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
     assert [motion.end_x for motion in result.motions] == [1, 2]

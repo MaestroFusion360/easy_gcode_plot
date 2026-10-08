@@ -1,0 +1,83 @@
+      <div class="controller-reference">
+        <h3>SINUMERIK 840D ISO-M — G291</h3>
+        <details class="code-table">
+          <summary>SINUMERIK ISO-M</summary>
+          <div class="table-wrap" role="region" aria-label="SINUMERIK ISO-M" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">ISO-M function</th>
+                  <th scope="col">Support and limitations</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>G290 / G291</td>
+                  <td>
+                    Standalone blocks select native / ISO-M mode. MPF/SPF
+                    execution starts in native mode.
+                  </td>
+                </tr>
+                <tr>
+                  <td>XYZ / G90 / G91</td>
+                  <td>
+                    Three-axis positioning, including incremental positioning.
+                    Rotary axes and TCP are unsupported.
+                  </td>
+                </tr>
+                <tr>
+                  <td>G2 / G3 / IJK</td>
+                  <td>
+                    ISO-M and native use incremental IJK centers. Native
+                    I=AC(...), J=AC(...), K=AC(...) explicitly select absolute
+                    centers; G90/G91 controls endpoints.
+                  </td>
+                </tr>
+                <tr>
+                  <td>G54 P1–P48</td>
+                  <td>
+                    Extended work offsets. Source G54.1 and other decimal G
+                    codes are rejected.
+                  </td>
+                </tr>
+                <tr>
+                  <td>G50 / G51</td>
+                  <td>Coordinate scaling; G51 uses P/1000 weighting.</td>
+                </tr>
+                <tr>
+                  <td>G68 / G69</td>
+                  <td>
+                    Standalone 2D rotation with G90, center axes of the active
+                    plane and R. I/J/K, incremental-angle and 3D-vector forms
+                    are rejected.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Cycles and units</td>
+                  <td>
+                    Common integer milling G codes, unit selection, coordinate
+                    systems and selected canned cycles are accepted within the
+                    ISO-M subset.
+                  </td>
+                </tr>
+                <tr>
+                  <td>Unknown auxiliary M codes</td>
+                  <td>Non-blocking warnings, including mixed motion blocks. M98 is not a FANUC subprogram call here;
+                    M99 remains unsupported. M2/M30 end the program.</td>
+                </tr>
+                <tr>
+                  <td>Macro B / ISO-T</td>
+                  <td>
+                    Macro B program flow and ISO Dialect T are unsupported.
+                    Unsupported ISO functions produce diagnostics.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <p class="note">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input">Parameters
+            and limitations in the FAQ →</a>
+        </p>
+      </div>

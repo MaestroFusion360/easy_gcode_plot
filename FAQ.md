@@ -489,7 +489,7 @@ Y-axis motion is not modeled in `fanuc_turn` and produces `UNSUPPORTED_AXIS`.
 
 ### What about unsupported M-codes?
 
-The core tracks modeled program-control and machine signals. Batch/analyze mode additionally reports literal turning M-codes that are not modeled as `UNSUPPORTED_M_CODE` warnings instead of pretending that their machine effect is known.
+The core tracks modeled program-control and machine signals. Unmodeled auxiliary M codes produce non-blocking `UNSUPPORTED_M_CODE` warnings in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. This rule applies to GUI execution and CLI/batch analysis. M2/M30/M99 retain controller-specific program-flow semantics; FANUC M98 retains its modeled subprogram-call behavior.
 
 ### Are conflicting modal codes detected?
 
@@ -1296,6 +1296,7 @@ This table lists the G codes recognized by the `fanuc_mill` kernel. Details and 
 | G85 | Boring cycle with feed return |
 | G86 | Boring cycle with spindle-stop signal |
 | G90 / G91 | Absolute / incremental programming |
+| G93 | Inverse-time feed: each cutting block takes 1/F minutes; reprogram positive F when switching G93/G94/G95. Cycles and cutter compensation are unsupported in G93 |
 | G94 / G95 | Feed per minute / feed per revolution |
 | G98 / G99 | Return to initial / R plane in canned cycles |
 
@@ -1313,7 +1314,7 @@ This table lists the G codes recognized by the `fanuc_mill` kernel. Details and 
 | M29 | Prepare rigid tapping; S on this block sets spindle RPM for the following G84 |
 | M98 / M99 | Call / return from subprogram |
 
-Unknown M codes produce `UNSUPPORTED_M_CODE` warnings. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
+Unknown auxiliary M codes produce `UNSUPPORTED_M_CODE` warnings and let execution continue in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. M0/M1 record machine-stop signals without stopping the trace; M2/M30/M99 retain their controller-specific program-flow semantics. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
 
 `M29 S500` followed by `G84` marks rigid tapping in the trace. With `G95`, `F1.5` is 1.5 mm per revolution in metric mode; with `G94`, the equivalent feed at 500 RPM is `F750` mm/min. `G80` clears the rigid-tapping preparation. M29 syntax and whether it is required depend on the machine configuration. The kernel records synchronization semantics but does not simulate an encoder or spindle acceleration.
 
@@ -1942,7 +1943,7 @@ The kernel avoids fabricating a physical feed rate. A common case is feed-per-re
 
 ### What is the Tokens tab?
 
-Tokens displays parsed/evaluated words, source position, execution status and diagnostics. Suspicious or unsupported rows are highlighted and can be exported to CSV.
+Tokens displays parsed/evaluated words, source position, execution status and diagnostics. Warning rows are orange and error rows are red. Double-click a diagnostic row to read the full source block and message in a dialog; rows without diagnostics do not open it. The table can also be exported to CSV.
 
 ### What is the Macro Variables tab?
 
@@ -2135,9 +2136,17 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `CYCLE83` | Modeled first depth, amount degression, minimum peck depth, chip-breaking/full-retract options and reentry clearance |
 | `CYCLE84` | Single-pass metric right-hand tapping in `G94`: explicit positive `PIT`, `_PITA=0/1`, `SDAC=3`, Z axis and positive `SST` equal to programmed `S`; equal `SST1` or zero/omitted. Feed = pitch × rpm; feed withdrawal to `RFP+SDIS`, rapid return to `RTP`, optional dwell in seconds |
 | `TRAORI` / `TRAFOOF` | GUI/CLI/kernel TCP via the common angled AC/BC table core; G0/G1/G2/G3 with configured numeric A/B/C and R references; incremental IC supported; `DC` selects the shortest absolute rotary approach, while an exactly 180-degree ambiguity is rejected |
-| `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST200000/200001/220000/220001, DIR-1/0/1; legacy 15-argument ST0/R_DATA calls are accepted; active-frame reset via empty/bare call or TC="0" |
+| `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST0/1/200000/200001/220000/220001, DIR-1/0/1; 14/15/16-argument calls and legacy R_DATA setup are accepted; active-frame reset via empty/bare call or TC="0" |
+| `CIP` | Spatial circle through the start, intermediate I1/J1/K1 and end points, independent of G17/G18/G19. G90/G91 and explicit AC/IC intermediate coordinates are supported. Fixed frames and G40 are required; concurrent rotary motion is rejected. Plot/Playback retain the circle; EXPANDED emits G1 chords within the configured linearization tolerance. |
+| `TRANS/ATRANS`, `ROT/AROT`, `RPL=` | Programmable rigid frames: replacement/reset or composition in local axes, preserving physical tool position. Spatial rotation uses RPY (MD10600=1); RPL rotates in the active plane. Combination with active TWP/TCP, polar mode, cycles or cutter compensation is rejected |
+| `G505`–`G599`, `G601/G641/G642/G645` | Parsed with unverified warnings; their controller-specific effects are not simulated |
+| Unknown auxiliary M codes | Non-blocking `UNSUPPORTED_M_CODE` warnings in native and ISO-M; motion and known commands in the same block still execute. M2/M30/M99 retain controller-specific program-flow semantics |
 
-Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf. A .nc or unsaved document uses FANUC syntax and cannot interpret CR= as a native radius address. Native X/Y/Z=IC(...) is incremental independently of G90/G91. MSG() is accepted.
+Unsaved editor text selects native SINUMERIK when executable commands such as SUPA, CIP, MCALL, TRANS or CYCLE800 are present. Comments and quoted strings do not select a dialect; Undo/Redo updates the selection. Named files retain their extension-based source contract.
+
+Programmable `TRANS`/`ATRANS` and `ROT`/`AROT` affect subsequent XYZ geometry relative to the active WCS. `TRANS` and `ROT` replace all programmable frame components; bare `TRANS` or `ROT` resets the frame. `ATRANS` adds a translation in the current local axes; `AROT` adds a local rotation and preserves translation. Changing the frame rebases program coordinates without moving the physical tool. Spatial XYZ angles use the default Siemens RPY order Z → Y′ → X″ (MD10600=1), regardless of address order in the block. Machines configured for Euler order are outside this policy. `RPL=` rotates in the active plane about +Z (G17), +Y (G18) or +X (G19). Each command requires a separate NC block and accepts numeric values, direct R references or supported named scalars; general expressions are not added. Active TWP/CYCLE800, TCP, polar mode, cycles and cutter compensation cannot be combined with these commands. SCALE/ASCALE and MIRROR/AMIRROR remain unsupported. FULL preserves frame commands; EXPANDED resolves their effect into output coordinates and linearizes arcs whose physical plane cannot be represented by the selected standard plane.
+
+Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf, or unnamed text detected by executable native commands. A named .nc document retains FANUC syntax. Native X/Y/Z=IC(...) is incremental independently of G90/G91. MSG() is accepted.
 
 `CYCLE84` accepts the 24-argument CAM call and shortened numeric declarations. Depth uses `DP` or positive relative `DPR` in compatibility mode; explicit absolute-depth `AMODE=2/1001002` requires `DP`. Deep tapping, `MPIT`/thread tables, nonmetric pitch units, spindle orientation/technology options, left-hand tapping and unequal entry/withdrawal speeds are outside this subset and produce diagnostics. Spindle synchronization/reversal is represented by logical signals, without angular spindle simulation. The parameters follow [Siemens section 1.7](https://m3.tuc.gr/EQUIPMENT/CTX310/840D%20G-CODE.pdf); paired fixtures `tapping_sin840d.mpf` / `tapping_fanuc.nc` verify G84 geometry and native trace replay.
 
@@ -2147,7 +2156,7 @@ Numeric R assignments (`R1=500`) and direct references in `F/S/XYZ/IJK=Rn`, `CR=
 
 Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc (IJK or CR, G40, no active MCALL), according to [Siemens](https://support.industry.siemens.com/cs/attachments/104985512/802Dsl_BPF_1006_en.pdf). The trace keeps one analytical arc/helix with the total sweep. Rendering, playback and statistics retain those turns; DXF uses a sampled polyline, and FANUC/ISO exporters split arcs only during serialization. The existing stock material-removal timeline supports turning; this release does not add milling stock removal. Standalone native `G4 F...` uses seconds and leaves modal feed unchanged; spindle-revolution dwell is not modeled.
 
-The GUI/CLI/kernel also supports a bounded TRAORI/TRAFOOF TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured numeric A/B/C assignments and direct R references follow G90/G91; rotary TCP arcs retain analytical Cartesian geometry and orientation endpoints. The GUI preserves rotary selection and executes native AC/BC programs through the same kernel. CYCLE800 builds its own Siemens rotation matrix and uses the common TWP solver/rebasing. FR0/1/2 are logical retract requests, with no OEM retract trajectory; FR_I must be zero/blank and DMODE0/1 is supported. DIR chooses the principal first-table-joint branch. IC(numeric/direct R) is incremental independently of G90/G91. ORI*, TRANS/AROT, FGROUP, FL[], FGREF[], SPOS, CUT3DC/CUT3DF/CUT3DFF and path-control extensions are parsed with unverified warnings; their effects are not simulated. Arbitrary Siemens subprogram calls remain fail-closed. Cancel TCP before G290/G291; active TCP transitions are rejected. Native MCALL and G41/G42 cannot be activated under TCP, and active MCALL must be cancelled before rotary positioning. The bundled multiaxis posts reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset across FANUC and SINUMERIK; tilted-plane/CYCLE800 export remains fail-closed.
+The GUI/CLI/kernel also supports a bounded TRAORI/TRAFOOF TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured numeric A/B/C assignments and direct R references follow G90/G91; rotary TCP arcs retain analytical Cartesian geometry and orientation endpoints. The GUI preserves rotary selection and executes native AC/BC programs through the same kernel. CYCLE800 builds its own Siemens rotation matrix and uses the common TWP solver/rebasing. FR0/1/2 are logical retract requests, with no OEM retract trajectory; FR_I must be zero/blank and DMODE0/1 is supported. DIR chooses the principal first-table-joint branch. IC(numeric/direct R) is incremental independently of G90/G91. ORI*, FGROUP, FL[], FGREF[], SPOS, CUT3DC/CUT3DF/CUT3DFF and path-control extensions are parsed with unverified warnings; their effects are not simulated. Arbitrary Siemens subprogram calls remain fail-closed. Cancel TCP before G290/G291; active TCP transitions are rejected. Native MCALL and G41/G42 cannot be activated under TCP, and active MCALL must be cancelled before rotary positioning. The bundled multiaxis posts reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset across FANUC and SINUMERIK; tilted-plane/CYCLE800 export remains fail-closed.
 
 EXPANDED profiles are tested by re-executing output and comparing geometry, feeds and machine signals. FULL preserves the source dialect.
 
@@ -2169,7 +2178,7 @@ Yes. Choose **EXPANDED EXECUTION** and the target controller. The postprocessor 
 
 ### Can SINUMERIK native milling programs be converted to FANUC?
 
-Yes. Parameters and CYCLE81/82/83/84 have already been executed by the kernel; EXPANDED emits the resulting motions, feeds, dwell and machine signals. Source MCALL and cycle definitions are absent from the output. The three-axis `fanuc_mill` profile rejects rotary/TCP geometry; `fanuc_mill_multiaxis` can reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset. Tilted-plane/CYCLE800 and unverified geometry-changing commands remain rejected.
+Yes. Parameters and CYCLE81/82/83/84 have already been executed by the kernel. EXPANDED reconstructs representable drilling/tapping operations through the target post's cycle templates; other supported operations retain resolved motions, feeds, dwell and machine signals. Source MCALL syntax is replaced by the target controller's cycle syntax. The three-axis `fanuc_mill` profile rejects rotary/TCP geometry; `fanuc_mill_multiaxis` can reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset. Tilted-plane/CYCLE800 and unverified geometry-changing commands remain rejected.
 
 ```powershell
 .\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc

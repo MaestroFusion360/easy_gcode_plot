@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.9.6 - 2026-10-08
+
+- Add the supplied NX `text_NX.mpf` to the fixture corpus. Verify all 571 motions, completion at M30, and unchanged geometry when its five unmodeled auxiliary M codes are removed.
+- Make Editor G0, G1 and G2/G3 lexer colors configurable in Options / Colors, preserving custom values across theme/file-type changes and supporting Cancel and Restore Defaults.
+- Distinguish orange warning rows from red error rows in Tokens/Macro Variables. Open the full source block and diagnostic text on double-click without requiring copy/paste.
+- Split the bilingual landing page into editable HTML fragments with a deterministic assembler and stale-output check. Link README to the published English/Russian site. Synchronize FAQ/site controller tables for inverse-time feed, programmable frames, reference returns and non-blocking M codes; clarify post-template cycle reconstruction.
+- Keep unmodeled auxiliary M codes as non-blocking warnings in FANUC milling/turning and SINUMERIK native/ISO execution, including blocks containing motion or known M codes. Preserve M2/M30/M99 flow semantics and prevent ignored SINUMERIK M98 from invoking FANUC subprogram dispatch. Add trajectory and controller-flow regressions.
+- Execute native SINUMERIK programmable TRANS/ATRANS and ROT/AROT as rigid frames, replacing or composing in local axes and preserving physical tool position without emitting motion. Support XYZ spatial rotations with the documented default RPY order and RPL in G17/G18/G19; retain WCS and fail closed on unsupported composition. Preserve transformed analytical arcs/helices, FULL frame syntax and tolerance-controlled EXPANDED output. Remove unmodeled frame warnings and add independent geometry, reset, parameter, WCS, export and real impeller regressions.
+- Resolve native SINUMERIK CIP spatial arcs through their intermediate point, including G90/G91 and explicit AC/IC point coordinates. Preserve analytical geometry for plot, playback, lengths and bounds; linearize spatial arcs within the configured tolerance for EXPANDED conversion. Verify the CIMCO parallel-arc example and add independent geometry and replay regressions.
+- Detect native SINUMERIK commands in unnamed pasted editor text without saving or adding a Toolbar selector. Ignore comments and quoted strings; follow Undo/Redo and apply native comment/arc defaults without changing persisted preferences.
+- Accept classic 14-argument native SINUMERIK CYCLE800 calls with omitted FR_I/DMODE. Resolve classic ST0/ST1 new/additive frames through the existing swivel model; retain kinematics and composition checks. Add regressions for the CIMCO normal-plane call and documented Siemens classic frames.
+
 ## 1.9.5 - 2026-10-08
 
 - Preserve CRLF in translation sources after PowerShell lupdate generation so the Windows workflow's subsequent lint check passes. Make Play/Pause artwork tests portable by checking public tool-button properties instead of calling a protected Qt method on a C++-created widget.

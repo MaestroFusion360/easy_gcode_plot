@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from .matrix import Matrix, transform_vector, transpose
+
 Point3 = tuple[float, float, float]
 
 
@@ -18,6 +20,7 @@ class CoordinateTransform:
     rotation_plane: int = 17
     scale_center: Point3 = (0.0, 0.0, 0.0)
     scale_factors: Point3 = (1.0, 1.0, 1.0)
+    spatial_rotation: Matrix | None = None
 
     def _rotate(self, point: Point3, degrees: float) -> Point3:
         if abs(degrees) <= 1e-12:
@@ -36,6 +39,9 @@ class CoordinateTransform:
         return values[0], values[1], values[2]
 
     def apply(self, point: Point3) -> Point3:
+        if self.spatial_rotation is not None:
+            rotated = transform_vector(self.spatial_rotation, point)
+            return tuple(rotated[i] + self.translation[i] for i in range(3))
         tx, ty, tz = self.translation
         translated = point[0] + tx, point[1] + ty, point[2] + tz
         rotated = self._rotate(translated, self.rotation_degrees)
@@ -48,6 +54,9 @@ class CoordinateTransform:
         return scaled[0], scaled[1], scaled[2]
 
     def inverse(self, point: Point3) -> Point3:
+        if self.spatial_rotation is not None:
+            shifted = tuple(point[i] - self.translation[i] for i in range(3))
+            return transform_vector(transpose(self.spatial_rotation), shifted)
         unscaled = point
         if any(abs(factor - 1.0) > 1e-12 for factor in self.scale_factors):
             center = self.scale_center
@@ -61,6 +70,8 @@ class CoordinateTransform:
 
     def apply_vector(self, vector: Point3) -> Point3:
         """Apply the transform's linear part to an I/J/K displacement."""
+        if self.spatial_rotation is not None:
+            return transform_vector(self.spatial_rotation, vector)
         first, second = {17: (0, 1), 18: (0, 2), 19: (1, 2)}.get(self.rotation_plane, (0, 1))
         radians = math.radians(self.rotation_degrees)
         cosine = math.cos(radians)
@@ -82,7 +93,7 @@ class CoordinateTransform:
 
 @dataclass
 class TransformState:
-    """Mutable modal G52/G68/G51 state with one authoritative transform builder."""
+    """Modal ISO transforms or a native rigid frame, with one transform builder."""
 
     translation: Point3 = (0.0, 0.0, 0.0)
     rotation_active: bool = False
@@ -92,6 +103,7 @@ class TransformState:
     scaling_active: bool = False
     scale_center: Point3 = (0.0, 0.0, 0.0)
     scale_factors: Point3 = (1.0, 1.0, 1.0)
+    spatial_rotation: Matrix | None = None
 
     def build(self) -> CoordinateTransform:
         return CoordinateTransform(
@@ -101,6 +113,7 @@ class TransformState:
             rotation_plane=self.rotation_plane,
             scale_center=self.scale_center,
             scale_factors=self.scale_factors if self.scaling_active else (1.0, 1.0, 1.0),
+            spatial_rotation=self.spatial_rotation,
         )
 
     def build_without_scaling(self) -> CoordinateTransform:
@@ -109,4 +122,5 @@ class TransformState:
             rotation_center=self.rotation_center,
             rotation_degrees=self.rotation_degrees if self.rotation_active else 0.0,
             rotation_plane=self.rotation_plane,
+            spatial_rotation=self.spatial_rotation,
         )

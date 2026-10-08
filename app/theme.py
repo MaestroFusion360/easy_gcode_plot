@@ -81,6 +81,12 @@ PLOT_COLOR_ATTRIBUTES = {
     "stl": "stlColor",
 }
 
+EDITOR_MOVE_COLOR_ATTRIBUTES = {
+    "rapid": "editorRapidColor",
+    "linear": "editorLinearColor",
+    "circular": "editorCircularColor",
+}
+
 _STATE = {
     "palette": None,
     "style_name": None,
@@ -175,6 +181,14 @@ def editor_colors(theme) -> dict[str, str]:
 def plot_defaults(theme) -> dict[str, str]:
     """Return the standard plot color defaults for *theme*."""
     return dict(PLOT_DEFAULTS[normalize_theme(theme)])
+
+
+def themed_editor_move_value(current, key, theme):
+    """Keep custom motion colors while adapting untouched theme defaults."""
+    known = {_EDITOR_COLORS[name][key].lower() for name in THEMES}
+    if str(current).strip().lower() in known:
+        return _EDITOR_COLORS[normalize_theme(theme)][key]
+    return current
 
 
 def themed_plot_value(current, key: str, theme) -> str:
@@ -284,9 +298,11 @@ def _set_color_scheme(app, target: str) -> bool:
     return hints.colorScheme() == requested
 
 
-def apply_editor_theme(editor, lexer, theme, *, caret_line_color: str | None = None) -> None:
+def apply_editor_theme(editor, lexer, theme, *, caret_line_color: str | None = None, motion_colors=None) -> None:
     """Apply paper, caret, margin, selection, and lexer colors for *theme*."""
     colors = editor_colors(theme)
+    if motion_colors:
+        colors.update(motion_colors)
     paper = QColor(colors["paper"])
     editor.setPaper(paper)
     editor.setColor(QColor(colors["default_text"]))

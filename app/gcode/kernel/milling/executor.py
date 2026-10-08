@@ -11,7 +11,7 @@ from app.native import native_symbol
 from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, MachineSignal, TraceMotion
 from ..frontend.program import EvaluatedWords, parse_program
 from ..frontend.sinumerik import parse_sinumerik_program
-from ..runtime.capabilities import controller_capability_gate
+from ..runtime.capabilities import COMMON_ISO_M_CODES, controller_capability_gate
 from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.diagnostics import modal_conflict_diagnostics
 from ..runtime.events import main_program_location, program_end_code, program_start_event
@@ -161,17 +161,18 @@ def _report_unknown_g_codes(diagnostics, unknown_g, position_words, block) -> No
         )
 
 
-def _report_unknown_m_codes(diagnostics, mcodes, recognized_m, block) -> None:
+def _report_unknown_m_codes(diagnostics, mcodes, recognized_m, block, controller="fanuc_mill") -> None:
     for m in mcodes:
         if m not in recognized_m:
             diagnostics.append(
                 Diagnostic(
                     "UNSUPPORTED_M_CODE",
-                    f"M{m} is not modeled for fanuc_mill; ignored for trace execution",
+                    f"M{m:g} is not modeled for {controller}; ignored for trace execution",
                     "warning",
                     "unverified",
                     block.index + 1,
                     block.raw,
+                    cnc_codes=(f"M{m:g}",),
                 )
             )
 
@@ -487,7 +488,15 @@ def _diagnose_unknown_milling_codes(ctx, block, evaluated_block, occurrence_even
     unknown_g = tuple(g for g in codes.all_g if g not in MILLING_RECOGNIZED_G_CODES | native_wcs)
     position_words = any(letter in words for letter in ("X", "Y", "Z", "A", "B", "C"))
     _report_unknown_g_codes(block_diagnostics, unknown_g, position_words, block)
-    _report_unknown_m_codes(block_diagnostics, codes.all_m, MILLING_RECOGNIZED_M_CODES, block)
+    controller = ctx.runtime.controller_mode
+    recognized_m = MILLING_RECOGNIZED_M_CODES if controller == "fanuc" else COMMON_ISO_M_CODES
+    _report_unknown_m_codes(
+        block_diagnostics,
+        codes.all_m,
+        recognized_m,
+        block,
+        "fanuc_mill" if controller == "fanuc" else controller,
+    )
     if not (unknown_g and position_words):
         return None
     _apply_pre_flow_modal_state(
@@ -608,6 +617,10 @@ def _apply_milling_block_state(
         block_index=block.index,
     )
     _apply_native_feed(block, ctx.state, words)
+    if any(g in (0, 1, 2, 3) for g in codes.all_g):
+        ctx.state.cip_mode = False
+    if block.native_syntax is not None and block.native_syntax.cip:
+        ctx.state.cip_mode = True
     apply_native_tcp_edge(block, words, ctx.state)
 
     _append_milling_state_events(
@@ -635,6 +648,12 @@ def _apply_milling_block_state(
 
 def _dispatch_milling_program_flow(ctx, block, evaluated_block, occurrence_events, block_diagnostics):
     codes = evaluated_block.codes
+    if ctx.runtime.controller_mode != "fanuc":
+        # M98 is not a modeled SINUMERIK subprogram call. Warn and ignore it,
+        # preserving program-end semantics even when M98 shares an end block.
+        codes = replace(codes, all_m=tuple(code for code in codes.all_m if code != 98), mcode=None)
+        if not any(code in (2, 30, 99) for code in codes.all_m):
+            return None
     program_flow = ctx.runtime.dispatch_program_flow(
         codes=codes,
         words=evaluated_block.words,

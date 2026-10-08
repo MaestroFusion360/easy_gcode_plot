@@ -2,8 +2,13 @@
 
 from __future__ import annotations
 
-from ..api.resources import checkpoint
+from dataclasses import replace
+
+from ..api.resources import SemanticError, checkpoint
 from ..api.types import TraceMotion
+from ..geometry.arcs import resolve_arc
+from ..geometry.matrix import IDENTITY, multiply
+from ..geometry.spatial_arc import through_three_points
 from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.home import reference_return
 from .cycles import execute_milling_cycle
@@ -120,6 +125,8 @@ def _motion(
     source_kind="motion",
     rotary_start_angles=None,
 ) -> TraceMotion | None:
+    if state.cip_mode:
+        return _cip_motion(block, state, words, wcs_offsets, rotary_start_angles)
     end = _xyz(words, state)
     continuous_c = _continuous_c_changed(state, words, rotary_start_angles)
     tcp_rotary = _tcp_rotary_changed(state, words, rotary_start_angles)
@@ -151,7 +158,8 @@ def _motion(
     has_arc_definition = state.move in (2, 3) and any(key in words for key in ("I", "J", "K", "R"))
     if start_m == end_m and not has_arc_definition and not (tcp_rotary or continuous_c):
         return None
-    return TraceMotion(
+    arc_axes = _arc_definition_axes(state, words, absolute_center_axes)
+    motion = TraceMotion(
         move=state.move,
         source_arc_type=state.source_arc_type,
         additional_turns=int(words.get("TURN", 0)),
@@ -163,27 +171,9 @@ def _motion(
         end_z=end_m[2],
         radius=(words.get("R") * state.unit_scale * abs(plane_scales[0]) if "R" in words else None),
         feed=(None if state.move == 0 else state.feed),
-        i=(
-            arc_vector[0]
-            if ((state.kinematics is not None or state.twp.active) and any(a in words for a in ("I", "J", "K")))
-            or "I" in words
-            or "I" in absolute_center_axes
-            else None
-        ),
-        j=(
-            arc_vector[1]
-            if ((state.kinematics is not None or state.twp.active) and any(a in words for a in ("I", "J", "K")))
-            or "J" in words
-            or "J" in absolute_center_axes
-            else None
-        ),
-        k=(
-            arc_vector[2]
-            if ((state.kinematics is not None or state.twp.active) and any(a in words for a in ("I", "J", "K")))
-            or "K" in words
-            or "K" in absolute_center_axes
-            else None
-        ),
+        i=arc_vector[0] if "I" in arc_axes else None,
+        j=arc_vector[1] if "J" in arc_axes else None,
+        k=arc_vector[2] if "K" in arc_axes else None,
         source_block=block.index,
         source_nlabel=block.nlabel,
         source_raw=block.raw,
@@ -216,6 +206,60 @@ def _motion(
             else None
         ),
     )
+    return _resolve_programmable_arc(motion, state, block)
+
+
+def _arc_definition_axes(state, words, absolute_center_axes):
+    axes = set("IJK").intersection(words) | set(absolute_center_axes)
+    if axes and (state.kinematics is not None or state.twp.active or state.transform.spatial_rotation is not None):
+        return set("IJK")
+    return axes
+
+
+def _resolve_programmable_arc(motion, state, block):
+    rotation = state.transform.spatial_rotation
+    if rotation is None or motion.move not in (2, 3):
+        return motion
+    matrix = multiply(motion.orientation or IDENTITY, rotation)
+    translation = _orient_vector(state.transform.translation, state)
+    offset = tuple(motion.orientation_offset[i] + translation[i] for i in range(3))
+    try:
+        resolved = resolve_arc(replace(motion, orientation=matrix, orientation_offset=offset), source_arc_type=1)
+    except SemanticError as error:
+        raise SemanticError(error.code, f"{error} at line {block.index + 1}: {block.raw}", error.status) from error
+    return replace(motion, arc=resolved.arc)
+
+
+def _cip_motion(block, state, words, wcs_offsets, rotary_start_angles):
+    try:
+        return _resolved_cip_motion(block, state, words, wcs_offsets, rotary_start_angles)
+    except SemanticError as error:
+        raise SemanticError(error.code, f"{error} at line {block.index + 1}: {block.raw}", error.status) from error
+
+
+def _resolved_cip_motion(block, state, words, wcs_offsets, rotary_start_angles):
+    syntax = block.native_syntax
+    start = (state.x, state.y, state.z)
+    intermediate = list(start)
+    for index, address in enumerate(("I1", "J1", "K1")):
+        if address not in words:
+            continue
+        absolute = address in syntax.intermediate_absolute or (
+            state.absolute and address not in syntax.intermediate_incremental
+        )
+        intermediate[index] = words[address] * state.unit_scale + (0 if absolute else start[index])
+    local_state = replace(state, cip_mode=False, move=1)
+    motion = _motion(block, local_state, words, wcs_offsets=wcs_offsets, rotary_start_angles=rotary_start_angles)
+    if motion is None:
+        # Three points cannot define a complete circle with identical endpoints.
+        through_three_points(start, intermediate, start)
+    geometry = through_three_points(
+        (motion.start_x, motion.start_y, motion.start_z),
+        _machine(tuple(intermediate), state, wcs_offsets),
+        (motion.end_x, motion.end_y, motion.end_z),
+    )
+    state.x, state.y, state.z = local_state.x, local_state.y, local_state.z
+    return replace(motion, move=3, plane=17, arc=geometry, source_kind="cip")
 
 
 def _machine_coordinate_motion(

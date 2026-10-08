@@ -1,0 +1,426 @@
+      <div class="controller-reference">
+        <h3>FANUC Turning — Type A / Type B</h3>
+        <details class="code-table">
+          <summary>FANUC Turning Type A / Type B</summary>
+          <div class="table-wrap" role="region" aria-label="FANUC Turning Type A / Type B" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Operation</th>
+                  <th scope="col">Type A</th>
+                  <th scope="col">Type B</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>Rapid</td>
+                  <td>G00</td>
+                  <td>G00</td>
+                </tr>
+                <tr>
+                  <td>Linear</td>
+                  <td>G01</td>
+                  <td>G01</td>
+                </tr>
+                <tr>
+                  <td>Arc CW</td>
+                  <td>G02</td>
+                  <td>G02</td>
+                </tr>
+                <tr>
+                  <td>Arc CCW</td>
+                  <td>G03</td>
+                  <td>G03</td>
+                </tr>
+                <tr>
+                  <td>Dwell</td>
+                  <td>G04</td>
+                  <td>G04</td>
+                </tr>
+                <tr>
+                  <td>Thread cutting</td>
+                  <td>G32</td>
+                  <td>G33</td>
+                </tr>
+                <tr>
+                  <td>Coordinate system / spindle clamp</td>
+                  <td>G50</td>
+                  <td>G92</td>
+                </tr>
+                <tr>
+                  <td>Finish cycle</td>
+                  <td>G70</td>
+                  <td>G70</td>
+                </tr>
+                <tr>
+                  <td>Rough turning</td>
+                  <td>G71</td>
+                  <td>G71</td>
+                </tr>
+                <tr>
+                  <td>Rough facing</td>
+                  <td>G72</td>
+                  <td>G72</td>
+                </tr>
+                <tr>
+                  <td>Pattern repeating</td>
+                  <td>G73</td>
+                  <td>G73</td>
+                </tr>
+                <tr>
+                  <td>Face peck drilling</td>
+                  <td>G74</td>
+                  <td>G74</td>
+                </tr>
+                <tr>
+                  <td>OD/ID grooving</td>
+                  <td>G75</td>
+                  <td>G75</td>
+                </tr>
+                <tr>
+                  <td>Multiple threading</td>
+                  <td>G76</td>
+                  <td>G76</td>
+                </tr>
+                <tr>
+                  <td>Turning canned cycle</td>
+                  <td>G90</td>
+                  <td>G77</td>
+                </tr>
+                <tr>
+                  <td>Threading canned cycle</td>
+                  <td>G92</td>
+                  <td>G78</td>
+                </tr>
+                <tr>
+                  <td>Facing canned cycle</td>
+                  <td>G94</td>
+                  <td>G79</td>
+                </tr>
+                <tr>
+                  <td>Feed per minute</td>
+                  <td>G98</td>
+                  <td>G94</td>
+                </tr>
+                <tr>
+                  <td>Feed per revolution</td>
+                  <td>G99</td>
+                  <td>G95</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="code-table">
+          <summary>Turning cycles</summary>
+          <div class="table-wrap" role="region" aria-label="Turning cycles" tabindex="0">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Type A</th>
+                  <th scope="col">Type B</th>
+                  <th scope="col">Purpose in the kernel</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>G70</td>
+                  <td>G70</td>
+                  <td>P-Q finishing contour</td>
+                </tr>
+                <tr>
+                  <td>G71</td>
+                  <td>G71</td>
+                  <td>Longitudinal roughing</td>
+                </tr>
+                <tr>
+                  <td>G72</td>
+                  <td>G72</td>
+                  <td>Facing roughing</td>
+                </tr>
+                <tr>
+                  <td>G73</td>
+                  <td>G73</td>
+                  <td>Pattern-repeat roughing</td>
+                </tr>
+                <tr>
+                  <td>G74</td>
+                  <td>G74</td>
+                  <td>Z peck / face grooving</td>
+                </tr>
+                <tr>
+                  <td>G75</td>
+                  <td>G75</td>
+                  <td>X peck / radial grooving</td>
+                </tr>
+                <tr>
+                  <td>G76</td>
+                  <td>G76</td>
+                  <td>Two-line multipass threading</td>
+                </tr>
+                <tr>
+                  <td>G83</td>
+                  <td>G83</td>
+                  <td>Axial peck drilling</td>
+                </tr>
+                <tr>
+                  <td>G84</td>
+                  <td>G84</td>
+                  <td>Axial tapping</td>
+                </tr>
+                <tr>
+                  <td>G90</td>
+                  <td>G77</td>
+                  <td>Modal longitudinal turning cycle</td>
+                </tr>
+                <tr>
+                  <td>G92</td>
+                  <td>G78</td>
+                  <td>Modal threading cycle</td>
+                </tr>
+                <tr>
+                  <td>G94</td>
+                  <td>G79</td>
+                  <td>Modal facing cycle</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <details class="code-table">
+          <summary>Cycle behavior</summary>
+          <div class="table-wrap" role="region" aria-label="Turning cycle behavior" tabindex="0">
+            <table class="cycle-description">
+              <thead>
+                <tr>
+                  <th scope="col">Cycle</th>
+                  <th scope="col">Description</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row"><code>G70</code></th>
+                  <td>
+                    <p>
+                      <code>G70 P... Q...</code> builds the referenced finish
+                      contour and approaches it from the actual G70 call
+                      position.
+                    </p>
+                    <p>
+                      The finish path is based on the nominal P-Q profile, not
+                      the roughing-offset profile used by G71/G72/G73.
+                    </p>
+                    <p>
+                      If tool-nose compensation is active and can be verified,
+                      the finishing contour uses the compensated profile.
+                    </p>
+                    <p>
+                      After the finish group, the cycle returns to the saved
+                      call position using the project's deterministic turning
+                      return order.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G71</code></th>
+                  <td>
+                    <p>The common two-line FANUC form is modeled:</p>
+                    <pre><code class="language-text">G71 U... R...
+G71 P... Q... U... W... F...
+</code></pre>
+                    <p>
+                      The first line captures rough depth and retract. The
+                      second line supplies the P-Q profile, finishing
+                      allowances and feed. After the final contour pass,
+                      retract by R, return along Z, then return X to the cycle start.
+                      Curved contour sections remain analytical arcs through allowance calculation
+                      and Type I pass generation. A configured turning tool's nose radius and
+                      tip orientation are used in roughing; without a tool table, geometry is nominal.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G72</code></th>
+                  <td>
+                    <p>
+                      G72 uses the same P-Q profile infrastructure as G71 but
+                      performs facing roughing in Z planes.
+                    </p>
+                    <p>Typical two-line form:</p>
+                    <pre><code class="language-text">G72 W... R...
+G72 P... Q... U... W... F...
+</code></pre>
+                    <p>
+                      The first line captures axial depth and retract. The
+                      second line references the profile and finishing
+                      allowances.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G73</code></th>
+                  <td>
+                    <p>
+                      G73 is implemented as repeated shifted copies of the
+                      roughing profile.
+                    </p>
+                    <p>
+                      The first line captures the total U/W pattern
+                      displacement and the R pass count. The second line
+                      provides P/Q, finish allowances and feed.
+                    </p>
+                    <p>
+                      The signs of programmed U/W are preserved. The cycle
+                      does not infer displacement direction from where the
+                      tool happened to approach the contour.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G74</code></th>
+                  <td>
+                    <p>
+                      G74 supports Z-direction peck behavior and face-grooving
+                      style repetition.
+                    </p>
+                    <p>
+                      A first block containing R alone can establish the
+                      retract distance. The executing block can use X/U and
+                      Z/W plus P/Q/R/F parameters.
+                    </p>
+                    <p>
+                      If no X target is supplied, G74 can operate as a
+                      drilling-style Z peck at the current X.
+                    </p>
+                    <p>
+                      When X repetition is requested, P controls the X step
+                      and Q controls Z peck depth. The cycle returns to its
+                      saved start using an explicit Z-first return order.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G75</code></th>
+                  <td>
+                    <p>G75 performs X-direction peck/radial grooving.</p>
+                    <p>
+                      P controls the radial peck step. Q can repeat grooves
+                      along Z. If Q is omitted, a programmed Z/W selects one
+                      groove location rather than being treated as an invalid
+                      zero-step repetition.
+                    </p>
+                    <p>
+                      The R value from the setup block controls retract
+                      distance, and the executing-block R value is handled as
+                      the bottom allowance where applicable.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G76</code></th>
+                  <td>
+                    <p>The modeled form is FANUC-style two-line G76:</p>
+                    <pre><code class="language-text">G76 P...... Q... R...
+G76 X... Z... P... Q... R... F...
+</code></pre>
+                    <p>The first block stores:</p>
+                    <ul>
+                      <li>packed P control digits;</li>
+                      <li>minimum radial increment Q;</li>
+                      <li>optional finish allowance R.</li>
+                    </ul>
+                    <p>The second block supplies:</p>
+                    <ul>
+                      <li>final thread X;</li>
+                      <li>final Z;</li>
+                      <li>thread height P;</li>
+                      <li>first cut Q;</li>
+                      <li>optional taper R;</li>
+                      <li>lead F.</li>
+                    </ul>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G83</code></th>
+                  <td>
+                    <p>G83 is an axial Z drilling cycle.</p>
+                    <ul>
+                      <li>If Q is supplied, Z pecks are generated.</li>
+                      <li>
+                        If Q is absent, the kernel does not invent peck depth;
+                        it emits one feed stroke to depth and a rapid return.
+                      </li>
+                      <li>
+                        Optional X positioning is handled before the axial
+                        stroke and restored afterward.
+                      </li>
+                    </ul>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G84</code></th>
+                  <td>
+                    <p>
+                      G84 is an axial tapping cycle. The downstroke and return
+                      are synchronized feed motions; the return is not
+                      represented as a rapid move.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G90</code></th>
+                  <td>
+                    <p>
+                      Yes. G90 establishes a longitudinal rectangular turning
+                      cycle. Subsequent X/U-only blocks can continue the
+                      active cycle at new diameters until cancellation by
+                      another explicit motion/cycle code.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G92</code></th>
+                  <td>
+                    <p>Example:</p>
+                    <pre><code class="language-text">G92 X18 Z-10 F1.5
+X17.5
+X17.0
+</code></pre>
+                    <p>
+                      The initial G92 establishes the thread end and lead.
+                      Subsequent X/U-only blocks continue the active G92 cycle
+                      with new depths until another explicit motion/cycle mode
+                      cancels it.
+                    </p>
+                    <p>
+                      Each pass expands to approach, synchronized longitudinal
+                      cutting, retract and return primitives.
+                    </p>
+                  </td>
+                </tr>
+                <tr>
+                  <th scope="row"><code>G94</code></th>
+                  <td>
+                    <p>
+                      Yes. G94 establishes a facing rectangular cycle.
+                      Subsequent Z/W-only blocks can continue the active cycle
+                      at new face positions until cancellation.
+                    </p>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </details>
+        <p class="note">
+          G71 Type II supports pocketed profiles conservatively. G72 Type II
+          rejects multiple disjoint spans in one facing plane
+          (UNSUPPORTED_G72_TYPE_II_SPANS). G76 supports tool angles 0°, 29°,
+          30°, 55°, 60° and 80°; other angles produce
+          UNSUPPORTED_G76_TOOL_ANGLE.
+        </p>
+        <p class="note">
+          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#turning-cycles">Parameters and
+            limitations in the FAQ →</a>
+        </p>
+      </div>

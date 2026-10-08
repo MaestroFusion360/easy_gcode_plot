@@ -1,0 +1,107 @@
+    <section id="automation" class="section">
+      <div class="section-heading">
+        <h2>Batch analysis and export</h2>
+      </div>
+      <p class="prose">Process a folder in one command instead of opening each program manually. Review diagnostics
+        in a spreadsheet, produce reports for colleagues or export a complete directory tree.</p>
+      <div class="feature-grid">
+        <article>
+          <h3>NC</h3>
+          <p>FULL normalizes source blocks using the execution map and unfolds Macro B, IF/GOTO,
+          subprograms and turning G70–G76 cycles. EXPANDED is one universal serializer of the
+          resolved execution through a configurable JSON controller profile. Every user output
+          option stays available across targets; the profile only supplies syntax and defaults.</p>
+        </article>
+        <article>
+          <h3>DXF</h3>
+          <p>Export resolved toolpath geometry to DXF.</p>
+        </article>
+        <article>
+          <h3>The same kernel without the GUI</h3>
+          <p>
+            Use parse, trace, analyze and export for individual programs. Use batch for directory analysis and
+            batch-export for directory export. Both batch commands reuse the single-file APIs.
+          </p>
+        </article>
+      </div>
+      <div class="workflow" id="dialect-conversion">
+        <h3>Controller postprocessing</h3>
+        <p>Choose <strong>EXPANDED EXECUTION</strong> and the target controller. Kernel geometry and states
+          are emitted through JSON profiles fanuc_mill, fanuc_mill_multiaxis, fanuc_lathe_a, fanuc_lathe_b, sinumerik_iso, sinumerik_840d and sinumerik_840d_multiaxis.
+          <strong>Auto (source controller)</strong> picks the profile matching the source; select an external
+          profile with <code>--post-profile path/to/post.json</code>.</p>
+        <p>Target profiles define syntax, mandatory frames, capabilities and defaults. User formatting options —
+          G90/G91 coordinates, sequence numbers, delimiter, leading zero, modal feed,
+          decimal precision, force decimal, plus sign, arc output and start/end program text — are honored
+          across FANUC and SINUMERIK targets; a profile default is used only when the user does not choose.
+          Cycles and variables are resolved by the kernel; supported drilling and tapping operations use the selected post's cycle templates.
+          Physical coordinates use a zero-offset G54 frame. Three-axis posts reject rotary/TCP geometry;
+          multiaxis posts reconstruct configured indexed A/B/C, verified simultaneous table-C motion and supported angled AC/BC TCP.
+          Tilted-plane/CYCLE800 reconstruction, indexed export about a displaced WCS origin and unverified geometry-changing commands remain unsupported.</p>
+        <p><strong>Options → General → 840D Extended cycles</strong> selects the native cycle interface:
+          checked uses Siemens 03/2009, unchecked uses classic 01/2008. CLI retains
+          <code>--sinumerik-cycles classic|sl</code>; this selection does not enable unsupported cycle operations.</p>
+        <p>The profile's <code>format.words</code> controls frame-word order and mandatory output. Each token
+          (<code>motion</code>, <code>X</code>, <code>Y</code>, <code>Z</code>, <code>A</code>, <code>B</code>,
+          <code>C</code>, <code>I</code>, <code>J</code>, <code>K</code>, <code>R</code>) has an <code>order</code>
+          and a <code>required</code> flag with optional <code>decimals</code>/<code>sign</code>. <code>required</code>
+          forces an address to be emitted when it has a resolved value; <code>motion.required=false</code> makes the
+          motion code modal. An axis entry is only valid when the axis is declared in <code>supports.axes</code>, and
+          <code>F</code> is excluded because feed is controlled by Modal Feed.</p>
+        <p><strong>FULL</strong> preserves the source dialect and ordinary blocks, unfolding only flow-dependent
+          Macro B / IF/GOTO / subprogram constructs and turning G70–G76 when required for safe normalization.
+          <strong>DXF</strong> writes motion geometry independently of NC post formatting.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export fanuc_part.nc --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\sinumerik_iso.json -o iso_part.mpf
+.\easy_gcode_plot_cli.exe export native_part.mpf --lang fanuc_mill --mode expanded --post-profile app\gcode\export\posts\fanuc_mill.json -o fanuc_part.nc</code></pre>
+        <p>Compare generated NC directly with a UTF-8 reference using <code>--compare-with expected.mpf</code>.
+          Exit codes: 0 for a match, 1 for a mismatch with unified diff on stdout, 2 for an error.
+          LF/CRLF differences are ignored; spaces, comments and the final newline are compared. The reference is protected from overwrite.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe export source.nc --lang fanuc_mill --post-profile sinumerik_840d -o actual.mpf --compare-with expected.mpf</code></pre>
+      </div>
+      <div class="workflow" id="batch-analysis">
+        <h3>Analyze a folder and collect reports</h3>
+        <p>Scan programs and subdirectories, collect execution errors and warnings, and generate an HTML statistics
+          report for each file. CSV helps identify programs that need attention; JSON retains the detailed diagnostics.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe batch ".\programs\milling" --lang fanuc_mill &#96;
+  --html ".\reports\html" -o ".\reports"</code></pre>
+        <ul class="workflow-results">
+          <li><code>reports/batch_report.csv</code> — per-file status, counts and diagnostics, ready for a spreadsheet.</li>
+          <li><code>reports/batch_report.json</code> — summary and detailed results for further processing.</li>
+          <li><code>reports/html/…/part.nc.html</code> — one report per program; subdirectories and input suffixes are retained.</li>
+        </ul>
+        <p>Without <code>--lang</code>, analysis selects milling for MPF/SPF and turning for other extensions.
+          For a folder of FANUC milling programs, explicitly use <code>--lang fanuc_mill</code>.</p>
+      </div>
+      <div class="workflow" id="batch-export">
+        <h3>Export a folder while keeping its structure</h3>
+        <p>Apply one export configuration to every program: expanded NC, FULL source normalization or DXF. Results go to a separate directory with the same relative subdirectories.</p>
+        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe batch-export ".\programs\milling" --lang fanuc_mill &#96;
+  --mode expanded -o ".\exported"</code></pre>
+        <p>For DXF toolpaths, add <code>--format dxf</code>. Use <code>--mode full</code> for source-preserving
+          normalization, or <code>--mode expanded --post-profile ...</code> for controller postprocessing.</p>
+        <ul class="workflow-results">
+          <li>Exported NC or DXF files follow the input directory structure.</li>
+          <li><code>batch_export_report.csv</code> and <code>batch_export_report.json</code> record output paths,
+            status, diagnostics and effective export settings.</li>
+          <li>A failed file is reported while processing continues with the remaining files.</li>
+        </ul>
+        <p>The output directory must be outside the input tree. Choose the machine type and supported target for the
+          folder; unsupported conversion is recorded as an error rather than silently changing the program. The four
+          shipped conversion scripts are covered by a semantic regression gate that re-executes successfully exported
+          programs and compares their trajectory signature with the source.</p>
+      </div>
+      <details class="code-table">
+        <summary>Scanning, encodings and rotary profiles</summary>
+        <div class="workflow-options">
+          <p><code>--extensions .nc,.mpf,.spf</code> limits the files processed; <code>--top-level-only</code>
+            disables recursive scanning. Use <code>--encoding cp1251</code> for legacy Cyrillic NC files.</p>
+          <p>Use <code>--kinematics</code> for a shared rotary profile or <code>--kinematics-map profiles.json</code>
+            to assign profiles by input-relative filename. Export uses the same controller and geometry limits as single-file processing.</p>
+          <p>The examples use the Windows CLI executable. On Linux, use <code>./easy_gcode_plot_cli</code> with the same arguments.</p>
+        </div>
+      </details>
+      <p class="note">
+        <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/README.md#cli">CLI commands and examples
+          →</a>
+      </p>
+    </section>

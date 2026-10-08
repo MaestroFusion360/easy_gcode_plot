@@ -69,10 +69,9 @@ def _native_declaration(body):
 
 
 def _native_metadata(body):
-    frame = re.fullmatch(rf"(TRANS|AROT)(?:\s+[XYZABC]\s*=?\s*{_VALUE})*\s*", body, re.I)
     group = re.fullmatch(r"FGROUP\s*\(\s*[XYZABC](?:\s*,\s*[XYZABC])*\s*\)\s*", body, re.I)
-    if frame is not None or group is not None:
-        return NativeMillingSyntax("unmodeled", ignored_native_commands=((frame[1].upper() if frame else "FGROUP"),))
+    if group is not None:
+        return NativeMillingSyntax("unmodeled", ignored_native_commands=("FGROUP",))
     if body.upper() in {"TRAORI", "TRAFOOF", "COMPOF"}:
         return NativeMillingSyntax(body.lower())
     if re.fullmatch(r"TRAORI\s*\(\s*1\s*\)", body, re.I):
@@ -84,7 +83,26 @@ def _native_metadata(body):
             return NativeMillingSyntax("hsc_ignored", cycle_code=832, cycle_args=args)
     if re.fullmatch(r"SETMS\s*\(\s*1\s*\)", body, re.I):
         return NativeMillingSyntax("main_spindle")
-    return None
+    return _programmed_frame_syntax(body)
+
+
+def _programmed_frame_syntax(body):
+    command = re.match(r"(TRANS|ATRANS|ROT|AROT)\b", body, re.I)
+    if command is None:
+        return None
+    values, position = [], command.end()
+    while position < len(body):
+        match = re.match(rf"\s*(RPL\s*=|[XYZ]\s*=?)\s*({_VALUE})", body[position:], re.I)
+        if match is None:
+            return None
+        axis = match[1].replace("=", "").strip().upper()
+        if any(item[0] == axis for item in values):
+            return None
+        values.append((axis, match[2]))
+        position += match.end()
+    if any(axis == "RPL" for axis, _ in values) and (len(values) != 1 or command[1].upper().endswith("TRANS")):
+        return None
+    return NativeMillingSyntax("programmed_frame", frame_command=command[1].upper(), frame_values=tuple(values))
 
 
 def _named_assignments(body):
@@ -109,6 +127,9 @@ def _word_tokens(code):
         "named_tool": None,
         "ignored_diameter_modes": (),
         "ignored_native_commands": (),
+        "cip": False,
+        "intermediate_absolute": (),
+        "intermediate_incremental": (),
     }
     modes = {"IC": [], "DC": [], "AC": []}
     while position < len(code):
@@ -142,6 +163,30 @@ def _word_tokens(code):
 
 
 def _scan_special_word(code, position, tokens, options, modes):
+    spatial = _scan_spatial_word(code, position, tokens, options)
+    return spatial if spatial is not None else _scan_other_special_word(code, position, tokens, options, modes)
+
+
+def _scan_spatial_word(code, position, tokens, options):
+    cip = re.match(r"\s*CIP\b", code[position:], re.I)
+    if cip is not None:
+        valid = not options["cip"]
+        options["cip"] = True
+        return position + cip.end(), valid
+    intermediate = re.match(rf"\s*([IJK]1)\s*=\s*(?:(AC|IC)\s*\(\s*({_VALUE})\s*\)|({_VALUE}))", code[position:], re.I)
+    if intermediate is not None:
+        axis, mode = intermediate[1].upper(), (intermediate[2] or "").upper()
+        if any(token.letter == axis for token in tokens):
+            return position + intermediate.end(), False
+        tokens.append(WordToken(axis, intermediate[3] or intermediate[4]))
+        if mode:
+            key = "intermediate_absolute" if mode == "AC" else "intermediate_incremental"
+            options[key] += (axis,)
+        return position + intermediate.end(), True
+    return None
+
+
+def _scan_other_special_word(code, position, tokens, options, modes):
     ignored = re.match(rf"\s*(FL\[[XYZABC]\]|FGREF\[[XYZABC]\]|SPOS)\s*=\s*({_VALUE})", code[position:], re.I)
     if ignored is not None:
         options["ignored_native_commands"] += (ignored[1].upper(),)
@@ -202,11 +247,11 @@ def _cycle_syntax(body):
 
 def _swivel_syntax(arguments):
     args = tuple(arg.strip() for arg in arguments.split(","))
-    if len(args) not in (15, 16) or not re.fullmatch(r'"[^"\n]{0,32}"', args[1]):
+    if len(args) not in (14, 15, 16) or not re.fullmatch(r'"[^"\n]{0,32}"', args[1]):
         return None
     if any(arg and not re.fullmatch(_VALUE, arg, re.I) for i, arg in enumerate(args) if i != 1):
         return None
-    return NativeMillingSyntax("swivel", cycle_code=800, cycle_args=args if len(args) == 16 else args + ("",))
+    return NativeMillingSyntax("swivel", cycle_code=800, cycle_args=args + ("",) * (16 - len(args)))
 
 
 def parse_sinumerik_program(source):

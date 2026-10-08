@@ -352,6 +352,9 @@ class MainWindowExecutionMixin:
         """Mark the displayed trace stale and debounce a non-blocking editor refresh."""
         if getattr(self, "_loading_document", False):
             return
+        refresh_source = getattr(self, "_refresh_unnamed_source_mode", None)
+        if refresh_source is not None:
+            refresh_source()
         self.autoUpdateTimer.stop()
         if getattr(self, "_stock_animation_active", False):
             self.ui.actionPlay.setChecked(False)

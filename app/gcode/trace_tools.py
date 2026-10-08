@@ -16,6 +16,7 @@ from app.gcode.core import format_gcode_number
 from app.tools.definitions import MILLING_TOOL_LABELS, TURNING_TOOL_LABELS
 
 from .kernel import ExecutionResult, TraceMotion
+from .kernel.geometry.spatial_arc import axial_travel, extreme_points, point_at
 
 _TOOL_LIST_MILLING_LABELS = {
     **MILLING_TOOL_LABELS,
@@ -88,6 +89,8 @@ def _forward_oriented_point(motion: TraceMotion, point: RenderPoint) -> RenderPo
 def _motion_z_min(motion: TraceMotion) -> float:
     """Return the exact minimum Z reached by one resolved motion."""
     minimum = min(motion.start_z, motion.end_z)
+    if motion.arc is not None and motion.arc.normal is not None:
+        return min([minimum, *(point[2] for point in extreme_points(motion))])
     geometry = arc_geometry(motion)
     if geometry is None or motion.plane == 17:
         return minimum
@@ -204,6 +207,18 @@ def sample_motion(
     cancelled=None,
 ) -> list[RenderPoint]:
     _check_cancelled(cancelled)
+    if m.arc is not None and m.arc.normal is not None:
+        count = _arc_sample_count(
+            radius=m.arc.radius,
+            sweep=m.arc.sweep,
+            full_circle=m.arc.full_circle,
+            arc_points_per_circle=arc_points_per_circle,
+            chord_error=chord_error,
+            maximum_circular_radius=maximum_circular_radius,
+            minimum_circular_radius=minimum_circular_radius,
+            minimum_chord_length=minimum_chord_length,
+        )
+        return _sample_spatial_arc(m, motion_index, count, max_points, cancelled)
     if m.orientation is not None and m.move in (2, 3) and m.arc is not None:
         local_points = sample_motion(
             _local_oriented_arc(m),
@@ -258,6 +273,19 @@ def sample_motion(
 
     out[-1] = RenderPoint(m.end_x * scale_x, m.end_y, m.end_z, m.feed, m.source_block, motion_index, m.i, m.j, m.k)
     return out
+
+
+def _sample_spatial_arc(motion, motion_index, count, max_points, cancelled):
+    if max_points is not None and count > max_points:
+        raise RenderLimitExceeded("Trace render point limit exceeded")
+    points = []
+    for index in range(1, count + 1):
+        _check_cancelled_periodically(cancelled, index)
+        xyz = point_at(motion, motion.arc.sweep * index / count)
+        if index == count:
+            xyz = (motion.end_x, motion.end_y, motion.end_z)
+        points.append(RenderPoint(*xyz, motion.feed, motion.source_block, motion_index))
+    return points
 
 
 def render_trace(
@@ -324,6 +352,8 @@ def motion_length(
     their programmed X is diameter-space.
     """
     del lathe_radius_view
+    if m.arc is not None and m.arc.normal is not None:
+        return math.hypot(m.arc.radius * m.arc.sweep, axial_travel(m))
     sx = m.start_x * m.x_scale
     ex = m.end_x * m.x_scale
     if m.move in (2, 3):
@@ -435,6 +465,8 @@ def _motion_timings(motions, rapid_feed: float):
 
 def _arc_extreme_coordinates(m: TraceMotion, display_x_scale: float) -> list[tuple[float, float, float]]:
     """Return circle quadrant extremes lying on one arc, in the caller's display X-space."""
+    if m.arc is not None and m.arc.normal is not None:
+        return [(point[0] * display_x_scale, point[1], point[2]) for point in extreme_points(m)]
     geom = arc_geometry(m)
     if geom is None:
         return []

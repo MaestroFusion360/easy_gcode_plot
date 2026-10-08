@@ -756,6 +756,38 @@ def test_successful_open_remembers_file_directory(qt_app, tmp_path, monkeypatch)
     window.deleteLater()
 
 
+def test_pasted_native_text_selects_dialect_without_saving_and_follows_undo(qt_app):
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    window.latheMode = False
+    window.rotaryKinematics = None
+    window.curFile = ""
+    source = "G90 G0 X1 Y0 Z0\nCIP X-1 I1=0 J1=0.7071067811865476 K1=0.7071067811865476 F100\nM30"
+    try:
+        window.ui.editor.setText("")
+        window.ui.editor.SendScintilla(window.ui.editor.SCI_EMPTYUNDOBUFFER)
+        qt_app.clipboard().setText(source)
+        window.ui.editor.paste()
+        assert window.curFile == ""
+        assert window._document_source_dialect == "sinumerik"
+        assert window._document_comment_style == "semicolon"
+        assert window._document_arc_type == 1
+        window.updateData(show_errors=False)
+        assert window.execution_result.ok and window.execution_result.complete, window.execution_result.diagnostics
+        assert window.execution_result.source_dialect == "sinumerik"
+        assert window.execution_result.motions[-1].source_kind == "cip"
+        window.ui.editor.undo()
+        assert window._document_source_dialect == "fanuc"
+        assert window._document_comment_style is None
+        window.ui.editor.redo()
+        assert window._document_source_dialect == "sinumerik"
+    finally:
+        window.autoUpdateTimer.stop()
+        window.timer.stop()
+        window.deleteLater()
+        qt_app.processEvents()
+
+
 def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, tmp_path, monkeypatch):
     window = main_window.MainWindow()
     window.autoUpdateEnabled = False

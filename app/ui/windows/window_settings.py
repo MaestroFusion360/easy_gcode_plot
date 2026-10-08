@@ -122,6 +122,9 @@ _CNC_SETTINGS = (
 _EDITOR_SETTINGS = (
     _SettingSpec("CARETLINE_COLOR", "caretLineColor", "#e8e8ff", str),
     _SettingSpec("CARETLINE_DARK_COLOR", "caretLineDarkColor", "#2a2d2e", str),
+    _SettingSpec("LEXER_RAPID_COLOR", "editorRapidColor", "#ff0000", str),
+    _SettingSpec("LEXER_LINEAR_COLOR", "editorLinearColor", "#2ecc71", str),
+    _SettingSpec("LEXER_CIRCULAR_COLOR", "editorCircularColor", "#0000ff", str),
     _SettingSpec("ENCODING", "fileEncoding", "utf-8", str),
     _SettingSpec("DEFAULT_FILE_TYPE", "defaultFileType", 0, int),
     _SettingSpec("CARETLINE_VISIBLE", "caretLine", True, bool),
@@ -508,11 +511,20 @@ class MainWindowSettingsMixin:
         stl_panel = getattr(self, "stlObjectsDock", None)
         if stl_panel is not None:
             stl_panel.apply_theme(self.uiTheme)
+        self._apply_editor_theme()
+
+    def _apply_editor_theme(self):
+        colors = {}
+        for key, attribute in theme.EDITOR_MOVE_COLOR_ATTRIBUTES.items():
+            color = theme.themed_editor_move_value(getattr(self, attribute), key, self.uiTheme)
+            setattr(self, attribute, color)
+            colors[key] = color
         theme.apply_editor_theme(
             self.ui.editor,
             getattr(self, "lexer", None),
             self.uiTheme,
             caret_line_color=self.caretLineDarkColor if self.uiTheme == "dark" else self.caretLineColor,
+            motion_colors=colors,
         )
 
     def applyPlotTheme(self):
