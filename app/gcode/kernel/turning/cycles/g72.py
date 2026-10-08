@@ -38,6 +38,8 @@ def _facing_span(cand, stock_x, boring_mode, saw_closed_span, pass_z, limit_z, t
 def _emit_facing_pass(
     motions, tool, cut_start_x, cut_end_x, return_x, pass_z, retract_z, retract_dia, feed, type_ii, crossings
 ):
+    if abs(cut_end_x - cut_start_x) <= 1e-9:
+        return tool
     safe_pt = Point2(cut_start_x, pass_z + retract_z)
     cut_start = Point2(cut_start_x, pass_z)
     cut_end = Point2(cut_end_x, pass_z)

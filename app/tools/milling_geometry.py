@@ -49,6 +49,61 @@ def _stepped_geometry(spec, lengths, tool_type, diameter):
     return {"cuttingHeight": cutting_height, "shankDiameter": min(max(shank_diameter, 0.1), diameter)}
 
 
+def _chamfer_geometry(spec, diameter):
+    try:
+        tip_diameter = float(spec.get("tipDiameter", default_tip_diameter(diameter)))
+        chamfer_angle = float(spec.get("chamferAngle", 90.0))
+    except (TypeError, ValueError):
+        return None
+    if not all(math.isfinite(value) for value in (tip_diameter, chamfer_angle)):
+        return None
+    return {
+        "tipDiameter": min(max(tip_diameter, 0.0), diameter),
+        "chamferAngle": min(max(chamfer_angle, 1.0), 179.0),
+    }
+
+
+def _drill_geometry(spec):
+    try:
+        tip_angle = float(spec.get("tipAngle", default_drill_tip_angle()))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(tip_angle):
+        return None
+    return {"tipAngle": min(max(tip_angle, 1.0), 179.0)}
+
+
+def _taper_ball_geometry(spec):
+    try:
+        taper_angle = float(spec.get("taperAngle", 6.0))
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(taper_angle):
+        return None
+    return {"taperAngle": min(max(taper_angle, 0.1), 89.0)}
+
+
+def _type_specific_geometry(spec, lengths, tool_type, diameter):
+    """Return the fields only one tool family has, or ``None`` when they are invalid."""
+    if tool_type in {"face_mill", "slot_mill"}:
+        return _stepped_geometry(spec, lengths, tool_type, diameter)
+    if tool_type == "chamfer_mill":
+        return _chamfer_geometry(spec, diameter)
+    if tool_type == "drill":
+        return _drill_geometry(spec)
+    if tool_type == "taper_ball_mill":
+        return _taper_ball_geometry(spec)
+    return {}
+
+
+def _resolved_corner_radius(tool_type, corner_radius, radius):
+    if tool_type == "mill_ball":
+        return radius
+    if tool_type == "mill_bull":
+        return min(max(corner_radius, 0.0), radius)
+    return 0.0
+
+
 def milling_geometry(  # pylint: disable=too-many-return-statements
     spec: dict[str, object] | None,
 ) -> dict[str, float | str] | None:
@@ -69,57 +124,16 @@ def milling_geometry(  # pylint: disable=too-many-return-statements
     if diameter <= 0.0:
         return None
 
-    radius = diameter * 0.5
-    if tool_type == "mill_ball":
-        corner_radius = radius
-    elif tool_type == "mill_bull":
-        corner_radius = min(max(corner_radius, 0.0), radius)
-    else:
-        corner_radius = 0.0
-
     result: dict[str, float | str] = {
         "type": tool_type,
         "diameter": diameter,
         **lengths,
-        "cornerRadius": corner_radius,
+        "cornerRadius": _resolved_corner_radius(tool_type, corner_radius, diameter * 0.5),
     }
-
-    if tool_type in {"face_mill", "slot_mill"}:
-        stepped = _stepped_geometry(spec, lengths, tool_type, diameter)
-        if stepped is None:
-            return None
-        result.update(stepped)
-
-    if tool_type == "chamfer_mill":
-        try:
-            tip_diameter = float(spec.get("tipDiameter", default_tip_diameter(diameter)))
-            chamfer_angle = float(spec.get("chamferAngle", 90.0))
-        except (TypeError, ValueError):
-            return None
-        if not all(math.isfinite(value) for value in (tip_diameter, chamfer_angle)):
-            return None
-        tip_diameter = min(max(tip_diameter, 0.0), diameter)
-        chamfer_angle = min(max(chamfer_angle, 1.0), 179.0)
-        result.update(tipDiameter=tip_diameter, chamferAngle=chamfer_angle)
-
-    if tool_type == "drill":
-        try:
-            tip_angle = float(spec.get("tipAngle", default_drill_tip_angle()))
-        except (TypeError, ValueError):
-            return None
-        if not math.isfinite(tip_angle):
-            return None
-        result["tipAngle"] = min(max(tip_angle, 1.0), 179.0)
-
-    if tool_type == "taper_ball_mill":
-        try:
-            taper_angle = float(spec.get("taperAngle", 6.0))
-        except (TypeError, ValueError):
-            return None
-        if not math.isfinite(taper_angle):
-            return None
-        result["taperAngle"] = min(max(taper_angle, 0.1), 89.0)
-
+    extras = _type_specific_geometry(spec, lengths, tool_type, diameter)
+    if extras is None:
+        return None
+    result.update(extras)
     return result
 
 
@@ -166,7 +180,56 @@ def milling_tool_profile(
     return profile
 
 
-def _cutting_tool_profile(geometry):  # pylint: disable=too-many-return-statements
+def _ball_tool_profile(length, radius):
+    profile = [
+        (
+            min(length, radius) * step / 12.0,
+            math.sqrt(max(0.0, radius**2 - (min(length, radius) * step / 12.0 - radius) ** 2)),
+        )
+        for step in range(13)
+    ]
+    if length > radius:
+        profile.append((length, radius))
+    return tuple(profile)
+
+
+def _taper_ball_tool_profile(geometry, length, radius):
+    angle = math.radians(float(geometry["taperAngle"]))
+    tangent_angle = math.pi * 0.5 - angle
+    sphere_end_z = radius * (1.0 - math.cos(tangent_angle))
+    sphere_steps = 16
+    sphere_end = min(length, sphere_end_z)
+    profile = []
+    for step in range(sphere_steps + 1):
+        z_value = sphere_end * step / sphere_steps
+        radial = math.sqrt(max(0.0, radius * radius - (z_value - radius) ** 2))
+        profile.append((z_value, radial))
+    if length > sphere_end_z:
+        cone_radius = radius * math.sin(tangent_angle)
+        cone_height = length - sphere_end_z
+        profile.extend(
+            (sphere_end_z + cone_height * step / 12.0, cone_radius + cone_height * step / 12.0 * math.tan(angle))
+            for step in range(1, 13)
+        )
+    return tuple(profile)
+
+
+def _bull_tool_profile(length, radius, corner_radius):
+    base_radius = radius - corner_radius
+    profile = [
+        (
+            min(length, corner_radius) * step / 12.0,
+            base_radius
+            + math.sqrt(max(0.0, corner_radius**2 - (corner_radius - min(length, corner_radius) * step / 12.0) ** 2)),
+        )
+        for step in range(13)
+    ]
+    if length > corner_radius:
+        profile.append((length, radius))
+    return tuple(profile)
+
+
+def _cutting_tool_profile(geometry):
     """Construct the cutter; explicit body length is appended by the caller."""
 
     tool_type = str(geometry["type"])
@@ -177,58 +240,14 @@ def _cutting_tool_profile(geometry):  # pylint: disable=too-many-return-statemen
 
     if tool_type in {"drill", "tap", "chamfer_mill"}:
         return _axial_tool_profile(geometry, tool_type, length, radius)
-
     if tool_type in {"face_mill", "slot_mill"}:
         return _stepped_tool_profile(geometry, tool_type, length, diameter, radius)
-
     if tool_type == "mill_ball":
-        profile = [
-            (
-                min(length, radius) * step / 12.0,
-                math.sqrt(max(0.0, radius**2 - (min(length, radius) * step / 12.0 - radius) ** 2)),
-            )
-            for step in range(13)
-        ]
-        if length > radius:
-            profile.append((length, radius))
-        return tuple(profile)
-
+        return _ball_tool_profile(length, radius)
     if tool_type == "taper_ball_mill":
-        angle = math.radians(float(geometry["taperAngle"]))
-        tangent_angle = math.pi * 0.5 - angle
-        sphere_end_z = radius * (1.0 - math.cos(tangent_angle))
-        sphere_steps = 16
-        sphere_end = min(length, sphere_end_z)
-        profile = []
-        for step in range(sphere_steps + 1):
-            z_value = sphere_end * step / sphere_steps
-            radial = math.sqrt(max(0.0, radius * radius - (z_value - radius) ** 2))
-            profile.append((z_value, radial))
-        if length > sphere_end_z:
-            cone_radius = radius * math.sin(tangent_angle)
-            cone_height = length - sphere_end_z
-            profile.extend(
-                (sphere_end_z + cone_height * step / 12.0, cone_radius + cone_height * step / 12.0 * math.tan(angle))
-                for step in range(1, 13)
-            )
-        return tuple(profile)
-
+        return _taper_ball_tool_profile(geometry, length, radius)
     if tool_type == "mill_bull" and corner_radius > 0.0:
-        base_radius = radius - corner_radius
-        profile = [
-            (
-                min(length, corner_radius) * step / 12.0,
-                base_radius
-                + math.sqrt(
-                    max(0.0, corner_radius**2 - (corner_radius - min(length, corner_radius) * step / 12.0) ** 2)
-                ),
-            )
-            for step in range(13)
-        ]
-        if length > corner_radius:
-            profile.append((length, radius))
-        return tuple(profile)
-
+        return _bull_tool_profile(length, radius, corner_radius)
     return ((0.0, radius), (length, radius))
 
 

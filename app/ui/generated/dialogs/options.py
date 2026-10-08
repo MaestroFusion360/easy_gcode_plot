@@ -17,10 +17,10 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PyQt6.QtWidgets import (QAbstractButton, QAbstractItemView, QApplication, QCheckBox,
     QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFontComboBox, QFormLayout, QHBoxLayout, QHeaderView,
-    QLabel, QLineEdit, QPushButton, QSizePolicy,
-    QSlider, QSpinBox, QTabWidget, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget)
+    QFontComboBox, QFormLayout, QGroupBox, QHBoxLayout,
+    QHeaderView, QLabel, QLineEdit, QPushButton,
+    QSizePolicy, QSlider, QSpinBox, QTabWidget,
+    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
 
 class Ui_OptionsDlg(object):
     def setupUi(self, OptionsDlg):
@@ -396,21 +396,32 @@ class Ui_OptionsDlg(object):
         self.tabs.addTab(self.plotTab, "")
         self.colorsTab = QWidget()
         self.colorsTab.setObjectName(u"colorsTab")
-        self.colorsForm = QFormLayout(self.colorsTab)
+        self.colorsLayout = QVBoxLayout(self.colorsTab)
+        self.colorsLayout.setObjectName(u"colorsLayout")
+        self.editorColorsGroup = QGroupBox(self.colorsTab)
+        self.editorColorsGroup.setObjectName(u"editorColorsGroup")
+        self.editorColorsForm = QFormLayout(self.editorColorsGroup)
+        self.editorColorsForm.setObjectName(u"editorColorsForm")
+
+        self.colorsLayout.addWidget(self.editorColorsGroup)
+
+        self.plotColorsGroup = QGroupBox(self.colorsTab)
+        self.plotColorsGroup.setObjectName(u"plotColorsGroup")
+        self.colorsForm = QFormLayout(self.plotColorsGroup)
         self.colorsForm.setObjectName(u"colorsForm")
-        self.rapidLabel = QLabel(self.colorsTab)
+        self.rapidLabel = QLabel(self.plotColorsGroup)
         self.rapidLabel.setObjectName(u"rapidLabel")
 
         self.colorsForm.setWidget(0, QFormLayout.ItemRole.LabelRole, self.rapidLabel)
 
         self.rapidColorLayout = QHBoxLayout()
         self.rapidColorLayout.setObjectName(u"rapidColorLayout")
-        self.rapidColorButton = QPushButton(self.colorsTab)
+        self.rapidColorButton = QPushButton(self.plotColorsGroup)
         self.rapidColorButton.setObjectName(u"rapidColorButton")
 
         self.rapidColorLayout.addWidget(self.rapidColorButton)
 
-        self.rapidColorEdit = QLineEdit(self.colorsTab)
+        self.rapidColorEdit = QLineEdit(self.plotColorsGroup)
         self.rapidColorEdit.setObjectName(u"rapidColorEdit")
         self.rapidColorEdit.setMaxLength(7)
 
@@ -419,19 +430,19 @@ class Ui_OptionsDlg(object):
 
         self.colorsForm.setLayout(0, QFormLayout.ItemRole.FieldRole, self.rapidColorLayout)
 
-        self.linearLabel = QLabel(self.colorsTab)
+        self.linearLabel = QLabel(self.plotColorsGroup)
         self.linearLabel.setObjectName(u"linearLabel")
 
         self.colorsForm.setWidget(1, QFormLayout.ItemRole.LabelRole, self.linearLabel)
 
         self.linearColorLayout = QHBoxLayout()
         self.linearColorLayout.setObjectName(u"linearColorLayout")
-        self.linearColorButton = QPushButton(self.colorsTab)
+        self.linearColorButton = QPushButton(self.plotColorsGroup)
         self.linearColorButton.setObjectName(u"linearColorButton")
 
         self.linearColorLayout.addWidget(self.linearColorButton)
 
-        self.linearColorEdit = QLineEdit(self.colorsTab)
+        self.linearColorEdit = QLineEdit(self.plotColorsGroup)
         self.linearColorEdit.setObjectName(u"linearColorEdit")
         self.linearColorEdit.setMaxLength(7)
 
@@ -440,19 +451,19 @@ class Ui_OptionsDlg(object):
 
         self.colorsForm.setLayout(1, QFormLayout.ItemRole.FieldRole, self.linearColorLayout)
 
-        self.arcLabel = QLabel(self.colorsTab)
+        self.arcLabel = QLabel(self.plotColorsGroup)
         self.arcLabel.setObjectName(u"arcLabel")
 
         self.colorsForm.setWidget(2, QFormLayout.ItemRole.LabelRole, self.arcLabel)
 
         self.arcColorLayout = QHBoxLayout()
         self.arcColorLayout.setObjectName(u"arcColorLayout")
-        self.arcColorButton = QPushButton(self.colorsTab)
+        self.arcColorButton = QPushButton(self.plotColorsGroup)
         self.arcColorButton.setObjectName(u"arcColorButton")
 
         self.arcColorLayout.addWidget(self.arcColorButton)
 
-        self.arcColorEdit = QLineEdit(self.colorsTab)
+        self.arcColorEdit = QLineEdit(self.plotColorsGroup)
         self.arcColorEdit.setObjectName(u"arcColorEdit")
         self.arcColorEdit.setMaxLength(7)
 
@@ -461,19 +472,19 @@ class Ui_OptionsDlg(object):
 
         self.colorsForm.setLayout(2, QFormLayout.ItemRole.FieldRole, self.arcColorLayout)
 
-        self.currentLabel = QLabel(self.colorsTab)
+        self.currentLabel = QLabel(self.plotColorsGroup)
         self.currentLabel.setObjectName(u"currentLabel")
 
         self.colorsForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.currentLabel)
 
         self.currentColorLayout = QHBoxLayout()
         self.currentColorLayout.setObjectName(u"currentColorLayout")
-        self.currentColorButton = QPushButton(self.colorsTab)
+        self.currentColorButton = QPushButton(self.plotColorsGroup)
         self.currentColorButton.setObjectName(u"currentColorButton")
 
         self.currentColorLayout.addWidget(self.currentColorButton)
 
-        self.currentColorEdit = QLineEdit(self.colorsTab)
+        self.currentColorEdit = QLineEdit(self.plotColorsGroup)
         self.currentColorEdit.setObjectName(u"currentColorEdit")
         self.currentColorEdit.setMaxLength(7)
 
@@ -482,19 +493,19 @@ class Ui_OptionsDlg(object):
 
         self.colorsForm.setLayout(3, QFormLayout.ItemRole.FieldRole, self.currentColorLayout)
 
-        self.toolColorLabel = QLabel(self.colorsTab)
+        self.toolColorLabel = QLabel(self.plotColorsGroup)
         self.toolColorLabel.setObjectName(u"toolColorLabel")
 
         self.colorsForm.setWidget(4, QFormLayout.ItemRole.LabelRole, self.toolColorLabel)
 
         self.toolColorLayout = QHBoxLayout()
         self.toolColorLayout.setObjectName(u"toolColorLayout")
-        self.toolColorButton = QPushButton(self.colorsTab)
+        self.toolColorButton = QPushButton(self.plotColorsGroup)
         self.toolColorButton.setObjectName(u"toolColorButton")
 
         self.toolColorLayout.addWidget(self.toolColorButton)
 
-        self.toolColorEdit = QLineEdit(self.colorsTab)
+        self.toolColorEdit = QLineEdit(self.plotColorsGroup)
         self.toolColorEdit.setObjectName(u"toolColorEdit")
         self.toolColorEdit.setMaxLength(7)
 
@@ -503,19 +514,19 @@ class Ui_OptionsDlg(object):
 
         self.colorsForm.setLayout(4, QFormLayout.ItemRole.FieldRole, self.toolColorLayout)
 
-        self.backgroundLabel = QLabel(self.colorsTab)
+        self.backgroundLabel = QLabel(self.plotColorsGroup)
         self.backgroundLabel.setObjectName(u"backgroundLabel")
 
         self.colorsForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.backgroundLabel)
 
         self.backgroundColorLayout = QHBoxLayout()
         self.backgroundColorLayout.setObjectName(u"backgroundColorLayout")
-        self.backgroundColorButton = QPushButton(self.colorsTab)
+        self.backgroundColorButton = QPushButton(self.plotColorsGroup)
         self.backgroundColorButton.setObjectName(u"backgroundColorButton")
 
         self.backgroundColorLayout.addWidget(self.backgroundColorButton)
 
-        self.backgroundColorEdit = QLineEdit(self.colorsTab)
+        self.backgroundColorEdit = QLineEdit(self.plotColorsGroup)
         self.backgroundColorEdit.setObjectName(u"backgroundColorEdit")
         self.backgroundColorEdit.setMaxLength(7)
 
@@ -524,19 +535,19 @@ class Ui_OptionsDlg(object):
 
         self.colorsForm.setLayout(5, QFormLayout.ItemRole.FieldRole, self.backgroundColorLayout)
 
-        self.stlColorLabel = QLabel(self.colorsTab)
+        self.stlColorLabel = QLabel(self.plotColorsGroup)
         self.stlColorLabel.setObjectName(u"stlColorLabel")
 
         self.colorsForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.stlColorLabel)
 
         self.stlColorLayout = QHBoxLayout()
         self.stlColorLayout.setObjectName(u"stlColorLayout")
-        self.stlColorButton = QPushButton(self.colorsTab)
+        self.stlColorButton = QPushButton(self.plotColorsGroup)
         self.stlColorButton.setObjectName(u"stlColorButton")
 
         self.stlColorLayout.addWidget(self.stlColorButton)
 
-        self.stlColorEdit = QLineEdit(self.colorsTab)
+        self.stlColorEdit = QLineEdit(self.plotColorsGroup)
         self.stlColorEdit.setObjectName(u"stlColorEdit")
         self.stlColorEdit.setMaxLength(7)
 
@@ -544,6 +555,9 @@ class Ui_OptionsDlg(object):
 
 
         self.colorsForm.setLayout(6, QFormLayout.ItemRole.FieldRole, self.stlColorLayout)
+
+
+        self.colorsLayout.addWidget(self.plotColorsGroup)
 
         self.tabs.addTab(self.colorsTab, "")
         self.hotkeysTab = QWidget()
@@ -672,6 +686,8 @@ class Ui_OptionsDlg(object):
         self.playbackSpeedLabel.setText(QCoreApplication.translate("OptionsDlg", u"Playback speed", None))
         self.playbackSpeedValueLabel.setText(QCoreApplication.translate("OptionsDlg", u"3 \u2014 100 ms/step", None))
         self.tabs.setTabText(self.tabs.indexOf(self.plotTab), QCoreApplication.translate("OptionsDlg", u"Plot", None))
+        self.editorColorsGroup.setTitle(QCoreApplication.translate("OptionsDlg", u"Editor", None))
+        self.plotColorsGroup.setTitle(QCoreApplication.translate("OptionsDlg", u"Plot", None))
         self.rapidLabel.setText(QCoreApplication.translate("OptionsDlg", u"Rapid", None))
         self.rapidColorButton.setText("")
         self.linearLabel.setText(QCoreApplication.translate("OptionsDlg", u"Linear", None))

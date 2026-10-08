@@ -1,4 +1,4 @@
-"""Public facade for the native FANUC CNC kernel."""
+"""Public facade for the shared FANUC/SINUMERIK CNC kernel."""
 
 from __future__ import annotations
 

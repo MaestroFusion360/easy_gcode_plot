@@ -296,7 +296,7 @@
    <addaction name="menuSettings"/>
    <addaction name="menu_Help"/>
   </widget>
-  <widget class="QStatusBar" name="statusbar"/>
+  <widget class="StatusBar" name="statusbar"/>
   <widget class="QToolBar" name="fileToolBar">
    <property name="windowTitle">
     <string>File</string>
@@ -596,7 +596,8 @@
    </property>
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
-     <normaloff>:/resource/icons/play.png</normaloff>:/resource/icons/play.png</iconset>
+     <normaloff>:/resource/icons/play.png</normaloff>
+     <normalon>:/resource/icons/pause.png</normalon>:/resource/icons/play.png</iconset>
    </property>
    <property name="text">
     <string>Play</string>
@@ -955,6 +956,11 @@
   </action>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>StatusBar</class>
+   <extends>QStatusBar</extends>
+   <header>app.ui.support.status_bar</header>
+  </customwidget>
   <customwidget>
    <class>Editor</class>
    <extends>QWidget</extends>

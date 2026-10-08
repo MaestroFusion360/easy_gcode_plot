@@ -15,7 +15,12 @@ from app.gcode.program_execution import execute_program
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
 from app.settings import AUTO_UPDATE_SEGMENTS_MAX, GENERATED_MOTIONS_DEFAULT
 from app.tools.setup import refresh_setup
-from app.ui.plot.playback import build_playback_movements
+from app.ui.plot.playback import (
+    PLAYBACK_ARC_MIN_FRAMES,
+    PLAYBACK_VISUAL_FRAME_MIN_MS,
+    arc_playback_samples,
+    build_playback_movements,
+)
 from app.ui.windows.execution_worker import run_execution
 
 AUTO_REFRESH_MAX_POINTS = AUTO_UPDATE_SEGMENTS_MAX
@@ -148,28 +153,109 @@ class MainWindowExecutionMixin:
         if hasattr(self, "tokensDlg"):
             self.tokensDlg.refresh_macro_variables_if_visible()
 
+    def _clear_playback_visual_state(self):
+        self._playback_visual_samples = ()
+        self._playback_visual_sample_index = 0
+        self._playback_visual_motion_index = None
+
+    def _playback_visual_interval(self):
+        samples = getattr(self, "_playback_visual_samples", ())
+        return max(PLAYBACK_VISUAL_FRAME_MIN_MS, self.speedTimer // max(1, len(samples)))
+
+    def _playback_arc_visuals(self, playback_value):
+        result = self.execution_result
+        movements = getattr(self, "_playback_movements", ())
+        if result is None or not 1 <= playback_value <= len(movements):
+            return None, ()
+        playback = movements[playback_value - 1]
+        if playback.motion_end - playback.motion_start != 1:
+            return None, ()
+        motion_index = playback.motion_start
+        motion = result.motions[motion_index]
+        if motion.move not in (2, 3) or motion.arc is None:
+            return None, ()
+        # A changing tool vector needs orientation interpolation, which logical
+        # playback does not currently model.  Keep those moves atomic rather
+        # than animating the tool with a knowingly wrong orientation.
+        if motion.start_tool_orientation != motion.tool_orientation:
+            return None, ()
+        # Even at maximum speed a circle must visit all quadrants; two samples
+        # reduce a full revolution to a jump along one diameter.
+        max_frames = max(PLAYBACK_ARC_MIN_FRAMES, self.speedTimer // PLAYBACK_VISUAL_FRAME_MIN_MS)
+        samples = arc_playback_samples(motion, motion_index, max_frames=max_frames)
+        if len(samples) < 2:
+            return None, ()
+        return motion_index, samples
+
+    def _start_playback_arc_visual(self, playback_value):
+        motion_index, samples = self._playback_arc_visuals(playback_value)
+        if not samples:
+            return False
+        self._playback_visual_samples = samples
+        self._playback_visual_sample_index = 1
+        self._playback_visual_motion_index = motion_index
+        self.ui.horizontalSlider.setValue(playback_value)
+        self._show_playback_visual_sample(motion_index, samples[0])
+        self.timer.start(self._playback_visual_interval(), self)
+        return True
+
+    def _advance_playback_arc_visual(self):
+        samples = getattr(self, "_playback_visual_samples", ())
+        if not samples:
+            return False
+        index = getattr(self, "_playback_visual_sample_index", 0)
+        if index >= len(samples):
+            self._clear_playback_visual_state()
+            return False
+        motion_index = self._playback_visual_motion_index
+        self._show_playback_visual_sample(motion_index, samples[index])
+        self._playback_visual_sample_index = index + 1
+        self.timer.start(self._playback_visual_interval(), self)
+        return True
+
     def timerEvent(self, event):
-        """Advance playback by logical CNC motion, not editor line."""
+        """Advance playback, visually sampling analytical arcs while Play runs."""
         if event.timerId() != self.timer.timerId():
             return super().timerEvent(event)
+
+        if getattr(self, "_stock_animation_active", False):
+            maximum = self.ui.horizontalSlider.maximum()
+            value = self.ui.horizontalSlider.value()
+            if maximum <= 0 or value >= maximum:
+                LOGGER.debug(
+                    "playback_reached_end value=%d maximum=%d stock_animation=True",
+                    value,
+                    maximum,
+                )
+                self.ui.actionPlay.setChecked(False)
+                self.timer.stop()
+                self._set_playback_program_end(True)
+                return
+            self.ui.horizontalSlider.setValue(value + 1)
+            return
+
+        if self._advance_playback_arc_visual():
+            return
+
         maximum = self.ui.horizontalSlider.maximum()
         value = self.ui.horizontalSlider.value()
         if maximum <= 0 or value >= maximum:
             LOGGER.debug(
-                "playback_reached_end value=%d maximum=%d stock_animation=%s",
+                "playback_reached_end value=%d maximum=%d stock_animation=False",
                 value,
                 maximum,
-                getattr(self, "_stock_animation_active", False),
             )
-            if getattr(self, "_stock_animation_active", False):
-                self.ui.actionPlay.setChecked(False)
-                self.timer.stop()
-            else:
-                self.ui.actionPlay.setChecked(False)
-                self.timer.stop()
+            self.ui.actionPlay.setChecked(False)
+            self.timer.stop()
             self._set_playback_program_end(True)
             return
-        self.ui.horizontalSlider.setValue(value + 1)
+
+        target = value + 1
+        if self._start_playback_arc_visual(target):
+            return
+        self.ui.horizontalSlider.setValue(target)
+        # Restore the configured interval after an arc's visual subframes.
+        self.timer.start(self.speedTimer, self)
 
     def backward(self):
         """Move one logical motion backward."""
@@ -195,8 +281,12 @@ class MainWindowExecutionMixin:
                     self.timer.stop()
                     return
             elif self.ui.horizontalSlider.value() >= self.ui.horizontalSlider.maximum():
+                self._clear_playback_visual_state()
                 self.ui.horizontalSlider.setValue(self.ui.horizontalSlider.minimum())
-            self.timer.start(self.speedTimer, self)
+            interval = (
+                self._playback_visual_interval() if getattr(self, "_playback_visual_samples", ()) else self.speedTimer
+            )
+            self.timer.start(interval, self)
             LOGGER.info(
                 "playback_started lathe=%s stock_animation=%s value=%d maximum=%d interval_ms=%d",
                 self.latheMode,
@@ -223,6 +313,7 @@ class MainWindowExecutionMixin:
         stock_animation = bool(getattr(self, "_stock_animation_active", False))
         self.ui.actionPlay.setChecked(False)
         self.timer.stop()
+        self._clear_playback_visual_state()
         self.step = 0
         if stock_animation:
             maximum = self.ui.horizontalSlider.maximum()
@@ -245,12 +336,14 @@ class MainWindowExecutionMixin:
         if self.ui.actionPlay.isChecked():
             self.ui.actionPlay.setChecked(False)
         self.timer.stop()
+        self._clear_playback_visual_state()
 
     def sliderDrag(self):
         """Synchronize editor cursor with the selected logical motion."""
         if self.ui.actionPlay.isChecked():
             self.timer.stop()
             self.ui.actionPlay.setChecked(False)
+        self._clear_playback_visual_state()
         value = self.ui.horizontalSlider.value()
         if value > 0:
             self._sync_editor_to_motion(self._playback_movements[value - 1].motion_end - 1)
@@ -403,8 +496,8 @@ class MainWindowExecutionMixin:
             self._last_execution_ms,
             len(source),
         )
-        if result.diagnostics and show_errors:
-            self.ui.statusbar.showMessage("; ".join(f"{d.code}: {d.message}" for d in result.diagnostics), 10000)
+        if result.diagnostics and show_errors and hasattr(self, "updateExecutionStatus"):
+            self.updateExecutionStatus(result=result, elapsed_ms=execution_ms)
         return result, points, render_limited
 
     def _execute_editor_source(self, *, show_errors=True):
@@ -626,6 +719,7 @@ class MainWindowExecutionMixin:
         return bool(self._finishDataUpdate(result, points))
 
     def _prepare_playback_metadata(self, result, cancelled):
+        self._clear_playback_visual_state()
         self._playback_movements, self._motion_to_playback = build_playback_movements(result.motions)
         if _cancellation_requested(cancelled):
             return False

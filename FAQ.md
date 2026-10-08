@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, FANUC execution kernel, the supported SINUMERIK native and ISO-M subsets, Macro B runtime, turning and milling cycles, indexed rotary behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC and SINUMERIK native/ISO-M semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -13,6 +13,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What is the authoritative data flow?](#what-is-the-authoritative-data-flow)
     - [Is the OpenGL plot the CNC model?](#is-the-opengl-plot-the-cnc-model)
     - [Is the program a machine simulator?](#is-the-program-a-machine-simulator)
+    - [Can I visualize SINUMERIK CAM five-axis programs?](#can-i-visualize-sinumerik-cam-five-axis-programs)
     - [What does deterministic mean in this project?](#what-does-deterministic-mean-in-this-project)
   - [Getting started](#getting-started)
     - [How do I install it?](#how-do-i-install-it)
@@ -316,7 +317,9 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
 
 ### What is Easy G-Code Plot?
 
-Easy G-Code Plot is a FANUC-style CNC editor, deterministic program executor, analyzer, backplotter and exporter for turning and milling programs.
+Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling and SINUMERIK 840D milling programs. Supported native SINUMERIK input includes CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
+
+Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 using postprocessors for SINUMERIK 840D and FANUC. Coverage applies to the tested commands and configured kinematics described in this FAQ.
 
 The project has two user-facing entry points:
 
@@ -368,9 +371,17 @@ This separation is intentional: the same resolved geometry is used by playback, 
 
 ### Is the program a machine simulator?
 
-No. Easy G-Code Plot models supported FANUC program semantics and toolpath geometry. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
+No. Easy G-Code Plot models supported FANUC turning/milling and SINUMERIK 840D milling program semantics and toolpath geometry, including the supported native SINUMERIK CAM 3+2/five-axis subset. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
 
 A clean result means the modeled program was executed without a known error inside the supported contract. It is not a substitute for machine verification.
+
+### Can I visualize SINUMERIK CAM five-axis programs?
+
+Yes, within the supported native milling subset. `CYCLE800` resolves supported static working frames and 3+2 indexing, while `TRAORI` / `TRAFOOF` resolves supported continuous TCP motion on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured rotary axes, XYZ geometry and resolved tool orientations reach the same GUI, CLI and trace consumers.
+
+Select Milling mode, open the native program as `.mpf` / `.spf`, and choose the matching rotary profile. The supplied `5ax_test.mpf` and `impeller.mpf` CAM examples are covered by execution tests through program completion.
+
+Read diagnostics when checking the plot: some native commands are accepted with `UNMODELED_SINUMERIK_NATIVE` warnings and their effects are not modeled, so completion through `M30` alone does not establish verified geometry. Exact cycle/frame/TCP limits are listed under [SINUMERIK 840D input](#sinumerik-840d-input). EXPANDED export has its own limits; tilted-plane/CYCLE800 reconstruction remains unsupported even where visualization is available.
 
 ### What does deterministic mean in this project?
 
@@ -963,6 +974,8 @@ No. The project does not silently reuse the configured G28 home as a second refe
 ### How does tool-nose compensation work?
 
 G40/G41/G42 state is tracked in turning. When a valid configured turning tool with usable nose geometry is available, the resolved trace can be compensated deterministically.
+
+Tool geometry alone does not activate compensation. G71/G72/G73 profiles use nose compensation only when G41/G42 is explicitly active, including commands within the P-Q contour. Without G41/G42, changing the configured nose radius leaves the programmed trajectory unchanged; the cycle's U/W finishing allowances still apply.
 
 The compensation layer works from executed motions and tool geometry rather than rewriting source text.
 
@@ -1735,6 +1748,10 @@ Top, Front and Left are orthographic views. The ordinary 3D view is perspective.
 
 Playback advances through resolved logical motions from the current `ExecutionResult`. It does not re-parse each source line as the slider moves.
 
+During ordinary trace playback, supported analytical arcs and helices with a fixed tool orientation animate through intermediate cursor and milling-tool positions. This includes full-circle moves repeated by Macro B WHILE loops. The slider remains on one logical-motion step during these visual frames and advances once for the next motion; render quality does not change its range. Even at the fastest speed, circles retain intermediate positions instead of jumping between two opposite points. Turning Stock Removal uses its own playback timeline.
+
+The Play button shows the Pause icon while running. Click it again to pause; stopping or completing playback restores the Play icon.
+
 ### What do Step Backward and Step Forward do?
 
 They move by one logical motion, including generated motions from cycles and Macro B-expanded execution.
@@ -1804,6 +1821,10 @@ An unreadable or invalid UTF-8 legacy snippet is skipped with a log warning; val
 
 ## Options and scene configuration
 
+### Where can I read execution errors and warnings?
+
+The Status Bar shows one compact diagnostic count, such as **Warnings: 2** or **Errors: 1**. Hover over it for the complete messages and affected source-line numbers; **Tokens** also shows execution diagnostics. Equal messages from different source lines remain separate records. **READY**, **UPDATING** and **STALE** indicate calculation state. Long temporary notifications are shortened with an ellipsis within the available space; hover over the Status Bar to read the full notification. Resizing does not extend its timeout.
+
 ### How do I change the interface language?
 
 Open **Settings → Options → General**. In **Language**, choose **English** or **Russian**, then press **OK**. Restart Easy G-Code Plot to apply the language change; the application displays a restart notice. This setting changes the interface language, not the CNC dialect used to execute a program.
@@ -1811,6 +1832,12 @@ Open **Settings → Options → General**. In **Language**, choose **English** o
 ### How do I change the theme?
 
 Open **Settings → Options → General**, select **Light** or **Dark** in **Theme**, and press **OK**. The theme is applied immediately without restarting. Language and theme choices are saved in the application configuration.
+
+### How do I change the current-line highlight color?
+
+Open **Settings → Options → Colors**. The **Editor** group contains separate current-line colors for the light and dark themes: `#e8e8ff` and `#2a2d2e` by default. Click the color swatch for the native color picker or enter `#RRGGBB`, then press **OK**. Both colors are saved independently; changing themes or the editor file type preserves custom values. **Cancel** leaves the saved colors unchanged, and **Restore Defaults** resets both. The **Plot** group contains trajectory, tool, background and STL colors.
+
+Enable or disable the highlight in **Options → Editor → Highlight current line**.
 
 ### Where do I set work coordinate systems and home values?
 

@@ -1,9 +1,9 @@
-# Store text with LF in Git. Use each platform's Git checkout setting
-# (core.autocrlf=true on Windows, false on Linux) for working-tree endings.
-* text=auto
+# Store text with LF in Git and use CRLF in working-tree text files.
+* text=auto eol=crlf
 
 # Shell scripts are executed by Bash in Linux CI and must stay LF.
 *.sh text eol=lf
+*.bash text eol=lf
 
 # Preserve binary assets byte-for-byte.
 *.ico binary

@@ -18,9 +18,10 @@ from PyQt6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QTransform)
 from PyQt6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit,
     QMainWindow, QMenu, QMenuBar, QSizePolicy,
-    QSlider, QSplitter, QStatusBar, QToolBar,
-    QVBoxLayout, QWidget)
+    QSlider, QSplitter, QToolBar, QVBoxLayout,
+    QWidget)
 
+from app.ui.support.status_bar import StatusBar
 from app.ui.support.widgets import (Editor, PlotView)
 
 import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
@@ -121,6 +122,7 @@ class Ui_MainWindow(object):
         self.actionPlay.setCheckable(True)
         icon17 = QIcon()
         icon17.addFile(u":/resource/icons/play.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        icon17.addFile(u":/resource/icons/pause.png", QSize(), QIcon.Mode.Normal, QIcon.State.On)
         self.actionPlay.setIcon(icon17)
         self.actionStop = QAction(MainWindow)
         self.actionStop.setObjectName(u"actionStop")
@@ -410,7 +412,7 @@ class Ui_MainWindow(object):
         icon43.addFile(u":/resource/icons/number.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
         self.menuBlockNumbers.setIcon(icon43)
         MainWindow.setMenuBar(self.menubar)
-        self.statusbar = QStatusBar(MainWindow)
+        self.statusbar = StatusBar(MainWindow)
         self.statusbar.setObjectName(u"statusbar")
         MainWindow.setStatusBar(self.statusbar)
         self.fileToolBar = QToolBar(MainWindow)

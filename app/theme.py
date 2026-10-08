@@ -284,13 +284,13 @@ def _set_color_scheme(app, target: str) -> bool:
     return hints.colorScheme() == requested
 
 
-def apply_editor_theme(editor, lexer, theme) -> None:
+def apply_editor_theme(editor, lexer, theme, *, caret_line_color: str | None = None) -> None:
     """Apply paper, caret, margin, selection, and lexer colors for *theme*."""
     colors = editor_colors(theme)
     paper = QColor(colors["paper"])
     editor.setPaper(paper)
     editor.setColor(QColor(colors["default_text"]))
-    editor.setCaretLineBackgroundColor(QColor(colors["caret_line"]))
+    editor.setCaretLineBackgroundColor(QColor(caret_line_color or colors["caret_line"]))
     editor.setCaretForegroundColor(QColor(colors["caret_foreground"]))
     editor.setMarginsBackgroundColor(QColor(colors["margin_background"]))
     editor.setMarginsForegroundColor(QColor(colors["margin_foreground"]))

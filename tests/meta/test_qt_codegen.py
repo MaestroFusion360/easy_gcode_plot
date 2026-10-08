@@ -167,6 +167,40 @@ def test_batch_generation_tracks_changed_ui_and_resource(tmp_path):
     subprocess.run([sys.executable, "-c", code], cwd=project, env=env, check=True, timeout=30)
 
 
+@pytest.mark.skipif(sys.platform != "win32" or shutil.which("powershell") is None, reason="PowerShell workflow")
+def test_translation_generation_preserves_crlf_and_utf8_without_lint_fix(tmp_path):
+    project = _create_codegen_fixture(tmp_path)
+    translations = project / "translations"
+    translations.mkdir()
+    catalog = translations / "app_ru.ts"
+    translated = "\u0417\u0430\u0433\u043e\u043b\u043e\u0432\u043e\u043a"
+    catalog.write_text(
+        '<?xml version="1.0" encoding="utf-8"?>\n'
+        '<TS version="2.1" language="ru_RU"><context><name>MainWindow</name>'
+        f"<message><source>Fixture Title</source><translation>{translated}</translation></message>"
+        "</context></TS>\n",
+        encoding="utf-8",
+    )
+    command = [
+        "powershell",
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(ROOT / POWERSHELL_SCRIPTS_DIR / "generate-translations.ps1"),
+        "-ProjectRoot",
+        str(project),
+        "-ToolProjectRoot",
+        str(ROOT),
+    ]
+    for _ in range(2):
+        subprocess.run(command, check=True, capture_output=True, text=True, timeout=180)
+        content = catalog.read_bytes()
+        assert b"\r\n" in content and b"\n" not in content.replace(b"\r\n", b"")
+        assert translated in content.decode("utf-8")
+        assert (project / RESOURCE_DIR / "translations/app_ru.qm").is_file()
+
+
 def test_generation_stages_all_outputs_before_replacing_generated_targets():
     script = (ROOT / POWERSHELL_SCRIPTS_DIR / "generate-qt.ps1").read_text(encoding="utf-8")
     resource_generation = script.index("generate-resources.ps1")

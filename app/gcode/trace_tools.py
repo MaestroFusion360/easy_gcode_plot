@@ -415,6 +415,100 @@ def _motion_time_minutes(m, length, rapid_feed):
     return time
 
 
+def _motion_timings(motions, rapid_feed: float):
+    """Return per-motion lengths and times plus the known-time total and unknown-time count."""
+    lengths: list[float] = []
+    times: list[float | None] = []
+    known_time = 0.0
+    unknown_time_motion_count = 0
+    for m in motions:
+        length = motion_length(m)
+        lengths.append(length)
+        time = _motion_time_minutes(m, length, rapid_feed)
+        times.append(time)
+        if time is None:
+            unknown_time_motion_count += 1
+        else:
+            known_time += time
+    return lengths, times, known_time, unknown_time_motion_count
+
+
+def _arc_extreme_coordinates(m: TraceMotion, display_x_scale: float) -> list[tuple[float, float, float]]:
+    """Return circle quadrant extremes lying on one arc, in the caller's display X-space."""
+    geom = arc_geometry(m)
+    if geom is None:
+        return []
+    _start, _end, orth0, orth1, center, a0, sweep, radius = geom
+    plot_move = _plot_move_for_plane(m.move, m.plane)
+    points = []
+    for angle in (0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0):
+        delta = ((a0 - angle) % (2.0 * math.pi)) if plot_move == 2 else ((angle - a0) % (2.0 * math.pi))
+        if delta <= sweep + 1e-12:
+            t = 0.0 if sweep <= 1e-12 else delta / sweep
+            orth = orth0 + (orth1 - orth0) * t
+            a = center[0] + radius * math.cos(angle)
+            b = center[1] + radius * math.sin(angle)
+            x, y, z = _xyz_from_plane(m.plane, a, b, orth)
+            # Arc geometry is physical; bounds use the same X-space
+            # requested by the caller as the endpoint coordinates.
+            x *= display_x_scale / m.x_scale
+            points.append((x, y, z))
+    return points
+
+
+def _motion_coordinates(motions, display_x_scale: float):
+    """Collect every bounding coordinate and the per-motion XYZ bounds."""
+    coords: list[tuple[float, float, float]] = []
+    motion_bounds = []
+    for m in motions:
+        points = [
+            (m.start_x * display_x_scale, m.start_y, m.start_z),
+            (m.end_x * display_x_scale, m.end_y, m.end_z),
+        ]
+        if m.move in (2, 3):
+            points.extend(_arc_extreme_coordinates(m, display_x_scale))
+        coords.extend(points)
+        motion_bounds.append(tuple((min(p[axis] for p in points), max(p[axis] for p in points)) for axis in range(3)))
+    return coords, motion_bounds
+
+
+def _summarize_motions(motions, indices, lengths, times, motion_bounds) -> dict[str, object]:
+    """Aggregate counts, bounds, lengths and times for the motions selected by ``indices``."""
+    rapid = [i for i in indices if motions[i].move == 0]
+    feed = [i for i in indices if motions[i].move != 0]
+    rapid_time = sum(times[i] for i in rapid if times[i] is not None)
+    feed_time = sum(times[i] for i in feed if times[i] is not None)
+    feed_complete = all(times[i] is not None for i in feed)
+    feed_length = sum(lengths[i] for i in feed)
+    return {
+        "motion_count": len(indices),
+        "rapid_count": len(rapid),
+        "arc_count": sum(motions[i].move in (2, 3) for i in indices),
+        "cycle_count": sum(motions[i].cycle_generated for i in indices),
+        "bounds": tuple(
+            (min(motion_bounds[i][axis][0] for i in indices), max(motion_bounds[i][axis][1] for i in indices))
+            for axis in range(3)
+        )
+        if indices
+        else None,
+        "z_min": min((_motion_z_min(motions[i]) for i in indices), default=None),
+        "total_length": sum(lengths[i] for i in indices),
+        "rapid_length": sum(lengths[i] for i in rapid),
+        "feed_length": feed_length,
+        "known_time_min": rapid_time + feed_time,
+        "rapid_time_min": rapid_time if all(times[i] is not None for i in rapid) else None,
+        "feed_time_min": feed_time if feed_complete else None,
+        "average_feed_mm_min": feed_length / feed_time if feed_complete and feed_time > 0 else None,
+        "unknown_time_motion_count": sum(times[i] is None for i in indices),
+    }
+
+
+def _execution_status(result: ExecutionResult, warning_count: int) -> str:
+    if not result.ok or not result.complete:
+        return "ERRORS"
+    return "WARNINGS" if warning_count else "CLEAN"
+
+
 def trace_statistics(
     result: ExecutionResult,
     *,
@@ -428,101 +522,28 @@ def trace_statistics(
     resolved spindle speed), timing is explicitly partial instead of silently
     treating F as mm/min.
     """
-    lengths: list[float] = []
-    times: list[float | None] = []
-    known_time = 0.0
-    unknown_time_motion_count = 0
-
-    for m in result.motions:
-        length = motion_length(m)
-        lengths.append(length)
-        time = _motion_time_minutes(m, length, rapid_feed)
-        times.append(time)
-        if time is None:
-            unknown_time_motion_count += 1
-        else:
-            known_time += time
-
-    coords: list[tuple[float, float, float]] = []
-    motion_bounds = []
-    display_x_scale = 0.5 if lathe_radius_view else 1.0
-    for m in result.motions:
-        first_coord = len(coords)
-        coords.extend(
-            (
-                (m.start_x * display_x_scale, m.start_y, m.start_z),
-                (m.end_x * display_x_scale, m.end_y, m.end_z),
-            )
-        )
-        if m.move in (2, 3):
-            geom = arc_geometry(m)
-            if geom is not None:
-                _start, _end, orth0, orth1, center, a0, sweep, radius = geom
-                plot_move = _plot_move_for_plane(m.move, m.plane)
-                for angle in (0.0, math.pi / 2.0, math.pi, 3.0 * math.pi / 2.0):
-                    delta = ((a0 - angle) % (2.0 * math.pi)) if plot_move == 2 else ((angle - a0) % (2.0 * math.pi))
-                    if delta <= sweep + 1e-12:
-                        t = 0.0 if sweep <= 1e-12 else delta / sweep
-                        orth = orth0 + (orth1 - orth0) * t
-                        a = center[0] + radius * math.cos(angle)
-                        b = center[1] + radius * math.sin(angle)
-                        x, y, z = _xyz_from_plane(m.plane, a, b, orth)
-                        # Arc geometry is physical; bounds use the same X-space
-                        # requested by the caller as the endpoint coordinates.
-                        x *= display_x_scale / m.x_scale
-                        coords.append((x, y, z))
-        points = coords[first_coord:]
-        motion_bounds.append(tuple((min(p[axis] for p in points), max(p[axis] for p in points)) for axis in range(3)))
+    motions = result.motions
+    lengths, times, known_time, unknown_time_motion_count = _motion_timings(motions, rapid_feed)
+    coords, motion_bounds = _motion_coordinates(motions, 0.5 if lathe_radius_view else 1.0)
 
     xs = [p[0] for p in coords]
     ys = [p[1] for p in coords]
     zs = [p[2] for p in coords]
     time_complete = unknown_time_motion_count == 0 and result.ok and result.complete
 
-    def summarize(indices):
-        rapid = [i for i in indices if result.motions[i].move == 0]
-        feed = [i for i in indices if result.motions[i].move != 0]
-        rapid_time = sum(times[i] for i in rapid if times[i] is not None)
-        feed_time = sum(times[i] for i in feed if times[i] is not None)
-        feed_complete = all(times[i] is not None for i in feed)
-        feed_length = sum(lengths[i] for i in feed)
-        return {
-            "motion_count": len(indices),
-            "rapid_count": len(rapid),
-            "arc_count": sum(result.motions[i].move in (2, 3) for i in indices),
-            "cycle_count": sum(result.motions[i].cycle_generated for i in indices),
-            "bounds": tuple(
-                (min(motion_bounds[i][axis][0] for i in indices), max(motion_bounds[i][axis][1] for i in indices))
-                for axis in range(3)
-            )
-            if indices
-            else None,
-            "z_min": min((_motion_z_min(result.motions[i]) for i in indices), default=None),
-            "total_length": sum(lengths[i] for i in indices),
-            "rapid_length": sum(lengths[i] for i in rapid),
-            "feed_length": feed_length,
-            "known_time_min": rapid_time + feed_time,
-            "rapid_time_min": rapid_time if all(times[i] is not None for i in rapid) else None,
-            "feed_time_min": feed_time if feed_complete else None,
-            "average_feed_mm_min": feed_length / feed_time if feed_complete and feed_time > 0 else None,
-            "unknown_time_motion_count": sum(times[i] is None for i in indices),
-        }
-
     by_tool: dict[str, list[int]] = {}
-    for index, motion in enumerate(result.motions):
+    for index, motion in enumerate(motions):
         by_tool.setdefault(motion.tool or "unknown", []).append(index)
+    warning_count = sum(d.severity == "warning" for d in result.diagnostics)
     return {
-        **summarize(list(range(len(result.motions)))),
-        "per_tool": {tool: summarize(indices) for tool, indices in by_tool.items()},
+        **_summarize_motions(motions, list(range(len(motions))), lengths, times, motion_bounds),
+        "per_tool": {
+            tool: _summarize_motions(motions, indices, lengths, times, motion_bounds)
+            for tool, indices in by_tool.items()
+        },
         "execution_complete": result.ok and result.complete,
-        "warning_count": sum(d.severity == "warning" for d in result.diagnostics),
-        "execution_status": (
-            "ERRORS"
-            if not result.ok or not result.complete
-            else "WARNINGS"
-            if any(d.severity == "warning" for d in result.diagnostics)
-            else "CLEAN"
-        ),
+        "warning_count": warning_count,
+        "execution_status": _execution_status(result, warning_count),
         "executed_step_count": len(result.execution_steps),
         "rapid_feed_mm_min": rapid_feed,
         "lengths": lengths,
@@ -533,10 +554,10 @@ def trace_statistics(
         "time_complete": time_complete,
         "unknown_time_motion_count": unknown_time_motion_count,
         "bounds": ((min(xs), max(xs)), (min(ys), max(ys)), (min(zs), max(zs))) if xs else None,
-        "motion_count": len(result.motions),
-        "rapid_count": sum(m.move == 0 for m in result.motions),
-        "arc_count": sum(m.move in (2, 3) for m in result.motions),
-        "cycle_count": sum(m.cycle_generated for m in result.motions),
+        "motion_count": len(motions),
+        "rapid_count": sum(m.move == 0 for m in motions),
+        "arc_count": sum(m.move in (2, 3) for m in motions),
+        "cycle_count": sum(m.cycle_generated for m in motions),
     }
 
 

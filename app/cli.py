@@ -33,7 +33,9 @@ from app.native import NativeRuntimeError, require_packaged_native
 
 
 def _add_kinematics_option(command: argparse.ArgumentParser) -> None:
-    command.add_argument("--kinematics", metavar="PROFILE_ID", help="Indexed FANUC milling rotary profile")
+    command.add_argument(
+        "--kinematics", metavar="PROFILE_ID", help="Milling rotary-kinematics profile (FANUC or SINUMERIK)"
+    )
 
 
 class _HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
@@ -127,7 +129,9 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
 
 def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, ...]]:
     program = Path(sys.argv[0]).name if getattr(sys, "frozen", False) else "python -m app"
-    parser = argparse.ArgumentParser(prog=program, description="Parse, analyze and export FANUC G-code")
+    parser = argparse.ArgumentParser(
+        prog=program, description="Parse, analyze and export FANUC G-code and SINUMERIK milling programs"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
     command_help = {
         "parse": "Parse one NC program and print a terminal summary",

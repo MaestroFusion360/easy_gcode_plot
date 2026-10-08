@@ -19,6 +19,90 @@ from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
 
+def test_editor_current_line_color_picker_persists_and_restores_defaults(qt_app, monkeypatch):
+    window = MainWindow()
+    dialog = window.optionsDlg
+    dialog.load_values()
+    original = window.caretLineColor
+    assert dialog.ui.caretLineColorEdit.text() == original
+    assert dialog.ui.editorColorsGroup.isAncestorOf(dialog.ui.caretLineColorEdit)
+    assert dialog.ui.colorsTab.isAncestorOf(dialog.ui.caretLineColorEdit)
+    assert dialog.ui.plotColorsGroup.isAncestorOf(dialog.ui.rapidColorEdit)
+    assert not dialog.ui.editorTab.isAncestorOf(dialog.ui.caretLineColorEdit)
+    monkeypatch.setattr("app.ui.dialogs.options.QColorDialog.getColor", lambda *args: QColor("#d8edc9"))
+    dialog.ui.caretLineColorButton.click()
+    assert dialog.ui.caretLineColorEdit.text() == "#d8edc9"
+    assert "#d8edc9" in dialog.ui.caretLineColorButton.styleSheet()
+    dialog.reject()
+    assert window.caretLineColor == original
+    dialog.load_values()
+    dialog.ui.caretLineColorButton.click()
+    dialog.accept()
+    assert window.ui.editor.SendScintilla(window.ui.editor.SCI_GETCARETLINEBACK) == 0xC9EDD8
+    window.settings.sync()
+    assert window.settings.value("EDITOR/CARETLINE_COLOR") == "#d8edc9"
+    window.deleteLater()
+    restored = MainWindow()
+    try:
+        assert restored.caretLineColor == "#d8edc9"
+        assert restored.ui.editor.SendScintilla(restored.ui.editor.SCI_GETCARETLINEBACK) == 0xC9EDD8
+        restored.optionsDlg.load_values()
+        monkeypatch.setattr("app.ui.dialogs.options.QColorDialog.getColor", lambda *args: QColor())
+        restored.optionsDlg.ui.caretLineColorButton.click()
+        assert restored.optionsDlg.ui.caretLineColorEdit.text() == "#d8edc9"
+        restored.optionsDlg.restore_defaults()
+        restored.optionsDlg.accept()
+        assert restored.caretLineColor == "#e8e8ff"
+        assert restored.ui.editor.SendScintilla(restored.ui.editor.SCI_GETCARETLINEBACK) == 0xFFE8E8
+    finally:
+        restored.deleteLater()
+
+
+def test_current_line_colors_are_independent_and_follow_active_theme(qt_app):
+    window = MainWindow()
+    try:
+        dialog = window.optionsDlg
+        dialog.load_values()
+        dialog.ui.themeCombo.setCurrentIndex(1)
+        dialog.accept()
+        assert window.caretLineColor == "#e8e8ff"
+        assert window.caretLineDarkColor == "#2a2d2e"
+        assert window.ui.editor.SendScintilla(window.ui.editor.SCI_GETCARETLINEBACK) == 0x2E2D2A
+        dialog.load_values()
+        assert dialog.ui.caretLineColorEdit.text() == "#e8e8ff"
+        dialog.ui.themeCombo.setCurrentIndex(0)
+        dialog.accept()
+        assert window.caretLineColor == "#e8e8ff"
+        dialog.load_values()
+        dialog.ui.caretLineColorEdit.setText("#d8edc9")
+        dialog.ui.caretLineDarkColorEdit.setText("#334455")
+        dialog.ui.themeCombo.setCurrentIndex(1)
+        dialog.accept()
+        assert window.caretLineColor == "#d8edc9"
+        window.changeFileType(1)
+        assert window.ui.editor.SendScintilla(window.ui.editor.SCI_GETCARETLINEBACK) == 0x554433
+        dialog.load_values()
+        dialog.ui.themeCombo.setCurrentIndex(0)
+        dialog.accept()
+        assert window.ui.editor.SendScintilla(window.ui.editor.SCI_GETCARETLINEBACK) == 0xC9EDD8
+        window.settings.sync()
+        restored = MainWindow()
+        try:
+            assert restored.caretLineColor == "#d8edc9"
+            assert restored.caretLineDarkColor == "#334455"
+            restored.uiTheme = "dark"
+            restored.applyUiTheme()
+            assert restored.ui.editor.SendScintilla(restored.ui.editor.SCI_GETCARETLINEBACK) == 0x554433
+            restored.optionsDlg.restore_defaults()
+            restored.optionsDlg.accept()
+            assert restored.caretLineColor == "#e8e8ff"
+            assert restored.caretLineDarkColor == "#2a2d2e"
+        finally:
+            restored.deleteLater()
+    finally:
+        window.deleteLater()
+
+
 def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
     catalog = load_catalog()
     assert len(catalog) > 2

@@ -149,6 +149,60 @@ def _nose_compensation_parameters(tool, tool_code):
     return radius, orientation
 
 
+_ACTIVE_COMPENSATION_MODES = (41, 42)
+
+
+def _release_motion(motion: Motion, emitted: list[Motion]) -> Motion:
+    """Pass a motion through; the first one after a compensated run starts where that run ended."""
+    if motion.compensation_applied:
+        return motion
+    if emitted and emitted[-1].compensation_mode in _ACTIVE_COMPENSATION_MODES:
+        return replace(motion, start=emitted[-1].end, source_kind="tool_compensation_exit")
+    return motion
+
+
+def _active_run_end(motions: list[Motion], start: int) -> int:
+    """Return the exclusive end of the run sharing the first motion's compensation mode and tool."""
+    first = motions[start]
+    end = start
+    while (
+        end < len(motions)
+        and motions[end].compensation_mode == first.compensation_mode
+        and motions[end].tool == first.tool
+    ):
+        end += 1
+    return end
+
+
+def _join_run_primitives(primitives: list[TurningPrimitive], *, entry_transition: bool) -> None:
+    """Replace adjacent offset ends by their intersections; an entry block is left for the transition."""
+    join_start = 1 if entry_transition and len(primitives) > 1 else 0
+    for pos in range(join_start, len(primitives) - 1):
+        join = join_primitives(primitives[pos], primitives[pos + 1])
+        primitives[pos] = replace(primitives[pos], end=join)
+        primitives[pos + 1] = replace(primitives[pos + 1], start=join)
+
+
+def _apply_entry_transition(primitives: list[TurningPrimitive], run: list[Motion]) -> None:
+    """The activation block is a transition from the current reference
+    point to the compensated start of the following cutting segment.
+    It is not itself part of the contour offset calculation.
+    """
+    entry_end = primitives[1].start if len(primitives) > 1 else primitives[0].end
+    primitives[0] = replace(primitives[0], start=to_vec(run[0].start), end=entry_end, center=None)
+
+
+def _compensate_run(
+    run: list[Motion], tool: dict[str, object], tool_code: str | None, *, entry_transition: bool
+) -> list[Motion]:
+    radius, orientation = _nose_compensation_parameters(tool, tool_code)
+    primitives = [offset_motion(item, radius, orientation) for item in run]
+    _join_run_primitives(primitives, entry_transition=entry_transition)
+    if entry_transition:
+        _apply_entry_transition(primitives, run)
+    return [motion_from_primitive(item) for item in primitives]
+
+
 def apply_tool_nose_compensation(motions: list[Motion], tools: dict[str, dict[str, object]]) -> list[Motion]:
     """Apply configured G41/G42 geometry to the authoritative Motion Trace."""
     if not motions or not tools:
@@ -158,54 +212,22 @@ def apply_tool_nose_compensation(motions: list[Motion], tools: dict[str, dict[st
     index = 0
     while index < len(motions):
         motion = motions[index]
-        if motion.compensation_applied:
-            result.append(motion)
-            index += 1
-            continue
-        if motion.compensation_mode not in (41, 42):
-            if result and result[-1].compensation_mode in (41, 42):
-                motion = replace(motion, start=result[-1].end, source_kind="tool_compensation_exit")
-            result.append(motion)
+        if motion.compensation_applied or motion.compensation_mode not in _ACTIVE_COMPENSATION_MODES:
+            result.append(_release_motion(motion, result))
             index += 1
             continue
 
-        end = index
-        while (
-            end < len(motions)
-            and motions[end].compensation_mode == motion.compensation_mode
-            and motions[end].tool == motion.tool
-        ):
-            end += 1
+        end = _active_run_end(motions, index)
         run = motions[index:end]
         tool = tools.get(motion.tool or "")
-        if not isinstance(tool, dict):
+        if isinstance(tool, dict):
+            entry_transition = index == 0 or motions[index - 1].compensation_mode not in _ACTIVE_COMPENSATION_MODES
+            result.extend(_compensate_run(run, tool, motion.tool, entry_transition=entry_transition))
+        else:
             # A partial tool table must not make unrelated programs impossible
             # to view. The UI detects this nominal run, disables correction for
             # the document and reports the missing T code before rebuilding.
             result.extend(run)
-            index = end
-            continue
-        radius, orientation = _nose_compensation_parameters(tool, motion.tool)
-
-        primitives = [offset_motion(item, radius, orientation) for item in run]
-        entry_transition = index == 0 or motions[index - 1].compensation_mode not in (41, 42)
-        join_start = 1 if entry_transition and len(primitives) > 1 else 0
-        for pos in range(join_start, len(primitives) - 1):
-            join = join_primitives(primitives[pos], primitives[pos + 1])
-            primitives[pos] = replace(primitives[pos], end=join)
-            primitives[pos + 1] = replace(primitives[pos + 1], start=join)
-        if entry_transition and primitives:
-            # The activation block is a transition from the current reference
-            # point to the compensated start of the following cutting segment.
-            # It is not itself part of the contour offset calculation.
-            entry_end = primitives[1].start if len(primitives) > 1 else primitives[0].end
-            primitives[0] = replace(
-                primitives[0],
-                start=to_vec(run[0].start),
-                end=entry_end,
-                center=None,
-            )
-        result.extend(motion_from_primitive(item) for item in primitives)
         index = end
     return result
 

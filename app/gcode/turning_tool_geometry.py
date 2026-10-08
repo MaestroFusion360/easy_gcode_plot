@@ -378,6 +378,120 @@ def thread_cutting_profile(spec: dict[str, object]) -> tuple[tuple[float, float]
     return _orient_thread_polygon(points, spec)
 
 
+_MIRRORED_DIAMOND_35_ORIENTATIONS = {("id", 1), ("od", 4)}
+_DIAMOND_35_ID_SCREEN_ANGLES = {6: 90.0, 7: 180.0, 8: 270.0}
+
+
+def _round_insert_polygon(spec: dict[str, object]) -> tuple[tuple[float, float], ...]:
+    radius = positive_float(spec, "insertLength", 12.0) * 0.5
+    direction_x, direction_z = TIP_DIRECTIONS[tip_orientation(spec, 3)]
+    direction_length = math.hypot(direction_x, direction_z)
+    if direction_length > EPS:
+        center_x = -direction_x / direction_length * radius
+        center_z = -direction_z / direction_length * radius
+    else:
+        center_x = 0.0
+        center_z = 0.0
+    return tuple(
+        (
+            center_x + radius * math.cos(2.0 * math.pi * step / 32),
+            center_z + radius * math.sin(2.0 * math.pi * step / 32),
+        )
+        for step in range(32)
+    )
+
+
+def _canonical_insert_polygon(
+    spec: dict[str, object], tool_type: str, internal: bool
+) -> tuple[tuple[float, float], ...]:
+    """Build the insert outline in its canonical (P2 internal / P3 external) orientation."""
+    insert_angle, edge_angle = INSERT_GEOMETRY[tool_type]
+    nose = positive_float(spec, "noseRadius")
+    default_length = 16.0 if tool_type == "diamond_35" else 12.0
+    length = positive_float(spec, "insertLength", default_length)
+    if nose > EPS:
+        minimum_length = nose / max(math.tan(math.radians(insert_angle * 0.5)), EPS) / 0.45
+        length = max(length, minimum_length)
+    if tool_type == "triangle":
+        sharp = stock_triangle_points(length, edge_angle, internal=internal)
+    else:
+        sharp = stock_insert_points(length, insert_angle, edge_angle, internal=internal)
+    if nose <= EPS:
+        return sharp
+    rounded = rounded_polygon(sharp, nose)
+    nose_center = tip_fillet_center(sharp, nose)
+    target_center = (-nose if internal else nose, nose)
+    shift_x = target_center[0] - nose_center[0]
+    shift_z = target_center[1] - nose_center[1]
+    return tuple((x_value + shift_x, z_value + shift_z) for x_value, z_value in rounded)
+
+
+def _orient_insert_polygon(
+    canonical: tuple[tuple[float, float], ...],
+    tool_type: str,
+    application: str,
+    orientation: int,
+    expected_orientation: int,
+) -> tuple[tuple[float, float], ...]:
+    """Move a canonical insert outline to the requested tip orientation."""
+    if orientation == expected_orientation:
+        return canonical
+    if orientation == 9:
+        center_x = (min(x for x, _z in canonical) + max(x for x, _z in canonical)) * 0.5
+        center_z = (min(z for _x, z in canonical) + max(z for _x, z in canonical)) * 0.5
+        return tuple((x - center_x, z - center_z) for x, z in canonical)
+    if tool_type == "diamond_35":
+        if (application, orientation) in _MIRRORED_DIAMOND_35_ORIENTATIONS:
+            # P1/P4 are the screen-horizontal mirrors of the accepted P2/P3 geometry.
+            return tuple((x, -z) for x, z in reversed(canonical))
+        if application == "od" and orientation == 7:
+            return _align_trace_direction(canonical, 180.0)
+        if application == "id" and orientation in _DIAMOND_35_ID_SCREEN_ANGLES:
+            return _align_trace_direction(canonical, _DIAMOND_35_ID_SCREEN_ANGLES[orientation])
+    rotation = ORIENTATION_SCREEN_ANGLES[orientation] - ORIENTATION_SCREEN_ANGLES[expected_orientation]
+    return _rotate_polygon(canonical, rotation)
+
+
+def _insert_polygon(spec: dict[str, object], tool_type: str, application: str) -> tuple[tuple[float, float], ...]:
+    internal = application == "id"
+    expected_orientation = 2 if internal else 3
+    orientation = tip_orientation(spec, expected_orientation)
+    canonical = _canonical_insert_polygon(spec, tool_type, internal)
+    return _orient_insert_polygon(canonical, tool_type, application, orientation, expected_orientation)
+
+
+def _groove_side_polygon(spec: dict[str, object], application: str, scale: float):
+    """Radial (OD/ID) groove silhouette, or ``None`` when no width is defined."""
+    width = positive_float(spec, "width")
+    if width <= EPS:
+        return None
+    length = positive_float(spec, "insertLength", max(scale, width * 2.0))
+    direction = -1.0 if application == "id" else 1.0
+    orientation = normalize_groove_orientation(spec, application)
+    z0, z1 = (0.0, width) if orientation in (2, 3) else (-width, 0.0)
+    sharp = (
+        (0.0, z0),
+        (direction * length, z0),
+        (direction * length, z1),
+        (0.0, z1),
+    )
+    return rounded_polygon(sharp, positive_float(spec, "noseRadius"))
+
+
+def _groove_face_polygon(spec: dict[str, object], stock_diameter: float, scale: float):
+    width = positive_float(spec, "width", max(1.0, stock_diameter * 0.03))
+    length = max(scale * 1.5, width * 2.0)
+    orientation = normalize_groove_orientation(spec, "face")
+    x0, x1 = (0.0, width) if orientation == 2 else (-width, 0.0)
+    sharp = (
+        (x0, 0.0),
+        (x1, 0.0),
+        (x1, length),
+        (x0, length),
+    )
+    return rounded_polygon(sharp, positive_float(spec, "noseRadius"))
+
+
 def turning_tool_polygon(
     spec: dict[str, object],
     stock_diameter: float,
@@ -393,100 +507,17 @@ def turning_tool_polygon(
     tool_type = canonical_turning_tool_type(spec.get("type"))
     spec, application = _physical_geometry_spec(spec, application)
     scale = max(3.0, min(12.0, stock_diameter * 0.08))
-    polygon = None
     if tool_type == "thread":
-        polygon = thread_cutting_profile(spec) if stock_scope else thread_tool_polygon(spec)
-    elif tool_type == "round":
-        radius = positive_float(spec, "insertLength", 12.0) * 0.5
-        direction_x, direction_z = TIP_DIRECTIONS[tip_orientation(spec, 3)]
-        direction_length = math.hypot(direction_x, direction_z)
-        if direction_length > EPS:
-            center_x = -direction_x / direction_length * radius
-            center_z = -direction_z / direction_length * radius
-        else:
-            center_x = 0.0
-            center_z = 0.0
-        polygon = tuple(
-            (
-                center_x + radius * math.cos(2.0 * math.pi * step / 32),
-                center_z + radius * math.sin(2.0 * math.pi * step / 32),
-            )
-            for step in range(32)
-        )
-    elif tool_type in INSERT_GEOMETRY:
-        insert_angle, edge_angle = INSERT_GEOMETRY[tool_type]
-        internal = application == "id"
-        expected_orientation = 2 if internal else 3
-        orientation = tip_orientation(spec, expected_orientation)
-        nose = positive_float(spec, "noseRadius")
-        default_length = 16.0 if tool_type == "diamond_35" else 12.0
-        length = positive_float(spec, "insertLength", default_length)
-        if nose > EPS:
-            minimum_length = nose / max(math.tan(math.radians(insert_angle * 0.5)), EPS) / 0.45
-            length = max(length, minimum_length)
-        if tool_type == "triangle":
-            sharp = stock_triangle_points(length, edge_angle, internal=internal)
-        else:
-            sharp = stock_insert_points(length, insert_angle, edge_angle, internal=internal)
-        if nose > EPS:
-            rounded = rounded_polygon(sharp, nose)
-            nose_center = tip_fillet_center(sharp, nose)
-            target_center = (-nose if internal else nose, nose)
-            shift_x = target_center[0] - nose_center[0]
-            shift_z = target_center[1] - nose_center[1]
-            canonical = tuple((x_value + shift_x, z_value + shift_z) for x_value, z_value in rounded)
-        else:
-            canonical = sharp
-        if orientation == expected_orientation:
-            polygon = canonical
-        elif orientation == 9:
-            center_x = (min(x for x, _z in canonical) + max(x for x, _z in canonical)) * 0.5
-            center_z = (min(z for _x, z in canonical) + max(z for _x, z in canonical)) * 0.5
-            polygon = tuple((x - center_x, z - center_z) for x, z in canonical)
-        elif tool_type == "diamond_35" and application == "id" and orientation == 1:
-            # P1 is the screen-horizontal mirror of the accepted P2 geometry.
-            polygon = tuple((x, -z) for x, z in reversed(canonical))
-        elif tool_type == "diamond_35" and application == "od" and orientation == 4:
-            # P4 is the screen-horizontal mirror of the accepted P3 geometry.
-            polygon = tuple((x, -z) for x, z in reversed(canonical))
-        elif tool_type == "diamond_35" and application == "od" and orientation == 7:
-            polygon = _align_trace_direction(canonical, 180.0)
-        elif tool_type == "diamond_35" and application == "id" and orientation in {6, 7, 8}:
-            screen_angle = {6: 90.0, 7: 180.0, 8: 270.0}[orientation]
-            polygon = _align_trace_direction(canonical, screen_angle)
-        else:
-            rotation = ORIENTATION_SCREEN_ANGLES[orientation] - ORIENTATION_SCREEN_ANGLES[expected_orientation]
-            polygon = _rotate_polygon(canonical, rotation)
-    elif tool_type == "groove" and application in {"od", "id"}:
-        width = positive_float(spec, "width")
-        if width > EPS:
-            length = positive_float(spec, "insertLength", max(scale, width * 2.0))
-            direction = -1.0 if application == "id" else 1.0
-            orientation = normalize_groove_orientation(spec, application)
-            if orientation in (2, 3):
-                z0, z1 = 0.0, width
-            else:
-                z0, z1 = -width, 0.0
-            sharp = (
-                (0.0, z0),
-                (direction * length, z0),
-                (direction * length, z1),
-                (0.0, z1),
-            )
-            polygon = rounded_polygon(sharp, positive_float(spec, "noseRadius"))
-    elif tool_type == "groove" and application == "face":
-        width = positive_float(spec, "width", max(1.0, stock_diameter * 0.03))
-        length = max(scale * 1.5, width * 2.0)
-        orientation = normalize_groove_orientation(spec, application)
-        x0, x1 = (0.0, width) if orientation == 2 else (-width, 0.0)
-        sharp = (
-            (x0, 0.0),
-            (x1, 0.0),
-            (x1, length),
-            (x0, length),
-        )
-        polygon = rounded_polygon(sharp, positive_float(spec, "noseRadius"))
-    return polygon
+        return thread_cutting_profile(spec) if stock_scope else thread_tool_polygon(spec)
+    if tool_type == "round":
+        return _round_insert_polygon(spec)
+    if tool_type in INSERT_GEOMETRY:
+        return _insert_polygon(spec, tool_type, application)
+    if tool_type == "groove" and application in {"od", "id"}:
+        return _groove_side_polygon(spec, application, scale)
+    if tool_type == "groove" and application == "face":
+        return _groove_face_polygon(spec, stock_diameter, scale)
+    return None
 
 
 def display_tool_geometry(spec: dict[str, object], stock_diameter: float, application: str | None = None):

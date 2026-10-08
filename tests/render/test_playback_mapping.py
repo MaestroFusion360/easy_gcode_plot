@@ -2,12 +2,15 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+import pytest
+from PyQt6.QtCore import QTimerEvent
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import render_trace
 from app.main_window import MainWindow
-from app.ui.plot.playback import build_playback_movements
+from app.ui.plot.playback import arc_playback_samples, build_playback_movements
+from app.ui.windows.main_window_execution import playback_interval_ms
 
 QT_APP = QApplication.instance() or QApplication([])
 
@@ -38,6 +41,60 @@ def test_arc_tessellation_density_does_not_change_playback_count():
 
     assert len(high_density) > len(low_density)
     assert len(_playback(result)) == 2
+
+
+def test_full_circle_helix_has_visual_playback_samples_inside_one_logical_motion():
+    result = execute("G17 G90\nG0 X0 Y-50 Z0\nG3 J50 Z-1 F100", language="fanuc_mill")
+    arc_index = next(index for index, motion in enumerate(result.motions) if motion.move in (2, 3))
+    arc = result.motions[arc_index]
+    samples = arc_playback_samples(arc, arc_index, max_frames=12)
+
+    assert arc.arc is not None and arc.arc.full_circle
+    assert len(samples) == 12
+    assert len(_playback(result)) == len(result.motions)
+    assert (samples[0].x, samples[0].y) != (arc.end_x, arc.end_y)
+    assert (samples[-1].x, samples[-1].y, samples[-1].z) == (arc.end_x, arc.end_y, arc.end_z)
+    assert samples[0].z > samples[-1].z
+
+
+@pytest.mark.parametrize("speed", range(1, 6))
+def test_macro_boss_playback_moves_tool_through_all_circle_quadrants(fixture_text, speed):
+    # pylint: disable=protected-access
+    result = execute(fixture_text("milling/fanuc/macro_boss_milling.nc"), language="fanuc_mill")
+    assert result.ok, result.diagnostics
+    helices = [index for index, motion in enumerate(result.motions) if motion.arc and motion.end_z < motion.start_z]
+    assert len(helices) == 200
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    window.ui.actionLatheMode.setChecked(False)
+    window.speedTimer = playback_interval_ms(speed)
+    window._finish_data_update_impl(result=result, points=render_trace(result), playback_value=0)
+    first = helices[0]
+    window.ui.horizontalSlider.setValue(first)
+    window.ui.actionPlay.setChecked(True)
+    try:
+        window.timerEvent(QTimerEvent(window.timer.timerId()))
+        assert window.ui.horizontalSlider.value() == first + 1
+        positions = [window._milling_tool_item.transform().map((0.0, 0.0, 0.0))]
+        samples = window._playback_visual_samples
+        assert len(samples) >= 8
+        for _ in samples[1:]:
+            window.timerEvent(QTimerEvent(window.timer.timerId()))
+            positions.append(window._milling_tool_item.transform().map((0.0, 0.0, 0.0)))
+            assert window.ui.horizontalSlider.value() == first + 1
+        assert min(point[0] for point in positions) < -30
+        assert max(point[0] for point in positions) > 30
+        assert min(point[1] for point in positions) < -30
+        assert max(point[1] for point in positions) > 30
+        motion = result.motions[first]
+        assert positions[-1] == pytest.approx((motion.end_x, motion.end_y, motion.end_z))
+        window.timerEvent(QTimerEvent(window.timer.timerId()))
+        assert window.ui.horizontalSlider.value() == first + 2
+    finally:
+        window.timer.stop()
+        window.close()
+        window.deleteLater()
+        QT_APP.processEvents()
 
 
 def test_arc_sampling_limits_reduce_render_points_without_changing_motions():

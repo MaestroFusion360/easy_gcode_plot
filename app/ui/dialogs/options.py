@@ -16,6 +16,7 @@ from PyQt6.QtWidgets import (
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
@@ -69,6 +70,8 @@ def _option_snapshot(window):
         "font_family": getattr(window, "fontFamily", "Courier New"),
         "font_size": getattr(window, "sizeTxt", 12),
         "caret_line": getattr(window, "caretLine", True),
+        "caret_line_color": getattr(window, "caretLineColor", "#e8e8ff"),
+        "caret_line_dark_color": getattr(window, "caretLineDarkColor", "#2a2d2e"),
         "eol_visible": getattr(window, "eolVisible", False),
         "whitespace_visible": getattr(window, "spaceVisible", False),
         "margin_visible": getattr(window, "marginArea", True),
@@ -224,8 +227,11 @@ class OptionsDialog(QDialog):
         self.ui.generalForm.addRow(QLabel("Source lathe G-code system", self), self.ui.latheGcodeSystemCombo)
         self._configure_sinumerik_cycles_control()
         self._configure_rotary_kinematics_controls()
+        self._configure_caret_line_color()
         self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (
+            (self.ui.caretLineColorButton, self.ui.caretLineColorEdit),
+            (self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit),
             (self.ui.rapidColorButton, self.ui.rapidColorEdit),
             (self.ui.linearColorButton, self.ui.linearColorEdit),
             (self.ui.arcColorButton, self.ui.arcColorEdit),
@@ -250,6 +256,26 @@ class OptionsDialog(QDialog):
         self._correction_preview_applied = False
         self._show_stock_before_show = None
         self._rotary_before_show = None
+
+    def _configure_caret_line_color(self):
+        self.ui.caretLineColorButton, self.ui.caretLineColorEdit = self._caret_line_color_row(
+            "caretLineColor", QCoreApplication.translate("OptionsDlg", "Current line (light theme)")
+        )
+        self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit = self._caret_line_color_row(
+            "caretLineDarkColor", QCoreApplication.translate("OptionsDlg", "Current line (dark theme)")
+        )
+
+    def _caret_line_color_row(self, name, label):
+        button = QPushButton(self.ui.editorColorsGroup)
+        button.setObjectName(name + "Button")
+        edit = QLineEdit(self.ui.editorColorsGroup)
+        edit.setObjectName(name + "Edit")
+        edit.setMaxLength(7)
+        row = QHBoxLayout()
+        row.addWidget(button)
+        row.addWidget(edit)
+        self.ui.editorColorsForm.addRow(label, row)
+        return button, edit
 
     def _configure_sinumerik_cycles_control(self):
         self.ui.sinumerik840dSlCheck = QCheckBox(
@@ -368,6 +394,10 @@ class OptionsDialog(QDialog):
         self.ui.fontCombo.setCurrentFont(QFont(window.fontFamily))
         self.ui.fontSizeSpin.setValue(window.sizeTxt)
         self.ui.caretLineCheck.setChecked(window.caretLine)
+        self.ui.caretLineColorEdit.setText(window.caretLineColor)
+        self._update_swatch(self.ui.caretLineColorButton, self.ui.caretLineColorEdit)
+        self.ui.caretLineDarkColorEdit.setText(window.caretLineDarkColor)
+        self._update_swatch(self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit)
         self.ui.eolCheck.setChecked(window.eolVisible)
         self.ui.whitespaceCheck.setChecked(window.spaceVisible)
         self.ui.marginCheck.setChecked(window.marginArea)
@@ -461,13 +491,13 @@ class OptionsDialog(QDialog):
             return None
         return hotkeys
 
-    def _valid_plot_colors(self, color_edits):
+    def _valid_colors(self, color_edits):
         if all(QColor(edit.text()).isValid() for edit in color_edits):
             return True
         QMessageBox.warning(
             self,
             QCoreApplication.translate("OptionsDlg", "Options"),
-            QCoreApplication.translate("OptionsDlg", "Plot colors must be valid Qt color names, for example #008000."),
+            QCoreApplication.translate("OptionsDlg", "Colors must be valid Qt color names, for example #008000."),
         )
         return False
 
@@ -543,7 +573,7 @@ class OptionsDialog(QDialog):
             self.ui.backgroundColorEdit,
             self.ui.stlColorEdit,
         )
-        if not self._valid_plot_colors(color_edits):
+        if not self._valid_colors((*color_edits, self.ui.caretLineColorEdit, self.ui.caretLineDarkColorEdit)):
             return
         if not self._apply_hotkeys(window):
             return
@@ -566,6 +596,8 @@ class OptionsDialog(QDialog):
         window.fontFamily = self.ui.fontCombo.currentFont().family()
         window.sizeTxt = self.ui.fontSizeSpin.value()
         window.caretLine = self.ui.caretLineCheck.isChecked()
+        window.caretLineColor = self.ui.caretLineColorEdit.text()
+        window.caretLineDarkColor = self.ui.caretLineDarkColorEdit.text()
         window.eolVisible = self.ui.eolCheck.isChecked()
         window.spaceVisible = self.ui.whitespaceCheck.isChecked()
         window.marginArea = self.ui.marginCheck.isChecked()
@@ -717,6 +749,8 @@ class OptionsDialog(QDialog):
         self.ui.fontCombo.setCurrentFont(QFont("Courier New"))
         self.ui.fontSizeSpin.setValue(12)
         self.ui.caretLineCheck.setChecked(True)
+        self.ui.caretLineColorEdit.setText("#e8e8ff")
+        self.ui.caretLineDarkColorEdit.setText("#2a2d2e")
         self.ui.eolCheck.setChecked(False)
         self.ui.whitespaceCheck.setChecked(False)
         self.ui.marginCheck.setChecked(True)

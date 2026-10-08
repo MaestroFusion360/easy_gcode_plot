@@ -1259,6 +1259,42 @@ class MainWindowPlotMixin:
         self._toolpath_item.set_visible_logical_count(index + 1)
         self._toolpath_item.set_tail(index, self.plotCurrentColor)
 
+    def _show_playback_visual_sample(self, motion_index, point):
+        """Move the playback cursor/tool inside one logical analytical arc."""
+        result = self.execution_result
+        if result is None or not 0 <= motion_index < len(result.motions):
+            return
+        motion = result.motions[motion_index]
+        scales = getattr(self, "_motion_unit_scales", ())
+        unit_scale = scales[motion_index] if motion_index < len(scales) else 1.0
+        self.ui.lineEditX.setText(_display_value(point.x, unit_scale))
+        self.ui.lineEditY.setText(_display_value(point.y, unit_scale))
+        self.ui.lineEditZ.setText(_display_value(point.z, unit_scale))
+
+        if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
+            self._create_trace_items()
+        mapping = getattr(self, "_motion_to_playback", ())
+        playback_index = mapping[motion_index] if motion_index < len(mapping) else motion_index
+        self._highlight_playback_motion(playback_index)
+        cursor_x = point.x * (0.5 if self.latheMode else 1.0)
+        self._cursor_item.setData(
+            pos=[(cursor_x, point.y, point.z)],
+            color=QColor(self.plotCurrentColor),
+            size=CURSOR_SIZE_PX,
+            pxMode=True,
+        )
+
+        tool_item = getattr(self, "_milling_tool_item", None)
+        if tool_item is not None:
+            if self.latheMode:
+                tool_item.hide_tool()
+            else:
+                tool_item.show_tool(
+                    getattr(self, "millingTools", {}).get(motion.tool, DEFAULT_MILLING_TOOL),
+                    (point.x, point.y, point.z),
+                    motion.tool_orientation,
+                )
+
     def valueHandler(self, value, *, sync_editor=True):
         """Display one logical motion and optionally synchronize the editor cursor."""
         result = self.execution_result

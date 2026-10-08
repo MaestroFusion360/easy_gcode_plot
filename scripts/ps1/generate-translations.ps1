@@ -44,6 +44,10 @@ $lupdateArguments += ($tsFiles | ForEach-Object { $_.FullName })
 if ($LASTEXITCODE -ne 0) { throw "pyside6-lupdate failed (exit $LASTEXITCODE)" }
 
 foreach ($tsFile in $tsFiles) {
+    # lupdate writes LF on Windows too; keep the working-tree CRLF contract.
+    $tsContent = [System.IO.File]::ReadAllText($tsFile.FullName)
+    $tsContent = $tsContent.Replace("`r`n", "`n").Replace("`r", "`n").Replace("`n", "`r`n")
+    [System.IO.File]::WriteAllText($tsFile.FullName, $tsContent, [System.Text.UTF8Encoding]::new($false))
     $qm = Join-Path $outputDir ($tsFile.BaseName + '.qm')
     & uv run --directory $toolProjectRootPath --locked --group dev pyside6-lrelease $tsFile.FullName -qm $qm
     if ($LASTEXITCODE -ne 0) { throw "pyside6-lrelease failed for $($tsFile.FullName) (exit $LASTEXITCODE)" }

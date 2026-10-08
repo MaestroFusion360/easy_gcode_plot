@@ -228,7 +228,7 @@ def test_arc_heavy_milling_file_exceeds_auto_update_segment_limit(qt_app):
 
     assert window.ui.editor.lines() < 100
     assert getattr(window, "_auto_update_deferred") is True
-    assert "press Update" in window.ui.statusbar.currentMessage()
+    assert "press Update" in window.ui.statusbar.toolTip()
     window.deleteLater()
 
 

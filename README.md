@@ -1,6 +1,8 @@
 # Easy G-Code Plot
 
-Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC-style turning and milling, with native SINUMERIK 840D milling support.
+Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling and SINUMERIK 840D milling (native and ISO-M), including supported native 3+2 and continuous five-axis CAM toolpaths.
+
+Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 with SINUMERIK 840D and FANUC postprocessors. Coverage follows the supported commands and configured kinematics documented below.
 
 [![Build and release](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml)
 
@@ -128,6 +130,8 @@ See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current
 - G-code editor with syntax highlighting, line numbers, search, replace and cleanup tools.
 - Interactive OpenGL toolpath.
 - Logical-motion playback with source-line synchronization.
+- The Status Bar shows compact diagnostic counts with source-line details on hover. Long notifications are shortened to fit the available space; their full text remains in the tooltip.
+- Play animates supported arcs and helices through intermediate cursor/tool positions while the slider keeps one step per logical motion, including repeated full circles in Macro B loops. The button shows Pause while running; clicking it again pauses playback.
 - Toolpath statistics: HTML summary, per-tool selector, metric/imperial display and Export HTML. Exported reports include a static SVG projection (XY milling, XZ turning) below the table. SVG uses Print page fitting and line styles, retaining every motion. CLI: `python -m app analyze program.nc --html statistics.html`.
 - HTML exports always use a light theme; the Statistics dialog follows the application theme. GUI report/program exports display their completion status. Playback highlights the current logical motion, including a whole arc, using the configured current-move color.
 - CNC editing assistants for hole patterns, pockets and reusable snippets.
@@ -162,9 +166,9 @@ The [GUI sandbox](docs/GUI_SANDBOX.md) runs one isolated four-program regression
 | Three-axis milling | Yes | Yes |
 | Macro / variable subset | Macro B | R parameters |
 | Drilling / tapping cycles | Yes | `MCALL CYCLE81/82/83/84` |
-| Indexed rotary milling | Yes | Angled AC/BC GUI/CLI/kernel numeric subset |
+| Indexed rotary milling | Yes | Configured rotary axes; CYCLE800 indexing on angled AC/BC profiles |
 | Continuous TCP | `G43.4`, including rotary arcs | GUI/CLI/kernel `TRAORI` / `TRAFOOF`, angled AC/BC subset |
-| Tilted working plane | `G68.2/G53.1` | `CYCLE800` axis-by-axis subset (GUI/CLI/kernel) |
+| Tilted working plane | `G68.2/G53.1` | Supported `CYCLE800` static frames and 3+2 indexing (GUI/CLI/kernel) |
 | Native controller conversion | FANUC / ISO-M | Resolved native output |
 | Batch analysis | Yes | Yes |
 
@@ -251,7 +255,7 @@ The kernel keeps a single resolved arc with the complete sweep. Rendering, playb
 
 Native XYZ geometry and modal cycles are supported; the GUI/CLI/kernel also accepts the bounded TCP subset below.
 
-GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91; CUT3DC and FL[] remain explicitly unsupported. GUI profile selection reaches the same kernel and plotting path.
+GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91. Native extensions such as TRANS/AROT, CUT3DC and FL[] are accepted with unmodeled warnings; their effects are not simulated. GUI profile selection reaches the same kernel and plotting path. Supplied CAM examples reach M30 in regression tests, but unmodeled warnings must be reviewed when interpreting the plotted geometry. Tilted-plane/CYCLE800 reconstruction remains unsupported in EXPANDED export.
 
 `D0` cancels edge selection; `D1` through `D12` select an edge while retaining
 nominal tool geometry. Edges above D1 report `UNVERIFIED_SINUMERIK_EDGE_OFFSETS`
@@ -642,6 +646,10 @@ Sampling controls affect GUI trace representation without changing the resolved 
 
 Explicit Refresh operations are cancellable.
 
+### Colors
+
+**Options → Colors** separates **Editor** and **Plot** colors. Editor has independent current-line highlight colors for the light and dark themes, defaulting to `#e8e8ff` and `#2a2d2e`. Choose a color with the swatch button or enter `#RRGGBB`, then press **OK** to save it. Changing themes selects the corresponding saved color. **Options → Editor → Highlight current line** controls whether the highlight is visible.
+
 ---
 
 ## Development
@@ -664,6 +672,8 @@ Build helpers are available for both platforms:
 | Lint | `.\scripts\ps1\lint.ps1` | `bash scripts/sh/lint.sh` |
 | Native extensions | `.\scripts\ps1\build-native.ps1` | `bash scripts/sh/build-native.sh` |
 | PyInstaller package | `.\scripts\ps1\build.ps1` | `bash scripts/sh/build.sh` |
+
+Repository working-tree text uses CRLF; Bash scripts use LF. Git attributes and VS Code workspace settings enforce these defaults. Run `.\scripts\ps1\lint.ps1 -Fix -CheckResources` to normalize existing text and regenerated Qt modules; without `-Fix`, the PowerShell linter reports incorrect or mixed endings. Normalization preserves encoding and skips binary assets and ignored build/temporary outputs. Git stores normalized text with LF.
 
 Linux CLI build:
 

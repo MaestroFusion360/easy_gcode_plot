@@ -146,13 +146,20 @@ class MainWindowEditorMixin:
         warnings = sum(
             getattr(d, "severity", "error").lower() == "warning" for d in (() if result is None else result.diagnostics)
         )
+        self.executionStatusLabel.setVisible(
+            state in {"READY", "UPDATING", "STALE"} or (state == "ERROR" and not errors)
+        )
         parts = ([tr("Errors: %1").replace("%1", str(errors))] if errors else []) + (
             [tr("Warnings: %1").replace("%1", str(warnings))] if warnings else []
         )
         self.diagnosticsStatusLabel.setText(" / ".join(parts) or "\u2713")
         diagnostics = () if result is None else result.diagnostics
         self.diagnosticsStatusLabel.setToolTip(
-            "\n".join(f"{item.code}: {item.message}" for item in diagnostics) or "No execution diagnostics"
+            "\n".join(
+                f"{('Ln ' + str(item.line) + ': ') if item.line is not None else ''}{item.code}: {item.message}"
+                for item in diagnostics
+            )
+            or "No execution diagnostics"
         )
         if result is not None and steps:
             self.unitsStatusLabel.setText("inch" if float(steps[-1].unit_scale) == 25.4 else "mm")

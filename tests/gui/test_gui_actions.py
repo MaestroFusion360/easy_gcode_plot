@@ -5,8 +5,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QPoint, Qt
-from PyQt6.QtGui import QKeySequence
+from PyQt6.QtCore import QPoint, Qt, QTimerEvent
+from PyQt6.QtGui import QIcon, QKeySequence, QPixmap
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QMainWindow, QProgressBar, QSlider, QToolBar
 
@@ -43,6 +43,48 @@ def test_main_ui_has_separate_options_and_tokens_settings_actions(qt_app):
     assert ui.actionExportToolList in ui.menuCNC_Functions.actions()
     assert ui.actionExportToolList.text() == "Tool List"
     assert not ui.actionExportToolList.icon().isNull()
+
+
+def _assert_playback_button_artwork(window, name):
+    button = window.ui.playbackToolBar.widgetForAction(window.ui.actionPlay)
+    state = QIcon.State.On if button.isChecked() else QIcon.State.Off
+    actual = button.icon().pixmap(button.iconSize(), QIcon.Mode.Normal, state)
+    expected = QPixmap(f":/resource/icons/{name}.png").scaled(
+        button.iconSize(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+    )
+    assert not actual.isNull()
+    assert actual.toImage() == expected.toImage()
+
+
+@pytest.mark.parametrize("dimension", [16, 24, 32])
+def test_play_pause_artwork_survives_toolbar_scaling_and_playback_end(qt_app, dimension):
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    window.ui.actionLatheMode.setChecked(False)
+    window.ui.editor.setText("G0 X10\nG1 X20 F100\nM30")
+    assert window.updateData()
+    try:
+        window.applyToolbarIconSize(dimension)
+        _assert_playback_button_artwork(window, "play")
+        window.ui.actionPlay.trigger()
+        assert window.ui.actionPlay.isChecked() and window.timer.isActive()
+        _assert_playback_button_artwork(window, "pause")
+        window.applyToolbarIconSize(32 if dimension != 32 else 16)
+        _assert_playback_button_artwork(window, "pause")
+        window.ui.actionPlay.trigger()
+        assert not window.timer.isActive()
+        _assert_playback_button_artwork(window, "play")
+        window.ui.actionPlay.trigger()
+        window.stop()
+        _assert_playback_button_artwork(window, "play")
+        window.ui.actionPlay.trigger()
+        window.ui.horizontalSlider.setValue(window.ui.horizontalSlider.maximum())
+        window.timerEvent(QTimerEvent(window.timer.timerId()))
+        assert not window.ui.actionPlay.isChecked()
+        _assert_playback_button_artwork(window, "play")
+    finally:
+        window.timer.stop()
+        window.deleteLater()
 
 
 def test_cnc_toolbar_places_existing_commands_before_calculators(qt_app):

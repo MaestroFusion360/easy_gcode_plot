@@ -117,6 +117,100 @@ def _append_outgoing_remainder(
     )
 
 
+def _corner_trim(chamfer: float, fillet: float, turn: float, len1: float, len2: float) -> float | None:
+    """Return the distance to trim from both legs, or ``None`` when the corner cannot be inserted."""
+    trim = chamfer if chamfer > 1e-9 else fillet * math.tan(turn * 0.5)
+    if trim <= 1e-9 or trim > len1 + 1e-6 or trim > len2 + 1e-6:
+        return None
+    return trim
+
+
+def _corner_segment(
+    s1: ProfileSegment,
+    s2: ProfileSegment,
+    p1: Point2,
+    p2: Point2,
+    *,
+    chamfer: bool,
+    fillet: float,
+    cross: float,
+    remaining_out: float,
+) -> ProfileSegment:
+    """Build the chamfer line or fillet arc, handing the outgoing leg's own corner command on if it is consumed."""
+    carry_chamfer = s2.corner_chamfer if remaining_out <= 1e-6 else 0.0
+    carry_radius = s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0
+    if chamfer:
+        return _make_line_segment(s1.block, p1, p2, corner_chamfer=carry_chamfer, corner_radius_cmd=carry_radius)
+    # Program geometry is interpreted in XZ, but practical turning contour orientation
+    # is equivalent to a swapped plotting basis (Z as horizontal, X as vertical).
+    # Flip the signed turn to keep inserted R-fillets on the same side as machine contour.
+    return ProfileSegment(
+        block=s1.block,
+        move=3 if cross > 0.0 else 2,
+        start=p1,
+        end=p2,
+        has_radius=True,
+        radius=fillet,
+        has_center=False,
+        center=Point2(0.0, 0.0),
+        corner_chamfer=carry_chamfer,
+        corner_radius_cmd=carry_radius,
+    )
+
+
+def _corner_replacement(s1: ProfileSegment, s2: ProfileSegment) -> list[ProfileSegment] | None:
+    """Return the segments replacing the ``s1``/``s2`` corner, or ``None`` to leave the geometry untouched."""
+    chamfer = abs(s1.corner_chamfer)
+    fillet = abs(s1.corner_radius_cmd)
+    if s1.move != 1 or s2.move != 1 or (chamfer <= 1e-9 and fillet <= 1e-9):
+        return None
+
+    vertex = s1.end
+    # If the polyline is not connected tightly, ignore corner command and preserve geometry.
+    if abs(vertex.x - s2.start.x) > 1e-5 or abs(vertex.z - s2.start.z) > 1e-5:
+        return None
+
+    # R is a physical radius: find tangency in radial X/Z, then restore
+    # programmed diameter X. Keep the existing C trim convention separate.
+    x_scale = 1.0 if chamfer > 1e-9 else 0.5
+    d_in_x, d_in_z, len1 = _normalize((vertex.x - s1.start.x) * x_scale, vertex.z - s1.start.z)
+    d_out_x, d_out_z, len2 = _normalize((s2.end.x - vertex.x) * x_scale, s2.end.z - vertex.z)
+    if len1 <= 1e-9 or len2 <= 1e-9:
+        return None
+
+    turn_dot = max(-1.0, min(1.0, d_in_x * d_out_x + d_in_z * d_out_z))
+    turn = math.acos(turn_dot)
+    if turn <= math.radians(1.0) or abs(math.pi - turn) <= math.radians(1.0):
+        return None
+
+    trim = _corner_trim(chamfer, fillet, turn, len1, len2)
+    if trim is None:
+        return None
+
+    p1 = Point2(vertex.x - d_in_x * trim / x_scale, vertex.z - d_in_z * trim)
+    p2 = Point2(vertex.x + d_out_x * trim / x_scale, vertex.z + d_out_z * trim)
+    remaining_in = max(0.0, len1 - trim)
+    remaining_out = max(0.0, len2 - trim)
+
+    replacement: list[ProfileSegment] = []
+    if remaining_in > 1e-6:
+        replacement.append(_make_line_segment(s1.block, s1.start, p1))
+    replacement.append(
+        _corner_segment(
+            s1,
+            s2,
+            p1,
+            p2,
+            chamfer=chamfer > 1e-9,
+            fillet=fillet,
+            cross=d_in_z * d_out_x - d_in_x * d_out_z,
+            remaining_out=remaining_out,
+        )
+    )
+    _append_outgoing_remainder(replacement, s2, p2, remaining_out)
+    return replacement
+
+
 def apply_corner_direct_programming(
     profile: list[ProfileSegment],
 ) -> list[ProfileSegment]:
@@ -127,102 +221,11 @@ def apply_corner_direct_programming(
     i = 0
     while i < len(segments) - 1:
         s1 = segments[i]
-        s2 = segments[i + 1]
-        if s1.move != 1 or s2.move != 1:
+        replacement = _corner_replacement(s1, segments[i + 1])
+        if replacement is None:
             segments[i] = _clear_corner(s1)
             i += 1
             continue
-
-        chamfer = abs(s1.corner_chamfer)
-        fillet = abs(s1.corner_radius_cmd)
-        if chamfer <= 1e-9 and fillet <= 1e-9:
-            i += 1
-            continue
-
-        vertex = s1.end
-        # If the polyline is not connected tightly, ignore corner command and preserve geometry.
-        if abs(vertex.x - s2.start.x) > 1e-5 or abs(vertex.z - s2.start.z) > 1e-5:
-            segments[i] = _clear_corner(s1)
-            i += 1
-            continue
-
-        # R is a physical radius: find tangency in radial X/Z, then restore
-        # programmed diameter X. Keep the existing C trim convention separate.
-        x_scale = 1.0 if chamfer > 1e-9 else 0.5
-        d_in_x, d_in_z, len1 = _normalize((vertex.x - s1.start.x) * x_scale, vertex.z - s1.start.z)
-        d_out_x, d_out_z, len2 = _normalize((s2.end.x - vertex.x) * x_scale, s2.end.z - vertex.z)
-        if len1 <= 1e-9 or len2 <= 1e-9:
-            segments[i] = _clear_corner(s1)
-            i += 1
-            continue
-
-        turn_dot = max(-1.0, min(1.0, d_in_x * d_out_x + d_in_z * d_out_z))
-        turn = math.acos(turn_dot)
-        if turn <= math.radians(1.0) or abs(math.pi - turn) <= math.radians(1.0):
-            segments[i] = _clear_corner(s1)
-            i += 1
-            continue
-
-        if chamfer > 1e-9:
-            trim = chamfer
-            if trim > len1 + 1e-6 or trim > len2 + 1e-6:
-                segments[i] = _clear_corner(s1)
-                i += 1
-                continue
-            p1 = Point2(vertex.x - d_in_x * trim / x_scale, vertex.z - d_in_z * trim)
-            p2 = Point2(vertex.x + d_out_x * trim / x_scale, vertex.z + d_out_z * trim)
-            remaining_in = max(0.0, len1 - trim)
-            remaining_out = max(0.0, len2 - trim)
-            replacement: list[ProfileSegment] = []
-            if remaining_in > 1e-6:
-                replacement.append(_make_line_segment(s1.block, s1.start, p1))
-            chamfer_seg = _make_line_segment(
-                s1.block,
-                p1,
-                p2,
-                corner_chamfer=s2.corner_chamfer if remaining_out <= 1e-6 else 0.0,
-                corner_radius_cmd=s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0,
-            )
-            replacement.append(chamfer_seg)
-            _append_outgoing_remainder(replacement, s2, p2, remaining_out)
-            segments[i : i + 2] = replacement
-            i += len(replacement) - 1
-            continue
-
-        trim = fillet * math.tan(turn * 0.5)
-        if trim <= 1e-9 or trim > len1 + 1e-6 or trim > len2 + 1e-6:
-            segments[i] = _clear_corner(s1)
-            i += 1
-            continue
-
-        p1 = Point2(vertex.x - d_in_x * trim / x_scale, vertex.z - d_in_z * trim)
-        p2 = Point2(vertex.x + d_out_x * trim / x_scale, vertex.z + d_out_z * trim)
-        remaining_in = max(0.0, len1 - trim)
-        remaining_out = max(0.0, len2 - trim)
-
-        # Program geometry is interpreted in XZ, but practical turning contour orientation
-        # is equivalent to a swapped plotting basis (Z as horizontal, X as vertical).
-        # Flip the signed turn to keep inserted R-fillets on the same side as machine contour.
-        cross = d_in_z * d_out_x - d_in_x * d_out_z
-        arc_move = 3 if cross > 0.0 else 2
-
-        replacement = []
-        if remaining_in > 1e-6:
-            replacement.append(_make_line_segment(s1.block, s1.start, p1))
-        fillet_seg = ProfileSegment(
-            block=s1.block,
-            move=arc_move,
-            start=p1,
-            end=p2,
-            has_radius=True,
-            radius=fillet,
-            has_center=False,
-            center=Point2(0.0, 0.0),
-            corner_chamfer=s2.corner_chamfer if remaining_out <= 1e-6 else 0.0,
-            corner_radius_cmd=s2.corner_radius_cmd if remaining_out <= 1e-6 else 0.0,
-        )
-        replacement.append(fillet_seg)
-        _append_outgoing_remainder(replacement, s2, p2, remaining_out)
         segments[i : i + 2] = replacement
         i += len(replacement) - 1
 

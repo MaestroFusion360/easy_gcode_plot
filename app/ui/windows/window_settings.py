@@ -121,6 +121,7 @@ _CNC_SETTINGS = (
 
 _EDITOR_SETTINGS = (
     _SettingSpec("CARETLINE_COLOR", "caretLineColor", "#e8e8ff", str),
+    _SettingSpec("CARETLINE_DARK_COLOR", "caretLineDarkColor", "#2a2d2e", str),
     _SettingSpec("ENCODING", "fileEncoding", "utf-8", str),
     _SettingSpec("DEFAULT_FILE_TYPE", "defaultFileType", 0, int),
     _SettingSpec("CARETLINE_VISIBLE", "caretLine", True, bool),
@@ -507,7 +508,12 @@ class MainWindowSettingsMixin:
         stl_panel = getattr(self, "stlObjectsDock", None)
         if stl_panel is not None:
             stl_panel.apply_theme(self.uiTheme)
-        theme.apply_editor_theme(self.ui.editor, getattr(self, "lexer", None), self.uiTheme)
+        theme.apply_editor_theme(
+            self.ui.editor,
+            getattr(self, "lexer", None),
+            self.uiTheme,
+            caret_line_color=self.caretLineDarkColor if self.uiTheme == "dark" else self.caretLineColor,
+        )
 
     def applyPlotTheme(self):
         """Move untouched standard plot colors onto the active theme and repaint."""

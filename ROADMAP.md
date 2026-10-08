@@ -2,6 +2,8 @@
 
 ## Current direction
 
+Current baseline: **1.9.5**. This roadmap tracks remaining work and future priorities. Release history is maintained in [CHANGELOG](CHANGELOG.md).
+
 Until **2.0.0**, the project is in **feature freeze**.
 
 The goal is not to add new user-facing capabilities, but to stabilize the existing system, remove heuristic behavior, close architectural debt, and make all existing layers predictable across GUI, CLI, export, visualization, Tool Library, generators, reports, tests, Windows and Linux.
@@ -12,28 +14,16 @@ The export refactor and multiaxis export work are considered architectural compl
 
 # 1.9.x → 2.0.0 — Stabilization phase
 
-## 1.9.4 — Verified multiaxis export subsets
+## Remaining stabilization work toward 2.0.0
 
-Primary goal: reconstruct the verified rotary/TCP subsets that the execution kernel can already resolve deterministically. This release does not claim general support for every four-axis or five-axis machine configuration.
-
-### Implemented scope
-
-- Reconstruct configured indexed A/B/C motion through the bundled `fanuc_mill_multiaxis` and `sinumerik_840d_multiaxis` posts.
-- Reconstruct the verified non-TCP simultaneous `4ax_table_c` subset.
-- Reconstruct the supported AC/BC TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`, including FANUC ↔ SINUMERIK conversion.
-- Preserve controller-neutral execution semantics instead of merely copying source A/B/C values.
-- Make G28 / G53 / SUPA real resolved reference movements in the common execution/export model.
-- Preserve supported reference movements and retain table-frame metadata separately from head orientation.
-- Remove export-only guards that reject already verified geometry.
-- Keep unsupported or genuinely ambiguous semantics fail-closed.
-
-### Remaining export work after 1.9.4
+### Export limitations and verification
 
 - Reconstruct tilted working planes, including `G68.2/G53.1` and native `CYCLE800`, in target-controller output. These remain unsupported in EXPANDED even where source execution is supported.
 - Reconstruct target frame offsets for indexed export about a displaced WCS origin. The current diagnostic is `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`.
 - Extend continuous rotary reconstruction beyond the verified table-C and AC/BC TCP subsets only when replay can verify the resulting geometry and state.
+- Add semantic drilling-cycle reconstruction for supported FANUC turning operations; reading and plotting these operations does not imply cycle reconstruction in EXPANDED.
 
-The [README export model](README.md#export-model), [English FAQ](FAQ.md#export) and [Russian FAQ](FAQ_RU.md#экспорт) describe the current user contract. Planned work below does not imply that a capability is available in 1.9.4.
+The [README export model](README.md#export-model), [English FAQ](FAQ.md#export) and [Russian FAQ](FAQ_RU.md#экспорт) describe the current user contract. The items above extend that contract and require semantic replay verification before becoming supported.
 
 ### Post profile hardening
 
@@ -164,7 +154,7 @@ Raw JSON view may remain available for advanced editing.
 
 ### Rotary kinematics editor
 
-Add a GUI dialog for creating, editing, validating and saving rotary kinematics profiles.
+The current GUI already provides JSON editing, validation and saved overrides for existing rotary profiles through Options. Extend this into a structured editor with profile creation and guided geometry fields.
 
 Minimum scope:
 
@@ -299,7 +289,7 @@ Recommended sequence:
 1. Tool Library import/export workflow.
 2. Postprocessor management GUI.
 3. Postprocessor editor.
-4. Rotary kinematics editor.
+4. Structured rotary kinematics editor extending the existing JSON workflow.
 5. Embedded console panel.
 6. Report templates.
 7. Post-aware generators and additional NC templates.

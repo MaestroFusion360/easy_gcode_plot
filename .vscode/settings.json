@@ -1,7 +1,12 @@
 {
+  "files.eol": "\r\n",
   "files.associations": {
+    "*.bash": "shellscript",
     "**/translations/*.ts": "xml",
     "app_ru.ts": "xml"
+  },
+  "[shellscript]": {
+    "files.eol": "\n"
   },
   "[html]": {
     "editor.defaultFormatter": "vscode.html-language-features",

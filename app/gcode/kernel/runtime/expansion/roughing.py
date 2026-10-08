@@ -68,7 +68,7 @@ def _prepare_roughing_profile(
         distance_absolute=distance_absolute,
     )
     nominal_end_x = profile[-1].end.x if profile else sx
-    profile, was_compensated = compensated_profile(profile, p_index, q_index, roughing_side=41 if finish_u < 0 else 42)
+    profile, was_compensated = compensated_profile(profile, p_index, q_index)
     state.last_finish_stock_x = sx
     state.last_finish_stock_z = sz
     p_letters = {str(token.letter).upper() for token in blocks[p_index].parsed_words}

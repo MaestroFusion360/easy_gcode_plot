@@ -6,7 +6,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$targets = @('main.py', 'cli_main.py', 'app', 'tests', 'scripts/check_complexity.py')
+$targets = @('main.py', 'cli_main.py', 'app', 'tests', 'scripts/check_complexity.py', 'scripts/check_line_endings.py')
 $uvRunArguments = @('run')
 if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
     $uvRunArguments += '--active'
@@ -15,6 +15,13 @@ if (-not [string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
 Push-Location $projectRoot
 
 try {
+    $lineEndingArguments = @('python', 'scripts/check_line_endings.py')
+    if ($Fix) { $lineEndingArguments += '--fix' }
+    & uv @uvRunArguments @lineEndingArguments
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
+
     if ($Fix) {
         & uv @uvRunArguments ruff format @targets
         if ($LASTEXITCODE -ne 0) {
@@ -27,6 +34,12 @@ try {
         }
 
         & (Join-Path $PSScriptRoot 'generate-resources.ps1') -ProjectRoot $projectRoot
+        if ($LASTEXITCODE -ne 0) {
+            exit $LASTEXITCODE
+        }
+
+        # Qt generators may produce LF; normalize their output after generation.
+        & uv @uvRunArguments @lineEndingArguments
         if ($LASTEXITCODE -ne 0) {
             exit $LASTEXITCODE
         }

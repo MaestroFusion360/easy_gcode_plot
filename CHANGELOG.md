@@ -1,12 +1,23 @@
 # Changelog
 
-## Unreleased
+## 1.9.5 - 2026-10-08
 
+- Preserve CRLF in translation sources after PowerShell lupdate generation so the Windows workflow's subsequent lint check passes. Make Play/Pause artwork tests portable by checking public tool-button properties instead of calling a protected Qt method on a C++-created widget.
+- Fix implicit tool-nose compensation in FANUC G71/G72/G73: a configured nose radius no longer activates G41/G42 by itself. Keep explicit/modal compensation and U/W finishing allowances. Remove empty G72 passes and add a complete 457-motion golden for the first O0339 facing cycle, tool-radius independence checks and FULL/EXPANDED replay coverage; its W0.2 face remains at Z-222.7.
+- Refresh README/FAQ and CLI descriptions to include supported SINUMERIK milling, indexed 3+2 and continuous five-axis CAM visualization. Document checked Autodesk Fusion 360 / Siemens NX 2312 programs from SINUMERIK 840D and FANUC posts, distinguishing modeled geometry, unmodeled native commands and EXPANDED export limits. Refresh the roadmap from the 1.9.5 baseline, keeping remaining stabilization work separate from release history.
+- Keep Status Bar notifications within a bounded width, eliding long messages while preserving full text in tooltips and retaining notification timeouts across window resizing. Display execution errors and warnings once through the diagnostic counter with source-line details; keep calculation states visible without repeating WARNING/ERROR alongside their counters.
 - Fix GUI export file defaults for FANUC lathe system B and SINUMERIK multiaxis targets. Share target-index mapping and extension selection across export callers; Full Program defaults follow the source controller regardless of the saved Expanded target.
 - Preserve SINUMERIK `.mpf`/`.spf` extensions during batch Auto export instead of naming SINUMERIK output `.nc`.
 - Attach source-line numbers and source text to TCP and tilted-work-plane export preflight blockers. Strip line endings from diagnostic source text for consistent LF/CRLF reporting.
 - Honor Full Program cancellation while traversing the execution map and formatting source lines, preserving existing output files when export is cancelled.
 - Add regressions for GUI target filters and suggested extensions, Full Program source defaults, batch Auto output and manifests, LF/CRLF blocker locations, and cancellation during formatting. Correct GUI file-dialog tests to distinguish Full Program from Expanded mode.
+- Animate the cursor and milling tool through intermediate points of supported analytical arcs and helices during Play, including repeated full-circle moves in Macro B WHILE loops. Keep the playback slider indexed by logical CNC motions and independent of render tessellation; intermediate visual frames do not add slider steps.
+- Keep enough arc frames visible at every playback speed instead of reducing a full circle to two opposite points. Preserve the exact motion endpoint and advance the slider only once per logical move; turning Stock Removal retains its own playback timeline.
+- Show the Pause icon while playback is running and restore Play when paused, stopped or completed. Preserve checked/unchecked artwork when scaling toolbar icons to 16/24/32 pixels, including size changes during playback. Include the Pause artwork in the packaged Qt resources.
+- Split Options / Colors into Editor and Plot groups. Add independently persisted current-line highlight colors for light and dark themes, defaulting to #e8e8ff and #2a2d2e. Preserve custom colors when applying a theme or changing the editor file type, and support the native color picker, Cancel and Restore Defaults.
+- Normalize repository working-tree text to CRLF through PowerShell lint -Fix, keeping Bash scripts LF and preserving file encoding, binary assets and ignored outputs. Plain lint checks line endings; Git attributes and VS Code workspace settings use the same defaults, and generated Qt output is normalized after generation.
+- Reduce complexity in turning compensation and direct corner construction, analytical trace statistics, and turning/milling tool geometry by extracting focused helpers. Resolve the excess return statements in direct corner reconstruction and remove retired complexity debt entries without suppressing lint checks.
+- Add regressions for full-circle macro playback at all five speeds, actual milling-tool positions, theme-specific highlight settings and persistence, and line-ending check/fix behavior including encoding preservation and idempotence.
 
 ## 1.9.4 - 2026-10-07
 

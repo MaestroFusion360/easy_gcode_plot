@@ -599,181 +599,198 @@
                         <attribute name="title">
                             <string>Colors</string>
                         </attribute>
-                        <layout class="QFormLayout" name="colorsForm">
-                            <item row="0" column="0">
-                                <widget class="QLabel" name="rapidLabel">
-                                    <property name="text">
-                                        <string>Rapid</string>
+                        <layout class="QVBoxLayout" name="colorsLayout">
+                            <item>
+                                <widget class="QGroupBox" name="editorColorsGroup">
+                                    <property name="title">
+                                        <string>Editor</string>
                                     </property>
+                                    <layout class="QFormLayout" name="editorColorsForm"/>
                                 </widget>
                             </item>
-                            <item row="0" column="1">
-                                <layout class="QHBoxLayout" name="rapidColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="rapidColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="rapidColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
-                            </item>
-                            <item row="1" column="0">
-                                <widget class="QLabel" name="linearLabel">
-                                    <property name="text">
-                                        <string>Linear</string>
+                            <item>
+                                <widget class="QGroupBox" name="plotColorsGroup">
+                                    <property name="title">
+                                        <string>Plot</string>
                                     </property>
+                                    <layout class="QFormLayout" name="colorsForm">
+                                        <item row="0" column="0">
+                                            <widget class="QLabel" name="rapidLabel">
+                                                <property name="text">
+                                                    <string>Rapid</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="0" column="1">
+                                            <layout class="QHBoxLayout" name="rapidColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="rapidColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="rapidColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                        <item row="1" column="0">
+                                            <widget class="QLabel" name="linearLabel">
+                                                <property name="text">
+                                                    <string>Linear</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="1" column="1">
+                                            <layout class="QHBoxLayout" name="linearColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="linearColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="linearColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                        <item row="2" column="0">
+                                            <widget class="QLabel" name="arcLabel">
+                                                <property name="text">
+                                                    <string>Arc</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="2" column="1">
+                                            <layout class="QHBoxLayout" name="arcColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="arcColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="arcColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                        <item row="3" column="0">
+                                            <widget class="QLabel" name="currentLabel">
+                                                <property name="text">
+                                                    <string>Current segment</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="3" column="1">
+                                            <layout class="QHBoxLayout" name="currentColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="currentColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="currentColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                        <item row="4" column="0">
+                                            <widget class="QLabel" name="toolColorLabel">
+                                                <property name="text">
+                                                    <string>Milling tool</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="4" column="1">
+                                            <layout class="QHBoxLayout" name="toolColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="toolColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="toolColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                        <item row="5" column="0">
+                                            <widget class="QLabel" name="backgroundLabel">
+                                                <property name="text">
+                                                    <string>Background</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="5" column="1">
+                                            <layout class="QHBoxLayout" name="backgroundColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="backgroundColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="backgroundColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                        <item row="6" column="0">
+                                            <widget class="QLabel" name="stlColorLabel">
+                                                <property name="text">
+                                                    <string>STL</string>
+                                                </property>
+                                            </widget>
+                                        </item>
+                                        <item row="6" column="1">
+                                            <layout class="QHBoxLayout" name="stlColorLayout">
+                                                <item>
+                                                    <widget class="QPushButton" name="stlColorButton">
+                                                        <property name="text">
+                                                            <string/>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                                <item>
+                                                    <widget class="QLineEdit" name="stlColorEdit">
+                                                        <property name="maxLength">
+                                                            <number>7</number>
+                                                        </property>
+                                                    </widget>
+                                                </item>
+                                            </layout>
+                                        </item>
+                                    </layout>
                                 </widget>
-                            </item>
-                            <item row="1" column="1">
-                                <layout class="QHBoxLayout" name="linearColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="linearColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="linearColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
-                            </item>
-                            <item row="2" column="0">
-                                <widget class="QLabel" name="arcLabel">
-                                    <property name="text">
-                                        <string>Arc</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="2" column="1">
-                                <layout class="QHBoxLayout" name="arcColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="arcColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="arcColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
-                            </item>
-                            <item row="3" column="0">
-                                <widget class="QLabel" name="currentLabel">
-                                    <property name="text">
-                                        <string>Current segment</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="3" column="1">
-                                <layout class="QHBoxLayout" name="currentColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="currentColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="currentColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
-                            </item>
-                            <item row="4" column="0">
-                                <widget class="QLabel" name="toolColorLabel">
-                                    <property name="text">
-                                        <string>Milling tool</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="4" column="1">
-                                <layout class="QHBoxLayout" name="toolColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="toolColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="toolColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
-                            </item>
-                            <item row="5" column="0">
-                                <widget class="QLabel" name="backgroundLabel">
-                                    <property name="text">
-                                        <string>Background</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="5" column="1">
-                                <layout class="QHBoxLayout" name="backgroundColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="backgroundColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="backgroundColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
-                            </item>
-                            <item row="6" column="0">
-                                <widget class="QLabel" name="stlColorLabel">
-                                    <property name="text">
-                                        <string>STL</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="6" column="1">
-                                <layout class="QHBoxLayout" name="stlColorLayout">
-                                    <item>
-                                        <widget class="QPushButton" name="stlColorButton">
-                                            <property name="text">
-                                                <string/>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLineEdit" name="stlColorEdit">
-                                            <property name="maxLength">
-                                                <number>7</number>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
                             </item>
                         </layout>
                     </widget>

@@ -350,12 +350,16 @@ class MainWindow(
         for toolbar in self._toolbars():
             toolbar.setIconSize(size)
         for action, original in self._toolbar_action_icons.items():
-            pixmap = original.pixmap(size)
-            if pixmap.size() != size:
-                pixmap = pixmap.scaled(
-                    size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
-                )
-            action.setIcon(QIcon(pixmap))
+            icon = QIcon()
+            for mode in (QIcon.Mode.Normal, QIcon.Mode.Active, QIcon.Mode.Disabled, QIcon.Mode.Selected):
+                for state in (QIcon.State.Off, QIcon.State.On):
+                    pixmap = original.pixmap(size, mode, state)
+                    if pixmap.size() != size:
+                        pixmap = pixmap.scaled(
+                            size, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
+                        )
+                    icon.addPixmap(pixmap, mode, state)
+            action.setIcon(icon)
 
     def _toolbars(self):
         """Return toolbars in their canonical default order."""
