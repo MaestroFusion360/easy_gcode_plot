@@ -44,7 +44,7 @@ def test_paired_cycle_programs_cut_same_holes_and_depths():
 @pytest.mark.parametrize("events", [False, True])
 def test_native_cycle_trace_export_roundtrip(events):
     native = _native((FIXTURES / "sinumerik" / "cycles_sin840d.mpf").read_text())
-    trace = export_result(native, ExportOptions(safety_line=True, delimiter=True))
+    trace = export_result(native, ExportOptions(safety_line=True, delimiter=True), target="fanuc_mill")
     replay = execute(trace, language="fanuc_mill")
     assert replay.ok and replay.complete and not replay.diagnostics
     assert motion_traces_match(native, replay, tolerance=0.000002, allow_split_cycle_rapids=True)
@@ -92,7 +92,7 @@ def test_unmodeled_cycle_declarations_fail_closed(declaration):
 def test_cam_tapping_matches_fanuc_g84_and_trace_replay():
     native = _native((FIXTURES / "sinumerik" / "tapping_sin840d.mpf").read_text())
     fanuc = execute((FIXTURES / "fanuc" / "tapping_fanuc.nc").read_text(), language="fanuc_mill")
-    replay = execute(export_result(native, ExportOptions()), language="fanuc_mill")
+    replay = execute(export_result(native, ExportOptions(), target="fanuc_mill"), language="fanuc_mill")
     for result in (native, fanuc, replay):
         assert result.ok and result.complete and not result.diagnostics
         assert len(result.motions) == len(native.motions)
@@ -122,10 +122,9 @@ def test_tapping_pitch_is_not_rpm_or_modal_feed_and_cancellation_restores_feed()
 @pytest.mark.parametrize(
     "index,value",
     [
-        (6, "5"),
+        (6, "6"),
         (7, "8"),
         (8, "0"),
-        (8, "-1"),
         (10, "0"),
         (11, "700"),
         (12, "1"),

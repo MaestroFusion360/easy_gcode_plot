@@ -11,7 +11,7 @@ from app.gcode.file_io import protect_source
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
 from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import source_dialect_for_path
+from app.gcode.source_mode import language_for_path, source_dialect_for_path
 
 from .comments import DEFAULT_COMMENT_STYLE, normalize_comment_style
 from .export.common import (
@@ -19,8 +19,8 @@ from .export.common import (
     ExportLimitation,
     ExportOptions,
 )
-from .export.expanded import convert_resolved_program
-from .export.full import is_native_full_program, normalize_full_program
+from .export.expanded import convert_resolved_program, default_target_post
+from .export.full import normalize_full_program
 from .post_profiles import load_post_profile
 
 ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
@@ -36,7 +36,7 @@ def _dxf_backend():
 
 @dataclass(frozen=True)
 class ExportRequest:
-    language: str
+    language: str | None
     target_dialect: str | None = None
     lathe_gcode_system: str = "A"
     sinumerik_840d_sl: bool = True
@@ -81,6 +81,12 @@ def validate_export_request(request: ExportRequest, *, explicit: frozenset[str] 
     """Reject option combinations whose meaning exporters cannot guarantee."""
     if request.sequence_start < 0 or request.sequence_increment <= 0:
         raise ValueError("Sequence start must be nonnegative and increment must be positive")
+    if (
+        isinstance(request.decimal_places, bool)
+        or not isinstance(request.decimal_places, int)
+        or not 0 <= request.decimal_places <= 12
+    ):
+        raise ValueError("Decimal places must be an integer between 0 and 12")
     if not request.sequence_numbers and explicit & {"sequence_start", "sequence_increment", "sequence_spacing"}:
         raise ValueError("Sequence start, increment and spacing require --sequence-numbers")
     if request.mode not in ("full", "expanded"):
@@ -104,7 +110,7 @@ def _validate_target_dialect(request, explicit):
         raise ValueError("Target post profiles require NC format and --mode expanded")
     profile = load_post_profile(request.target_dialect)
     lathe = profile["machine"] == "lathe"
-    if lathe != (request.language == "fanuc_turn"):
+    if request.language is not None and lathe != (request.language == "fanuc_turn"):
         raise ValueError("Target post profile must match the source machine")
 
 
@@ -134,6 +140,12 @@ def _validate_dxf_options(explicit: frozenset[str]) -> None:
         "comments",
         "safety_line",
         "modal_feed",
+        "start_program",
+        "end_program",
+        "comment_style",
+        "decimal_places",
+        "force_decimal",
+        "plus_output",
     }
     if nc_only:
         raise ValueError("DXF export does not accept NC-only options: " + ", ".join(sorted(nc_only)))
@@ -228,7 +240,7 @@ def _failed_export(
 
 
 def _preflight_export_failure(result, request, started):
-    if not result.ok or not result.complete:
+    if (not result.ok or not result.complete) and (request.format != "dxf" or not result.motions):
         return ExportResult(result, 0, None, None, round((perf_counter() - started) * 1000, 3))
     if request.format == "nc" and request.mode == "expanded":
         profile = load_post_profile(_target_post(result, request))
@@ -271,19 +283,13 @@ def _nc_output(source, result, request, options, *, cancelled=None):
 
 
 def _target_post(result, request):
-    return request.target_dialect or (
-        "fanuc_lathe_" + request.lathe_gcode_system.lower()
-        if request.language == "fanuc_turn"
-        else "sinumerik_840d"
-        if is_native_full_program(result)
-        else "sinumerik_iso"
-        if result.source_dialect == "sinumerik"
-        else "fanuc_mill"
-    )
+    return request.target_dialect or default_target_post(result, lathe_gcode_system=request.lathe_gcode_system)
 
 
 def export_file(source_path: Path, output_path: Path, request: ExportRequest) -> ExportResult:
     """Execute once and export through the shared NC/DXF writer."""
+    if request.language is None:
+        request = replace(request, language=language_for_path(source_path))
     validate_export_request(request)
     started = perf_counter()
     source_path = source_path.resolve()

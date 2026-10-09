@@ -1,270 +1,361 @@
-      <div class="controller-reference">
-        <h3>SINUMERIK 840D native — G290</h3>
-        <details class="code-table">
-          <summary>SINUMERIK native</summary>
-          <div class="table-wrap" role="region" aria-label="SINUMERIK native" tabindex="0">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Native function</th>
-                  <th scope="col">Current behavior</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>
-                    <code>G0/G1</code>, <code>G2/G3</code>,
-                    <code>G17/G18/G19</code>
-                  </td>
-                  <td>
-                    XYZ positioning, linear moves and arcs in the selected
-                    plane; <code>CR=</code> radius arcs, including negative
-                    radius for a major arc
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <code>G90/G91</code>, <code>G54–G59</code>,
-                    <code>G70/G71/G700/G710</code>
-                  </td>
-                  <td>
-                    Absolute/incremental coordinates and work offsets.
-                    G70/G71 select inch/metric lengths; G700/G710 also select feed units.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>G60 / G64</code></td>
-                  <td>Exact-stop / continuous-path metadata; acceleration, stop time and blending are not simulated.
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>G93 / G94 / G95</code></td>
-                  <td>Inverse-time / per-minute / per-revolution feed. G93 uses 1/F minutes per cutting motion;
-                    reprogram positive F on mode changes. G93 cycles and cutter compensation are unsupported.</td>
-                </tr>
-                <tr>
-                  <td><code>G500</code></td>
-                  <td>Modal deactivation of the settable work offset until the next G54–G59 call.
-                    Coordinates are rebased without motion. Default: zero G500 and base frame;
-                    API wcs_offsets[500] can supply a translation. OEM base-frame rotations,
-                    mirroring and scaling are not modeled.</td>
-                </tr>
-                <tr>
-                  <td><code>DIAMON / DIAMOF / DIAM90</code></td>
-                  <td>Parsed with warnings; execution continues using DIAMOF semantics for all coordinates.
-                    Diameter programming is not simulated.</td>
-                </tr>
-                <tr>
-                  <td><code>CHF / CHR / RND / RNDM / FRC / FRCM</code></td>
-                  <td>Parsed with warnings without changing geometry or feed. Chamfers, corner rounding,
-                    modal rounding and corner feed are not simulated; RNDM=0 is recognized but has no geometric effect.
-                    Reports retain these warnings; resolved NC export is rejected.</td>
-                </tr>
-                <tr>
-                  <td><code>G40/G41/G42</code></td>
-                  <td>
-                    Modeled cutter-radius compensation using the configured
-                    tool with TCP off. G41/G42 under active TRAORI is not
-                    modeled and stops execution with
-                    <code>UNSUPPORTED_TCP_CUTTER_COMPENSATION</code>.
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <code>T</code>, <code>M6</code>, <code>D0..D12</code>,
-                    <code>S</code>, basic M codes
-                  </td>
-                  <td>
-                    Tool change, modeled cutting-edge selection/cancellation,
-                    spindle and coolant signals; controller-specific offset
-                    tables are not simulated
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>G0 SUPA ... D0</code></td>
-                  <td>
-                    Nonmodal machine-coordinate positioning;
-                    zero XYZ addresses use the configured G28/SUPA return coordinates
-                    in the application's reference-coordinate model, as FANUC G53 does.
-                    WCS and the rotary frame determine the displayed position
-                    <br />Configured A/B/C axes are also supported, including
-                    rotary-only blocks. SUPA targets remain absolute under G91.
-                  </td>
-                </tr>
-                <tr>
-                  <td>
-                    <code>G64</code>, <code>MSG(...)</code>,
-                    <code>WORKPIECE(...)</code>, <code>;</code> comments
-                  </td>
-                  <td>
-                    Path-control/display metadata and comments; no blending or
-                    stock geometry is generated from these declarations
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>MCALL CYCLE81/82/83/84(...)</code></td>
-                  <td>
-                    Modal Z drilling/tapping in <code>G17/G40</code>,
-                    triggered by subsequent XY blocks; bare
-                    <code>MCALL</code> cancels the cycle
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE81/82</code></td>
-                  <td>
-                    Drilling and rapid return, with modeled seconds-based
-                    dwell for <code>CYCLE82</code>; safety plane is
-                    <code>RFP + SDIS</code>, return plane is <code>RTP</code>
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE83</code></td>
-                  <td>
-                    Modeled first depth, amount degression, minimum peck
-                    depth, chip-breaking/full-retract options and reentry
-                    clearance
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE84</code></td>
-                  <td>
-                    Single-pass metric right-hand tapping in <code>G94</code>:
-                    explicit positive <code>PIT</code>,
-                    <code>_PITA=0/1</code>, <code>SDAC=3</code>, Z axis and
-                    positive <code>SST</code> equal to programmed
-                    <code>S</code>; equal <code>SST1</code> or zero/omitted.
-                    Feed = pitch × rpm; feed withdrawal to
-                    <code>RFP+SDIS</code>, rapid return to <code>RTP</code>,
-                    optional dwell in seconds
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>TRAORI / TRAFOOF</code></td>
-                  <td>GUI/CLI/kernel TCP via the common angled AC/BC table profiles; G0/G1/G2/G3 with configured numeric
-                    rotary axes</td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE800</code></td>
-                  <td>
-                    GUI/CLI/kernel static frames: modes 57/54/39/27/30/45,
-                    ST0/1/200000/200001/220000/220001, DIR-1/0/1; 14/15/16-argument
-                    calls, legacy R_DATA setup and active-frame reset supported
-                  </td>
-                </tr>
-                <tr>
-                  <td><code>TRANS / ATRANS / ROT / AROT / RPL=</code></td>
-                  <td>Programmable rigid frames: replacement/reset or composition in local axes, preserving physical
-                    tool position. XYZ rotation uses RPY (MD10600=1); RPL rotates in the active plane. FULL preserves
-                    commands; EXPANDED resolves their geometry. Active TWP/TCP, polar mode, cycles and compensation
-                    cannot be combined with these frames.</td>
-                </tr>
-                <tr>
-                  <td><code>G505–G599 / G601 / G641 / G642 / G645</code></td>
-                  <td>Unverified warnings; controller-specific effects are not simulated.</td>
-                </tr>
-                <tr>
-                  <td>Unknown auxiliary M codes</td>
-                  <td>Non-blocking warnings; motion and known commands in mixed blocks still execute.
-                    M2/M30 end programs. Native M17/M96/M97/M99 stop with unsupported-flow diagnostics;
-                    M66/M98 warn without subprogram dispatch.</td>
-                </tr>
-                <tr>
-                  <td><code>CIP / I1= / J1= / K1=</code></td>
-                  <td>Spatial circular interpolation through three points, including G90/G91 and AC/IC intermediate
-                    coordinates. Plot/Playback preserve the circle; EXPANDED uses G1 chords within the configured
-                    linearization tolerance. Requires a fixed frame, G40 and no active cycle.</td>
-                </tr>
-                <tr>
-                  <td><code>DEF REAL / named-scalar assignments</code></td>
-                  <td>Underscore-named scalar variables default to zero; direct numeric, R and scalar assignments are
-                    supported. Arrays and compound named-scalar assignments are rejected; R expressions use the separate subset below.</td>
-                </tr>
-                <tr>
-                  <td><code>I/J/K / AC(...)</code></td>
-                  <td>Plain IJK offsets are relative to arc start. AC explicitly selects absolute centers, including
-                    mixed center addresses. Source Arc Type and autodetection do not override SINUMERIK syntax.</td>
-                </tr>
-                <tr>
-                  <td><code>T=&quot;name&quot; / M6 / T0</code></td>
-                  <td>Case-sensitive named tool selection; M6 activates the selected tool and T0 with M6 unloads it.
-                    G41/G42 remains unverified without configured cutter geometry.</td>
-                </tr>
-                <tr>
-                  <td><code>D0..D12 under TRAORI</code></td>
-                  <td>Cutting-edge selection preserves the active TCP transform.</td>
-                </tr>
-                <tr>
-                  <td><code>FNORM / COMPOF / SETMS(1)</code></td>
-                  <td>Normal feed and compressor-off metadata; only main-spindle selection SETMS(1) is accepted.</td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE832(...)</code></td>
-                  <td>Ignored without geometry or display events; zero to three direct arguments are accepted.</td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE81(RTP,RFP,SDIS,DP)</code></td>
-                  <td>The four mandatory arguments are accepted; DPR is optional.</td>
-                </tr>
-                <tr>
-                  <td><code>CYCLE800: 14/15/16 arguments</code></td>
-                  <td>Classic calls may omit FR_I/DMODE; new/additive frames use the common swivel model.
-                    OEM machine configuration and retract paths are not inferred.</td>
-                </tr>
-                <tr>
-                  <td><code>DC(...)</code></td>
-                  <td>Shortest-path absolute approach for configured rotary axes; exactly 180-degree ambiguity
-                    is rejected.</td>
-                </tr>
-                <tr>
-                  <td><code>R assignments / address and cycle expressions</code></td>
-                  <td>Bounded + - * /, parentheses, comparisons and SIN/COS/ABS/SQRT; trigonometry in degrees. Siemens R state is separate from FANUC variables.</td>
-                </tr>
-                <tr>
-                  <td><code>WHILE / ENDWHILE / GOTO / IF GOTO</code></td>
-                  <td>Nested loops and numeric N-label jumps. Shared execution/iteration limits and cancellation apply; invalid flow stops with source-line diagnostics.</td>
-                </tr>
-                <tr>
-                  <td><code>M19</code></td>
-                  <td>Spindle-orientation signal without motion or a spindle-state change.</td>
-                </tr>
-                <tr>
-                  <td><code>G96 / G961 / G97 / G971</code></td>
-                  <td>CSS / CSS / RPM / RPM with per-revolution / per-minute / per-revolution / per-minute feed. CSS retains surface speed; instantaneous milling RPM is not inferred.</td>
-                </tr>
-                <tr>
-                  <td><code>ANG / SCALE / ASCALE / MIRROR / AMIRROR</code></td>
-                  <td>Recognized but geometry is unmodeled; execution stops before motion.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </details>
-        <p class="note">
-          GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table
-          profiles, including rotary arcs. Numeric A/B/C and direct R
-          references, incremental IC and shortest-path absolute DC require a
-          matching profile. Exact DC half turns remain rejected. CYCLE800
-          uses Siemens matrices and the common TWP core; OEM retract paths
-          are not simulated. G70/G71 select inch/metric lengths without changing feed units;
-          G700/G710 also select feed units and retain the modal numeric F.
-          G93 uses 1/F minutes per cutting motion, including rotary TCP motion; F must be positive.
-          Reprogram F on G93/G94/G95 changes. G93 cycles and cutter compensation are unsupported.
-          ORI*, FGROUP, FL[], FGREF[], SPOS and CUT3D* are warning-only and unverified. SCALE/ASCALE and
-          MIRROR/AMIRROR and ANG are recognized with unmodeled geometry and stop execution.
-          R parameters support bounded arithmetic, comparisons, parentheses and SIN/COS/ABS/SQRT;
-          trigonometry uses degrees. WHILE/ENDWHILE supports nesting, and GOTO/IF GOTO use numeric N labels.
-          Missing targets, malformed flow and invalid expressions fail closed; execution and iteration limits
-          and cancellation remain active. GOTOF/GOTOB/GOTOC, RET and arbitrary subprogram calls are unsupported.
-          M19 emits spindle orientation without motion or a spindle-state change. G96/G961 select CSS with
-          revolution/linear feed; G97/G971 select RPM with revolution/linear feed. CSS stores surface speed
-          without inferring instantaneous RPM from milling X. FULL preserves supported native flow;
-          EXPANDED exports resolved geometry but rejects CSS without a reliable reference axis.
-          CYCLE84 is limited to single-pass metric right-hand tapping; deep
-          tapping, left-hand tapping and unequal entry/withdrawal speeds
-          produce diagnostics.
-        </p>
-        <p class="note">
-          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input">Parameters
-            and limitations in the FAQ →</a>
-        </p>
-      </div>
+<div class="controller-reference">
+  <h3>SINUMERIK 840D native — G290</h3>
+  <details class="code-table">
+    <summary>SINUMERIK native</summary>
+    <div
+      class="table-wrap"
+      role="region"
+      aria-label="SINUMERIK native"
+      tabindex="0"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Native function</th>
+            <th scope="col">Current behavior</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>G0/G1</code>, <code>G2/G3</code>,
+              <code>G17/G18/G19</code>
+            </td>
+            <td>
+              XYZ positioning, linear moves and arcs in the selected plane;
+              <code>CR=</code> radius arcs, including negative radius for a
+              major arc
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>G90/G91</code>, <code>G54–G59</code>,
+              <code>G70/G71/G700/G710</code>
+            </td>
+            <td>
+              Absolute/incremental coordinates and work offsets. G70/G71 select
+              inch/metric lengths; G700/G710 also select feed units.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G60 / G64</code></td>
+            <td>
+              Exact-stop / continuous-path metadata; acceleration, stop time and
+              blending are not simulated.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G93 / G94 / G95</code></td>
+            <td>
+              Inverse-time / per-minute / per-revolution feed. G93 uses 1/F
+              minutes per cutting motion; reprogram positive F on mode changes.
+              G93 cycles and cutter compensation are unsupported.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G500</code></td>
+            <td>
+              Modal deactivation of the settable work offset until the next
+              G54–G59 call. Coordinates are rebased without motion. Default:
+              zero G500 and base frame; API wcs_offsets[500] can supply a
+              translation. OEM base-frame rotations, mirroring and scaling are
+              not modeled.
+            </td>
+          </tr>
+          <tr>
+            <td><code>DIAMON / DIAMOF / DIAM90</code></td>
+            <td>
+              Parsed with warnings; execution continues using DIAMOF semantics
+              for all coordinates. Diameter programming is not simulated.
+            </td>
+          </tr>
+          <tr>
+            <td><code>CHF / CHR / RND / RNDM / FRC / FRCM</code></td>
+            <td>
+              Parsed with warnings without changing geometry or feed. Chamfers,
+              corner rounding, modal rounding and corner feed are not simulated;
+              RNDM=0 is recognized but has no geometric effect. Reports retain
+              these warnings; resolved NC export is rejected.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G40/G41/G42</code></td>
+            <td>
+              Modeled cutter-radius compensation using the configured tool with
+              TCP off. G41/G42 under active TRAORI is not modeled and stops
+              execution with
+              <code>UNSUPPORTED_TCP_CUTTER_COMPENSATION</code>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>T</code>, <code>M6</code>, <code>D0..D12</code>,
+              <code>S</code>, basic M codes
+            </td>
+            <td>
+              Tool change, modeled cutting-edge selection/cancellation, spindle
+              and coolant signals; controller-specific offset tables are not
+              simulated
+            </td>
+          </tr>
+          <tr>
+            <td><code>G0 SUPA ... D0</code></td>
+            <td>
+              Nonmodal machine-coordinate positioning; zero XYZ addresses use
+              the configured G28/SUPA return coordinates in the application's
+              reference-coordinate model, as FANUC G53 does. WCS and the rotary
+              frame determine the displayed position
+              <br />Configured A/B/C axes are also supported, including
+              rotary-only blocks. SUPA targets remain absolute under G91.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>G64</code>, <code>MSG(...)</code>,
+              <code>WORKPIECE(...)</code>, <code>;</code> comments
+            </td>
+            <td>
+              Path-control/display metadata and comments; no blending or stock
+              geometry is generated from these declarations
+            </td>
+          </tr>
+          <tr>
+            <td><code>MCALL CYCLE81/82/83/84/85/86/87/89(...)</code></td>
+            <td>
+              Modal Z drilling/tapping in <code>G17/G40</code>, triggered by
+              subsequent XY blocks; bare <code>MCALL</code> cancels the cycle
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE81/82</code></td>
+            <td>
+              Drilling and rapid return, with modeled seconds-based dwell for
+              <code>CYCLE82</code>; safety plane is <code>RFP + SDIS</code>,
+              return plane is <code>RTP</code>
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE83</code></td>
+            <td>
+              Modeled first depth, amount degression, minimum peck depth,
+              chip-breaking/full-retract options and reentry clearance
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE84</code></td>
+            <td>
+              Metric right/left rigid tapping in G94, including VARI=1/2 deep
+              tapping with DAM/VRT and balanced final steps. PIT is explicit;
+              SST matches S and SST1 is equal or omitted. SDAC=3/4/5 is
+              retained. Synchronized withdrawal reaches RFP+SDIS, followed by
+              rapid return to RTP.
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE85/86/87/89</code></td>
+            <td>
+              CYCLE85 uses separate cutting/return feeds FFR/RFF; CYCLE89 feeds
+              in and out with dwell. CYCLE87 records spindle stop and operator
+              stop, then rapid withdrawal. CYCLE86 includes oriented stop POSS
+              and the signed RPA/RPO/RPAP clearance move.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G2/G3</code></td>
+            <td>
+              Two endpoint axes select a block-local circle plane; the modal
+              G17/G18/G19 plane is retained for subsequent blocks.
+            </td>
+          </tr>
+          <tr>
+            <td><code>TRAORI / TRAFOOF</code></td>
+            <td>
+              GUI/CLI/kernel TCP via the common angled AC/BC table profiles;
+              G0/G1/G2/G3 with configured numeric rotary axes
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE800</code></td>
+            <td>
+              GUI/CLI/kernel static frames: modes 57/54/39/27/30/45,
+              ST0/1/200000/200001/220000/220001, DIR-1/0/1; 14/15/16-argument
+              calls, legacy R_DATA setup and active-frame reset supported
+            </td>
+          </tr>
+          <tr>
+            <td><code>TRANS / ATRANS / ROT / AROT / RPL=</code></td>
+            <td>
+              Programmable rigid frames: replacement/reset or composition in
+              local axes, preserving physical tool position. XYZ rotation uses
+              RPY (MD10600=1); RPL rotates in the active plane. FULL preserves
+              commands; EXPANDED resolves their geometry. Active TWP/TCP, polar
+              mode, cycles and compensation cannot be combined with these
+              frames.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G505–G599 / G601 / G641 / G642 / G645</code></td>
+            <td>
+              Unverified warnings; controller-specific effects are not
+              simulated.
+            </td>
+          </tr>
+          <tr>
+            <td>Unknown auxiliary M codes</td>
+            <td>
+              Non-blocking warnings; motion and known commands in mixed blocks
+              still execute. M2/M30 end programs. Native M17/M96/M97/M99 stop
+              with unsupported-flow diagnostics; M66/M98 warn without subprogram
+              dispatch.
+            </td>
+          </tr>
+          <tr>
+            <td><code>CIP / I1= / J1= / K1=</code></td>
+            <td>
+              Spatial circular interpolation through three points, including
+              G90/G91 and AC/IC intermediate coordinates. Plot/Playback preserve
+              the circle; EXPANDED uses G1 chords within the configured
+              linearization tolerance. Requires a fixed frame, G40 and no active
+              cycle.
+            </td>
+          </tr>
+          <tr>
+            <td><code>DEF REAL / named-scalar assignments</code></td>
+            <td>
+              Underscore-named scalar variables default to zero; direct numeric,
+              R and scalar assignments are supported. Arrays and compound
+              named-scalar assignments are rejected; R expressions use the
+              separate subset below.
+            </td>
+          </tr>
+          <tr>
+            <td><code>I/J/K / AC(...)</code></td>
+            <td>
+              Plain IJK offsets are relative to arc start. AC explicitly selects
+              absolute centers, including mixed center addresses. Source Arc
+              Type and autodetection do not override SINUMERIK syntax.
+            </td>
+          </tr>
+          <tr>
+            <td><code>T=&quot;name&quot; / M6 / T0</code></td>
+            <td>
+              Case-sensitive named tool selection; M6 activates the selected
+              tool and T0 with M6 unloads it. G41/G42 remains unverified without
+              configured cutter geometry.
+            </td>
+          </tr>
+          <tr>
+            <td><code>D0..D12 under TRAORI</code></td>
+            <td>Cutting-edge selection preserves the active TCP transform.</td>
+          </tr>
+          <tr>
+            <td><code>FNORM / COMPOF / SETMS(1)</code></td>
+            <td>
+              Normal feed and compressor-off metadata; only main-spindle
+              selection SETMS(1) is accepted.
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE832(...)</code></td>
+            <td>
+              Ignored without geometry or display events; zero to three direct
+              arguments are accepted.
+            </td>
+          </tr>
+          <tr>
+            <td><code>CYCLE81(RTP,RFP,SDIS,DP)</code></td>
+            <td>The four mandatory arguments are accepted; DPR is optional.</td>
+          </tr>
+          <tr>
+            <td><code>CYCLE800: 14/15/16 arguments</code></td>
+            <td>
+              Classic calls may omit FR_I/DMODE; new/additive frames use the
+              common swivel model. OEM machine configuration and retract paths
+              are not inferred.
+            </td>
+          </tr>
+          <tr>
+            <td><code>DC(...)</code></td>
+            <td>
+              Shortest-path absolute approach for configured rotary axes;
+              exactly 180-degree ambiguity is rejected. Signed or unwrapped
+              Fusion DC targets are reduced modulo 360 for backplotting with a
+              source warning; this does not certify controller acceptance.
+            </td>
+          </tr>
+          <tr>
+            <td><code>R assignments / address and cycle expressions</code></td>
+            <td>
+              Bounded + - * /, parentheses, comparisons and SIN/COS/ABS/SQRT;
+              trigonometry in degrees. Siemens R state is separate from FANUC
+              variables.
+            </td>
+          </tr>
+          <tr>
+            <td><code>WHILE / ENDWHILE / GOTO / IF GOTO</code></td>
+            <td>
+              Nested loops and numeric N-label jumps. Shared execution/iteration
+              limits and cancellation apply; invalid flow stops with source-line
+              diagnostics.
+            </td>
+          </tr>
+          <tr>
+            <td><code>M19</code></td>
+            <td>
+              Spindle-orientation signal without motion or a spindle-state
+              change.
+            </td>
+          </tr>
+          <tr>
+            <td><code>G96 / G961 / G97 / G971</code></td>
+            <td>
+              CSS / CSS / RPM / RPM with per-revolution / per-minute /
+              per-revolution / per-minute feed. CSS retains surface speed;
+              instantaneous milling RPM is not inferred.
+            </td>
+          </tr>
+          <tr>
+            <td><code>ANG / SCALE / ASCALE / MIRROR / AMIRROR</code></td>
+            <td>
+              Recognized but geometry is unmodeled; execution stops before
+              motion.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <p class="note">
+    GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table
+    profiles, including rotary arcs. Numeric A/B/C and direct R references,
+    incremental IC and shortest-path absolute DC require a matching profile.
+    Exact DC half turns remain rejected. CYCLE800 uses Siemens matrices and the
+    common TWP core; OEM retract paths are not simulated. G70/G71 select
+    inch/metric lengths without changing feed units; G700/G710 also select feed
+    units and retain the modal numeric F. G93 uses 1/F minutes per cutting
+    motion, including rotary TCP motion; F must be positive. Reprogram F on
+    G93/G94/G95 changes. G93 cycles and cutter compensation are unsupported.
+    ORI*, FGROUP, FL[], FGREF[], SPOS and CUT3D* are warning-only and
+    unverified. SCALE/ASCALE and MIRROR/AMIRROR and ANG are recognized with
+    unmodeled geometry and stop execution. R parameters support bounded
+    arithmetic, comparisons, parentheses and SIN/COS/ABS/SQRT; trigonometry uses
+    degrees. WHILE/ENDWHILE supports nesting, and GOTO/IF GOTO use numeric N
+    labels. Missing targets, malformed flow and invalid expressions fail closed;
+    execution and iteration limits and cancellation remain active.
+    GOTOF/GOTOB/GOTOC, RET and arbitrary subprogram calls are unsupported. M19
+    emits spindle orientation without motion or a spindle-state change. G96/G961
+    select CSS with revolution/linear feed; G97/G971 select RPM with
+    revolution/linear feed. CSS stores surface speed without inferring
+    instantaneous RPM from milling X. FULL preserves supported native flow;
+    EXPANDED exports resolved geometry but rejects CSS without a reliable
+    reference axis. CYCLE84 supports right/left metric tapping and
+    chip-breaking/full-retract pecks; unequal entry/withdrawal speeds and
+    thread-table/technology options remain outside the modeled subset.
+  </p>
+  <p class="note">
+    <a
+      href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#sinumerik-840d-input"
+      >Parameters and limitations in the FAQ →</a
+    >
+  </p>
+</div>

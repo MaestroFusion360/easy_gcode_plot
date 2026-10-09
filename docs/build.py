@@ -4,9 +4,11 @@ import argparse
 import re
 from pathlib import Path
 
+from comparison import render_comparison
+
 ROOT = Path(__file__).resolve().parent
 PAGES = (("en", ROOT / "index.html"), ("ru", ROOT / "ru" / "index.html"))
-INCLUDE = re.compile(r"^<!-- include: ([a-z0-9/.-]+) -->\n", re.MULTILINE)
+INCLUDE = re.compile(r"^[ \t]*<!-- include: ([a-z0-9/.-]+) -->\n", re.MULTILINE)
 
 
 def render(path, parents=()):
@@ -15,6 +17,10 @@ def render(path, parents=()):
     if path in parents:
         raise ValueError(f"Circular HTML include: {path}")
     source = path.read_text(encoding="utf-8")
+    for language in ("en", "ru"):
+        marker = f"<!-- comparison: {language} -->"
+        if marker in source:
+            source = source.replace(marker, render_comparison(language))
     return INCLUDE.sub(lambda match: render(path.parent / match[1], (*parents, path)), source)
 
 

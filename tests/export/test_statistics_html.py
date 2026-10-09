@@ -122,6 +122,25 @@ def test_svg_large_trace_retains_every_motion_without_bridging():
     assert len(report) < 600_000
 
 
+@pytest.mark.parametrize("language, axes", [("fanuc_mill", {"+X", "+Y", "0"}), ("fanuc_turn", {"+Z", "+X", "0"})])
+def test_svg_origin_is_visible_for_offset_toolpaths_and_survives_tool_filter(language, axes):
+    import xml.etree.ElementTree as ET  # pylint: disable=import-outside-toplevel
+
+    result = execute("G1 X20 Z-10 F100", language=language)
+    segments = [((100, 100, -100), (110, 110, -110), 1, None)]
+    report = statistics_html(trace_statistics(result), LABELS, portable=True, execution=result, plot_segments=segments)
+    root = ET.fromstring(report[report.index("<svg") : report.index("</svg>") + len("</svg>")])
+    ns = {"svg": "http://www.w3.org/2000/svg"}
+    origin = root.find("svg:g[@class='coordinate-origin']", ns)
+    assert origin is not None
+    assert {text.text for text in origin.findall(".//svg:text", ns)} == axes
+    circle = origin.find("svg:circle", ns)
+    assert 30 < float(circle.attrib["cx"]) < 870
+    assert 30 < float(circle.attrib["cy"]) < 606
+    # The tool selector only hides elements bearing data-tool-section.
+    assert all("data-tool-section" not in element.attrib for element in origin.iter())
+
+
 def test_svg_uses_supplied_print_geometry_without_resampling():
     from dataclasses import replace  # pylint: disable=import-outside-toplevel
 

@@ -35,6 +35,7 @@ from .common import (
     motion_line,
     scale_motion,
 )
+from .full import is_native_full_program
 from .tool_numbers import MillingLengthOutput, named_tools, target_tool_numbers, tool_mapping_lines
 
 MILLING_TARGETS = post_profiles.MILLING_TARGETS
@@ -198,12 +199,21 @@ def _post_motion_line(line, move, options, profile):
     return separator.join(final)
 
 
+def default_target_post(result, *, lathe_gcode_system=None):
+    """Select the source controller consistently for direct and file export."""
+    if result.language == "fanuc_turn":
+        return "fanuc_lathe_" + (lathe_gcode_system or result.lathe_gcode_system).lower()
+    if is_native_full_program(result):
+        return "sinumerik_840d"
+    return "sinumerik_iso" if result.source_dialect == "sinumerik" else "fanuc_mill"
+
+
 def export_result(result, options=None, *, cancelled=None, target=None, sinumerik_840d_sl=None):
     """Postprocess resolved execution through one controller profile."""
     if target is None:
         if result is None:
             raise ValueError("EXPANDED requires a valid execution result")
-        target = "fanuc_lathe_" + result.lathe_gcode_system.lower() if result.language == "fanuc_turn" else "fanuc_mill"
+        target = default_target_post(result)
     return convert_resolved_program(result, target, options, cancelled=cancelled, sinumerik_840d_sl=sinumerik_840d_sl)
 
 

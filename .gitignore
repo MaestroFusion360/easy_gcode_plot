@@ -64,6 +64,7 @@ builds/
 
 # uv / Ruff
 .ruff_cache/
+node_modules/
 
 tmp/
 .omx/

@@ -7,9 +7,25 @@ from ..state import _machine
 
 def drilling_event(context, state, resolved, motions, *, native=None):
     code = native.code if native is not None else state.cycle
-    kind = {73: "peckDrill", 81: "drill", 82: "drillDwell", 83: "peckDrill", 84: "tap", 85: "boreFeed", 86: "boreStop"}[
-        code
-    ]
+    kind = {
+        73: "peckDrill",
+        74: "tapLeft",
+        76: "fineBore",
+        81: "drill",
+        82: "drillDwell",
+        83: "peckDrill",
+        84: "tap",
+        85: "boreFeed",
+        86: "fineBore" if native else "boreStop",
+        87: "boreManualStop" if native else "backBore",
+        89: "boreDwell",
+    }[code]
+    if native is not None and code == 84:
+        kind = "tapPeck" if native.first_depth is not None else "tapLeft" if native.left_hand else "tap"
+    if native is not None and code == 85 and native.retract_feed != native.cutting_feed:
+        kind = "reamDifferentFeed"
+    if native is None and code in (74, 84) and state.cycle_tapping_q:
+        kind = "tapPeck"
     if native is not None and code == 81 and native.dwell:
         kind = "drillDwell"
 
@@ -55,7 +71,7 @@ def drilling_orientation(state):
 
 def _iso_parameters(state, resolved):
     return {
-        "dwell_bottom": state.cycle_p if state.cycle in (82, 84) else 0.0,
+        "dwell_bottom": state.cycle_p if state.cycle in (74, 76, 82, 84, 87, 89) else 0.0,
         "peck_first": resolved.step or 0.0,
         "full_retract": state.cycle != 73,
         "reentry_clearance": state.g83_clearance,

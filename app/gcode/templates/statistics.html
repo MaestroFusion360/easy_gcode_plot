@@ -41,6 +41,7 @@
     }
 
     table {
+      max-width: 900px;
       border-collapse: collapse;
       margin: 0;
     }
@@ -74,7 +75,17 @@
 
     .trajectory-preview { margin-top: 24px; }
     .trajectory-preview h2 { font-size: $heading_size; }
-    .trajectory-preview svg { display: block; width: 100%; height: auto; border: 1px solid $border; }
+    .trajectory-preview svg {
+      display: block;
+      box-sizing: border-box;
+      /* Match the 900:636 viewBox, capped at 70% of the viewport height. */
+      width: min(100%, 900px, calc(70vh * 900 / 636));
+      height: auto;
+      border: 1px solid $border;
+    }
+    @media print {
+      .trajectory-preview svg { width: 100%; max-width: 900px; }
+    }
     .trajectory-preview text { fill: $foreground; font-size: 14px; }
     .svg-cut-label { color: $accent; }
     .svg-rapid-label { color: $warning; }

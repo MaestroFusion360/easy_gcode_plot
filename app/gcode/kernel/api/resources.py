@@ -19,7 +19,7 @@ class SemanticError(ValueError):
 class ExecutionLimits:
     executed_blocks: int = 500_000
     subprogram_calls: int = 10_000
-    generated_motions: int = 200_000
+    generated_motions: int = 2_147_483_647
     cycle_iterations: int = 100_000
     macro_iterations: int = 100_000
     call_depth: int = 64

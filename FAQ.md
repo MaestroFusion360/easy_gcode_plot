@@ -509,6 +509,8 @@ Yes. The default execution budget protects against runaway macros, recursive cal
 | Macro loop iterations | 100,000 |
 | General call depth | 64 |
 
+The kernel, GUI, CLI and batch execution share these default execution budgets. GUI segment limits apply to rendering, and explicitly configured execution limits still take precedence.
+
 Cancellation is checked through the same budget mechanism. Resource exhaustion produces a structured `RESOURCE_LIMIT`-style result instead of an unbounded run.
 
 ---
@@ -1201,7 +1203,7 @@ For supported nonzero angles, pass start/end Z is shifted to model FANUC-style s
 
 ### How is G76 chamfer modeled?
 
-The packed chamfer digits are converted into an axial chamfer length based on thread lead. The final part of each thread pass is split when necessary to represent the chamfer section.
+The packed chamfer digits mark an axial interval based on thread lead. The current model splits the final part of the pass into collinear segments; it does not simulate an angled radial pull-out or the resulting physical chamfer. The controller's pull-out angle is not configured, and the tool angle in P is not a substitute for it. No universal 45-degree exit is assumed.
 
 ### Is G92 a modal threading cycle?
 
@@ -1476,7 +1478,7 @@ For each IJK arc it compares relative and absolute-center interpretations using 
 
 R-only arcs are ignored during detection because they do not distinguish IJK conventions.
 
-If every candidate is ambiguous, the selected fallback mode is used. CLI analysis/batch currently use relative IJK as the fallback.
+If every candidate is ambiguous, the selected fallback mode is used. GUI, CLI parse/trace/analysis and file/batch export enable detection by default for both milling and turning; CLI uses relative IJK as the fallback. Shared application execution uses the GUI's default 0.01 mm arc tolerance. Direct kernel calls retain explicit mode/tolerance controls and a 0.001 mm default for turning.
 
 Selecting an Arc Type in the GUI manually overrides auto detection for the current document. The Auto Detect setting remains enabled for the next opened document. In turning, an I/K arc interpreted with the wrong center mode reports `INVALID_TURNING_ARC_CENTER`; selecting Radius mode for an arc without an R word reports `TURNING_ARC_REQUIRES_R`.
 
@@ -2103,9 +2105,9 @@ This is a direct text regression check. Execution/replay tests remain the check 
 
 ## SINUMERIK 840D input
 
-**Options > General > 840D Extended cycles** selects the cycle interface for native input and native EXPANDED output. Checked (default): the Siemens 03/2009 interface, CYCLE81/82/83/84 with 9/9/20/24 parameters. Unchecked: the classic 01/2008 interface with 5/6/17/18 parameters. Short compatible calls remain accepted; 840D Extended cycles signatures in classic mode produce diagnostics. Changing the setting re-executes the current program. This selection does not change G290/G291 or the rotary-kinematics profile; the installed cycle package, rather than the platform name alone, determines compatibility. CLI uses `--sinumerik-cycles classic|sl`; native post JSON stores both sets in `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`.
+**Options > General > 840D Extended cycles** selects the cycle interface for native input and native EXPANDED output. Checked (default): the Siemens 03/2009 interface, CYCLE81/82/83/84 with 9/9/20/24 parameters. Unchecked: the classic 01/2008 interface with 5/6/17/21 parameters. Short compatible calls remain accepted; 840D Extended cycles signatures in classic mode produce diagnostics. Changing the setting re-executes the current program. This selection does not change G290/G291 or the rotary-kinematics profile; the installed cycle package, rather than the platform name alone, determines compatibility. CLI uses `--sinumerik-cycles classic|sl`; native post JSON stores both sets in `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`.
 
-The corpus also includes [ext_cycles.mpf](tests/fixtures/milling/sinumerik/ext_cycles.mpf) and [no_ext_cycles.mpf](tests/fixtures/milling/sinumerik/no_ext_cycles.mpf), retained as posted. They are mixed supported/unsupported audit programs, not examples of complete successful execution. Common CYCLE81/82/83 operations have matching geometry in their respective profiles. The extended file first stops at line 216 on deep/chip-breaking CYCLE84; the classic file first stops at line 200 because its CYCLE84 declaration has 21 positional parameters, beyond the current classic limit of 18. Left-hand/deep tapping and CYCLE85/86/87/89 are not modeled. Native M19 is supported as a spindle-orientation signal. Selecting the extended interface does not enable those operations.
+The unchanged [ext_cycles.mpf](tests/fixtures/milling/sinumerik/ext_cycles.mpf) and [no_ext_cycles.mpf](tests/fixtures/milling/sinumerik/no_ext_cycles.mpf) now execute completely in their selected profiles, including deep/left tapping and CYCLE85/86/87/89. Native M19 emits a spindle-orientation signal.
 
 Arc-center interpretation follows the executed controller mode: native and ISO-M (`G291`) use incremental IJK centers; native I=AC/J=AC/K=AC explicitly selects absolute centers. Mixed `G290/G291` input resolves each arc in its active mode; document arc settings and automatic detection do not override these semantics. Configured native rotary axes are supported by the bounded TCP/indexing subset; rotary A/B/C in G291 remains rejected.
 
@@ -2142,10 +2144,11 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 | `G0 SUPA ... D0` | Nonmodal absolute XYZ and configured A/B/C positioning, independent of G91. In the application's reference-coordinate model, zero XYZ addresses use the configured G28/SUPA return coordinates, as FANUC G53 does. WCS and the current rotary frame determine the displayed return. Rotary zero means A/B/C=0; `SUPA G0 B0 C0 D0` requires a compatible BC profile |
 | `G64`, `MSG(...)`, `WORKPIECE(...)`, `;` comments | Path-control/display metadata and comments; no blending or stock geometry is generated from these declarations |
 | `SETMS(1)`, `FNORM`, `COMPOF`, `CYCLE832` | Accepted CAM setup/control statements; `CYCLE832` is ignored without geometry or display events |
-| `MCALL CYCLE81/82/83/84(...)` | Modal Z drilling/tapping in `G17/G40`, triggered by subsequent XY blocks; bare `MCALL` cancels the cycle |
+| `MCALL CYCLE81/82/83/84/85/86/87/89(...)` | Modal Z drilling/tapping in `G17/G40`, triggered by subsequent XY blocks; bare `MCALL` cancels the cycle |
 | `CYCLE81/82` | Drilling and rapid return, with modeled seconds-based dwell for `CYCLE82`; safety plane is `RFP + SDIS`, return plane is `RTP`; the four-argument `CYCLE81` form is accepted |
 | `CYCLE83` | Modeled first depth, amount degression, minimum peck depth, chip-breaking/full-retract options and reentry clearance |
-| `CYCLE84` | Single-pass metric right-hand tapping in `G94`: explicit positive `PIT`, `_PITA=0/1`, `SDAC=3`, Z axis and positive `SST` equal to programmed `S`; equal `SST1` or zero/omitted. Feed = pitch × rpm; feed withdrawal to `RFP+SDIS`, rapid return to `RTP`, optional dwell in seconds |
+| `CYCLE84` | Metric right/left tapping in G94, including VARI=1/2, DAM/VRT and balanced final pecks; explicit PIT and equal SST/SST1 matching S. SDAC=3/4/5 is retained. |
+| `CYCLE85/86/87/89` | Separate reaming feeds; oriented fine-boring clearance; spindle/operator stop; feed-return boring with dwell. |
 | `TRAORI` / `TRAFOOF` | GUI/CLI/kernel TCP via the common angled AC/BC table core; G0/G1/G2/G3 with configured numeric A/B/C and R references; incremental IC supported; `DC` selects the shortest absolute rotary approach, while an exactly 180-degree ambiguity is rejected |
 | `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST0/1/200000/200001/220000/220001, DIR-1/0/1; 14/15/16-argument calls and legacy R_DATA setup are accepted; active-frame reset via empty/bare call or TC="0" |
 | `CIP` | Spatial circle through the start, intermediate I1/J1/K1 and end points, independent of G17/G18/G19. G90/G91 and explicit AC/IC intermediate coordinates are supported. Fixed frames and G40 are required; concurrent rotary motion is rejected. Plot/Playback retain the circle; EXPANDED emits G1 chords within the configured linearization tolerance. |
@@ -2159,7 +2162,7 @@ Programmable `TRANS`/`ATRANS` and `ROT`/`AROT` affect subsequent XYZ geometry re
 
 Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf, or unnamed text detected by executable native commands. A named .nc document retains FANUC syntax. Native X/Y/Z=IC(...) is incremental independently of G90/G91. MSG() is accepted.
 
-`CYCLE84` accepts the 24-argument CAM call and shortened numeric declarations. Depth uses `DP` or positive relative `DPR` in compatibility mode; explicit absolute-depth `AMODE=2/1001002` requires `DP`. Deep tapping, `MPIT`/thread tables, nonmetric pitch units, spindle orientation/technology options, left-hand tapping and unequal entry/withdrawal speeds are outside this subset and produce diagnostics. Spindle synchronization/reversal is represented by logical signals, without angular spindle simulation. The parameters follow [Siemens section 1.7](https://m3.tuc.gr/EQUIPMENT/CTX310/840D%20G-CODE.pdf); paired fixtures `tapping_sin840d.mpf` / `tapping_fanuc.nc` verify G84 geometry and native trace replay.
+`CYCLE84` accepts the 24-argument CAM call and shortened numeric declarations. Depth uses `DP` or positive relative `DPR` in compatibility mode; absolute-depth `AMODE=2/1001002/1002002` requires `DP`. Metric right/left tapping and deep tapping (`VARI=1/2`, `DAM`, `VRT`) are modeled. `MPIT`/thread tables, nonmetric pitch units, spindle orientation/technology options and unequal entry/withdrawal speeds produce diagnostics. Spindle synchronization/reversal uses logical signals without angular spindle simulation. Parameters follow the [Siemens Cycles manual](https://cache.industry.siemens.com/dl/files/633/109443633/att_829767/v1/PGZ_1106_en.pdf). Paired fixtures verify tapping geometry and native trace replay.
 
 Cython accelerates contiguous literal position runs, with per-block capability validation before state changes. Controller-specific declarations and G290/G291 switches interrupt the current run, after which eligible positions resume acceleration. Positions inside an active MCALL cycle stay on the Python reference path until cancellation. Metadata or a native cycle elsewhere in the file does not disable acceleration for the whole program.
 

@@ -43,6 +43,8 @@ def execute_program(
         return deepcopy(tools) if correction_enabled else {}
 
     kernel_options["milling_correction_enabled"] = bool(correction_enabled)
+    kernel_options.setdefault("autodetect_arc_type", True)
+    kernel_options.setdefault("arc_tolerance", 0.01)
     result = execute(
         source,
         language=language,

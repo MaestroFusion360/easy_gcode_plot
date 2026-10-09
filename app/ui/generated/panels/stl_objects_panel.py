@@ -16,8 +16,8 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PyQt6.QtWidgets import (QApplication, QComboBox, QHBoxLayout, QListWidget,
-    QListWidgetItem, QSizePolicy, QSpacerItem, QStackedWidget,
-    QToolButton, QVBoxLayout, QWidget)
+    QListWidgetItem, QPushButton, QSizePolicy, QSpacerItem,
+    QStackedWidget, QToolButton, QVBoxLayout, QWidget)
 
 class Ui_StlObjectsPanelForm(object):
     def setupUi(self, StlObjectsPanelForm):
@@ -91,6 +91,12 @@ class Ui_StlObjectsPanelForm(object):
 
         self.rootLayout.addItem(self.bottomSpacer)
 
+        self.closeButton = QPushButton(StlObjectsPanelForm)
+        self.closeButton.setObjectName(u"closeButton")
+        self.closeButton.setMinimumSize(QSize(90, 0))
+
+        self.rootLayout.addWidget(self.closeButton, 0, Qt.AlignmentFlag.AlignRight)
+
 
         self.retranslateUi(StlObjectsPanelForm)
 
@@ -103,4 +109,5 @@ class Ui_StlObjectsPanelForm(object):
         self.redoButton.setText(QCoreApplication.translate("StlObjectsPanelForm", u"Redo", None))
         self.statisticsButton.setText(QCoreApplication.translate("StlObjectsPanelForm", u"Statistics", None))
         self.deleteButton.setText(QCoreApplication.translate("StlObjectsPanelForm", u"Delete", None))
+        self.closeButton.setText(QCoreApplication.translate("StlObjectsPanelForm", u"Close", None))
     # retranslateUi

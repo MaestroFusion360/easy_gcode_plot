@@ -36,6 +36,8 @@ class _ResolvedDrillingCycle:
 # in the backplot yet.
 _DRILL_BEHAVIOR = {
     73: _DrillBehavior(peck=True, high_speed_peck=True),
+    74: _DrillBehavior(feed_return=True),
+    76: _DrillBehavior(),
     81: _DrillBehavior(),
     82: _DrillBehavior(),
     83: _DrillBehavior(peck=True),
@@ -44,7 +46,11 @@ _DRILL_BEHAVIOR = {
     84: _DrillBehavior(feed_return=True),
     85: _DrillBehavior(feed_return=True),
     86: _DrillBehavior(),
+    87: _DrillBehavior(),
+    89: _DrillBehavior(feed_return=True),
 }
+
+CANNED_CYCLE_CODES = frozenset(_DRILL_BEHAVIOR) | {80}
 
 
 def _update_cycle_parameters(state: MillState, words) -> None:
@@ -56,6 +62,8 @@ def _update_cycle_parameters(state: MillState, words) -> None:
         state.cycle_z = words["Z"] * state.unit_scale if state.absolute else retract_z + words["Z"] * state.unit_scale
     if "Q" in words:
         state.cycle_q = abs(words["Q"] * state.unit_scale)
+        if state.cycle in (74, 84):
+            state.cycle_tapping_q = state.cycle_q
     if "F" in words:
         state.cycle_feed = words["F"] * state.unit_scale
     if "P" in words:
@@ -68,18 +76,28 @@ def _drilling_cycle_signals(block, state: MillState, words) -> tuple[MachineSign
     """Describe controller actions associated with one emitted canned cycle."""
     if state.cycle not in _DRILL_BEHAVIOR or not any(key in words for key in ("X", "Y", "Z", "R")):
         return ()
-    if state.cycle == 82 and state.cycle_p > 0.0:
-        return (MachineSignal("dwell", block.index, "G82", state.cycle_p),)
-    if state.cycle == 84:
-        signals = (
-            MachineSignal("spindle_sync", block.index, "G84"),
-            MachineSignal("spindle_reverse", block.index, "G84"),
+    code = f"G{state.cycle}"
+    if state.cycle in (82, 89) and state.cycle_p > 0.0:
+        return (MachineSignal("dwell", block.index, code, state.cycle_p),)
+    if state.cycle in (74, 84):
+        reversals = 1
+        if state.cycle_tapping_q:
+            resolved = _resolve_drilling_cycle(state, words)
+            reversals = sum(
+                segment.move == 1 and segment.end > segment.start for segment in _drilling_axial_moves(state, resolved)
+            )
+        signals = (MachineSignal("spindle_sync", block.index, code),) + tuple(
+            MachineSignal("spindle_reverse", block.index, code) for _ in range(reversals)
         )
         if state.rigid_tapping_ready:
-            signals = (MachineSignal("rigid_tapping", block.index, "G84"),) + signals
+            signals = (MachineSignal("rigid_tapping", block.index, code),) + signals
         if state.cycle_p > 0:
-            return (MachineSignal("dwell", block.index, "G84", state.cycle_p),) + signals
+            signals = (MachineSignal("dwell", block.index, code, state.cycle_p),) + signals
         return signals
+    if state.cycle in (76, 87):
+        count = 2 if state.cycle == 87 else 1
+        signals = tuple(MachineSignal("spindle_orient", block.index, code) for _ in range(count))
+        return signals + ((MachineSignal("dwell", block.index, code, state.cycle_p),) if state.cycle_p else ())
     if state.cycle == 86:
         return (MachineSignal("spindle_stop", block.index, "G86"),)
     return ()
@@ -89,12 +107,14 @@ def _cycle_modal_updates(state: MillState, gcodes) -> tuple[tuple[str, object], 
     cycle = state.cycle
     initial_z = state.cycle_initial_z
     for gcode in gcodes:
-        if gcode not in (73, 80, 81, 82, 83, 84, 85, 86):
+        if gcode not in CANNED_CYCLE_CODES:
             continue
         if gcode != 80 and cycle == 80:
             initial_z = state.z
         cycle = int(gcode)
     updates = (("cycle", cycle), ("cycle_initial_z", initial_z))
+    if cycle != state.cycle or cycle == 80:
+        updates += (("cycle_tapping_q", 0.0),)
     return updates + (("rigid_tapping_ready", False),) if 80 in gcodes else updates
 
 
@@ -105,6 +125,7 @@ def _cycle_parameter_updates(state: MillState) -> tuple[tuple[str, object], ...]
             "cycle_z",
             "cycle_r",
             "cycle_q",
+            "cycle_tapping_q",
             "cycle_feed",
             "cycle_p",
             "polar_radius",
@@ -122,11 +143,21 @@ def _resolve_drilling_cycle(state: MillState, words) -> _ResolvedDrillingCycle |
     feed = state.cycle_feed or state.feed
     if feed <= 0:
         raise SemanticError("INVALID_DRILLING_FEED", "Drilling requires a positive modal feed", "invalid_geometry")
-    if state.cycle_z > retract_z + 1e-9:
+    if state.cycle != 87 and state.cycle_z > retract_z + 1e-9:
         raise SemanticError("INVALID_DRILLING_DEPTH", "Drilling depth Z is above the R plane", "invalid_geometry")
     behavior = _DRILL_BEHAVIOR[state.cycle]
     initial_z = state.cycle_initial_z if state.cycle_initial_z is not None else state.z
-    return_z = max(initial_z, retract_z) if state.return_initial else retract_z
+    if state.cycle == 87 and (state.cycle_z < retract_z or initial_z < state.cycle_z):
+        raise SemanticError(
+            "INVALID_DRILLING_DEPTH", "Back boring requires R <= Z <= initial plane", "invalid_geometry"
+        )
+    if state.cycle in (76, 87) and not state.cycle_q:
+        raise SemanticError("INCOMPLETE_DRILLING_CYCLE", "Fine/back boring requires a positive Q shift", "unsupported")
+    # G87 always returns to the initial plane; G99 is not used by this cycle.
+    if state.cycle == 87:
+        return_z = initial_z
+    else:
+        return_z = max(initial_z, retract_z) if state.return_initial else retract_z
     return _ResolvedDrillingCycle(
         x=x,
         y=y,
@@ -140,6 +171,22 @@ def _resolve_drilling_cycle(state: MillState, words) -> _ResolvedDrillingCycle |
 
 
 def _drilling_axial_moves(state, resolved):
+    if state.cycle in (74, 84) and state.cycle_tapping_q > 0:
+        segments = axial_cycle_moves(
+            resolved.retract_z,
+            resolved.target_z,
+            step=state.cycle_tapping_q,
+            retract_distance=state.tapping_retract_distance,
+            full_retract=state.tapping_full_retract,
+            return_to=resolved.retract_z,
+            return_feed=True,
+        )
+        # Every movement inside a tapped thread remains synchronized; there
+        # is no rapid reentry or chip-breaking retract in rigid tapping.
+        segments = tuple(AxialMove(1, segment.start, segment.end) for segment in segments)
+        if resolved.return_z != resolved.retract_z:
+            segments += (AxialMove(0, resolved.retract_z, resolved.return_z),)
+        return segments
     # Feed withdrawal ends at R; G98 adds a rapid to the saved initial plane.
     return_z = resolved.retract_z if resolved.behavior.feed_return else resolved.return_z
     segments = axial_cycle_moves(
@@ -167,6 +214,8 @@ def _expand_drilling_cycle(
     resolved: _ResolvedDrillingCycle,
     *,
     axial_moves=None,
+    path_moves=None,
+    retract_feed=None,
 ) -> tuple[TraceMotion, ...]:
     """Build drilling geometry without committing the machine position."""
     block = context.block
@@ -205,6 +254,10 @@ def _expand_drilling_cycle(
     start = (state.x, state.y, state.z)
     x, y = resolved.x, resolved.y
     add(0, start, (x, y, start[2]))
+    if path_moves is not None:
+        for kind, a, b, feed in path_moves:
+            add(kind, a, b, feed)
+        return tuple(out)
     add(0, (x, y, start[2]), (x, y, resolved.retract_z))
     segments = axial_moves if axial_moves is not None else _drilling_axial_moves(state, resolved)
     for segment in segments:
@@ -212,10 +265,41 @@ def _expand_drilling_cycle(
             segment.move,
             (x, y, segment.start),
             (x, y, segment.end),
-            None if segment.move == 0 else resolved.feed,
+            None
+            if segment.move == 0
+            else retract_feed
+            if retract_feed is not None and segment.end > segment.start
+            else resolved.feed,
         )
 
     return tuple(out)
+
+
+def boring_path(state, resolved, shift, *, back=False):
+    """Oriented boring path; shift is a configured/programmed XYZ vector."""
+    x, y = resolved.x, resolved.y
+
+    def point(z, shifted=False):
+        base = (x, y, z)
+        return tuple(base[i] + shift[i] for i in range(3)) if shifted else base
+
+    if back:
+        return (
+            (0, point(state.z), point(state.z, True), None),
+            (0, point(state.z, True), point(resolved.retract_z, True), None),
+            (0, point(resolved.retract_z, True), point(resolved.retract_z), None),
+            (1, point(resolved.retract_z), point(resolved.target_z), resolved.feed),
+            (0, point(resolved.target_z), point(resolved.target_z, True), None),
+            (0, point(resolved.target_z, True), point(resolved.return_z, True), None),
+            (0, point(resolved.return_z, True), point(resolved.return_z), None),
+        )
+    return (
+        (0, point(state.z), point(resolved.retract_z), None),
+        (1, point(resolved.retract_z), point(resolved.target_z), resolved.feed),
+        (0, point(resolved.target_z), point(resolved.target_z, True), None),
+        (0, point(resolved.target_z, True), (x + shift[0], y + shift[1], resolved.retract_z), None),
+        (0, (x + shift[0], y + shift[1], resolved.retract_z), point(resolved.return_z), None),
+    )
 
 
 def execute_milling_cycle(context: CycleContext, *, emit_geometry: bool = True) -> CycleOutcome:
@@ -224,7 +308,7 @@ def execute_milling_cycle(context: CycleContext, *, emit_geometry: bool = True) 
     if not isinstance(state, MillState):
         raise TypeError("Milling cycle context requires MillState")
 
-    cycle_codes = tuple(g for g in context.codes if g in (73, 80, 81, 82, 83, 84, 85, 86))
+    cycle_codes = tuple(g for g in context.codes if g in CANNED_CYCLE_CODES)
     has_position = any(key in context.words for key in ("X", "Y", "Z", "R"))
     modal_updates = _cycle_modal_updates(state, cycle_codes)
     trial_state = replace(state)
@@ -243,7 +327,11 @@ def execute_milling_cycle(context: CycleContext, *, emit_geometry: bool = True) 
             handled=True,
             modal_updates=modal_updates + _cycle_parameter_updates(trial_state),
         )
-    motions = _expand_drilling_cycle(context, trial_state, resolved)
+    path = None
+    if trial_state.cycle in (76, 87):
+        shift = tuple(value * trial_state.cycle_q for value in trial_state.boring_shift_direction)
+        path = boring_path(trial_state, resolved, shift, back=trial_state.cycle == 87)
+    motions = _expand_drilling_cycle(context, trial_state, resolved, path_moves=path)
     return CycleOutcome(
         handled=True,
         motions=motions,

@@ -108,6 +108,13 @@ def common_iso_fast_block(block, runtime, state, words):
     """
     if state.feed_mode == "inverse_time" or state.cip_mode:
         return False
+    if state.native_spindle_semantics and state.move in (2, 3):
+        axes = frozenset(axis for axis in "XYZ" if axis in words)
+        plane = {frozenset("XY"): 17, frozenset("XZ"): 18, frozenset("YZ"): 19}.get(axes, state.plane)
+        if plane != state.plane:
+            # The reference emitter resolves Siemens' block-local circle
+            # plane. The compiled bulk loop only uses the modal G plane.
+            return False
     if block.native_syntax is not None and (
         block.native_syntax.absolute_center
         or block.native_syntax.ignored_diameter_modes

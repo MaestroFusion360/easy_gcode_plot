@@ -130,6 +130,37 @@ def test_frame_only_additive_status_composes_without_reindexing():
     assert not any(event.kind == "ROTARY_INDEX" for event in result.events)
 
 
+@pytest.mark.parametrize("command", ["G0 A0 C=DC(0)", "G91 G0 A0 C0", "G91 G0 A=IC(0) C=DC(0)"])
+def test_fusion_repeated_rotary_targets_preserve_native_normal_frame(command):
+    frame = 'CYCLE800(0,"",0,27,0,0,0,0,0,0,0,0,0,1,,0)'
+    prefix = "G90\nG0 A0 C=DC(0)\n" + frame + "\nG0 X10 Y20 Z15\n"
+    reference = native(prefix + "G0\nG90 G1 X12 F100\nM30", "5ax_table_ac")
+    result = native(prefix + command + "\nG90 G1 X12 F100\nM30", "5ax_table_ac")
+    assert result.ok and result.complete, result.diagnostics
+    assert result.motions == reference.motions
+    assert result.rotary_angles == reference.rotary_angles
+    assert result.events == reference.events
+    assert result.execution_steps[4].twp_orientation == result.execution_steps[3].twp_orientation
+
+
+@pytest.mark.parametrize("command", ["G90 G0 A10 C20", "G91 G0 A0 C0", "G91 G0 C=DC(20)"])
+def test_repeated_rotary_targets_preserve_nonzero_native_frame(command):
+    prefix = "G0 A10 C20\n" + cycle(st=220000, direction=0) + "\nG0 X1 Y2 Z3\n"
+    reference = native(prefix + "G0\nG90 G1 X4 F100\nM30")
+    result = native(prefix + command + "\nG90 G1 X4 F100\nM30")
+    assert result.ok and result.complete, result.diagnostics
+    assert result.motions == reference.motions
+    assert result.rotary_angles == reference.rotary_angles
+
+
+def test_pure_rapid_rotary_index_preserves_native_frame():
+    result = native(cycle(st=220000, direction=0) + "\nG0 A10")
+    assert result.ok and result.complete and not result.diagnostics
+    assert dict(result.rotary_angles)["A"] == 10
+    assert result.execution_steps[-1].twp_orientation is not None
+    assert any(event.kind == "ROTARY_INDEX" for event in result.events)
+
+
 @pytest.mark.parametrize("profile,st", [("5ax_table_ac_angled", 220000), ("5ax_table_bc_angled", 200000)])
 def test_dmg_dataset_rejects_other_profiles_and_oem_indexing(profile, st):
     source = f'CYCLE800(0,"DMG",{st},39,0,0,0,-32,52,0,0,0,0,0,0)'

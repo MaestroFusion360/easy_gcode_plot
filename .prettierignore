@@ -1,0 +1,7 @@
+# Generated pages and report; edit docs/src instead.
+docs/index.html
+docs/ru/index.html
+docs/assets/
+node_modules/
+package-lock.json
+tmp/

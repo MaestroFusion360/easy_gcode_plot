@@ -1,297 +1,341 @@
-      <div class="controller-reference">
-        <h3>FANUC Mill</h3>
-        <details class="code-table">
-          <summary>Milling G functions</summary>
-          <div class="table-wrap" role="region" aria-label="Milling G functions" tabindex="0">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">G code</th>
-                  <th scope="col">Function in the kernel</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>G00</td>
-                  <td>Rapid positioning</td>
-                </tr>
-                <tr>
-                  <td>G01</td>
-                  <td>Linear interpolation</td>
-                </tr>
-                <tr>
-                  <td>G02 / G03</td>
-                  <td>Clockwise / counterclockwise circular interpolation</td>
-                </tr>
-                <tr>
-                  <td>G04</td>
-                  <td>Dwell signal; no spatial motion</td>
-                </tr>
-                <tr>
-                  <td>G10</td>
-                  <td>
-                    Program WCS offsets (<code>L2</code>, <code>L20</code>)
-                  </td>
-                </tr>
-                <tr>
-                  <td>G15 / G16</td>
-                  <td>Cancel / enable polar coordinate programming</td>
-                </tr>
-                <tr>
-                  <td>G17 / G18 / G19</td>
-                  <td>Select XY / XZ / YZ plane</td>
-                </tr>
-                <tr>
-                  <td>G20 / G21</td>
-                  <td>Inch / millimetre input units</td>
-                </tr>
-                <tr>
-                  <td>G28</td>
-                  <td>Reference return using the configured home</td>
-                </tr>
-                <tr>
-                  <td>G40 / G41 / G42</td>
-                  <td>Cancel / left / right cutter-radius compensation</td>
-                </tr>
-                <tr>
-                  <td>G43 / G49</td>
-                  <td>
-                    Track / cancel tool-length state; G43 does not apply H
-                    geometry to the plotted path
-                  </td>
-                </tr>
-                <tr>
-                  <td>G43.4</td>
-                  <td>
-                    TCP G0/G1/G2/G3 motion on the angled AC/BC table profiles,
-                    including Cartesian arcs with rotary interpolation;
-                    combination with G68.2 remains unsupported
-                  </td>
-                </tr>
-                <tr>
-                  <td>G50 / G51</td>
-                  <td>Cancel / enable coordinate scaling</td>
-                </tr>
-                <tr>
-                  <td>G52</td>
-                  <td>Local coordinate shift</td>
-                </tr>
-                <tr>
-                  <td>G53</td>
-                  <td>Non-modal machine-coordinate motion</td>
-                </tr>
-                <tr>
-                  <td>G54–G59</td>
-                  <td>Select work coordinate system</td>
-                </tr>
-                <tr>
-                  <td>G54.1 P1–P99</td>
-                  <td>
-                    Parsed and selected; the GUI has no offset setting, so the
-                    offset is zero unless the program sets it with G10 L20
-                  </td>
-                </tr>
-                <tr>
-                  <td>G65</td>
-                  <td>Call a Macro B program; expressions support bitwise AND/OR/XOR and LN/EXP</td>
-                </tr>
-                <tr>
-                  <td>G68 / G69</td>
-                  <td>Enable / cancel coordinate rotation</td>
-                </tr>
-                <tr>
-                  <td>G68.2 / G53.1</td>
-                  <td>
-                    Tilted working plane / tool-axis orientation (3+2,
-                    <code>fanuc_mill</code> with two-axis table-table,
-                    head-head or head-table kinematics)
-                  </td>
-                </tr>
-                <tr>
-                  <td>G73</td>
-                  <td>High-speed peck drilling cycle</td>
-                </tr>
-                <tr>
-                  <td>G80</td>
-                  <td>Cancel canned cycle</td>
-                </tr>
-                <tr>
-                  <td>G81</td>
-                  <td>Drilling cycle</td>
-                </tr>
-                <tr>
-                  <td>G82</td>
-                  <td>Drilling cycle with dwell</td>
-                </tr>
-                <tr>
-                  <td>G83</td>
-                  <td>Full-retract peck drilling cycle</td>
-                </tr>
-                <tr>
-                  <td>G84</td>
-                  <td>Tapping cycle</td>
-                </tr>
-                <tr>
-                  <td>G85</td>
-                  <td>Boring cycle with feed return</td>
-                </tr>
-                <tr>
-                  <td>G86</td>
-                  <td>Boring cycle with spindle-stop signal</td>
-                </tr>
-                <tr>
-                  <td>G90 / G91</td>
-                  <td>Absolute / incremental programming</td>
-                </tr>
-                <tr>
-                  <td>G93</td>
-                  <td>Inverse-time feed: 1/F minutes per cutting block. Reprogram positive F on G93/G94/G95 changes;
-                    cycles and cutter compensation are unsupported in G93.</td>
-                </tr>
-                <tr>
-                  <td>G94 / G95</td>
-                  <td>Feed per minute / feed per revolution</td>
-                </tr>
-                <tr>
-                  <td>G98 / G99</td>
-                  <td>Return to initial / R plane in canned cycles</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </details>
-        <details class="code-table">
-          <summary>Milling M functions</summary>
-          <div class="table-wrap" role="region" aria-label="Milling M functions" tabindex="0">
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">M code</th>
-                  <th scope="col">Function in the kernel</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>M00 / M01</td>
-                  <td>Stop / optional-stop signal; trace execution continues</td>
-                </tr>
-                <tr>
-                  <td>M02 / M30</td>
-                  <td>End program</td>
-                </tr>
-                <tr>
-                  <td>M03 / M04 / M05</td>
-                  <td>Spindle clockwise / counterclockwise / stop signals</td>
-                </tr>
-                <tr>
-                  <td>M06</td>
-                  <td>Tool-change event for the selected T number</td>
-                </tr>
-                <tr>
-                  <td>M07</td>
-                  <td>
-                    Recognized; no machine-specific coolant action is modeled
-                  </td>
-                </tr>
-                <tr>
-                  <td>M08 / M09</td>
-                  <td>Coolant on / off signals</td>
-                </tr>
-                <tr>
-                  <td>M19</td>
-                  <td>
-                    Spindle-orientation signal; S on this block is an angle,
-                    not spindle RPM
-                  </td>
-                </tr>
-                <tr>
-                  <td>M29</td>
-                  <td>
-                    Prepare rigid tapping; S on this block sets spindle RPM
-                    for the following G84
-                  </td>
-                </tr>
-                <tr>
-                  <td>M98 / M99</td>
-                  <td>Call / return from subprogram</td>
-                </tr>
-                <tr>
-                  <td>Unknown auxiliary M codes</td>
-                  <td>Non-blocking warnings; motion and known commands in mixed blocks still execute.</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </details>
-        <details class="code-table">
-          <summary>Milling cycle behavior</summary>
-          <div class="table-wrap" role="region" aria-label="Milling cycle behavior" tabindex="0">
-            <table class="cycle-description">
-              <thead>
-                <tr>
-                  <th scope="col">Command</th>
-                  <th scope="col">Description</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th scope="row"><code>G73 / G83</code></th>
-                  <td>
-                    <p>
-                      G73 is high-speed peck drilling with short intermediate
-                      retract behavior. G83 returns to R and rapidly re-enters
-                      at clearance d above the previous depth, bounded by R,
-                      before continuing at feed. The kernel option
-                      <code>milling_g83_clearance</code> sets d in millimetres;
-                      the default 1.0 mm is a modeling assumption, not a value
-                      read from the controller. This affects feed distance and
-                      cycle-time statistics. Turning and native CYCLE83 are unchanged.
-                    </p>
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row"><code>G82</code></th>
-                  <td>
-                    <p>
-                      G82 includes its dwell semantics, but dwell itself does
-                      not create spatial geometry.
-                    </p>
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row"><code>G84</code></th>
-                  <td>
-                    <p>
-                      G84 tapping returns from depth as synchronized feed
-                      motion rather than rapid motion.
-                    </p>
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row"><code>G86</code></th>
-                  <td>
-                    <p>
-                      The cycle models spindle-stop semantics together with
-                      its drilling motion/return behavior.
-                    </p>
-                  </td>
-                </tr>
-                <tr>
-                  <th scope="row"><code>G98 / G99</code></th>
-                  <td>
-                    <p>
-                      For milling canned cycles, G98/G99 select cycle return
-                      behavior. They are not the turning feed-mode meanings of
-                      G98/G99.
-                    </p>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </details>
-        <p class="note">
-          <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#fanuc-milling">Parameters and
-            limitations in the FAQ →</a>
-        </p>
-      </div>
+<div class="controller-reference">
+  <h3>FANUC Mill</h3>
+  <details class="code-table">
+    <summary>Milling G functions</summary>
+    <div
+      class="table-wrap"
+      role="region"
+      aria-label="Milling G functions"
+      tabindex="0"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">G code</th>
+            <th scope="col">Function in the kernel</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>G00</td>
+            <td>Rapid positioning</td>
+          </tr>
+          <tr>
+            <td>G01</td>
+            <td>Linear interpolation</td>
+          </tr>
+          <tr>
+            <td>G02 / G03</td>
+            <td>Clockwise / counterclockwise circular interpolation</td>
+          </tr>
+          <tr>
+            <td>G04</td>
+            <td>Dwell signal; no spatial motion</td>
+          </tr>
+          <tr>
+            <td>G10</td>
+            <td>Program WCS offsets (<code>L2</code>, <code>L20</code>)</td>
+          </tr>
+          <tr>
+            <td>G15 / G16</td>
+            <td>Cancel / enable polar coordinate programming</td>
+          </tr>
+          <tr>
+            <td>G17 / G18 / G19</td>
+            <td>Select XY / XZ / YZ plane</td>
+          </tr>
+          <tr>
+            <td>G20 / G21</td>
+            <td>Inch / millimetre input units</td>
+          </tr>
+          <tr>
+            <td>G28</td>
+            <td>Reference return using the configured home</td>
+          </tr>
+          <tr>
+            <td>G40 / G41 / G42</td>
+            <td>Cancel / left / right cutter-radius compensation</td>
+          </tr>
+          <tr>
+            <td>G43 / G49</td>
+            <td>
+              Track / cancel tool-length state; G43 does not apply H geometry to
+              the plotted path
+            </td>
+          </tr>
+          <tr>
+            <td>G43.4</td>
+            <td>
+              TCP G0/G1/G2/G3 motion on the angled AC/BC table profiles,
+              including Cartesian arcs with rotary interpolation; combination
+              with G68.2 remains unsupported
+            </td>
+          </tr>
+          <tr>
+            <td>G50 / G51</td>
+            <td>Cancel / enable coordinate scaling</td>
+          </tr>
+          <tr>
+            <td>G52</td>
+            <td>Local coordinate shift</td>
+          </tr>
+          <tr>
+            <td>G53</td>
+            <td>Non-modal machine-coordinate motion</td>
+          </tr>
+          <tr>
+            <td>G54–G59</td>
+            <td>Select work coordinate system</td>
+          </tr>
+          <tr>
+            <td>G54.1 P1–P99</td>
+            <td>
+              Parsed and selected; the GUI has no offset setting, so the offset
+              is zero unless the program sets it with G10 L20
+            </td>
+          </tr>
+          <tr>
+            <td>G65</td>
+            <td>
+              Call a Macro B program; expressions support bitwise AND/OR/XOR and
+              LN/EXP
+            </td>
+          </tr>
+          <tr>
+            <td>G68 / G69</td>
+            <td>Enable / cancel coordinate rotation</td>
+          </tr>
+          <tr>
+            <td>G68.2 / G53.1</td>
+            <td>
+              Tilted working plane / tool-axis orientation (3+2,
+              <code>fanuc_mill</code> with two-axis table-table, head-head or
+              head-table kinematics)
+            </td>
+          </tr>
+          <tr>
+            <td>G73</td>
+            <td>High-speed peck drilling cycle</td>
+          </tr>
+          <tr>
+            <td>G74 / G84 Q</td>
+            <td>
+              Left tapping and synchronized peck tapping. Kernel options
+              milling_tapping_retract_distance and milling_tapping_full_retract
+              model parameters 5213/5200.
+            </td>
+          </tr>
+          <tr>
+            <td>G76 / G87</td>
+            <td>
+              Fine/back boring with Q shift and oriented spindle stops.
+              milling_boring_shift_direction supplies parameter 5101 direction;
+              the logical default is -X.
+            </td>
+          </tr>
+          <tr>
+            <td>G89 / G92.1</td>
+            <td>
+              Feed-return boring with dwell / coordinate preset without physical
+              motion.
+            </td>
+          </tr>
+          <tr>
+            <td>G80</td>
+            <td>Cancel canned cycle</td>
+          </tr>
+          <tr>
+            <td>G81</td>
+            <td>Drilling cycle</td>
+          </tr>
+          <tr>
+            <td>G82</td>
+            <td>Drilling cycle with dwell</td>
+          </tr>
+          <tr>
+            <td>G83</td>
+            <td>Full-retract peck drilling cycle</td>
+          </tr>
+          <tr>
+            <td>G84</td>
+            <td>Tapping cycle</td>
+          </tr>
+          <tr>
+            <td>G85</td>
+            <td>Boring cycle with feed return</td>
+          </tr>
+          <tr>
+            <td>G86</td>
+            <td>Boring cycle with spindle-stop signal</td>
+          </tr>
+          <tr>
+            <td>G90 / G91</td>
+            <td>Absolute / incremental programming</td>
+          </tr>
+          <tr>
+            <td>G93</td>
+            <td>
+              Inverse-time feed: 1/F minutes per cutting block. Reprogram
+              positive F on G93/G94/G95 changes; cycles and cutter compensation
+              are unsupported in G93.
+            </td>
+          </tr>
+          <tr>
+            <td>G94 / G95</td>
+            <td>Feed per minute / feed per revolution</td>
+          </tr>
+          <tr>
+            <td>G98 / G99</td>
+            <td>Return to initial / R plane in canned cycles</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <details class="code-table">
+    <summary>Milling M functions</summary>
+    <div
+      class="table-wrap"
+      role="region"
+      aria-label="Milling M functions"
+      tabindex="0"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">M code</th>
+            <th scope="col">Function in the kernel</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>M00 / M01</td>
+            <td>Stop / optional-stop signal; trace execution continues</td>
+          </tr>
+          <tr>
+            <td>M02 / M30</td>
+            <td>End program</td>
+          </tr>
+          <tr>
+            <td>M03 / M04 / M05</td>
+            <td>Spindle clockwise / counterclockwise / stop signals</td>
+          </tr>
+          <tr>
+            <td>M06</td>
+            <td>Tool-change event for the selected T number</td>
+          </tr>
+          <tr>
+            <td>M07</td>
+            <td>Recognized; no machine-specific coolant action is modeled</td>
+          </tr>
+          <tr>
+            <td>M08 / M09</td>
+            <td>Coolant on / off signals</td>
+          </tr>
+          <tr>
+            <td>M19</td>
+            <td>
+              Spindle-orientation signal; S on this block is an angle, not
+              spindle RPM
+            </td>
+          </tr>
+          <tr>
+            <td>M29</td>
+            <td>
+              Prepare rigid tapping; S on this block sets spindle RPM for the
+              following G84
+            </td>
+          </tr>
+          <tr>
+            <td>M98 / M99</td>
+            <td>Call / return from subprogram</td>
+          </tr>
+          <tr>
+            <td>Unknown auxiliary M codes</td>
+            <td>
+              Non-blocking warnings; motion and known commands in mixed blocks
+              still execute.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <details class="code-table">
+    <summary>Milling cycle behavior</summary>
+    <div
+      class="table-wrap"
+      role="region"
+      aria-label="Milling cycle behavior"
+      tabindex="0"
+    >
+      <table class="cycle-description">
+        <thead>
+          <tr>
+            <th scope="col">Command</th>
+            <th scope="col">Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th scope="row"><code>G73 / G83</code></th>
+            <td>
+              <p>
+                G73 is high-speed peck drilling with short intermediate retract
+                behavior. G83 returns to R and rapidly re-enters at clearance d
+                above the previous depth, bounded by R, before continuing at
+                feed. The kernel option
+                <code>milling_g83_clearance</code> sets d in millimetres; the
+                default 1.0 mm is a modeling assumption, not a value read from
+                the controller. This affects feed distance and cycle-time
+                statistics. Turning and native CYCLE83 are unchanged.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row"><code>G82</code></th>
+            <td>
+              <p>
+                G82 includes its dwell semantics, but dwell itself does not
+                create spatial geometry.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row"><code>G84</code></th>
+            <td>
+              <p>
+                G84 tapping returns from depth as synchronized feed motion
+                rather than rapid motion.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row"><code>G86</code></th>
+            <td>
+              <p>
+                The cycle models spindle-stop semantics together with its
+                drilling motion/return behavior.
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <th scope="row"><code>G98 / G99</code></th>
+            <td>
+              <p>
+                For milling canned cycles, G98/G99 select cycle return behavior.
+                They are not the turning feed-mode meanings of G98/G99.
+              </p>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <p class="note">
+    <a
+      href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#fanuc-milling"
+      >Parameters and limitations in the FAQ →</a
+    >
+  </p>
+</div>

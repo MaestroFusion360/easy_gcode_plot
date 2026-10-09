@@ -2651,6 +2651,11 @@ Do you want to reload it from disk?</source>
 <context>
     <name>StlObjectsPanelForm</name>
     <message>
+        <location filename="../app/ui/generated/panels/stl_objects_panel.ui" line="42"/>
+        <source>Close</source>
+        <translation>Закрыть</translation>
+    </message>
+    <message>
         <location filename="../app/ui/generated/panels/stl_objects_panel.ui" line="5"/>
         <location filename="../app/ui/panels/stl_objects_panel.py" line="65"/>
         <source>STL Objects</source>

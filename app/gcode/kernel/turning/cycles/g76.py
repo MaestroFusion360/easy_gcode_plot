@@ -175,6 +175,8 @@ def build_g76_threading(
         retract_end = point(stock_x, pass_end_z)
 
         add_motion(motions, 0, tool, pass_start)
+        # This model marks only the axial lead-based chamfer interval. Its
+        # segments remain collinear: no controller pull-out angle is configured.
         if chamfer_len > 1e-12 and thread_len > chamfer_len + 1e-12:
             z_chamfer = pass_end_z - direction_z * chamfer_len
             t = (z_chamfer - pass_start_z) / (pass_end_z - pass_start_z)

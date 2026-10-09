@@ -18,7 +18,7 @@ from app.gcode.export_file import ExportRequest, export_file, request_document
 from app.gcode.file_io import atomic_write_text
 from app.gcode.kinematics_report import kinematics_report_fields
 from app.gcode.post_profiles import export_file_suffix
-from app.gcode.source_mode import source_dialect_for_path
+from app.gcode.source_mode import language_for_path, source_dialect_for_path
 
 REPORT_BASENAME = "batch_export_report"
 REPORT_SCHEMA_VERSION = 1
@@ -78,6 +78,10 @@ def _file_report(
             effective_arc_type=exported.effective_arc_type,
             **kinematics_report_fields(execution),
         )
+        if exported.output_size_bytes > 0:
+            report["output_path"] = str(destination)
+            report["output_relative_path"] = destination.relative_to(output_root).as_posix()
+            report["output_size_bytes"] = exported.output_size_bytes
         if execution.ok and execution.complete:
             report["status"] = "WARNINGS" if diagnostics else "EXPORTED"
             report["output_path"] = str(destination)
@@ -134,7 +138,7 @@ def export_directory(
     for path, destination in zip(paths, destinations, strict=True):
         relative = path.relative_to(directory).as_posix()
         selected = profiles.get(relative, request.kinematics)
-        file_request = replace(request, kinematics=selected)
+        file_request = replace(request, kinematics=selected, language=request.language or language_for_path(path))
         item = _file_report(path, directory, destination, destination_root, file_request)
         files.append(item)
         if on_file is not None:

@@ -27,26 +27,14 @@ def _section(fixture, title):
     return "G17 G710 G90 G94\nS1000 M3\nF400\nG0 Z15\n" + block
 
 
-@pytest.mark.parametrize(
-    "fixture,extended,line,message",
-    [
-        ("ext_cycles.mpf", True, 216, "deep tapping are not modeled"),
-        ("no_ext_cycles.mpf", False, 200, "classic (01/2008) interface"),
-    ],
-)
-def test_complete_cam_cycle_fixture_reports_first_unsupported_operation(fixture, extended, line, message):
-    source = _source(fixture)
-    result = _native(source, extended)
-    assert not result.ok and not result.complete
-    assert len(result.diagnostics) == 1
-    diagnostic = result.diagnostics[0]
-    assert diagnostic.code == "UNSUPPORTED_SINUMERIK_CYCLE"
-    assert diagnostic.line == line
-    assert diagnostic.raw == source.splitlines()[line - 1]
-    assert message in diagnostic.message
-    assert result.motions
+@pytest.mark.parametrize("fixture,extended", PROFILES)
+def test_complete_cam_cycle_fixture_executes_every_operation(fixture, extended):
+    result = _native(_source(fixture), extended)
+    assert result.ok and result.complete, result.diagnostics
+    assert not result.diagnostics
     holes = [event.drilling for event in result.events if event.drilling is not None]
-    assert len(holes) == (8 if extended else 6)
+    assert len(holes) == 18
+    assert result.events[-1].kind == "program_end"
 
 
 @pytest.mark.parametrize(
@@ -83,23 +71,26 @@ def test_extended_cam_tapping_has_correct_depth_pitch_and_reversal(title):
 
 @pytest.mark.parametrize("fixture,extended", PROFILES)
 @pytest.mark.parametrize(
-    "title,code",
-    [
-        ("Tap with chip breaking", "UNSUPPORTED_SINUMERIK_CYCLE"),
-        ("Left tap", "UNSUPPORTED_SINUMERIK_CYCLE"),
-        ("Reaming", "UNSUPPORTED_SINUMERIK_CYCLE"),
-        ("Boring", "UNSUPPORTED_SINUMERIK_CYCLE"),
-        ("Stop boring", "UNSUPPORTED_SINUMERIK_CYCLE"),
-        ("Fine boring", "UNSUPPORTED_SINUMERIK_CYCLE"),
-    ],
+    "title", ["Tap with chip breaking", "Left tap", "Reaming", "Boring", "Stop boring", "Fine boring"]
 )
-def test_unsupported_cam_operations_stop_before_cutting(fixture, extended, title, code):
+def test_cam_tapping_and_boring_have_real_cutting_paths(fixture, extended, title):
     result = _native(_section(fixture, title), extended)
-    assert not result.ok and not result.complete
-    assert len(result.diagnostics) == 1
-    assert result.diagnostics[0].code == code
-    assert all(motion.move == 0 for motion in result.motions)
-    assert not any(event.drilling is not None for event in result.events)
+    assert result.ok and result.complete, result.diagnostics
+    assert not result.diagnostics
+    cuts = [m for m in result.motions if m.move == 1]
+    assert min(m.end_z for m in cuts) == -16
+    assert [m for m in result.motions if m.cycle_generated][-1].end_z == 5
+    assert any(event.drilling is not None for event in result.events)
+    if title == "Tap with chip breaking":
+        assert [m.end_z for m in cuts if m.end_z < m.start_z] == [-4, -7, -10, -13, -16]
+        assert all(m.feed == 800 for m in cuts)
+    elif title == "Reaming":
+        assert [m.feed for m in cuts] == [200, 500] * len([e for e in result.events if e.drilling])
+    elif title == "Stop boring":
+        assert any(signal.kind == "stop" for signal in result.signals)
+    elif title == "Fine boring":
+        assert any(abs(m.end_x - m.start_x) == pytest.approx(0.01) for m in result.motions)
+        assert any(signal.kind == "spindle_orient" for signal in result.signals)
 
 
 @pytest.mark.parametrize("fixture,extended", PROFILES)

@@ -70,6 +70,7 @@ class TraceMotion:
     tool_orientation: tuple[tuple[float, float, float], ...] | None = None
     start_tool_orientation: tuple[tuple[float, float, float], ...] | None = None
     source_arc_type: int | None = None
+    absolute_center_offset: tuple[float, float, float] | None = None
     additional_turns: int = 0
 
 

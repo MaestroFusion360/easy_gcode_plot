@@ -159,9 +159,9 @@ def _resolve_direct_rotary(block, words, state):
     if block.native_syntax.supa:
         absolute = True
     for axis in block.native_syntax.direct_rotary:
-        value = words[axis]
-        if not 0 <= value <= 360:
-            raise SemanticError("INVALID_SINUMERIK_DC", "DC absolute target must be within 0..360 degrees")
+        # Backplot compatibility with Fusion's signed DC angles. Keep a
+        # source warning: a modulo controller may require the 0..360 form.
+        value = words[axis] % 360
         delta = (value - state.rotary_angles[axis] + 180) % 360 - 180
         if abs(delta) == 180:
             raise SemanticError(
@@ -170,6 +170,31 @@ def _resolve_direct_rotary(block, words, state):
         target = state.rotary_angles[axis] + delta if absolute else delta
         words[axis] = target
         words._all[axis] = [target]  # pylint: disable=protected-access
+
+
+def native_dc_diagnostics(block, state):
+    syntax = block.native_syntax
+    if syntax is None or not syntax.direct_rotary:
+        return []
+    trees = dict(syntax.scalar_expressions)
+    diagnostics = []
+    for token in block.parsed_words:
+        if token.letter not in syntax.direct_rotary:
+            continue
+        value = parameter_value(token.expr, state.siemens_parameters, state.siemens_variables, trees.get(token.expr))
+        if not 0 <= value <= 360:
+            diagnostics.append(
+                Diagnostic(
+                    "NORMALIZED_SINUMERIK_DC",
+                    f"{token.letter}=DC({value:g}) plotted as DC({value % 360:g}); "
+                    "controller DC syntax expects 0..360 degrees",
+                    "warning",
+                    "unverified",
+                    block.index + 1,
+                    block.raw,
+                )
+            )
+    return diagnostics
 
 
 def apply_native_tcp_edge(block, words, state):

@@ -63,7 +63,7 @@ _COMMON_MODAL_GROUPS = {
 }
 _MILLING_MODAL_GROUPS = {
     **_COMMON_MODAL_GROUPS,
-    "motion": frozenset({0, 1, 2, 3, 73, 80, 81, 82, 83, 84, 85, 86}),
+    "motion": frozenset({0, 1, 2, 3, 73, 74, 76, 80, 81, 82, 83, 84, 85, 86, 87, 89}),
     "polar_coordinates": frozenset({15, 16}),
     "distance_mode": frozenset({90, 91}),
     "feed_mode": frozenset({93, 94, 95}),

@@ -50,8 +50,13 @@ def _legacy_cases():
     }
     for name, source in extras.items():
         cases[name] = (source, "fanuc_mill", "fanuc", {}, "fanuc", {})
+    # The old exporter ignored tapping Q. Use Q0 for its one-pass reference;
+    # actual tapping pecks are covered by the Fusion cycle regressions.
     for code in (81, 82, 83, 84):
-        source = f"G21 G17 G90\nT1 M6\nS500 M3\nG0 Z5\nG99 G{code} X2 Y3 Z-5 R2 Q2 P100 F100\nX4\nG80\nM30"
+        source = (
+            f"G21 G17 G90\nT1 M6\nS500 M3\nG0 Z5\n"
+            f"G99 G{code} X2 Y3 Z-5 R2 Q{0 if code == 84 else 2} P100 F100\nX4\nG80\nM30"
+        )
         cases[f"cycle_{code}"] = (source, "fanuc_mill", "fanuc", {}, "fanuc", {})
 
     cases["absolute_ijk_input"] = (

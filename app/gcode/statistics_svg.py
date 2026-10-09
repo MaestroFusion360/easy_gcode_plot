@@ -40,6 +40,9 @@ def statistics_svg(result, stats, labels, *, inches=False, segments=None):
     if not paths:
         return ""
     width, height = 900, 636
+    # Keep the coordinate origin visible even when all toolpaths are offset.
+    left, right, top, bottom = bounds
+    bounds = min(left, 0), max(right, 0), min(top, 0), max(bottom, 0)
     # A landscape page, with Print's 12 mm margins and physical pen widths.
     unit = width / 297
     margin = 12 * unit
@@ -60,6 +63,22 @@ def statistics_svg(result, stats, labels, *, inches=False, segments=None):
         )
     displayed_unit = "in" if inches else "mm"
     axes = "Z horizontal / X vertical" if turning else "X horizontal / Y vertical"
+    horizontal, vertical = ("Z", "X") if turning else ("X", "Y")
+    x, y = offset_x, offset_y
+    origin = (
+        '<g class="coordinate-origin" stroke="#526477" stroke-width="1.2" fill="#526477">'
+        "<title>0: calculated trajectory coordinate origin</title>"
+        f'<line x1="{x:.3f}" y1="{y:.3f}" x2="{x + 24:.3f}" y2="{y:.3f}"/>'
+        f'<polygon points="{x + 24:.3f},{y:.3f} {x + 19:.3f},{y - 3:.3f} {x + 19:.3f},{y + 3:.3f}"/>'
+        f'<line x1="{x:.3f}" y1="{y:.3f}" x2="{x:.3f}" y2="{y - 24:.3f}"/>'
+        f'<polygon points="{x:.3f},{y - 24:.3f} {x - 3:.3f},{y - 19:.3f} {x + 3:.3f},{y - 19:.3f}"/>'
+        f'<circle cx="{x:.3f}" cy="{y:.3f}" r="3" fill="white"/>'
+        '<g stroke="none" font-family="sans-serif" font-size="12">'
+        f'<text x="{x + 24:.3f}" y="{y + 16:.3f}" text-anchor="middle">+{horizontal}</text>'
+        f'<text x="{x:.3f}" y="{y - 28:.3f}" text-anchor="middle">+{vertical}</text>'
+        f'<text x="{x - 7:.3f}" y="{y + 15:.3f}" text-anchor="end">0</text>'
+        "</g></g>"
+    )
     return (
         '<div class="trajectory-preview">'
         f"<h2>{escape(labels.get('trajectory', 'Toolpath'))} - {projection}</h2>"
@@ -67,5 +86,5 @@ def statistics_svg(result, stats, labels, *, inches=False, segments=None):
         f'role="img" aria-label="{projection} {escape(labels.get("trajectory", "Toolpath"))}">'
         f"<title>{projection} - {axes} ({displayed_unit})</title>"
         '<rect width="100%" height="100%" fill="white"/>'
-        f'<g fill="none" stroke-linecap="round">{"".join(drawing)}</g></svg></div>'
+        f'<g fill="none" stroke-linecap="round">{"".join(drawing)}</g>{origin}</svg></div>'
     )

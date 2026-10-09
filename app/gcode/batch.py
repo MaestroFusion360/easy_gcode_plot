@@ -160,7 +160,6 @@ def execute_analysis_program(
         source,
         language=language,
         include_instructions=include_instructions,
-        autodetect_arc_type=language == "fanuc_mill",
         kinematics=kinematics,
         lathe_gcode_system=lathe_gcode_system,
         sinumerik_840d_sl=sinumerik_840d_sl,

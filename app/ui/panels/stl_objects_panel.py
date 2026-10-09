@@ -282,6 +282,7 @@ class StlObjectsPanel(QDockWidget):
         button.setIconSize(QSize(18, 18))
 
     def _connect_signals(self):
+        self.ui.closeButton.clicked.connect(self.hide)
         self.objectList.currentRowChanged.connect(self._selection_changed)
         self.operationCombo.currentIndexChanged.connect(self.operationStack.setCurrentIndex)
         self.undoButton.clicked.connect(lambda _checked=False: self.undoRequested.emit())

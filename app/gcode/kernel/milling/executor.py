@@ -27,6 +27,7 @@ from .sinumerik_native import (
     apply_native_declaration,
     apply_native_tcp_edge,
     evaluate_native_block,
+    native_dc_diagnostics,
     native_edge_diagnostics,
     native_ignored_mode_warnings,
     native_operation_code,
@@ -82,6 +83,8 @@ MILLING_RECOGNIZED_G_CODES = frozenset(
         68.2,
         69,
         73,
+        74,
+        76,
         80,
         81,
         82,
@@ -89,8 +92,11 @@ MILLING_RECOGNIZED_G_CODES = frozenset(
         84,
         85,
         86,
+        87,
+        89,
         90,
         91,
+        92.1,
         93,
         94,
         95,
@@ -347,7 +353,9 @@ def _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
     evaluated = evaluated_block.values
     signals = evaluated_block.signals + _milling_spindle_signals(block, words, evaluated_block.codes.all_m)
     diagnostics: list[Diagnostic] = (
-        native_ignored_mode_warnings(block) + native_edge_diagnostics(block, words)
+        native_ignored_mode_warnings(block)
+        + native_edge_diagnostics(block, words)
+        + native_dc_diagnostics(block, ctx.state)
         if ctx.runtime.controller_mode == "sinumerik_native"
         else []
     )
@@ -386,8 +394,17 @@ def _milling_transform_error(ctx, block, evaluated_block):
         error = ("UNSUPPORTED_TCP_TWP_COMPOSITION", "G43.4 cannot combine with G68.2 tilted-work-plane mode")
     elif tcp_requested and rotary_requested:
         error = ("UNSUPPORTED_G43_4_START_ROTARY", "Rotary addresses in the G43.4 activation block are not modeled")
-    elif (ctx.state.twp.active or twp_requested) and rotary_requested:
-        error = ("UNSUPPORTED_TWP_EXPLICIT_ROTARY", "G68.2 does not support explicit A/B/C rotary addresses")
+    elif (
+        (ctx.state.twp.active or twp_requested)
+        and rotary_requested
+        and not _native_rotary_unchanged(ctx, block, evaluated_block)
+        and not _native_frame_index(ctx, evaluated_block)
+    ):
+        frame = "CYCLE800" if ctx.runtime.controller_mode == "sinumerik_native" else "G68.2"
+        error = (
+            "UNSUPPORTED_TWP_EXPLICIT_ROTARY",
+            f"Explicit A/B/C rotary motion with an active {frame} frame is not modeled",
+        )
     elif orient_requested and (
         codes.all_g != (53.1,) or codes.all_m or any(key not in ("G", "N") for key, _ in evaluated)
     ):
@@ -398,6 +415,35 @@ def _milling_transform_error(ctx, block, evaluated_block):
         error
         or _milling_reference_mode_error(ctx.state, codes.all_g, words)
         or _milling_tcp_mode_error(ctx.state, codes.all_g, words)
+    )
+
+
+def _native_frame_index(ctx, evaluated_block):
+    """Pure rapid machine-axis indexing leaves the Siemens frame active."""
+    words, gcodes = evaluated_block.words, evaluated_block.codes.all_g
+    move = next((g for g in reversed(gcodes) if g in (0, 1, 2, 3)), ctx.state.move)
+    return (
+        ctx.runtime.controller_mode == "sinumerik_native"
+        and move == 0
+        and not any(axis in words for axis in "XYZIJKR")
+        and all(g in (0, 90, 91) for g in gcodes)
+    )
+
+
+def _native_rotary_unchanged(ctx, block, evaluated_block):
+    """Repeated native rotary targets do not move the table or change its frame."""
+    if ctx.runtime.controller_mode != "sinumerik_native":
+        return False
+    gcodes = evaluated_block.codes.all_g
+    if 28 in gcodes:
+        return False
+    absolute = next((g == 90 for g in reversed(gcodes) if g in (90, 91)), ctx.state.absolute)
+    if block.native_syntax is not None and block.native_syntax.supa:
+        absolute = True
+    return all(
+        float(value) == (ctx.state.rotary_angles[axis] if absolute else 0.0)
+        for axis, value in evaluated_block.words.items()
+        if axis in ("A", "B", "C")
     )
 
 
@@ -418,7 +464,9 @@ def _milling_tcp_mode_error(state, gcodes, words):
     active = 43.4 in gcodes or state.tcp_control and not any(g in (43, 49) for g in gcodes)
     if not active:
         return None
-    cycle = next((g for g in reversed(gcodes) if g in (0, 1, 2, 3, 73, 80, 81, 82, 83, 84, 85, 86)), state.cycle)
+    cycle = next(
+        (g for g in reversed(gcodes) if g in (0, 1, 2, 3, 73, 74, 76, 80, 81, 82, 83, 84, 85, 86, 87, 89)), state.cycle
+    )
     if cycle not in (0, 1, 2, 3, 80):
         return "UNSUPPORTED_TCP_CYCLE", "Cancel TCP before canned drilling cycles"
     compensation = next((g for g in reversed(gcodes) if g in (40, 41, 42)), state.cutter_comp)
@@ -427,11 +475,48 @@ def _milling_tcp_mode_error(state, gcodes, words):
     return None
 
 
+def _coordinate_preset_outcome(block, evaluated_block, occurrence_events):
+    """Validate a standalone G92.1 preset without changing physical position."""
+    words, codes, evaluated = evaluated_block.words, evaluated_block.codes, evaluated_block.values
+    axes = tuple(axis for axis in "XYZABC" if axis in words)
+    if (
+        codes.all_g != (92.1,)
+        or codes.all_m
+        or not axes
+        or any(words[axis] != 0 for axis in axes)
+        or any(key not in "XYZABCGN" for key in words)
+    ):
+        return _BlockOutcome(
+            action=_BlockAction.STOP,
+            diagnostics=(
+                Diagnostic(
+                    "INVALID_COORDINATE_PRESET",
+                    "G92.1 requires a standalone block with zero-valued axis selectors",
+                    "error",
+                    "malformed",
+                    block.index + 1,
+                    block.raw,
+                ),
+            ),
+            words=evaluated,
+        )
+    # Preset cancels manual/G92 shifts, not motion. This interpreter has
+    # no manual intervention or accepted G92 shift to undo; keep both
+    # physical position and unwrapped rotary joints exactly as they are.
+    return _BlockOutcome(
+        events=tuple(occurrence_events)
+        + (ExecutionEvent("COORDINATE_SYSTEM_PRESET", block.index, code="G92.1", axes=axes),),
+        words=evaluated,
+    )
+
+
 def _validate_milling_block(ctx, block, evaluated_block, occurrence_events):
     """Return an early outcome for validation/dispatch, otherwise ``None``."""
     words = evaluated_block.words
     codes = evaluated_block.codes
     evaluated = evaluated_block.values
+    if 92.1 in codes.all_g:
+        return _coordinate_preset_outcome(block, evaluated_block, occurrence_events)
     conflict_diagnostics = modal_conflict_diagnostics(codes.all_g, "fanuc_mill", block)
     if conflict_diagnostics:
         return _BlockOutcome(
@@ -584,12 +669,13 @@ def _resolve_unknown_milling_axes(state, words):
     if not state.absolute:
         return
 
-    for letter in tuple(state.unknown_axes):
+    # Explicit absolute positions also update axes recovered in earlier blocks.
+    for letter in ("X", "Y", "Z"):
         if letter not in words:
             continue
 
         setattr(state, letter.lower(), words[letter] * state.unit_scale)
-        state.unknown_axes.remove(letter)
+        state.unknown_axes.discard(letter)
 
 
 def _apply_milling_block_state(
@@ -850,6 +936,19 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     return _finish_milling_block(ctx, block, prepared, occurrence_events)
 
 
+def _validate_boring_tapping_configuration(state):
+    if not math.isfinite(state.tapping_retract_distance) or state.tapping_retract_distance <= 0:
+        raise ValueError("Tapping retract distance must be finite and positive")
+    direction = state.boring_shift_direction
+    if (
+        len(direction) != 3
+        or not all(math.isfinite(value) for value in direction)
+        or direction[2] != 0
+        or not math.isclose(math.hypot(*direction[:2]), 1.0)
+    ):
+        raise ValueError("Boring shift direction must be a finite unit vector in the XY plane")
+
+
 def execute_milling(
     source: str,
     *,
@@ -859,6 +958,9 @@ def execute_milling(
     wcs_offsets: dict[int, tuple[float, float, float]] | None = None,
     g73_retract_distance: float = 1.0,
     g83_clearance: float = 1.0,
+    boring_shift_direction: tuple[float, float, float] = (-1.0, 0.0, 0.0),
+    tapping_retract_distance: float = 1.0,
+    tapping_full_retract: bool = False,
     include_instructions: bool = True,
     kinematics: MachineKinematics | None = None,
     source_dialect: str = "fanuc",
@@ -881,6 +983,9 @@ def execute_milling(
         source_arc_type=1 if source_dialect == "sinumerik" else None,
         g73_retract_distance=float(g73_retract_distance),
         g83_clearance=float(g83_clearance),
+        boring_shift_direction=tuple(boring_shift_direction),
+        tapping_retract_distance=float(tapping_retract_distance),
+        tapping_full_retract=bool(tapping_full_retract),
         sinumerik_840d_sl=sinumerik_840d_sl,
     )
     motions: list[TraceMotion] = []
@@ -909,6 +1014,7 @@ def execute_milling(
 
     try:
         _validate_g73_retract_distance(state.g73_retract_distance)
+        _validate_boring_tapping_configuration(state)
         if source_dialect == "sinumerik":
             state.native_loop_pairs = build_native_loop_maps(program)
         _validate_g83_clearance(state.g83_clearance)

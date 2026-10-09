@@ -35,6 +35,12 @@
     </widget>
    </item>
    <item><spacer name="bottomSpacer"><property name="orientation"><enum>Qt::Orientation::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+   <item alignment="Qt::AlignmentFlag::AlignRight">
+    <widget class="QPushButton" name="closeButton">
+     <property name="minimumSize"><size><width>90</width><height>0</height></size></property>
+     <property name="text"><string>Close</string></property>
+    </widget>
+   </item>
   </layout>
  </widget>
  <resources/>

@@ -200,8 +200,10 @@ def _ensure_current_export_trace(owner) -> bool:
     result = getattr(owner, "execution_result", None)
     trace_current = (
         result is not None
-        and result.ok
-        and getattr(result, "complete", result.ok)
+        and (
+            (result.ok and getattr(result, "complete", result.ok))
+            or (getattr(owner, "exportMode", None) == DXF_MODE and bool(result.motions))
+        )
         and not getattr(owner, "_plot_source_stale", False)
     )
     if trace_current:
@@ -284,6 +286,8 @@ def _write_export(owner, *, path, result, request, source, render_points, cancel
         render_points=render_points,
         cancelled=cancellation.is_set,
     )
+    if request.format == "dxf" and exported.output_size_bytes > 0:
+        return True
     if not (exported.execution.ok and exported.execution.complete):
         limitation = next(
             (diagnostic for diagnostic in exported.execution.diagnostics if is_export_limitation(diagnostic)),

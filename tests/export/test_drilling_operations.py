@@ -14,6 +14,31 @@ from app.gcode.trace_tools import motion_length
 TARGETS = ("fanuc_mill", "fanuc_mill_multiaxis", "sinumerik_iso", "sinumerik_840d", "sinumerik_840d_multiaxis")
 
 
+@pytest.mark.parametrize("target", ["fanuc_mill", "sinumerik_840d"])
+@pytest.mark.parametrize(
+    "dialect,cycle",
+    [
+        ("fanuc", "G98 G74 X2 Z-5 R1 Q2 F500"),
+        ("fanuc", "G99 G76 X2 Z-5 R1 Q0.2 F100"),
+        ("fanuc", "G99 G87 X2 Z-3 R-5 Q0.2 F100"),
+        ("fanuc", "G98 G89 X2 Z-5 R1 P100 F100"),
+        ("sinumerik", "CYCLE85(10,0,1,-5,,.1,100,250,0,0,0)"),
+        ("sinumerik", "CYCLE86(10,0,1,-5,,.1,3,.2,.3,.4,0,0,0,0)"),
+        ("sinumerik", "CYCLE87(10,0,1,-5,,3)"),
+        ("sinumerik", "CYCLE89(10,0,1,-5,,.1)"),
+    ],
+)
+def test_new_cycle_export_preserves_expanded_geometry_and_feeds(target, dialect, cycle):
+    if dialect == "sinumerik":
+        cycle = f"MCALL {cycle}\nX2\nMCALL"
+    else:
+        cycle += "\nG80"
+    before = execute(f"G90 G0 Z10\nS500 M3\nF100\n{cycle}\nM30", "fanuc_mill", source_dialect=dialect)
+    assert before.ok and before.complete, before.diagnostics
+    text = convert_resolved_program(before, target, ExportOptions(decimal_places=6))
+    _assert_geometry(before, _replay(text, target))
+
+
 @pytest.mark.parametrize("fixture,cycles", [("toolchange.nc", {84: 2}), ("cycles_fanuc.nc", {81: 4, 83: 2})])
 @pytest.mark.parametrize("target", TARGETS)
 @pytest.mark.parametrize("delimiter", [False, True])
@@ -89,7 +114,9 @@ def _assert_geometry(before, after):
 @pytest.mark.parametrize("delimiter", [False, True])
 @pytest.mark.parametrize("code,parameters", [(81, (5, 9)), (82, (6, 9)), (83, (17, 20)), (84, (18, 24))])
 def test_selected_sinumerik_generation_controls_post_interface(solution_line, target, delimiter, code, parameters):
-    source = f"G21 G90 G17\nS400 M3\nG0 Z5\nG98 G{code} X-25 Y10 Z-17 R4 Q1 P100 F400\nX25\nG80\nM30"
+    source = (
+        f"G21 G90 G17\nS400 M3\nG0 Z5\nG98 G{code} X-25 Y10 Z-17 R4 Q{0 if code == 84 else 1} P100 F400\nX25\nG80\nM30"
+    )
     before = execute(source, language="fanuc_mill", sinumerik_840d_sl=solution_line)
     text = convert_resolved_program(before, target, ExportOptions(delimiter=delimiter))
     calls = [line for line in text.splitlines() if line.startswith(f"MCALL CYCLE{code}(")]
@@ -102,7 +129,9 @@ def test_selected_sinumerik_generation_controls_post_interface(solution_line, ta
 
 @pytest.mark.parametrize("code", [81, 82, 83, 84])
 def test_classic_source_rejects_expanded_sl_cycle_signature(code):
-    before = execute(f"S400 M3\nG0 Z5\nG99 G{code} X2 Z-5 R2 Q1 F400\nG80\nM30", language="fanuc_mill")
+    before = execute(
+        f"S400 M3\nG0 Z5\nG99 G{code} X2 Z-5 R2 Q{0 if code == 84 else 1} F400\nG80\nM30", language="fanuc_mill"
+    )
     text = convert_resolved_program(before, "sinumerik_840d")
     classic = execute(text, language="fanuc_mill", source_dialect="sinumerik", sinumerik_840d_sl=False)
     assert not classic.ok

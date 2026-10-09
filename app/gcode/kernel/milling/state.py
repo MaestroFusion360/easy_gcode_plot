@@ -47,10 +47,16 @@ class MillState(MachineRuntimeState):
     cycle_z: float | None = None
     cycle_r: float | None = None
     cycle_q: float | None = None
+    cycle_tapping_q: float = 0.0
     cycle_feed: float = 0.0
     cycle_p: float = 0.0
     g73_retract_distance: float = 1.0
     g83_clearance: float = 1.0
+    # FANUC parameter 5101 determines the Q shift direction. The logical
+    # machine defaults to -X; callers can supply their machine's unit vector.
+    boring_shift_direction: tuple[float, float, float] = (-1.0, 0.0, 0.0)
+    tapping_retract_distance: float = 1.0
+    tapping_full_retract: bool = False
     return_initial: bool = False
     cycle_initial_z: float | None = None
     cutter_comp: int = 40

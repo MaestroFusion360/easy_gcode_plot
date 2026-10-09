@@ -127,6 +127,26 @@ def _motion(
 ) -> TraceMotion | None:
     if state.cip_mode:
         return _cip_motion(block, state, words, wcs_offsets, rotary_start_angles)
+    if state.native_spindle_semantics and state.move in (2, 3) and "TURN" not in words:
+        # Siemens Fundamentals 9.6.2: two endpoint geometry addresses
+        # select a block-local circle plane; a helix retains G17/G18/G19.
+        axes = frozenset(axis for axis in "XYZ" if axis in words)
+        plane = {frozenset("XY"): 17, frozenset("XZ"): 18, frozenset("YZ"): 19}.get(axes, state.plane)
+        centers = set("IJK").intersection(words)
+        if not centers <= set({17: "IJ", 18: "IK", 19: "JK"}[plane]):
+            plane = state.plane
+        if plane != state.plane:
+            local_state = replace(state, plane=plane, native_spindle_semantics=False)
+            motion = _motion(
+                block,
+                local_state,
+                words,
+                wcs_offsets=wcs_offsets,
+                source_kind=source_kind,
+                rotary_start_angles=rotary_start_angles,
+            )
+            state.x, state.y, state.z = local_state.x, local_state.y, local_state.z
+            return motion
     end = _xyz(words, state)
     continuous_c = _continuous_c_changed(state, words, rotary_start_angles)
     tcp_rotary = _tcp_rotary_changed(state, words, rotary_start_angles)
@@ -147,14 +167,18 @@ def _motion(
     )
     if state.move in (2, 3):
         transform = _coordinate_transform(state)
-        arc_vector = _orient_vector(transform.apply_vector(_arc_center_vector(block, words, state)), state)
+        center = _arc_center_vector(block, words, state)
+        # Absolute centers are points; native AC centers have already been
+        # converted to relative displacements by _arc_center_vector.
+        arc_vector = (
+            _machine(center, state, wcs_offsets)
+            if state.source_arc_type == 2
+            else _orient_vector(transform.apply_vector(center), state)
+        )
         plane_scales = transform.plane_scale_factors(state.plane)
         if abs(plane_scales[0] - plane_scales[1]) > 1e-12:
             raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
     state.x, state.y, state.z = end
-    if state.source_arc_type == 2:
-        offset = _wcs_offset(wcs_offsets, state.active_wcs)
-        arc_vector = tuple(arc_vector[i] + offset[i] for i in range(3))
     has_arc_definition = state.move in (2, 3) and any(key in words for key in ("I", "J", "K", "R"))
     if start_m == end_m and not has_arc_definition and not (tcp_rotary or continuous_c):
         return None
@@ -162,6 +186,13 @@ def _motion(
     motion = TraceMotion(
         move=state.move,
         source_arc_type=state.source_arc_type,
+        absolute_center_offset=(
+            _machine((0.0, 0.0, 0.0), state, wcs_offsets)
+            if state.source_arc_type is None
+            and state.move in (2, 3)
+            and _coordinate_transform(state).apply((0.0, 0.0, 0.0)) != (0.0, 0.0, 0.0)
+            else None
+        ),
         additional_turns=int(words.get("TURN", 0)),
         start_x=start_m[0],
         start_y=start_m[1],
@@ -227,7 +258,12 @@ def _resolve_programmable_arc(motion, state, block):
     translation = _orient_vector(state.transform.translation, state)
     offset = tuple(motion.orientation_offset[i] + translation[i] for i in range(3))
     try:
-        resolved = resolve_arc(replace(motion, orientation=matrix, orientation_offset=offset), source_arc_type=1)
+        resolved = resolve_arc(
+            replace(motion, orientation=matrix, orientation_offset=offset),
+            source_arc_type=motion.source_arc_type or 1,
+            # Final validation uses the caller's execution tolerance.
+            tolerance=float("inf"),
+        )
     except SemanticError as error:
         raise SemanticError(error.code, f"{error} at line {block.index + 1}: {block.raw}", error.status) from error
     return replace(motion, arc=resolved.arc)
@@ -357,9 +393,9 @@ def _emit_milling_motions(
 
     action_g = None
     for g in gcodes:
-        if g in (0, 1, 2, 3, 28, 53, 73, 80, 81, 82, 83, 84, 85, 86):
+        if g in (0, 1, 2, 3, 28, 53, 73, 74, 76, 80, 81, 82, 83, 84, 85, 86, 87, 89):
             action_g = g
-    if action_g is not None and action_g not in (73, 80, 81, 82, 83, 84, 85, 86):
+    if action_g is not None and action_g not in (73, 74, 76, 80, 81, 82, 83, 84, 85, 86, 87, 89):
         # An explicit motion/reference command ends
         # a modal drilling cycle even without a separate G80 block.
         state.cycle = 80

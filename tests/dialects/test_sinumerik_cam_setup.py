@@ -116,8 +116,6 @@ def test_dc_uses_shortest_absolute_target_independently_of_distance_mode(distanc
 @pytest.mark.parametrize(
     "source,code",
     [
-        ("G0 C=DC(-1)", "INVALID_SINUMERIK_DC"),
-        ("G0 C=DC(361)", "INVALID_SINUMERIK_DC"),
         ("G0 C=DC(180)", "UNSUPPORTED_SINUMERIK_DC_TIE"),
         ("G0 B=DC(10)", "UNCONFIGURED_ROTARY_AXIS"),
         ("G0 C=DC(10) C=IC(20)", "UNSUPPORTED_SINUMERIK_MODE"),

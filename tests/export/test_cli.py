@@ -100,8 +100,8 @@ def test_cli_comparison_preflight_returns_error_without_writing(tmp_path, capsys
         assert not output.exists()
 
 
-@pytest.mark.parametrize("language, expected", [("fanuc_mill", True), ("fanuc_turn", False)])
-def test_cli_batch_enables_arc_autodetection_for_milling(tmp_path, monkeypatch, language, expected):
+@pytest.mark.parametrize("language", ["fanuc_mill", "fanuc_turn"])
+def test_cli_batch_enables_shared_arc_autodetection(tmp_path, monkeypatch, language):
     source_dir = tmp_path / "source"
     source_dir.mkdir()
     source = source_dir / "arc.nc"
@@ -110,12 +110,12 @@ def test_cli_batch_enables_arc_autodetection_for_milling(tmp_path, monkeypatch, 
     original = batch.execute_program
 
     def capture_execution(*args, **kwargs):
-        calls.append(kwargs["autodetect_arc_type"])
+        calls.append(kwargs.get("autodetect_arc_type", True))
         return original(*args, **kwargs)
 
     monkeypatch.setattr(batch, "execute_program", capture_execution)
     main(["batch", str(source_dir), "--lang", language, "-o", str(tmp_path / "report")])
-    assert calls == [expected]
+    assert calls == [True]
 
 
 def test_cli_help_describes_every_command(capsys):

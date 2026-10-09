@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.9.8 - 2026-10-09
+
+- Reorganize the bilingual project landing page into feature sections with grouped screenshots, blue controls and larger text. Retain the video demonstration, crop its white borders and add full-viewport image/video previews with a top-right close button.
+- Publish updated English and Russian CIMCO Edit 8 comparisons in `COMPARISON.md` and `COMPARISON_RU.md`, with collapsible tables on both landing pages. Clarify Russian technical descriptions and restore Statistics navigation.
+- Add the project website above the author in About and a localized Close button to the STL Objects panel.
+- Limit exported HTML statistics tables and SVG projections to 900 px; scale projections to the available window height. Show the coordinate origin and positive XY/XZ axes, preserving the marker when filtering by tool. Refresh the downloadable example report.
+- Register both Fusion benchmark fixtures in the corpus and verify the two G41 corner joins in the full native CAM GUI regression. Simplify milling preset and cycle validation to satisfy lint checks without suppressions.
+- Execute the complete paired Fusion 1001 benchmarks through M30 on AC table kinematics. Add native CYCLE85/86/87/89, deep/left CYCLE84, FANUC G74/G76/G87/G89 and synchronized G74/G84 Q pecks. Preserve feeds, clearance shifts and spindle/stop signals.
+- Resolve Siemens circle planes from endpoint addresses without changing the modal plane. Allow pure native rapid indexing under CYCLE800; normalize signed/unwrapped Fusion DC targets for backplotting with source warnings.
+- Handle G92.1 as a non-motion coordinate preset and restore all explicit absolute axes after unsupported blocks.
+- Reject inconsistent milling IJK radii and zero-sweep arcs with source-line diagnostics, preserving full circles and configured arc tolerances.
+- Transform absolute IJK centers consistently with G52, WCS, rotation and scaling. Preserve native SINUMERIK AC centers without applying offsets twice.
+- Correct G18 cutter-compensation projection and arc direction, and include the starting point in turning profile-arc membership checks.
+- Align default motion budgets, arc tolerances and IJK autodetection across GUI, CLI analysis and export. Keep explicit execution limits and manual arc selection available.
+- Expose program wrappers, comment style, decimal precision, forced decimal and positive-sign options in single and batch CLI export. Use the source controller for direct API Auto export and detect each batch input's machine type when --lang is omitted.
+- Allow DXF export of available partial execution geometry while retaining diagnostics and blocking incomplete NC output.
+- Clarify that G76 marks the lead-based axial chamfer interval but does not model an angled radial pull-out.
+- Accept repeated native SINUMERIK rotary targets under CYCLE800 without changing geometry. Identify CYCLE800 in native rotary-frame diagnostics and describe the simulator limitation.
+
 ## 1.9.7 - 2026-10-09
 
 - Ignore quoted tool names and messages when detecting the initial SINUMERIK G290/G291 mode.

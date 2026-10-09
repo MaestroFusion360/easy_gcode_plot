@@ -1,38 +1,99 @@
-    <section id="statistics" class="section">
-      <div class="section-heading">
-        <h2>Statistics and HTML reports</h2>
-      </div>
-      <p class="prose">See how much of a program was executed, where each tool travels and how cutting and rapid
-        moves contribute to length and estimated time. The desktop Statistics dialog and CLI reports use the same calculations.</p>
-      <div class="feature-grid">
-        <article>
-          <h3>Moves, time and bounds</h3>
-          <p>Grouped tables show motion counts, cutting and rapid lengths, estimated times, average feed and XYZ bounds.
-            Execution status distinguishes complete results, warnings and partial or invalid execution.</p>
-        </article>
-        <article>
-          <h3>Statistics for each tool</h3>
-          <p>Use the tool selector to switch between the whole program and an individual tool. Each tool has its own
-            lengths, times and XYZ bounds. Display measurements in millimetres or inches.</p>
-        </article>
-        <article>
-          <h3>A report you can share</h3>
-          <p>Export HTML from the Statistics dialog or CLI. The standalone report includes all tool sections and a static
-            SVG toolpath projection: XY for milling, XZ for turning. It opens in a browser without installing the application.</p>
-        </article>
-      </div>
-      <div class="workflow">
-        <h3>Analyze one program</h3>
-        <p>Generate a readable HTML report and detailed JSON in one run. For FANUC milling files, specify
-          <code>--lang fanuc_mill</code>; use <code>fanuc_turn</code> for turning.</p>
-        <pre class="command-example"><code>.\easy_gcode_plot_cli.exe analyze ".\programs\part.nc" --lang fanuc_mill &#96;
+<section id="statistics" class="section">
+  <div class="section-heading">
+    <h2>Statistics and HTML reports</h2>
+  </div>
+  <p class="prose">
+    See how much of a program was executed, where each tool travels and how
+    cutting and rapid moves contribute to length and estimated time. The desktop
+    Statistics dialog and CLI reports use the same calculations.
+  </p>
+  <div class="report-preview">
+    <figure class="screenshot-card">
+      <a
+        href="assets/statistics.html.png"
+        data-gallery="statistics"
+        aria-label="Statistics for the program and each tool"
+        ><img
+          src="assets/statistics.html.png"
+          width="721"
+          height="623"
+          alt="Statistics for the program and each tool"
+          loading="lazy"
+          decoding="async"
+      /></a>
+      <figcaption>Statistics for the program and each tool</figcaption>
+    </figure>
+    <div>
+      <h3>A report you can share</h3>
+      <p>
+        Lengths, estimated times and bounds, grouped by tool. Open the
+        standalone HTML report in any browser.
+      </p>
+      <a
+        class="button"
+        href="assets/statistics-example.html"
+        target="_blank"
+        rel="noopener"
+        >Open sample report ↗</a
+      >
+    </div>
+  </div>
+  <div class="feature-grid">
+    <article>
+      <h3>Moves, time and bounds</h3>
+      <p>
+        Grouped tables show motion counts, cutting and rapid lengths, estimated
+        times, average feed and XYZ bounds. Execution status distinguishes
+        complete results, warnings and partial or invalid execution.
+      </p>
+    </article>
+    <article>
+      <h3>Statistics for each tool</h3>
+      <p>
+        Use the tool selector to switch between the whole program and an
+        individual tool. Each tool has its own lengths, times and XYZ bounds.
+        Display measurements in millimetres or inches.
+      </p>
+    </article>
+    <article>
+      <h3>A report you can share</h3>
+      <p>
+        Export HTML from the Statistics dialog or CLI. The standalone report
+        includes all tool sections and a static SVG toolpath projection: XY for
+        milling, XZ for turning. It opens in a browser without installing the
+        application.
+      </p>
+    </article>
+  </div>
+  <div class="workflow">
+    <h3>Analyze one program</h3>
+    <p>
+      Generate a readable HTML report and detailed JSON in one run. For FANUC
+      milling files, specify <code>--lang fanuc_mill</code>; use
+      <code>fanuc_turn</code> for turning.
+    </p>
+    <pre
+      class="command-example"
+    ><code>.\easy_gcode_plot_cli.exe analyze ".\programs\part.nc" --lang fanuc_mill &#96;
   --html ".\reports\part.html" -o ".\reports\part.json"</code></pre>
-        <p>In the GUI, open Statistics, choose a tool or units, then select <strong>Export HTML</strong>.
-          Exported reports always use a light theme; the dialog follows the application theme.</p>
-        <div class="actions">
-          <a class="button" href="assets/statistics-example.html" target="_blank" rel="noopener">Open sample HTML report</a>
-        </div>
-        <p class="note">The example was generated from <code>plate_setup_complete.nc</code>: 377 movements and 10 tools.
-          Time is a kinematic estimate; dwell, tool changes and acceleration are not included.</p>
-      </div>
-    </section>
+    <p>
+      In the GUI, open Statistics, choose a tool or units, then select
+      <strong>Export HTML</strong>. Exported reports always use a light theme;
+      the dialog follows the application theme.
+    </p>
+    <div class="actions">
+      <a
+        class="button"
+        href="assets/statistics-example.html"
+        target="_blank"
+        rel="noopener"
+        >Open sample HTML report</a
+      >
+    </div>
+    <p class="note">
+      The example was generated from <code>plate_setup_complete.nc</code>: 377
+      movements and 10 tools. Time is a kinematic estimate; dwell, tool changes
+      and acceleration are not included.
+    </p>
+  </div>
+</section>

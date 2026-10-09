@@ -1,4 +1,4 @@
-"""Native modal CYCLE81/82/83/84 using the common drilling geometry emitter.
+"""Native modal drilling, tapping and boring using shared geometry emitters.
 
 Positional parameters follow Siemens G-code programming manual 03/2009,
 sections 1.2, 1.3, 1.5. Automatic CYCLE83 reentry clearance follows the
@@ -17,7 +17,7 @@ from ...runtime.cycles import CycleOutcome
 from ...runtime.drilling import AxialMove
 from ..sinumerik_parameters import parameter_value
 from ..state import _xyz
-from .drilling import _DRILL_BEHAVIOR, _expand_drilling_cycle, _ResolvedDrillingCycle
+from .drilling import _DRILL_BEHAVIOR, _expand_drilling_cycle, _ResolvedDrillingCycle, boring_path
 from .events import drilling_event
 
 
@@ -38,6 +38,12 @@ class NativeDrillingCycle:
     dwell: float = 0.0
     tapping_feed: float | None = None
     tapping_rpm: float | None = None
+    left_hand: bool = False
+    cutting_feed: float | None = None
+    retract_feed: float | None = None
+    shift: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    spindle_position: float = 0.0
+    spindle_direction: int = 3
     parameter_syntax: NativeMillingSyntax | None = None
 
 
@@ -46,8 +52,12 @@ def _unsupported(message):
 
 
 def _arguments(syntax, parameters, variables=None, *, solution_line=True):
-    count = {83: 20, 84: 24}.get(syntax.cycle_code, 9)
-    maximum = count if solution_line else {81: 5, 82: 6, 83: 17, 84: 18}.get(syntax.cycle_code, 0)
+    count = {81: 9, 82: 9, 83: 20, 84: 24, 85: 11, 86: 14, 87: 6, 89: 6}.get(syntax.cycle_code, 0)
+    maximum = (
+        count
+        if solution_line
+        else {81: 5, 82: 6, 83: 17, 84: 21, 85: 8, 86: 11, 87: 6, 89: 6}.get(syntax.cycle_code, 0)
+    )
     args = syntax.cycle_args
     trees = dict(syntax.scalar_expressions)
     # Some CAM calls omit DTB and end with AMODE=10/12. A shortened SL
@@ -61,7 +71,7 @@ def _arguments(syntax, parameters, variables=None, *, solution_line=True):
     ):
         args = args[:5] + ("",) + args[5:]
     minimum = 4 if syntax.cycle_code == 81 else 5
-    if syntax.cycle_code not in (81, 82, 83, 84) or not minimum <= len(args) <= maximum:
+    if not count or not minimum <= len(args) <= maximum:
         generation = "840D Extended cycles (03/2009)" if solution_line else "classic (01/2008)"
         _unsupported(f"Cycle signature is outside the selected {generation} interface")
     values = tuple(parameter_value(arg, parameters, variables, trees.get(arg)) if arg else None for arg in args) + (
@@ -85,9 +95,10 @@ def _depth(values, reference):
 def _mode_checks(values, code, state):
     if state.plane != 17 or state.cutter_comp != 40 or state.cycle != 80:
         _unsupported("Native drilling requires G17, G40 and no active ISO canned cycle")
-    if code == 84:
+    if code in (84, 87, 89):
         return
-    gmode, dmode, amode = (values[index] or 0 for index in ((17, 18, 19) if code == 83 else (6, 7, 8)))
+    indices = {83: (17, 18, 19), 85: (8, 9, 10), 86: (11, 12, 13)}.get(code, (6, 7, 8))
+    gmode, dmode, amode = (values[index] or 0 for index in indices)
     if gmode != 0 or dmode not in (0, 1) or amode not in ((0, 1001110) if code == 83 else (0, 2, 10, 12)):
         _unsupported("Cycle geometry/axis/alternative modes are outside the modeled subset")
     if code != 83 and amode in (2, 12) and values[3] is None:
@@ -123,29 +134,58 @@ def _compile_native_cycle(syntax, state):
         return _compile_peck_cycle(values, common, scale)
     if syntax.cycle_code == 84:
         return _compile_tapping_cycle(values, common, state)
+    if syntax.cycle_code in (85, 86, 87, 89):
+        return _compile_boring_cycle(values, common, state)
     dwell = values[5] or 0.0
     if dwell < 0:
         _unsupported("Dwell in spindle revolutions is not modeled")
     return NativeDrillingCycle(**common, dwell=dwell)
 
 
+def _compile_boring_cycle(values, common, state):
+    code = common["code"]
+    dwell = 0.0 if code == 87 else values[5] or 0.0
+    if dwell < 0:
+        _unsupported("Boring dwell must be nonnegative seconds")
+    extra = {}
+    if code == 85:
+        if any(values[i] is None or values[i] <= 0 for i in (6, 7)):
+            _unsupported("CYCLE85 requires positive cutting and retraction feedrates FFR/RFF")
+        extra.update(cutting_feed=values[6] * state.unit_scale, retract_feed=values[7] * state.unit_scale)
+    if code in (86, 87):
+        direction = values[5 if code == 87 else 6]
+        if direction not in (3, 4):
+            _unsupported("Boring requires SDIR=3 or 4")
+        extra["spindle_direction"] = int(direction)
+    if code == 86:
+        extra.update(
+            shift=tuple((value or 0) * state.unit_scale for value in values[7:10]), spindle_position=values[10] or 0
+        )
+    return NativeDrillingCycle(**common, dwell=dwell, **extra)
+
+
 def _compile_tapping_cycle(values, common, state):
-    """CAM subset of Siemens 03/2009 section 1.7: metric RH, one cut.
+    """Siemens rigid tapping, including CAM handedness and balanced pecks.
 
     SST is rpm, not feed. Keep cycle speeds equal to the programmed S so
     the shared execution-step spindle metadata remains authoritative.
     """
     if state.feed_mode != "per_minute" or state.unit_scale != 1:
         _unsupported("CYCLE84 currently requires metric geometry and G94")
-    if (values[6] or 0) != 3 or (values[8] or 0) <= 0 or (values[13] or 0) not in (0, 1):
-        _unsupported("CYCLE84 requires SDAC=3 and positive explicit PIT in mm (_PITA=0/1)")
+    if (values[6] or 0) not in (3, 4, 5) or (values[8] or 0) == 0 or (values[13] or 0) not in (0, 1):
+        _unsupported("CYCLE84 requires SDAC=3/4/5 and nonzero explicit PIT in mm (_PITA=0/1)")
     if (values[12] or 0) not in (0, 3) or (values[22] or 0) not in (0, 1):
         _unsupported("CYCLE84 requires Z tool axis and G17")
-    if any(values[index] for index in (7, 9, 14, 15, 16, 17, 18, 19, 20, 21)):
-        _unsupported("CYCLE84 thread tables, orientation, technology and deep tapping are not modeled")
+    if any(values[index] for index in (7, 9, 14, 18, 19, 20, 21)):
+        _unsupported("CYCLE84 thread tables, orientation and technology are not modeled")
+    vari, dam, vrt = (values[index] or 0 for index in (15, 16, 17))
+    invalid_peck = vari and dam <= 0
+    unexpected_peck = not vari and (dam or vrt)
+    if vari not in (0, 1, 2) or invalid_peck or vrt < 0 or unexpected_peck:
+        _unsupported("CYCLE84 deep tapping requires VARI=1/2, positive DAM and nonnegative VRT")
     amode = values[23] or 0
-    if amode not in (0, 2, 1001002) or amode and values[3] is None:
-        _unsupported("CYCLE84 requires compatibility depth or the CAM absolute-depth/right-hand mode")
+    if amode not in (0, 2, 1001002, 1002002) or amode and values[3] is None:
+        _unsupported("CYCLE84 requires compatibility depth or CAM absolute-depth mode")
     rpm = values[10]
     retract_rpm = values[11] or rpm
     if rpm is None or rpm <= 0 or rpm != state.spindle_rpm or retract_rpm != rpm:
@@ -153,10 +193,21 @@ def _compile_tapping_cycle(values, common, state):
     dwell = values[5] or 0
     if dwell < 0:
         _unsupported("CYCLE84 dwell must be in nonnegative seconds")
-    feed = values[8] * rpm
+    feed = abs(values[8]) * rpm
     if not math.isfinite(feed):
         _unsupported("CYCLE84 calculated tapping feed must be finite")
-    return NativeDrillingCycle(**common, dwell=dwell, tapping_feed=feed, tapping_rpm=rpm)
+    return NativeDrillingCycle(
+        **common,
+        dwell=dwell,
+        tapping_feed=feed,
+        tapping_rpm=rpm,
+        left_hand=amode == 1002002 or not amode and values[8] < 0,
+        first_depth=common["reference_z"] - dam if vari else None,
+        minimum_step=dam,
+        full_retract=vari == 2,
+        retract_distance=vrt,
+        spindle_direction=int(values[6]),
+    )
 
 
 def _compile_peck_cycle(values, common, scale):
@@ -229,12 +280,15 @@ def execute_native_cycle(context):
         cycle.safety_z,
         cycle.target_z,
         cycle.return_z,
-        cycle.tapping_feed or state.feed,
+        cycle.tapping_feed or cycle.cutting_feed or state.feed,
         None,
         _DRILL_BEHAVIOR[81],
     )
     moves = _native_axial_moves(cycle, state)
-    motions = _expand_drilling_cycle(context, state, resolved, axial_moves=moves)
+    path = boring_path(state, resolved, cycle.shift) if cycle.code == 86 else None
+    motions = _expand_drilling_cycle(
+        context, state, resolved, axial_moves=moves, path_moves=path, retract_feed=cycle.retract_feed
+    )
     if cycle.code == 83 and motions:
         motions = _first_feed_factor(motions, cycle.feed_factor)
     signals = (MachineSignal("dwell", context.block.index, f"CYCLE{cycle.code}", cycle.dwell),) if cycle.dwell else ()
@@ -243,10 +297,20 @@ def execute_native_cycle(context):
             MachineSignal(kind, context.block.index, "CYCLE84")
             for kind in ("rigid_tapping", "spindle_sync", "spindle_reverse")
         )
+        if cycle.first_depth is not None:
+            reversals = sum(move.move == 1 and move.end > move.start for move in moves)
+            signals += tuple(
+                MachineSignal("spindle_reverse", context.block.index, "CYCLE84") for _ in range(reversals - 1)
+            )
+    if cycle.code == 86:
+        signals += (MachineSignal("spindle_orient", context.block.index, "CYCLE86", cycle.spindle_position),)
+    if cycle.code == 87:
+        signals += tuple(MachineSignal(kind, context.block.index, "CYCLE87") for kind in ("spindle_stop", "stop"))
     return CycleOutcome(
         True,
         motions,
         signals,
+        modal_updates=(("spindle_running", cycle.spindle_direction != 5),) if cycle.code == 84 else (),
         position_update=(("x", x), ("y", y), ("z", cycle.return_z)),
         events=(drilling_event(context, state, resolved, motions, native=cycle),),
     )
@@ -255,10 +319,37 @@ def execute_native_cycle(context):
 def _native_axial_moves(cycle, state):
     if cycle.code == 83:
         return _peck_moves(cycle, state.unit_scale)
+    if cycle.code in (85, 89):
+        return (
+            AxialMove(1, cycle.safety_z, cycle.target_z),
+            AxialMove(1, cycle.target_z, cycle.safety_z),
+            AxialMove(0, cycle.safety_z, cycle.return_z),
+        )
     if cycle.code != 84:
         return None
     if state.feed_mode != "per_minute" or state.spindle_rpm != cycle.tapping_rpm:
         _unsupported("CYCLE84 spindle speed/feed mode changed after declaration")
+    if cycle.first_depth is not None:
+        moves, position = [], cycle.safety_z
+        depth = cycle.reference_z
+        while depth > cycle.target_z:
+            checkpoint("cycle_iterations")
+            remaining = depth - cycle.target_z
+            step = cycle.minimum_step if remaining >= 2 * cycle.minimum_step else remaining / 2
+            if remaining <= cycle.minimum_step:
+                step = remaining
+            next_depth = max(cycle.target_z, depth - step)
+            require_progress(depth, next_depth)
+            moves.append(AxialMove(1, position, next_depth))
+            position = (
+                cycle.safety_z
+                if cycle.full_retract or next_depth == cycle.target_z
+                else min(cycle.safety_z, next_depth + cycle.retract_distance)
+            )
+            moves.append(AxialMove(1, next_depth, position))
+            depth = next_depth
+        moves.append(AxialMove(0, cycle.safety_z, cycle.return_z))
+        return tuple(moves)
     return (
         AxialMove(1, cycle.safety_z, cycle.target_z),
         AxialMove(1, cycle.target_z, cycle.safety_z),

@@ -25,9 +25,9 @@ class Ui_AboutDlg(object):
     def setupUi(self, AboutDlg):
         if not AboutDlg.objectName():
             AboutDlg.setObjectName(u"AboutDlg")
-        AboutDlg.resize(520, 310)
-        AboutDlg.setMinimumSize(QSize(520, 310))
-        AboutDlg.setMaximumSize(QSize(520, 310))
+        AboutDlg.resize(520, 350)
+        AboutDlg.setMinimumSize(QSize(520, 350))
+        AboutDlg.setMaximumSize(QSize(520, 350))
         self.verticalLayout = QVBoxLayout(AboutDlg)
         self.verticalLayout.setSpacing(10)
         self.verticalLayout.setObjectName(u"verticalLayout")
@@ -86,6 +86,14 @@ class Ui_AboutDlg(object):
         self.licenseLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.verticalLayout.addWidget(self.licenseLabel)
+
+        self.websiteLabel = QLabel(AboutDlg)
+        self.websiteLabel.setObjectName(u"websiteLabel")
+        self.websiteLabel.setText(u"<a href=\"https://maestrofusion360.github.io/easy_gcode_plot/\">maestrofusion360.github.io/easy_gcode_plot</a>")
+        self.websiteLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.websiteLabel.setOpenExternalLinks(True)
+
+        self.verticalLayout.addWidget(self.websiteLabel)
 
         self.dateLabel = QLabel(AboutDlg)
         self.dateLabel.setObjectName(u"dateLabel")

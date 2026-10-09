@@ -138,8 +138,11 @@ def arc_progress01(seg: ProfileSegment, geom: ArcGeom, p: Point2) -> float:
 
     if full <= 0.0:
         full += 2.0 * math.pi
-    if part <= 0.0:
+    if part < 0.0:
         part += 2.0 * math.pi
+    # Use the existing angular zero threshold at the wrap boundary too.
+    if math.isclose(part, 2.0 * math.pi, rel_tol=0.0, abs_tol=1e-12):
+        part = 0.0
     if mapped_move == 2:
         full = -abs(full)
         part = -abs(part)

@@ -175,7 +175,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - Native milling for `.mpf` / `.spf`, including the configured rotary subset described below.
 - Native `G0/G1/G2/G3`, `CR=`, work offsets, compensation and common tool/spindle/coolant commands.
 - `G290/G291` native / ISO Dialect M switching.
-- Modal `MCALL CYCLE81/82/83/84`.
+- Modal `MCALL CYCLE81/82/83/84/85/86/87/89`.
 - Native R arithmetic, degree trigonometry, nested WHILE/ENDWHILE and numeric-label GOTO/IF GOTO.
 - GUI/CLI/kernel TRAORI/TRAFOOF TCP on the angled AC/BC table profiles, including G2/G3 with rotary interpolation.
 - Native CYCLE800 static frames and TRAORI/TRAFOOF TCP on angled AC/BC tables. Numeric A/B/C, direct R references and incremental IC values are supported for configured axes; DC selects the shortest absolute rotary approach; ambiguous half turns remain rejected.
@@ -224,7 +224,7 @@ The [GUI sandbox](docs/GUI_SANDBOX.md) runs one isolated four-program regression
 | Turning | Yes | No |
 | Three-axis milling | Yes | Yes |
 | Macro / variable subset | Macro B | R parameters |
-| Drilling / tapping cycles | Yes | `MCALL CYCLE81/82/83/84` |
+| Drilling / tapping cycles | Yes | `MCALL CYCLE81/82/83/84/85/86/87/89` |
 | Indexed rotary milling | Yes | Configured rotary axes; CYCLE800 indexing on angled AC/BC profiles |
 | Continuous TCP | `G43.4`, including rotary arcs | GUI/CLI/kernel `TRAORI` / `TRAFOOF`, angled AC/BC subset |
 | Tilted working plane | `G68.2/G53.1` | Supported `CYCLE800` static frames and 3+2 indexing (GUI/CLI/kernel) |
@@ -250,7 +250,7 @@ Unnamed editor text is detected from executable native commands such as SUPA, CI
 
 MPF/SPF documents retain the selected rotary-kinematics profile. Settings and Options expose the enabled profiles; native CYCLE800/TRAORI require a supported angled AC/BC table. The kernel rejects incompatible axes, profiles and ISO-M rotary commands.
 
-**Options > General > 840D Extended cycles** selects the native cycle interface for reading and EXPANDED export: checked uses Siemens 03/2009 (9/9/20/24 arguments for CYCLE81/82/83/84), unchecked uses the classic 01/2008 interface (5/6/17/18 arguments). The setting defaults to checked and is saved. These are explicit cycle-interface profiles, not a claim that every powerline/sl installation uses that interface; verify the installed cycle package. Native JSON posts contain both templates under `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`. CLI uses `--sinumerik-cycles classic|sl`.
+**Options > General > 840D Extended cycles** selects the native cycle interface for reading and EXPANDED export: checked uses Siemens 03/2009 (9/9/20/24 arguments for CYCLE81/82/83/84), unchecked uses the classic 01/2008 interface (5/6/17/21 arguments). The setting defaults to checked and is saved. These are explicit cycle-interface profiles, not a claim that every powerline/sl installation uses that interface; verify the installed cycle package. Native JSON posts contain both templates under `cycleProfiles.classic_0108` and `cycleProfiles.sl_0309`. CLI uses `--sinumerik-cycles classic|sl`.
 
 ### Native subset
 
@@ -308,9 +308,9 @@ Native `WHILE/ENDWHILE` supports nesting; `GOTO N...` and `IF condition GOTO N..
 
 ### MCALL cycles
 
-Modal `MCALL CYCLE81/82/83/84` expands supported parameters and bounded expressions into resolved motions; R references are resolved for each hole. Bare `MCALL` cancels the active cycle.
+Modal `MCALL CYCLE81/82/83/84/85/86/87/89` expands supported parameters and bounded expressions into resolved motions; R references are resolved for each hole. Bare `MCALL` cancels the active cycle.
 
-`CYCLE84` implements the supported CAM-oriented single-pass metric right-hand tapping subset. It models trajectory and logical spindle signals, not spindle-angle simulation.
+`CYCLE84` supports metric right/left tapping, including chip-breaking and full-retract pecks with balanced final depths. It models trajectory and logical spindle signals, not spindle-angle simulation.
 
 See [FAQ.md](FAQ.md#sinumerik-840d-input) and [FAQ_RU.md](FAQ_RU.md#sinumerik-840d) for exact parameter constraints.
 
@@ -650,12 +650,16 @@ batch_export_report.csv
 
 Source files are never modified.
 
+Without `--lang`, each input uses milling for `.mpf`/`.spf` and turning for other extensions, matching single-file export. Use `--lang fanuc_mill` for FANUC milling NC files.
+
+Both export commands accept `--start-program`, `--end-program`, `--comment-style parentheses|semicolon`, `--decimal-places`, `--[no-]force-decimal` and `--[no-]plus-output`, alongside the existing formatting options. FULL retains source coordinates; EXPANDED applies numeric output formatting through the selected post.
+
 The same single-file export contract backs `export`, `batch-export` and the GUI, so the same settings produce the same
 output. The four preset conversion scripts below are covered by a semantic regression gate
 (`tests/export/test_batch_export_semantics.py`) that re-executes successfully exported programs and compares their
 trajectory signature with the source.
 
-Files with invalid or incomplete execution are skipped while the remaining inputs continue.
+NC files with invalid or incomplete execution are skipped while the remaining inputs continue. DXF can retain available resolved geometry from partial execution; the report keeps the execution errors and records the written output path.
 
 For mixed indexed batches, `--kinematics-map` can assign a profile per relative input path.
 

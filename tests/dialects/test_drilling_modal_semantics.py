@@ -16,7 +16,10 @@ def test_incremental_depth_is_relative_to_r_plane(cycle, units, scale):
     assert result.ok, result.diagnostics
     cuts = [m for m in result.motions if m.move == 1]
     assert min(m.end_z for m in cuts) == pytest.approx(-20 * scale)
-    assert all(m.end_z < m.start_z for m in cuts if m.end_z < 5 * scale)
+    if cycle == 84:  # Q activates synchronized tapping pecks, including feed withdrawal.
+        assert any(m.end_z > m.start_z and m.end_z < 5 * scale for m in cuts)
+    else:
+        assert all(m.end_z < m.start_z for m in cuts if m.end_z < 5 * scale)
     assert result.motions[-1].end_x == pytest.approx(20 * scale)
     assert result.motions[-1].end_z == pytest.approx(5 * scale)
 

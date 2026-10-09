@@ -1,0 +1,28 @@
+{
+  "name": "easy-gcode-plot-landing",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "lint": "eslint docs/*.js scripts/landing/*.mjs eslint.config.mjs stylelint.config.mjs && stylelint docs/styles.css",
+    "format:check": "prettier --check docs/src docs/styles.css docs/*.js docs/PUBLISHING.md scripts/landing/*.mjs package.json eslint.config.mjs stylelint.config.mjs .prettierrc.json",
+    "format": "prettier --write docs/src docs/styles.css docs/*.js docs/PUBLISHING.md scripts/landing/*.mjs package.json eslint.config.mjs stylelint.config.mjs .prettierrc.json && python docs/build.py",
+    "test:assets": "node scripts/landing/check-site.mjs --assets-only",
+    "test": "node --test scripts/landing/*.test.mjs",
+    "check": "npm run lint && npm run format:check && python docs/build.py --check && node scripts/landing/check-site.mjs && npm test"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "eslint": "10.12.0",
+    "globals": "17.13.0",
+    "jsdom": "29.1.1",
+    "parse-srcset": "1.0.2",
+    "parse5": "8.0.1",
+    "postcss": "8.5.29",
+    "postcss-value-parser": "4.2.0",
+    "prettier": "3.9.9",
+    "stylelint": "17.16.0",
+    "stylelint-config-recommended": "18.0.0"
+  }
+}

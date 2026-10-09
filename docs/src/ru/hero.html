@@ -1,50 +1,96 @@
-    <section class="hero" aria-labelledby="hero-title">
-      <p class="eyebrow">Windows / Linux <span>·</span> GUI / CLI</p>
-      <h1 id="hero-title">Редактор и визуализатор программ ЧПУ</h1>
-      <p class="lead">
-        Редактирование токарных и фрезерных управляющих программ, расчёт
-        траекторий и просмотр перемещений инструмента в 3D. Поддерживаются
-        токарные/фрезерные программы FANUC и фрезерные программы SINUMERIK 840D,
-        включая ограниченные native R-выражения и поток WHILE/GOTO/IF,
-        а также поддерживаемые CAM-траектории 3+2 и непрерывной пятиосевой обработки.
-        Анализируйте папки программ, сравнивайте статистику инструментов и готовьте экспорт через общее ядро расчёта.
-      </p>
-      <p>
-        Проверялись CAM-программы из Autodesk Fusion 360 и Siemens NX 2312,
-        сформированные постпроцессорами для SINUMERIK 840D и FANUC. Покрытие относится
-        к поддерживаемым командам и настроенным кинематикам; предупреждения о немоделируемых
-        native-командах требуют проверки.
-      </p>
-      <ul class="tags">
-        <li>G-код FANUC</li>
-        <li>FANUC Macro B</li>
-        <li>SINUMERIK 840D</li>
-        <li>HTML-отчёты статистики</li>
-        <li>Пакетный анализ и экспорт</li>
-        <li>Модели STL и экспорт DXF</li>
-        <li>Генераторы координат карманов и отверстий</li>
-      </ul>
-      <div class="actions">
-        <a class="button primary" data-windows-download="gui"
-          href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">Скачать для Windows</a><a
-          class="button" data-windows-download="cli"
-          href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe">Скачать
-          CLI для Windows</a><a class="button"
-          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md">Документация</a><a
-          class="text-link" href="https://github.com/MaestroFusion360/easy_gcode_plot">GitHub</a>
-      </div>
-      <p class="note">
-        Сборки для Linux также доступны на
-        <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest">странице релиза</a>.
-      </p>
-      <figure class="hero-image">
-        <video width="1280" height="640" autoplay muted loop playsinline controls preload="metadata"
-          aria-label="Фрезерная траектория в Easy G-Code Plot">
-          <source src="../assets/easy_gcode_plot.mp4" type="video/mp4" />
-          <a href="../assets/easy_gcode_plot.mp4">Посмотреть демонстрацию траектории</a>
-        </video>
-        <figcaption>
-          Редактор управляющей программы и 3D-траектория
-        </figcaption>
-      </figure>
-    </section>
+<section class="hero" aria-labelledby="hero-title">
+  <div class="hero-copy">
+    <p class="eyebrow">
+      <span class="status-dot" aria-hidden="true"></span>OPEN SOURCE · РАБОТА С
+      ЧПУ
+    </p>
+    <h1 id="hero-title">
+      Редактор управляющих программ<br /><span>и визуализатор траекторий</span>
+    </h1>
+    <p class="lead">
+      Редактирование токарных и фрезерных управляющих программ, 3D-визуализация
+      траектории инструмента, анализ и экспорт результатов расчёта.
+    </p>
+    <div class="actions" id="download">
+      <a
+        class="button primary"
+        data-windows-download="gui"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        >Скачать для Windows <span aria-hidden="true">↗</span></a
+      ><a class="button" href="#visualization"
+        >Посмотреть возможности <span aria-hidden="true">↓</span></a
+      >
+      <a
+        class="button"
+        data-windows-download="cli"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe"
+        >Скачать CLI для Windows</a
+      >
+      <a
+        class="button"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
+        >Документация</a
+      >
+      <a
+        class="text-link"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot"
+        >GitHub</a
+      >
+    </div>
+    <p class="platform-note">
+      Windows &amp; Linux <span>·</span> MIT <span>·</span>
+      <a
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        >Все релизы</a
+      >
+    </p>
+    <div class="dialect-strip">
+      <span>FANUC Mill</span><span>FANUC Lathe</span><span>SINUMERIK 840D</span>
+    </div>
+  </div>
+  <figure class="hero-image">
+    <div class="window-bar">
+      <span class="window-dots" aria-hidden="true">● ● ●</span
+      ><span>Easy G-Code Plot</span><span class="window-kind">3D VIEW</span>
+    </div>
+    <div class="video-preview">
+      <video
+        width="1410"
+        height="914"
+        muted
+        loop
+        playsinline
+        controls
+        poster="../assets/easy_gcode_plot-poster.jpg"
+        preload="none"
+        aria-label="Демонстрация траектории в Easy G-Code Plot"
+      >
+        <source
+          src="../assets/easy_gcode_plot.mp4?v=1.9.8-crop1"
+          type="video/mp4"
+        />
+        <a href="../assets/easy_gcode_plot.mp4?v=1.9.8-crop1">Открыть видео</a>
+      </video>
+      <button
+        type="button"
+        class="video-open-area"
+        data-video-viewer
+        aria-label="Открыть видео на весь экран"
+        hidden
+      >
+        <span>На весь экран ↗</span>
+      </button>
+    </div>
+    <figcaption>
+      Управляющая программа и траектория инструмента.
+      <a data-video-viewer href="../assets/easy_gcode_plot.mp4?v=1.9.8-crop1"
+        >Смотреть видео ↗</a
+      >
+    </figcaption>
+  </figure>
+</section>
+<div class="intro-strip" aria-label="Рабочий процесс">
+  <p><span>01</span>Редактирование и просмотр</p>
+  <p><span>02</span>Расчёт и визуализация траектории</p>
+  <p><span>03</span>Анализ и экспорт</p>
+</div>

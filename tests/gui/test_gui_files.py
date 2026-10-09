@@ -900,7 +900,12 @@ def test_supplied_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
         assert window.updateData()
         result = window.execution_result
         assert result.ok and result.complete, result.diagnostics
-        assert len(result.motions) == 4999
+        # G41 adds two short corner joins in the tilted G55 contour.
+        assert len(result.motions) == 5001
+        for label in (18670, 18680):
+            corner = [motion for motion in result.motions if motion.source_nlabel == label]
+            assert [motion.move for motion in corner] == [1, 2]
+            assert all(motion.compensation_applied for motion in corner)
         assert len(result.execution_steps) == 5232
         assert window._document_arc_type == 1
         assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()

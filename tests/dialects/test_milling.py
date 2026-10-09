@@ -29,6 +29,7 @@ from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
 
 _MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc"
 _FIXTURE_KINEMATICS = {
+    "fusion_benchmark_1001.nc": "5ax_table_ac",
     "smpl_sim08_5ax_fanuc_mm.nc": "5ax_table_ac",
     "test_5ax_ac_fanuc.nc": "5ax_table_ac",
     "test_5ax_bc_fanuc.nc": "5ax_table_bc",
@@ -707,8 +708,12 @@ def test_milling_disabled_autodetect_preserves_manual_arc_type():
         autodetect_arc_type=False,
     )
 
-    arc = next(motion for motion in result.motions if motion.arc is not None)
-    assert arc.arc.center == pytest.approx((20.0, 10.0, 0.0))
+    # Relative IJK puts the endpoint at the center, so the manually selected
+    # mode must be rejected rather than silently replaced with absolute IJK.
+    assert not result.ok
+    assert result.diagnostics[-1].code == "INVALID_GEOMETRY"
+    assert result.diagnostics[-1].line == 3
+    assert not any(motion.arc is not None for motion in result.motions)
 
 
 def test_milling_arc_autodetect_does_not_execute_program_twice(monkeypatch):

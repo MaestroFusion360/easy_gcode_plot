@@ -1,34 +1,82 @@
 <!doctype html>
 <html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      name="description"
+      content="Редактирование токарных и фрезерных управляющих программ, расчёт траекторий и просмотр перемещений инструмента в 3D. Поддерживаются FANUC и часть команд SINUMERIK 840D."
+    />
+    <link
+      rel="canonical"
+      href="https://maestrofusion360.github.io/easy_gcode_plot/ru/"
+    />
+    <meta property="og:locale" content="ru_RU" />
+    <meta
+      property="og:description"
+      content="Редактируйте G-код, изучайте траектории в 3D, создавайте геометрию, анализируйте программы и экспортируйте исполнение."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Easy G-Code Plot 1.9.8" />
+    <meta
+      property="og:url"
+      content="https://maestrofusion360.github.io/easy_gcode_plot/ru/"
+    />
+    <meta
+      property="og:image"
+      content="https://maestrofusion360.github.io/easy_gcode_plot/assets/img1.png"
+    />
+    <meta name="theme-color" content="#151619" />
+    <title>Easy G-Code Plot — Редактор и визуализатор программ ЧПУ</title>
+    <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
+    <link rel="stylesheet" href="../styles.css" />
+    <link rel="alternate" hreflang="en" href="../index.html" />
+    <link rel="alternate" hreflang="ru" href="../ru/index.html" />
+    <script src="../downloads.js" defer></script>
+    <script src="../site.js" defer></script>
+  </head>
 
-<head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="description"
-    content="Редактирование токарных и фрезерных управляющих программ, расчёт траекторий и просмотр перемещений инструмента в 3D. Поддерживаются FANUC и часть команд SINUMERIK 840D." />
-  <meta name="theme-color" content="#151619" />
-  <title>Easy G-Code Plot — Редактор и визуализатор программ ЧПУ</title>
-  <link rel="icon" type="image/svg+xml" href="../assets/logo.svg" />
-  <link rel="stylesheet" href="../styles.css" />
-  <link rel="alternate" hreflang="en" href="../index.html" />
-  <link rel="alternate" hreflang="ru" href="../ru/index.html" />
-  <script src="../downloads.js" defer></script>
-</head>
-
-<body>
-  <a class="skip" href="#main">К содержанию</a>
-<!-- include: header.html -->
-  <main id="main" class="container">
-<!-- include: hero.html -->
-<!-- include: capabilities.html -->
-<!-- include: visualization.html -->
-<!-- include: screenshots.html -->
-<!-- include: execution.html -->
-<!-- include: statistics.html -->
-<!-- include: automation.html -->
-<!-- include: documentation.html -->
-  </main>
-<!-- include: footer.html -->
-</body>
-
+  <body>
+    <a class="skip" href="#main">К содержанию</a>
+    <!-- include: header.html -->
+    <main id="main" class="container">
+      <!-- include: hero.html -->
+      <!-- include: visualization.html -->
+      <!-- include: tools.html -->
+      <!-- include: generators.html -->
+      <!-- include: execution.html -->
+      <!-- include: export.html -->
+      <!-- include: statistics.html -->
+      <!-- include: automation.html -->
+      <!-- include: capabilities.html -->
+      <!-- include: comparison.html -->
+      <!-- include: documentation.html -->
+    </main>
+    <!-- include: footer.html -->
+    <dialog
+      id="image-viewer"
+      aria-label="Просмотр изображения или видео"
+      aria-describedby="viewer-caption"
+    >
+      <div class="viewer-toolbar">
+        <p id="viewer-caption" aria-live="polite"></p>
+      </div>
+      <button
+        type="button"
+        class="viewer-close"
+        aria-label="Закрыть просмотр"
+        autofocus
+      >
+        <span aria-hidden="true">✕</span>
+      </button>
+      <div class="viewer-stage">
+        <img alt="" hidden />
+      </div>
+      <div class="viewer-footer">
+        <a class="viewer-original" target="_blank" rel="noopener"
+          >Открыть оригинал ↗</a
+        >
+      </div>
+    </dialog>
+  </body>
 </html>

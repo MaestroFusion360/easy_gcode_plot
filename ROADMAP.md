@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current baseline: **1.9.7**. This roadmap tracks remaining work and future priorities. Release history is maintained in [CHANGELOG](CHANGELOG.md).
+Current baseline: **1.9.8**. This roadmap tracks remaining work and future priorities. Release history is maintained in [CHANGELOG](CHANGELOG.md).
 
 Until **2.0.0**, the project is in **feature freeze**.
 

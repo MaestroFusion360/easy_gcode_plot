@@ -32,6 +32,8 @@ def through_three_points(start, intermediate, end):
 
 def arc_basis(motion):
     arc = motion.arc
+    if not math.isfinite(arc.sweep) or arc.sweep <= 0:
+        raise SemanticError("INVALID_GEOMETRY", "Arc sweep must be finite and positive", "invalid_geometry")
     start = (motion.start_x, motion.start_y, motion.start_z)
     first = tuple((start[i] - arc.center[i]) / arc.radius for i in range(3))
     second = cross(arc.normal, first)

@@ -80,6 +80,8 @@ def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
     start = point((motion.start_x, motion.start_y, motion.start_z))
     end = point((motion.end_x, motion.end_y, motion.end_z))
     delta = vector((motion.i or 0.0, motion.j or 0.0, motion.k or 0.0))
+    center_offset = motion.absolute_center_offset or offset
+    center_offset = point(center_offset)
     has_ijk = any(value is not None for value in (motion.i, motion.j, motion.k))
     arc = motion.arc
     if arc is not None:
@@ -102,6 +104,7 @@ def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
         i=delta[0] if has_ijk else None,
         j=delta[1] if has_ijk else None,
         k=delta[2] if has_ijk else None,
+        absolute_center_offset=center_offset,
         arc=arc,
     )
 
@@ -122,6 +125,10 @@ def _ijk_radius_mismatch(motion: TraceMotion, source_arc_type: int) -> float | N
     if source_arc_type == 1:
         center_first += start[first_axis]
         center_second += start[second_axis]
+    elif motion.source_arc_type is None:
+        center_offset = motion.absolute_center_offset or motion.orientation_offset
+        center_first += center_offset[first_axis] * (motion.x_scale if first_axis == 0 else 1)
+        center_second += center_offset[second_axis]
     start_radius = math.hypot(start[first_axis] - center_first, start[second_axis] - center_second)
     if start_radius <= 1e-10:
         return None
@@ -349,6 +356,9 @@ def _execute_impl(
     extended_wcs_offsets: WcsOffsets | None = None,
     milling_g73_retract_distance: float = 1.0,
     milling_g83_clearance: float = 1.0,
+    milling_boring_shift_direction: tuple[float, float, float] = (-1.0, 0.0, 0.0),
+    milling_tapping_retract_distance: float = 1.0,
+    milling_tapping_full_retract: bool = False,
     emulate_g28_home: bool = False,
     include_instructions: bool = True,
     kinematics=None,
@@ -397,6 +407,9 @@ def _execute_impl(
                 wcs_offsets=mill_offsets,
                 g73_retract_distance=milling_g73_retract_distance,
                 g83_clearance=milling_g83_clearance,
+                boring_shift_direction=milling_boring_shift_direction,
+                tapping_retract_distance=milling_tapping_retract_distance,
+                tapping_full_retract=milling_tapping_full_retract,
                 include_instructions=include_instructions,
                 kinematics=kinematics,
                 source_dialect=source_dialect,
@@ -559,7 +572,16 @@ def _resolve_geometry_motion(motion, program, language, arc_type, tolerance):
         arc_type = 1 if language == "fanuc_turn" and motion.cycle_generated else (motion.source_arc_type or arc_type)
         if language == "fanuc_turn":
             _validate_turning_arc_source(motion, arc_type, tolerance)
-        return resolve_arc(motion, source_arc_type=arc_type), None
+        elif (
+            arc_type == 2
+            and motion.source_arc_type is None
+            and any(v is not None for v in (motion.i, motion.j, motion.k))
+        ):
+            offset = motion.absolute_center_offset or motion.orientation_offset
+            motion = replace(
+                motion, i=(motion.i or 0) + offset[0], j=(motion.j or 0) + offset[1], k=(motion.k or 0) + offset[2]
+            )
+        return resolve_arc(motion, source_arc_type=arc_type, tolerance=tolerance), None
     except SemanticError as exc:
         diagnostic = _diagnostic_from_exception(exc, program)
         if diagnostic.line is None and motion.source_block is not None:
@@ -580,6 +602,12 @@ def _capture_tool_resolver(resolver, resolved_tools):
     return resolve
 
 
+def _execution_arc_tolerance(value, language):
+    if value is not None:
+        return value
+    return 0.01 if language == "fanuc_mill" else 0.001
+
+
 def execute(
     source,
     language="fanuc_turn",
@@ -588,7 +616,7 @@ def execute(
     cancelled=None,
     source_arc_type=1,
     autodetect_arc_type=False,
-    arc_tolerance=0.001,
+    arc_tolerance=None,
     **options,
 ):
     """Execute once; resolve geometry and publish a self-contained immutable result.
@@ -597,6 +625,7 @@ def execute(
     execution, and returns the tool geometry used by execution/compensation.
     Parsing and tool preparation share execution cancellation checkpoints.
     """
+    arc_tolerance = _execution_arc_tolerance(arc_tolerance, language)
     token = active_budget.set(ExecutionBudget(limits or ExecutionLimits(), cancelled))
     resolved_tools = {"milling_tools": options.pop("milling_tools", None)}
     milling_correction_enabled = bool(options.pop("milling_correction_enabled", True))

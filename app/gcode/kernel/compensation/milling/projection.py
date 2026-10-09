@@ -47,7 +47,7 @@ def _normalize_ccw_delta(start: float, end: float) -> float:
 
 def _project_xyz(plane: int, x: float, y: float, z: float) -> tuple[_Point2, float]:
     if plane == 18:
-        return (x, z), y
+        return (z, x), y
     if plane == 19:
         return (y, z), x
     return (x, y), z
@@ -55,7 +55,7 @@ def _project_xyz(plane: int, x: float, y: float, z: float) -> tuple[_Point2, flo
 
 def _unproject(plane: int, point: _Point2, w: float) -> tuple[float, float, float]:
     if plane == 18:
-        return point[0], w, point[1]
+        return point[1], w, point[0]
     if plane == 19:
         return w, point[0], point[1]
     return point[0], point[1], w
@@ -63,7 +63,7 @@ def _unproject(plane: int, point: _Point2, w: float) -> tuple[float, float, floa
 
 def _project_center(plane: int, center: tuple[float, float, float]) -> _Point2:
     if plane == 18:
-        return center[0], center[2]
+        return center[2], center[0]
     if plane == 19:
         return center[1], center[2]
     return center[0], center[1]
@@ -72,7 +72,7 @@ def _project_center(plane: int, center: tuple[float, float, float]) -> _Point2:
 def _unproject_center(plane: int, center: _Point2, source: TraceMotion) -> tuple[float, float, float]:
     source_center = source.arc.center if source.arc is not None else (source.start_x, source.start_y, source.start_z)
     if plane == 18:
-        return center[0], source_center[1], center[1]
+        return center[1], source_center[1], center[0]
     if plane == 19:
         return source_center[0], center[0], center[1]
     return center[0], center[1], source_center[2]
@@ -157,7 +157,7 @@ def _projected_to_motion(
         radius=projected.radius,
         sweep=_arc_sweep(projected),
         plane=projected.plane,
-        clockwise=source.move == 2,
+        clockwise=(source.move == 2) != (projected.plane == 18),
         full_circle=full_circle,
     )
     i = j = k = None

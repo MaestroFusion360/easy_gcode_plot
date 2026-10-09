@@ -93,7 +93,7 @@ def test_turn_is_one_analytical_motion_with_total_sweep_and_trace_replay(plane, 
     assert motion_length(arc) == pytest.approx(math.hypot(10 * arc.arc.sweep, 6))
     points = sample_motion(arc, 1, arc_points_per_circle=100)
     assert len(points) > 300
-    replay = execute(export_result(result), language="fanuc_mill")
+    replay = execute(export_result(result, target="fanuc_mill"), language="fanuc_mill")
     assert replay.ok and replay.complete
     assert sum(m.arc.sweep for m in replay.motions if m.arc) == pytest.approx(arc.arc.sweep, abs=1e-6)
     assert sum(map(motion_length, replay.motions)) == pytest.approx(sum(map(motion_length, result.motions)), abs=1e-5)

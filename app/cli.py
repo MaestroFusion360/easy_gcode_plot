@@ -19,6 +19,7 @@ from app.gcode.batch import (
     write_batch_reports,
 )
 from app.gcode.batch_export import export_directory, write_export_reports
+from app.gcode.comments import COMMENT_STYLES, DEFAULT_COMMENT_STYLE
 from app.gcode.export.common import is_export_limitation
 from app.gcode.export_file import ExportRequest, export_file, validate_export_request
 from app.gcode.file_io import atomic_write_text, same_file, validate_output_paths
@@ -77,6 +78,12 @@ def _add_export_options(command: argparse.ArgumentParser) -> None:
         command.add_argument(f"--{name}", action=argparse.BooleanOptionalAction, default=None)
     command.add_argument("--sequence-start", type=int, default=1)
     command.add_argument("--sequence-increment", type=int, default=1)
+    command.add_argument("--start-program", default="")
+    command.add_argument("--end-program", default="")
+    command.add_argument("--comment-style", choices=COMMENT_STYLES, default=DEFAULT_COMMENT_STYLE)
+    command.add_argument("--decimal-places", type=int, default=None)
+    command.add_argument("--force-decimal", action=argparse.BooleanOptionalAction, default=None)
+    command.add_argument("--plus-output", action=argparse.BooleanOptionalAction, default=None)
 
 
 _EXPORT_FLAGS = {
@@ -85,6 +92,10 @@ _EXPORT_FLAGS = {
     "--coordinates": "coordinates",
     "--sequence-start": "sequence_start",
     "--sequence-increment": "sequence_increment",
+    "--start-program": "start_program",
+    "--end-program": "end_program",
+    "--comment-style": "comment_style",
+    "--decimal-places": "decimal_places",
 }
 for _name in (
     "sequence-numbers",
@@ -94,6 +105,8 @@ for _name in (
     "comments",
     "safety-line",
     "modal-feed",
+    "force-decimal",
+    "plus-output",
 ):
     _EXPORT_FLAGS[f"--{_name}"] = _name.replace("-", "_")
     _EXPORT_FLAGS[f"--no-{_name}"] = _name.replace("-", "_")
@@ -124,6 +137,15 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
         comments=True if args.comments is None else args.comments,
         safety_line=bool(args.safety_line),
         modal_feed=True if args.modal_feed is None else args.modal_feed,
+        start_program=args.start_program,
+        end_program=args.end_program,
+        comment_style=args.comment_style,
+        decimal_places=6 if args.decimal_places is None else args.decimal_places,
+        decimal_places_explicit=args.decimal_places is not None,
+        force_decimal=bool(args.force_decimal),
+        force_decimal_explicit=args.force_decimal is not None,
+        plus_output=bool(args.plus_output),
+        plus_output_explicit=args.plus_output is not None,
     ), explicit
 
 
@@ -225,7 +247,12 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
     )
     batch_export.add_argument("directory", type=Path, help="Directory containing NC programs")
     _add_kinematics_option(batch_export)
-    batch_export.add_argument("--lang", choices=("fanuc_turn", "fanuc_mill"), default="fanuc_turn")
+    batch_export.add_argument(
+        "--lang",
+        choices=("fanuc_turn", "fanuc_mill"),
+        default=None,
+        help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
+    )
     batch_export.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
     batch_export.add_argument(
         "--sinumerik-cycles",
@@ -473,7 +500,7 @@ def _read_kinematics_map(path: Path | None) -> dict[str, str] | None:
 
 def _run_batch_export(args: argparse.Namespace, request: ExportRequest, parser: argparse.ArgumentParser) -> int:
     extensions = tuple(item.strip() for item in args.extensions.split(",") if item.strip())
-    print(f"Exporting NC programs in {Path(args.directory).resolve()} ({args.lang})", flush=True)
+    print(f"Exporting NC programs in {Path(args.directory).resolve()} ({args.lang or 'auto'})", flush=True)
 
     def print_file(item: dict[str, object]) -> None:
         print(f"[{item['status']}] {item['input_relative_path']}", flush=True)
@@ -556,7 +583,7 @@ def _run_single_safely(args) -> int:
 
 
 def _validate_cli_profiles(args, parser) -> None:
-    if args.command == "batch" and args.lang is None:
+    if args.command in {"batch", "batch-export"} and args.lang is None:
         return
     if getattr(args, "kinematics", None) and args.lang != "fanuc_mill":
         parser.error("--kinematics requires --lang fanuc_mill")
@@ -576,7 +603,7 @@ def main(argv: list[str] | None = None) -> int:
             command.print_help()
         return 0
     args = parser.parse_args(arguments)
-    if args.lang is None and args.command != "batch":
+    if args.lang is None and args.command not in {"batch", "batch-export"}:
         args.lang = language_for_path(args.file)
     _validate_cli_profiles(args, parser)
     if args.command in {"export", "batch-export"}:

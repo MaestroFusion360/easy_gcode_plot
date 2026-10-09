@@ -7,7 +7,7 @@ from ..api.resources import SemanticError
 from ..api.types import ArcGeometry
 
 
-def _resolve_oriented_arc(motion, source_arc_type):
+def _resolve_oriented_arc(motion, source_arc_type, tolerance):
     matrix = motion.orientation
     origin = motion.orientation_offset
 
@@ -21,7 +21,7 @@ def _resolve_oriented_arc(motion, source_arc_type):
 
     start = inverse((motion.start_x, motion.start_y, motion.start_z))
     end = inverse((motion.end_x, motion.end_y, motion.end_z))
-    delta = inverse((motion.i or 0.0, motion.j or 0.0, motion.k or 0.0), direction=True)
+    delta = inverse((motion.i or 0.0, motion.j or 0.0, motion.k or 0.0), direction=source_arc_type != 2)
     has_ijk = any(v is not None for v in (motion.i, motion.j, motion.k))
     local = replace(
         motion,
@@ -36,18 +36,58 @@ def _resolve_oriented_arc(motion, source_arc_type):
         k=delta[2] if has_ijk else None,
         orientation=None,
     )
-    resolved = resolve_arc(local, source_arc_type=source_arc_type)
+    resolved = resolve_arc(local, source_arc_type=source_arc_type, tolerance=tolerance)
     normal = {17: (0.0, 0.0, 1.0), 18: (0.0, 1.0, 0.0), 19: (1.0, 0.0, 0.0)}[motion.plane]
     return replace(
         motion, arc=replace(resolved.arc, center=forward(resolved.arc.center), normal=forward(normal, direction=True))
     )
 
 
-def resolve_arc(motion, *, source_arc_type=1):
-    if motion.move not in (2, 3) or motion.arc is not None:
+def _validate_resolved_arc(motion, tolerance):
+    arc = motion.arc
+    if not math.isfinite(arc.sweep) or arc.sweep <= 0:
+        raise SemanticError("INVALID_GEOMETRY", "Arc sweep must be finite and positive", "invalid_geometry")
+    normal = arc.normal or {17: (0.0, 0.0, 1.0), 18: (0.0, 1.0, 0.0), 19: (1.0, 0.0, 0.0)}[arc.plane]
+    for point in (
+        (motion.start_x * motion.x_scale, motion.start_y, motion.start_z),
+        (motion.end_x * motion.x_scale, motion.end_y, motion.end_z),
+    ):
+        delta = tuple(point[i] - arc.center[i] for i in range(3))
+        axial = sum(delta[i] * normal[i] for i in range(3))
+        radial = math.sqrt(sum((delta[i] - axial * normal[i]) ** 2 for i in range(3)))
+        if abs(radial - arc.radius) > max(0.0, float(tolerance)):
+            raise SemanticError(
+                "INVALID_GEOMETRY", "Resolved arc radius does not fit its endpoints", "invalid_geometry"
+            )
+
+
+def _ijk_center_radius(start, end, offsets, axes, source_arc_type, tolerance):
+    a, b = axes
+    center = list(start)
+    center[a] = (offsets[a] or 0.0) + (0 if source_arc_type == 2 else start[a])
+    center[b] = (offsets[b] or 0.0) + (0 if source_arc_type == 2 else start[b])
+    radius = math.hypot(start[a] - center[a], start[b] - center[b])
+    if radius <= 1e-10:
+        raise SemanticError("INVALID_GEOMETRY", "Arc IJK radius is zero", "invalid_geometry")
+    end_radius = math.hypot(end[a] - center[a], end[b] - center[b])
+    mismatch = abs(radius - end_radius)
+    if mismatch > max(0.0, float(tolerance)):
+        raise SemanticError(
+            "INVALID_GEOMETRY",
+            f"IJK center does not fit the arc endpoints (radius mismatch {mismatch:.4g} mm)",
+            "invalid_geometry",
+        )
+    return center, radius
+
+
+def resolve_arc(motion, *, source_arc_type=1, tolerance=0.01):
+    if motion.move not in (2, 3):
+        return motion
+    if motion.arc is not None:
+        _validate_resolved_arc(motion, tolerance)
         return motion
     if motion.orientation is not None:
-        return _resolve_oriented_arc(motion, source_arc_type)
+        return _resolve_oriented_arc(motion, source_arc_type, tolerance)
     axes = {17: (0, 1, 2), 18: (0, 2, 1), 19: (1, 2, 0)}
     if motion.plane not in axes:
         raise SemanticError("INVALID_GEOMETRY", "Unknown arc plane", "invalid_geometry")
@@ -66,12 +106,7 @@ def resolve_arc(motion, *, source_arc_type=1):
     has_ijk = offsets[a] is not None or offsets[b] is not None
     use_ijk = has_ijk and (source_arc_type != 3 or motion.radius is None)
     if use_ijk:
-        center = list(start)
-        center[a] = (offsets[a] or 0.0) + (0 if source_arc_type == 2 else start[a])
-        center[b] = (offsets[b] or 0.0) + (0 if source_arc_type == 2 else start[b])
-        radius = math.hypot(start[a] - center[a], start[b] - center[b])
-        if radius <= 1e-10:
-            raise SemanticError("INVALID_GEOMETRY", "Arc IJK radius is zero", "invalid_geometry")
+        center, radius = _ijk_center_radius(start, end, offsets, (a, b), source_arc_type, tolerance)
     elif motion.radius is not None:
         radius = abs(motion.radius)
         dx, dy = end[a] - start[a], end[b] - start[b]
@@ -89,4 +124,6 @@ def resolve_arc(motion, *, source_arc_type=1):
     else:
         raise SemanticError("INVALID_GEOMETRY", "Arc requires IJK or R", "invalid_geometry")
     total_sweep = sweep(center) + motion.additional_turns * 2 * math.pi
-    return replace(motion, arc=ArcGeometry(tuple(center), radius, total_sweep, motion.plane, clockwise, full))
+    resolved = replace(motion, arc=ArcGeometry(tuple(center), radius, total_sweep, motion.plane, clockwise, full))
+    _validate_resolved_arc(resolved, tolerance)
+    return resolved

@@ -1,5 +1,6 @@
 """GUI output contracts preserve source files and previous exports."""
 
+from dataclasses import replace
 from pathlib import Path
 from threading import Event
 from types import SimpleNamespace
@@ -7,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.QtWidgets import QApplication
 
-from app.gcode.export.common import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
+from app.gcode.export.common import DXF_MODE, EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
 from app.gcode.export.expanded import load_post_profile
 from app.gcode.export_file import ExportRequest
 from app.gcode.kernel import execute
@@ -17,6 +18,24 @@ from app.ui.windows import main_window_file_ops as ops
 
 # These regressions exercise the actual GUI worker and file-target preflight.
 # pylint: disable=protected-access
+
+
+def test_gui_dxf_exports_current_partial_result_without_reexecution(tmp_path):
+    source = "G1 X2 Y3 Z4 F100\nM30"
+    result = replace(execute(source, "fanuc_mill"), ok=False, complete=False)
+    owner = SimpleNamespace(execution_result=result, exportMode=DXF_MODE, _plot_source_stale=False)
+    assert ops._ensure_current_export_trace(owner)
+    output = tmp_path / "partial.dxf"
+    assert ops._write_export(
+        owner,
+        path=str(output),
+        result=result,
+        source=source,
+        request=ExportRequest(language="fanuc_mill", format="dxf"),
+        render_points=None,
+        cancellation=Event(),
+    )
+    assert output.exists()
 
 
 @pytest.fixture(scope="session")
