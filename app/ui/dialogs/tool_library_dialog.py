@@ -282,7 +282,10 @@ class ToolLibraryDialog(QDialog):
         if program_key is None:
             return
         library = self.library_tools(kind)
-        editor = self._editor_type(kind)(self, program_key, self._program_tools(kind)[program_key])
+        library_key = program_key
+        if kind == "milling" and not (program_key.startswith("T") and program_key[1:].isdigit()):
+            library_key = next((f"T{number}" for number in range(1, 100) if f"T{number}" not in library), "T1")
+        editor = self._editor_type(kind)(self, library_key, self._program_tools(kind)[program_key])
         editor.setWindowTitle(QCoreApplication.translate("ToolLibraryDialog", "Save Tool to Library"))
         editor.reservedCodes = set(library) - {program_key}
         if editor.exec() != QDialog.DialogCode.Accepted:

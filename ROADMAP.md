@@ -29,8 +29,8 @@ Use real CAM programs, independently specified geometry and export/re-execution 
 
 ### Export limitations and verification
 
-- Reconstruct tilted working planes, including `G68.2/G53.1` and native `CYCLE800`, in target-controller output. These remain unsupported in EXPANDED even where source execution is supported.
-- Reconstruct target frame offsets for indexed export about a displaced WCS origin. The current diagnostic is `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`.
+- Harden experimental five-axis FANUC ↔ SINUMERIK conversion, including the supported AC/BC `G68.2/G53.1` and `CYCLE800` frame reconstruction. Expand independent machine/post verification; conversion may contain errors and remains at the user's own risk.
+- Extend displaced-WCS indexed export beyond the supported tilted-plane contract, which already retains G54–G59 and documents required target offsets. Remaining cases reject with `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`; verify compensation and OEM retract behavior independently.
 - Extend continuous rotary reconstruction beyond the verified table-C and AC/BC TCP subsets only when replay can verify the resulting geometry and state.
 - Add semantic drilling-cycle reconstruction for supported FANUC turning operations; reading and plotting these operations does not imply cycle reconstruction in EXPANDED.
 

@@ -215,9 +215,88 @@ def test_full_fanuc_five_axis_fixture_exports_to_sinumerik_multiaxis(fixture_tex
 
 
 @pytest.mark.parametrize("target", MULTIAXIS_TARGETS)
-def test_multiaxis_profile_still_rejects_tilted_plane(target):
+def test_multiaxis_profile_replays_tilted_plane_with_nonzero_origin(target):
     source = "G90 G0 X0 Y0 Z0\nG68.2 X0 Y0 Z-50 I0 J90 K0\nG53.1\nG0 X10 Y20 Z-5\nG69\nM30"
     result = execute(source, language="fanuc_mill", kinematics="5ax_table_ac_angled")
     assert result.ok and result.complete, result.diagnostics
-    with pytest.raises(ExportLimitation, match="tilted"):
-        convert_resolved_program(result, target, ExportOptions(delimiter=True))
+    text = convert_resolved_program(result, target, ExportOptions(delimiter=True))
+    replay = execute(
+        text,
+        language="fanuc_mill",
+        source_dialect="sinumerik" if target.startswith("sinumerik") else "fanuc",
+        kinematics="5ax_table_ac_angled",
+    )
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(result, replay)
+
+
+def test_length_compensation_before_and_after_tcp_and_tool_changes():
+    source = """G710 G17 G90 G94
+T1 M6
+D1
+G0 X10 Y0 Z50
+G1 Z10 F100
+D0
+SUPA G0 Z-200
+D1
+G0 X20 Y0 Z50
+T2 M6
+D1
+TRAORI
+G0 X0 Y0 Z50 A0 C0
+G1 Z10 F100
+TRAFOOF
+D0
+SUPA G0 Z-200
+D1
+G0 X20 Y0 Z50
+T3 M6
+D1
+G0 X30 Y0 Z50
+G1 Z10 F100
+D0
+SUPA G0 Z-200
+D1
+G0 X40 Y0 Z50
+D0
+SUPA G0 Z-200
+M30"""
+    original = execute(source, language="fanuc_mill", source_dialect="sinumerik", kinematics="5ax_table_ac")
+    assert original.ok and original.complete, original.diagnostics
+    text = convert_resolved_program(original, "fanuc_mill_multiaxis", ExportOptions(delimiter=True))
+    lines = text.splitlines()
+    offset = None
+    tool = None
+    tcp = False
+    approaches = []
+    for line in lines:
+        if line.startswith("T") and "M06" in line:
+            tool = int(line.split()[0][1:])
+        if line == "G49":
+            offset, tcp = None, False
+        elif line.startswith("G43.4 H"):
+            offset, tcp = int(line.split("H")[1]), True
+        elif line.startswith("G43 H"):
+            offset, tcp = int(line.split("H")[1]), False
+        if line.startswith(("G0 ", "G1 ")) and "Z" in line and "G53" not in line:
+            assert offset == tool, (line, offset, tool, text)
+            approaches.append((tool, tcp))
+    assert {(1, False), (2, True), (2, False), (3, False)} <= set(approaches)
+    assert lines.count("G43 H1") >= 2
+    assert lines.count("G43 H2") >= 2
+    assert lines.count("G43 H3") >= 2
+    replay = execute(text, language="fanuc_mill", kinematics="5ax_table_ac")
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)
+
+
+def test_g43_cancelling_tcp_keeps_selected_ordinary_length_offset():
+    source = "T2 M6\nG43 H2\nG0 X0 Y0 Z50\nG43.4 H2\nG1 Z10 F100\nG43 H7\nG0 Z50\nM30"
+    original = execute(source, language="fanuc_mill", kinematics="5ax_table_ac")
+    assert original.ok and original.complete, original.diagnostics
+    text = convert_resolved_program(original, "fanuc_mill_multiaxis", ExportOptions(delimiter=True))
+    tail = text.split("G43 H7\n", 1)[1]
+    assert "G49" not in tail.split("G0", 1)[0], text
+    replay = execute(text, language="fanuc_mill", kinematics="5ax_table_ac")
+    assert replay.ok and replay.complete, replay.diagnostics
+    _assert_multiaxis_replay_matches(original, replay)

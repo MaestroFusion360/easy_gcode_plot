@@ -516,11 +516,77 @@ def test_execution_and_discovery_share_one_parsed_program(
     assert tools
 
 
-def test_shared_execution_keeps_unverified_named_tool_compensation():
+def test_shared_execution_resolves_named_tool_compensation():
     source = 'T="UGT_ENDMILL"\nM6\nG0 X0 Y0\nG41 G1 X10 F100\nG1 Y10\nG40 G1 X20\nM30\n'
     result, _tools, _inferred = execute_program(source, language="fanuc_mill", source_dialect="sinumerik")
-    assert any(d.code == "UNVERIFIED_CUTTER_COMPENSATION" for d in result.diagnostics)
-    assert any(m.compensation_status == "UNVERIFIED" for m in result.motions)
+    assert not any(d.code == "UNVERIFIED_CUTTER_COMPENSATION" for d in result.diagnostics)
+    assert any(m.tool == "UGT_ENDMILL" and m.compensation_status == "APPLIED" for m in result.motions)
+
+
+def test_named_program_tool_geometry_can_be_edited_and_saved_to_numeric_library(window, monkeypatch):
+    key = "UGT0201_085"
+    window.millingTools = {key: dict(DEFAULT_MILLING_TOOL)}
+    dialog = window.toolLibraryDlg
+    dialog.begin_session()
+    dialog.refresh("milling", selected_program=key)
+    monkeypatch.setattr(window, "updateData", lambda: None)
+
+    def accept_geometry(editor):
+        assert not editor.toolCode.isEnabled()
+        assert editor.toolCode.text() == key
+        editor.diameter.setValue(8)
+        editor.validateAndAccept()
+        return editor.result()
+
+    monkeypatch.setattr(tool_library_dialog._MillingToolEditor, "exec", accept_geometry)
+    dialog.edit_program_tool("milling")
+    assert window.millingTools[key]["diameter"] == 8
+
+    def accept_library(editor):
+        assert editor.toolCode.isEnabled()
+        assert editor.toolCode.text().startswith("T")
+        editor.validateAndAccept()
+        return editor.result()
+
+    monkeypatch.setattr(tool_library_dialog._MillingToolEditor, "exec", accept_library)
+    dialog.save_program_to_library("milling")
+    assert set(window.millingTools) == {key}
+    assert any(spec["diameter"] == 8 for spec in dialog.library_tools("milling").values())
+
+
+def test_loading_mpf_populates_named_tools_and_retains_geometry(window, tmp_path):
+    source = 'G710\nT="UGT0201_085" M6\nG0 X0 Y0\nT="UGT0301_495" M6\nMCALL CYCLE81(5,0,1,-10)\nX0 Y0\nMCALL\nM30\n'
+    path = tmp_path / "named.mpf"
+    path.write_text(source)
+    window.loadFile(str(path))
+    window.discover_program_tools(source)
+    assert set(window.millingTools) == {"UGT0201_085", "UGT0301_495"}
+    assert window.millingTools["UGT0301_495"]["type"] == "drill"
+    window.millingTools["UGT0201_085"]["diameter"] = 8
+    window.discover_program_tools(source)
+    assert window.millingTools["UGT0201_085"]["diameter"] == 8
+    dialog = window.toolLibraryDlg
+    dialog.refresh("milling", selected_program="UGT0201_085")
+    assert dialog._selected_key("milling", "program") == "UGT0201_085"
+
+
+def test_shared_execution_preserves_named_tool_geometry_override():
+    source = 'T="UGT0201_085" M6\nG0 X0 Y0\nG41 G1 X10 F100\nG1 Y10\nG40 G1 X20\nM30\n'
+    current = {}
+    inferred = refresh_setup(source, current, {}, turning=False, source_dialect="sinumerik")
+    current["UGT0201_085"]["diameter"] = 8
+    result, tools, _inferred = execute_program(
+        source,
+        language="fanuc_mill",
+        source_dialect="sinumerik",
+        current_tools=current,
+        previous_inference=inferred,
+    )
+    assert tools["UGT0201_085"]["diameter"] == 8
+    compensated = [motion for motion in result.motions if motion.compensation_applied]
+    assert compensated
+    vertical = next(motion for motion in compensated if motion.source_raw == "G1 Y10")
+    assert vertical.end_x == pytest.approx(6)
 
 
 def test_shared_execution_suppresses_cutter_compensation_warnings_when_correction_is_disabled():

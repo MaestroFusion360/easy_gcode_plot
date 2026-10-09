@@ -183,3 +183,58 @@ def test_file_export_uses_profile_default_units_and_arc_mode(tmp_path):
     replay = execute(text, language="fanuc_mill")
     assert replay.ok and replay.complete
     assert sum(map(motion_length, replay.motions)) == pytest.approx(sum(map(motion_length, outcome.execution.motions)))
+
+
+@pytest.mark.parametrize(
+    "suffix, mode, expected",
+    [
+        ("nc", "G20", "inch"),
+        ("nc", "G21", "mm"),
+        ("nc", "", "mm"),
+        ("nc", "G20\nG21", "mm"),
+        ("nc", "G21\nG20", "inch"),
+        ("mpf", "G70", "inch"),
+        ("mpf", "G71", "mm"),
+        ("mpf", "G700", "inch"),
+        ("mpf", "G710", "mm"),
+    ],
+)
+def test_full_export_reports_executed_units(tmp_path, suffix, mode, expected):
+    source = tmp_path / f"source.{suffix}"
+    source.write_text(f"{mode}\nG90\nG0 X1 Y2 Z3\nM30\n", encoding="utf-8")
+    output = tmp_path / f"output.{suffix}"
+    outcome = export_file(source, output, ExportRequest(language="fanuc_mill", mode="full", units="auto"))
+
+    assert outcome.execution.ok and outcome.execution.complete, outcome.execution.diagnostics
+    assert outcome.effective_units == expected
+    text = output.read_text(encoding="utf-8")
+    assert all(line in text for line in mode.splitlines())
+    replay = execute(text, language="fanuc_mill", source_dialect=outcome.execution.source_dialect)
+    assert replay.ok and replay.complete, replay.diagnostics
+    assert replay.execution_steps[-1].unit_scale == outcome.execution.execution_steps[-1].unit_scale
+
+
+@pytest.mark.parametrize("value", [True, False, -1, 13, 1.5, "6", None])
+@pytest.mark.parametrize("per_word", [False, True])
+def test_post_rejects_invalid_decimal_precision(tmp_path, value, per_word):
+    profile = load_post_profile("fanuc_mill")
+    if per_word:
+        profile["format"]["words"]["X"]["decimals"] = value
+    else:
+        profile["options"]["decimalPlaces"] = value
+    path = tmp_path / "invalid.json"
+    path.write_text(json.dumps(profile), encoding="utf-8")
+    with pytest.raises(ValueError, match="integer from 0 to 12"):
+        load_post_profile(path)
+
+
+@pytest.mark.parametrize("value", [0, 6, 12])
+def test_post_accepts_integer_decimal_precision(tmp_path, value):
+    profile = load_post_profile("fanuc_mill")
+    profile["options"]["decimalPlaces"] = value
+    profile["format"]["words"]["X"]["decimals"] = value
+    path = tmp_path / "valid.json"
+    path.write_text(json.dumps(profile), encoding="utf-8")
+    loaded = load_post_profile(path)
+    assert loaded["options"]["decimalPlaces"] == value
+    assert loaded["format"]["words"]["X"]["decimals"] == value

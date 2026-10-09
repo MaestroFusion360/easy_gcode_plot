@@ -31,7 +31,7 @@ _transpose = matrix.transpose
 transform_point = matrix.transform_point
 transform_vector = matrix.transform_vector
 
-TCP_TABLE_PROFILES = frozenset({"5ax_table_ac_angled", "5ax_table_bc_angled"})
+TCP_TABLE_PROFILES = frozenset({"5ax_table_ac", "5ax_table_bc", "5ax_table_ac_angled", "5ax_table_bc_angled"})
 CATALOG_PATH = Path(__file__).with_name("rotary_profiles.json")
 LOGGER = logging.getLogger(__name__)
 

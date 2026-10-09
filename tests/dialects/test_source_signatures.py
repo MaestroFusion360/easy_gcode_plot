@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.gcode.source_mode import source_dialect_for_path
+from app.gcode.source_mode import sinumerik_initial_mode, source_dialect_for_path
 
 
 @pytest.mark.parametrize(
@@ -56,3 +56,19 @@ def test_comments_strings_and_common_iso_do_not_switch_dialect(source):
 def test_named_container_retains_existing_contract():
     assert source_dialect_for_path("part.nc", "SUPA Z0") == "fanuc"
     assert source_dialect_for_path("part.mpf", "G0 X1") == "sinumerik"
+
+
+@pytest.mark.parametrize(
+    "source, expected",
+    [
+        ('T="G291"\nG0 X0', "siemens"),
+        ('T="G290"\nG291\nG0 X0', "iso"),
+        ('T="G291"\nG290\nG291', "siemens"),
+        ('T="tool ""G291""; (G290)" G291', "iso"),
+        ('T="G291" ; G291\n(G291)\nG0 X0', "siemens"),
+        ('MSG("G290; G291")\nn10 g 291', "iso"),
+        ("G291\nG290", "iso"),
+    ],
+)
+def test_initial_mode_ignores_strings_and_comments(source, expected):
+    assert sinumerik_initial_mode(source) == expected

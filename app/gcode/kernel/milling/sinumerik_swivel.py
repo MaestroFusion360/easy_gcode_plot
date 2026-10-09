@@ -43,7 +43,9 @@ def _validate_options(values, state):
     if transform.rotation_active or transform.scaling_active or transform.translation != (0.0, 0.0, 0.0):
         _unsupported("CYCLE800 composition with programmed transforms is not modeled")
     if values[1] != "0" and (state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES):
-        raise SemanticError("TWP_KINEMATICS_REQUIRED", "CYCLE800 requires an angled AC/BC table profile", "unsupported")
+        raise SemanticError(
+            "TWP_KINEMATICS_REQUIRED", "CYCLE800 requires a supported AC/BC table profile", "unsupported"
+        )
     if st in (1, 200001, 220001) and not state.twp.active:
         _unsupported("Additive CYCLE800 requires an active tilted frame")
 

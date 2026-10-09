@@ -11,7 +11,13 @@ from ..comments import extract_comments
 from ..drilling_post import emit_drilling_operation
 from ..kernel import ExecutionResult, TraceMotion
 from ..kernel.geometry.arc_segments import split_arc
-from ..kernel.milling.kinematics import MachineKinematics, RotaryAxis, point_orientation, transform_point
+from ..kernel.milling.kinematics import (
+    TCP_TABLE_PROFILES,
+    MachineKinematics,
+    RotaryAxis,
+    point_orientation,
+    transform_point,
+)
 from ..kernel.runtime.events import HOME_RETURN, PROGRAM_START, SUBPROGRAM_START, TOOL_CHANGE
 from ..post_profiles import _FORMAT_WORD_TOKENS, _render, load_post_profile, select_cycle_profile
 from ..trace_tools import arc_geometry, sample_motion
@@ -29,6 +35,7 @@ from .common import (
     motion_line,
     scale_motion,
 )
+from .tool_numbers import MillingLengthOutput, named_tools, target_tool_numbers, tool_mapping_lines
 
 MILLING_TARGETS = post_profiles.MILLING_TARGETS
 POST_TARGETS = post_profiles.POST_TARGETS
@@ -203,8 +210,8 @@ def export_result(result, options=None, *, cancelled=None, target=None, sinumeri
 def convert_resolved_program(result, target="fanuc_mill", options=None, *, cancelled=None, sinumerik_840d_sl=None):
     """Flatten cycles/variables/transforms into physical XYZ motion and controls.
 
-    Coordinates use one G54 frame with zero offsets; controller offset tables
-    and source structure are deliberately absent from this resolved program.
+    Ordinary paths use a zero-offset G54 frame. Tilted-plane programs retain
+    G54-G59 selection; their required target work offsets are listed in comments.
     """
     _check_cancelled(cancelled)
     if result is None:
@@ -223,13 +230,13 @@ def convert_resolved_program(result, target="fanuc_mill", options=None, *, cance
             "Selected post supports only three-axis XYZ conversion",
             code="UNSUPPORTED_MULTIAXIS_EXPANDED_EXPORT",
         )
-    options = _post_options(options, profile)
-    _check_supports(result, profile, options)
+    options = _resolved_post_options(result, options, profile)
+    tilted = options.preserve_wcs
     context = {
         "programName": next((event.code for event in result.events if event.kind == PROGRAM_START), "") or "",
         "units": profile["units"]["inch" if options.output_unit_scale == 25.4 else "metric"],
     }
-    lines = _program_header_lines(profile, options, context)
+    lines, tool_numbers, source_names, length_output = _program_output_setup(result, options, profile, context)
     motion_index, feed_mode, spindle_direction, plane = 0, "per_minute", 3, 18 if turning else 17
     spindle_state = None
     emitted_comment_blocks: set[int] = set()
@@ -237,11 +244,16 @@ def convert_resolved_program(result, target="fanuc_mill", options=None, *, cance
     motion_state: dict[str, object] = {"last": None}
     rotary_state: dict[str, float] = {}
     source_tcp_active = False
+    active_wcs = 54
     for step, block, motions in _execution_slices(result):
         _check_cancelled(cancelled)
         _append_source_comments(lines, block, emitted_comment_blocks, options, profile)
-        lines.extend(_tool_change_lines(step, profile))
-        lines.extend(_step_multiaxis_control_lines(step, options, profile, rotary_state, motion_state))
+        if tilted and step.active_wcs != active_wcs:
+            lines.append(f"G{step.active_wcs}")
+            active_wcs = step.active_wcs
+        lines.extend(_tool_change_lines(step, profile, tool_numbers=tool_numbers, source_names=source_names))
+        lines.extend(length_output.lines(step))
+        lines.extend(_step_multiaxis_control_lines(step, options, profile, rotary_state, motion_state, result))
         source_tcp_active = _step_tcp_state(step, source_tcp_active)
         spindle_lines, spindle_state = _spindle_state_lines(step, spindle_state, options, profile)
         lines.extend(spindle_lines)
@@ -296,6 +308,26 @@ def _program_header_lines(profile, options: ExportOptions, context) -> list[str]
     return header + lines
 
 
+def _resolved_post_options(result, options, profile):
+    options = _post_options(options, profile)
+    tilted = any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events)
+    options = replace(options, preserve_wcs=tilted, work_offsets=dict(result.wcs_offsets))
+    _check_supports(result, profile, options)
+    if options.incremental and tilted:
+        raise ExportLimitation(
+            "Tilted-plane output requires absolute coordinates", code="UNSUPPORTED_TWP_EXPANDED_EXPORT"
+        )
+    return options
+
+
+def _program_output_setup(result, options, profile, context):
+    lines = _program_header_lines(profile, options, context)
+    mapping = target_tool_numbers(result, profile, options.tool_numbers)
+    lines.extend(tool_mapping_lines(mapping, profile))
+    lines.extend(_work_offset_comments(result, profile) if options.preserve_wcs else [])
+    return lines, mapping, named_tools(result), MillingLengthOutput(result, profile, mapping)
+
+
 def _safety_lines(profile, options: ExportOptions, context) -> list[str]:
     """Emit the profile-declared safe restart block after user program start text."""
     safety = profile["program"].get("safety")
@@ -310,13 +342,16 @@ def _program_end_lines(profile, options: ExportOptions, context) -> list[str]:
     return _render(profile["program"]["end"], **context).splitlines()
 
 
-def _tool_change_lines(step, profile) -> list[str]:
+def _tool_change_lines(step, profile, *, tool_numbers=None, source_names=()) -> list[str]:
     lines = []
     for event in step.events:
         if event.kind != TOOL_CHANGE:
             continue
         code = "" if event.code == event.tool else event.code or ""
-        line = _render(profile["tool"]["toolChange"], tool=event.tool or "", code=code)
+        tool = (tool_numbers or {}).get(event.tool, event.tool or "T0")
+        if event.tool in source_names and not tool_numbers:
+            tool = f'T="{event.tool}"'
+        line = _render(profile["tool"]["toolChange"], tool=tool, code=code)
         if line:
             lines.append(line)
     return lines
@@ -617,18 +652,34 @@ def _tcp_start_after_motion(step, event):
 
 def _append_deferred_tcp_start(lines, step, profile, active):
     if any(_tcp_start_after_motion(step, event) for event in step.events):
-        lines.append(_render(profile["multiaxis"]["tcpOn"]))
+        event = next(event for event in step.events if _tcp_start_after_motion(step, event))
+        lines.extend(_tcp_control_lines(event, profile))
         return True
     return active
 
 
-def _step_multiaxis_control_lines(step, options, profile, rotary_state, motion_state):
+def _resolved_twp_step(step, result):
+    """G68.2 defines the frame; the following G53.1 supplies its solved index."""
+    if not any(event.kind == "TILTED_WORK_PLANE_ON" for event in step.events):
+        return step
+    for candidate in result.execution_steps[step.occurrence : step.occurrence + 2]:
+        if any(event.kind == "TOOL_AXIS_ORIENT" for event in candidate.events):
+            return replace(step, rotary_angles=candidate.rotary_angles)
+    return step
+
+
+def _step_multiaxis_control_lines(step, options, profile, rotary_state, motion_state, result):
     """Reconstruct target rotary/TCP control frames from controller-neutral events."""
     lines: list[str] = []
-    multiaxis = profile.get("multiaxis") or {}
+    step = _resolved_twp_step(step, result)
     supports_tcp = bool((profile.get("supports") or {}).get("tcp"))
     for event in step.events:
-        if (
+        if event.kind in {"TILTED_WORK_PLANE_ON", "TILTED_WORK_PLANE_OFF"}:
+            lines.extend(_twp_control_lines(event, step, options, profile))
+            motion_state.clear()
+        elif event.kind == "ROTARY_INDEX" and event.code == "CYCLE800":
+            continue
+        elif (
             event.kind == "ROTARY_INDEX" or event.kind == "ROTARY_MOTION" and step.emitted_count == 0
         ) and not _reference_owns_rotary(step, event):
             move = step.modal_move if event.kind == "ROTARY_MOTION" else 0
@@ -643,8 +694,7 @@ def _step_multiaxis_control_lines(step, options, profile, rotary_state, motion_s
                     "Selected post cannot reconstruct TCP control",
                     code="UNSUPPORTED_TCP_EXPANDED_EXPORT",
                 )
-            key = "tcpOn" if event.kind == "TCP_CONTROL_ON" else "tcpOff"
-            lines.append(_render(multiaxis[key]))
+            lines.extend(_tcp_control_lines(event, profile))
     return lines
 
 
@@ -681,7 +731,7 @@ def _post_motion_geometry(
     frame, otherwise the target executor would rotate physical XYZ a second time.
     TCP motions deliberately have ``orientation is None`` and remain physical XYZ.
     """
-    if not options.rotary_axes or source_tcp_active:
+    if not options.rotary_axes or source_tcp_active and not options.preserve_wcs:
         return motion
     if continuous_rotary:
         if motion.arc is not None or motion.start_tool_orientation is None or motion.tool_orientation is None:
@@ -708,17 +758,22 @@ def _post_motion_geometry(
             orientation=None,
             orientation_offset=(0.0, 0.0, 0.0),
         )
-    orientation = motion.orientation
+    orientation = ((1.0, 0.0, 0.0), (0.0, 1.0, 0.0), (0.0, 0.0, 1.0)) if source_tcp_active else motion.orientation
     if orientation is None:
         return motion
-    start = _inverse_orientation_point(orientation, (motion.start_x, motion.start_y, motion.start_z))
-    end = _inverse_orientation_point(orientation, (motion.end_x, motion.end_y, motion.end_z))
+    offset = motion.orientation_offset if options.preserve_wcs else (0.0, 0.0, 0.0)
+
+    def point(value):
+        return _inverse_orientation_point(orientation, tuple(value[i] - offset[i] for i in range(3)))
+
+    start = point((motion.start_x, motion.start_y, motion.start_z))
+    end = point((motion.end_x, motion.end_y, motion.end_z))
     arc = motion.arc
     if arc is not None:
         normal = None if arc.normal is None else _inverse_orientation_point(orientation, arc.normal)
         arc = replace(
             arc,
-            center=_inverse_orientation_point(orientation, arc.center),
+            center=point(arc.center),
             normal=normal,
         )
     vector = _inverse_orientation_point(
@@ -781,13 +836,14 @@ def _append_step_motions(
             rotary_start_values=start_values,
             rotary_values=_step_rotary_values(step, options, rotary_state),
         )
+    step_options = _twp_motion_options(step, step_options)
     dwell, reverse = _step_motion_signals(step, motions)
     continuous_rotary = any(event.kind == "ROTARY_MOTION" for event in step.events) and not source_tcp_active
     feeds = 0
     for motion in motions:
         _check_cancelled(cancelled)
         motion = _post_motion_geometry(
-            motion,
+            _step_twp_geometry(motion, step, options),
             step_options,
             source_tcp_active=source_tcp_active,
             continuous_rotary=continuous_rotary,
@@ -1019,17 +1075,14 @@ def _require_valid_trace_export(result: ExecutionResult, profile: dict, *, allow
             "Selected post cannot preserve G43.4 TCP rotary commands / TRAORI or reconstruct resolved TCP motion",
             code="UNSUPPORTED_TCP_EXPANDED_EXPORT",
         )
-    if any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events):
-        raise ExportLimitation(
-            "Expanded multiaxis export does not yet reconstruct G68.2/CYCLE800 tilted working-plane semantics",
-            code="UNSUPPORTED_TWP_EXPANDED_EXPORT",
-        )
+    _require_supported_twp(result, profile)
     if _has_unreconstructable_non_tcp_rotary_motion(result):
         raise ExportLimitation(
             "Expanded multiaxis export cannot reconstruct this non-TCP continuous rotary interpolation",
             code="UNSUPPORTED_CONTINUOUS_ROTARY_EXPANDED_EXPORT",
         )
-    _require_reconstructable_index_origin(result)
+    if not any(event.kind == "TILTED_WORK_PLANE_ON" for event in result.events):
+        _require_reconstructable_index_origin(result)
     _require_continuous_motions(result, allow_reference_rapids=True, allow_rotary_index_gaps=True)
     if not allow_inverse_time and any(m.feed_mode == "inverse_time" for m in result.motions):
         raise ExportLimitation(
@@ -1050,6 +1103,7 @@ def _require_valid_trace_export(result: ExecutionResult, profile: dict, *, allow
         "UNMODELED_SINUMERIK_FRC",
         "UNMODELED_SINUMERIK_FRCM",
         "UNVERIFIED_CUTTER_COMPENSATION",
+        "UNVERIFIED_SINUMERIK_EDGE_OFFSETS",
         "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION",
     }
     blockers = [
@@ -1087,9 +1141,11 @@ def _reference_line(template, target, axes, reference, options):
     return _compact_post_line(line, options)
 
 
-def _home_line(event, axes, options, profile):
+def _home_line(event, axes, options, profile, source_words):
     reference = event.reference
     if reference.move != 0 or set(axes) != set(reference.home_axes):
+        return None
+    if event.code != "G28" and any(value != 0 for axis, value in source_words if axis in axes):
         return None
     key = "G28" if event.code == "G28" else "G53"
     commands = profile["home"][key]
@@ -1105,7 +1161,7 @@ def _home_line(event, axes, options, profile):
     return _compact_post_line(line, options)
 
 
-def _append_reference_event(lines, event, options, profile):
+def _append_reference_event(lines, event, options, profile, source_words):
     reference = event.reference
     _validate_reference_frame(reference)
     axes = event.axes
@@ -1114,7 +1170,7 @@ def _append_reference_event(lines, event, options, profile):
     key = "rapid" if reference.move == 0 else "linear"
     template = (profile.get("reference") or {}).get(key)
     lines.append(profile["positioning"]["absolute"])
-    home = _home_line(event, axes, options, profile)
+    home = _home_line(event, axes, options, profile, source_words)
     if home is not None:
         lines.append(home)
     elif template:
@@ -1163,7 +1219,9 @@ def _append_resolved_operations(
     source_tcp_active,
     direction,
 ):
-    if emit_drilling_operation(lines, step, motions, options, profile, direction=direction, cycle_state=motion_state):
+    if not options.preserve_wcs and emit_drilling_operation(
+        lines, step, motions, options, profile, direction=direction, cycle_state=motion_state
+    ):
         if motion_state is not None:
             motion_state.pop("last", None)
         if feed_state is not None:
@@ -1206,7 +1264,7 @@ def _append_resolved_reference(
             "Inverse-time machine references are not modeled", code="UNSUPPORTED_REFERENCE_EXPANDED_EXPORT"
         )
     _append_reference_intermediate(lines, events[0], motions, options, profile, rotary_state, source_tcp_active)
-    _append_reference_event(lines, events[0], options, profile)
+    _append_reference_event(lines, events[0], options, profile, step.words)
     if rotary_state is not None:
         rotary_state.update(reference.rotary_target)
     if motion_state is not None:
@@ -1214,3 +1272,144 @@ def _append_resolved_reference(
     if reference.feed is not None and feed_state is not None:
         feed_state["last"] = (feed_mode, reference.feed)
     return (), feed_mode, plane
+
+
+def _tcp_control_lines(event, profile):
+    multiaxis = profile["multiaxis"]
+    if event.kind == "TCP_CONTROL_OFF":
+        command = _render(multiaxis["tcpOff"])
+        if command == "G49" and event.code == "G43":
+            # The ordinary G43 emitted for this block cancels TCP itself;
+            # a following G49 would cancel its newly selected length offset.
+            return []
+        return [command, "D0"] if command == "TRAFOOF" and event.code == "G49" else [command]
+    command = _render(multiaxis["tcpOn"])
+    if event.length_offset is None:
+        return [command]
+    offset = event.length_offset
+    cross_controller = (command == "G43.4") != (event.code == "G43.4")
+    if cross_controller:
+        # Supported tool-table convention: FANUC H equals the tool number;
+        # SINUMERIK uses the first cutting edge D1 of that same tool.
+        tool_word = (event.tool or "").removeprefix("T")
+        tool = int(tool_word) if tool_word.isdecimal() else None
+        valid = tool is not None and (offset == 1 if command == "G43.4" else offset == tool)
+        if not valid:
+            raise ExportLimitation(
+                "TCP offset conversion requires a numbered tool with FANUC H=tool / SINUMERIK D1",
+                code="UNSUPPORTED_TCP_OFFSET_EXPANDED_EXPORT",
+            )
+        offset = tool if command == "G43.4" else 1
+    if command == "G43.4":
+        return [f"{command} H{offset}"]
+    return [f"D{offset}", command]
+
+
+def _require_supported_twp(result, profile):
+    frames = [e for e in result.events if e.kind == "TILTED_WORK_PLANE_ON"]
+    if not frames:
+        return
+    supported = (
+        result.kinematics_profile in TCP_TABLE_PROFILES
+        and profile["id"] in {"fanuc_mill_multiaxis", "sinumerik_840d_multiaxis"}
+        and all(e.twp_orientation is not None and e.twp_origin is not None for e in frames)
+        and not result.extended_wcs_offsets
+        and not any(("G", 10.0) in step.words for step in result.execution_steps)
+    )
+    # Each frame must have a resolved tool-axis index. Curves and cycle segments
+    # already carry resolved geometry in that fixed local frame.
+    for frame in frames:
+        orient = next(
+            (
+                e
+                for e in result.events
+                if e.kind == "TOOL_AXIS_ORIENT" and e.source_block in (frame.source_block, frame.source_block + 1)
+            ),
+            None,
+        )
+        supported = supported and orient is not None
+    supported = supported and all(
+        m.move in (0, 1, 2, 3)
+        and (m.source_kind in {"motion", "cycle"} or m.source_kind.startswith("cutter_compensation"))
+        for step, _, motions in _execution_slices(result)
+        if step.twp_orientation is not None
+        for m in motions
+    )
+    if not supported:
+        raise ExportLimitation(
+            "G68.2/CYCLE800 export requires a resolved AC/BC table index and G54-G59 work frames",
+            code="UNSUPPORTED_TWP_EXPANDED_EXPORT",
+        )
+
+
+def _twp_euler(matrix, *, zxz):
+    if zxz:
+        middle = math.acos(max(-1.0, min(1.0, matrix[2][2])))
+        if abs(math.sin(middle)) < 1e-10:
+            first, last = math.atan2(matrix[1][0], matrix[0][0]), 0.0
+        else:
+            first = math.atan2(matrix[0][2], -matrix[1][2])
+            last = math.atan2(matrix[2][0], matrix[2][1])
+    else:
+        middle = math.asin(max(-1.0, min(1.0, -matrix[2][0])))
+        if abs(math.cos(middle)) < 1e-10:
+            first, last = math.atan2(-matrix[0][1], matrix[1][1]), 0.0
+        else:
+            first = math.atan2(matrix[1][0], matrix[0][0])
+            last = math.atan2(matrix[2][1], matrix[2][2])
+    return tuple(math.degrees(v) for v in (first, middle, last))
+
+
+def _twp_control_lines(event, step, options, profile):
+    fanuc = profile["id"] == "fanuc_mill_multiaxis"
+    if event.kind == "TILTED_WORK_PLANE_OFF":
+        return ["G69" if fanuc else "CYCLE800()"]
+    angles = _twp_euler(event.twp_orientation, zxz=fanuc)
+    origin = event.twp_origin
+    if fanuc:
+        words = [_word(axis, value, options) for axis, value in zip("IJK", angles, strict=True)]
+        xyz = " ".join(
+            _word(axis, value / options.output_unit_scale, options) for axis, value in zip("XYZ", origin, strict=True)
+        )
+        rotary = dict(step.rotary_angles)
+        axes = [axis for axis in options.rotary_axes if axis in rotary]
+        index = "G0 " + " ".join(_word(axis, rotary.get(axis, 0.0), options) for axis in axes)
+        return ["G69", index, f"G68.2 {xyz} " + " ".join(words), "G53.1"]
+    values = [format(v, ".9f").rstrip("0").rstrip(".") or "0" for v in angles]
+    rotary = dict(step.rotary_angles)
+    first_axis = "A" if "A" in rotary and rotary["A"] else "B"
+    principal = (rotary.get(first_axis, 0) + 180) % 360 - 180
+    direction = -1 if principal < 0 else 1
+    xyz = ",".join(_word("", value / options.output_unit_scale, options) for value in origin)
+    return [f'CYCLE800(0,"",0,27,{xyz},{",".join(values)},0,0,0,{direction},,0)']
+
+
+def _work_offset_comments(result, profile):
+    used = {step.active_wcs for step in result.execution_steps}
+    return [
+        _render(
+            profile["comment"]["template"],
+            text=f"G{code} work offset mm: X{offset[0]:.6f} Y{offset[1]:.6f} Z{offset[2]:.6f}",
+        )
+        for code, offset in result.wcs_offsets
+        if code in used and any(value != 0 for value in offset)
+    ]
+
+
+def _twp_motion_options(step, options):
+    # A live tilted frame receives local XYZ; explicit ABC is prohibited.
+    if step.twp_orientation is not None:
+        return replace(options, rotary_values={}, rotary_start_values={})
+    return options
+
+
+def _step_twp_geometry(motion, step, options):
+    if step.twp_orientation is None:
+        return motion
+    offset = (options.work_offsets or {}).get(step.active_wcs, (0.0, 0.0, 0.0))
+    origin = step.twp_origin or (0.0, 0.0, 0.0)
+    return replace(
+        motion,
+        orientation=step.twp_orientation,
+        orientation_offset=tuple(offset[i] + origin[i] for i in range(3)),
+    )

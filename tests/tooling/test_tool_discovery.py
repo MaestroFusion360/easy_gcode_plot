@@ -228,6 +228,22 @@ def test_sinumerik_cycle_mentions_in_comments_and_messages_are_not_operations():
     assert tools["T2"]["type"] == DEFAULT_MILLING_TOOL["type"]
 
 
+def test_named_sinumerik_tools_preserve_identity_comments_units_and_cycle_type():
+    source = (
+        '; T="COMMENT_ONLY"\nMSG("T=IGNORED")\nG700\n'
+        'T="Mixed_case" M6 ; FLAT MILL D.25\n'
+        'G710\nT="UGT0301_495" M6\nMCALL CYCLE81(5,0,1,-10)\n'
+        "T0 M6\nMCALL CYCLE84(5,0,1,-10)\nMCALL\n"
+        'T="T04" M6 ; BULL MILL D10 CR2\nT4 M6\n'
+    )
+    tools = discover_tools(source, turning=False, source_dialect="sinumerik")
+    assert set(tools) == {"Mixed_case", "UGT0301_495", "T04", "T4"}
+    assert tools["Mixed_case"]["diameter"] == 6.35
+    assert tools["UGT0301_495"]["type"] == "drill"
+    assert tools["T04"]["type"] == "mill_bull"
+    assert tools["T04"]["cornerRadius"] == 2
+
+
 def test_native_modal_cycle_tracks_tool_changes_and_cancellation():
     tools = discover_tools(
         "T1 M6\nMCALL CYCLE83(5,0,1,-10)\nX0 Y0\nT2 M6\nX10 Y0\nMCALL\nT3 M6\nG1 X20 F100\n",

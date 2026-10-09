@@ -421,7 +421,7 @@ def _compile_native_declaration(block, evaluated, state):
 
 def _tcp_declaration_diagnostic(block, state):
     if state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES:
-        return _diag(block, "TCP_KINEMATICS_REQUIRED", "TRAORI requires a supported angled AC/BC table profile")
+        return _diag(block, "TCP_KINEMATICS_REQUIRED", "TRAORI requires a supported AC/BC table profile")
     transform_active = (
         state.transform.rotation_active
         or state.transform.scaling_active
@@ -479,6 +479,8 @@ def apply_native_declaration(block, evaluated, state, events):
                     "TCP_CONTROL_ON" if state.tcp_control else "TCP_CONTROL_OFF",
                     block.index,
                     code=syntax.kind.upper(),
+                    tool=state.active_tool,
+                    length_offset=state.tool_length_h,
                     kinematics_profile=state.kinematics.id if state.kinematics else None,
                 )
             )

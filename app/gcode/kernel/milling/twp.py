@@ -39,6 +39,12 @@ def solve_table_orientation(
     if not supports_twp_kinematics(profile):
         raise SemanticError("TWP_KINEMATICS_REQUIRED", "G68.2 requires two distinct rotary axes", "unsupported")
     target = transform_vector(orientation, (0.0, 0.0, 1.0))
+    analytical = _solve_vertical_table(profile, target, current, direction)
+    return analytical if analytical is not None else _solve_iterative_orientation(profile, target, current, direction)
+
+
+def _solve_iterative_orientation(profile, target, current, direction):
+    """Fallback for arbitrary table/head layouts in user kinematics profiles."""
     joints = profile.table_rotary_axes + profile.head_rotary_axes
     addresses = [joint.address for joint in joints]
 
@@ -101,6 +107,45 @@ def solve_table_orientation(
     if error > 1e-5:
         raise SemanticError(
             "TWP_ORIENTATION_UNREACHABLE", "G53.1 tool axis is unreachable by the selected kinematics", "unsupported"
+        )
+    return solved
+
+
+def _solve_vertical_table(profile, target, current, direction):
+    """Resolve the table's maximum tilt, where the iterative solver is singular."""
+    if profile.head_rotary_axes or len(profile.table_rotary_axes) != 2:
+        return None
+    tilt, spin = profile.table_rotary_axes
+    if abs(spin.axis[0]) > 1e-12 or abs(spin.axis[1]) > 1e-12 or abs(spin.axis[2]) < 1 - 1e-12:
+        return None
+    vertical = tilt.axis[2] ** 2
+    if 1 - vertical < 1e-12:
+        return None
+    # Rodrigues: (R_axis(a) * Z).z = axis.z^2 + (1-axis.z^2)*cos(a).
+    cosine = (target[2] - vertical) / (1 - vertical)
+    if abs(cosine + 1) > 1e-10:
+        return None
+    if abs(cosine) > 1 + 1e-9:
+        raise SemanticError(
+            "TWP_ORIENTATION_UNREACHABLE", "Tool axis exceeds the selected table tilt range", "unsupported"
+        )
+    angle = math.degrees(math.acos(max(-1.0, min(1.0, cosine))))
+    candidates = []
+    for first in (angle, -angle):
+        base = transform_vector(_rotation(tilt.axis, first), (0.0, 0.0, 1.0))
+        second = current[spin.address]
+        if math.hypot(target[0], target[1]) > 1e-10:
+            second = math.degrees(math.atan2(target[1], target[0]) - math.atan2(base[1], base[0])) / spin.axis[2]
+        solved = dict(current)
+        for joint, value in ((tilt, first), (spin, second)):
+            solved[joint.address] = value + 360 * round((current[joint.address] - value) / 360)
+        achieved = transform_vector(effective_orientation(profile, solved), (0.0, 0.0, 1.0))
+        distance = sum(abs(solved[joint.address] - current[joint.address]) for joint in (tilt, spin))
+        candidates.append((math.dist(achieved, target), distance, solved))
+    error, _, solved = _select_orientation(candidates, tilt.address, direction)
+    if error > 1e-8:
+        raise SemanticError(
+            "TWP_ORIENTATION_UNREACHABLE", "Tool axis is unreachable by the selected table", "unsupported"
         )
     return solved
 

@@ -170,7 +170,7 @@ def test_tcp_cancel_preserves_physical_position(cancel):
 )
 def test_tilted_plane_real_fixtures_full_and_expanded(fixture_text, fixture, profile, dialect):
     source = fixture_text(f"milling/{fixture}")
-    original, _tools, _inferred = execute_program(
+    original, tools, _inferred = execute_program(
         source,
         language="fanuc_mill",
         source_dialect=dialect,
@@ -181,12 +181,22 @@ def test_tilted_plane_real_fixtures_full_and_expanded(fixture_text, fixture, pro
     assert original.ok and original.complete, original.diagnostics
     full = normalize_full_program(original, source, ExportOptions(delimiter=True, sequence_numbers=True))
     target = "sinumerik_840d_multiaxis" if dialect == "sinumerik" else "fanuc_mill_multiaxis"
-    replay = _replay(full, target, profile, home_z=500, autodetect_arc_type=True)
+    replay = _replay(full, target, profile, home_z=500, autodetect_arc_type=True, milling_tools=tools)
     assert motion_traces_match(original, replay)
     for post in TARGETS:
-        with pytest.raises(ExportLimitation) as error:
-            convert_resolved_program(original, post)
-        assert error.value.code == "UNSUPPORTED_TWP_EXPANDED_EXPORT"
+        if fixture in {"sinumerik/5ax_test.mpf", "sinumerik/impeller.mpf"}:
+            with pytest.raises(ExportLimitation) as error:
+                convert_resolved_program(original, post)
+            expected = (
+                "UNSUPPORTED_UNVERIFIED_GEOMETRY_EXPANDED_EXPORT"
+                if fixture.endswith("5ax_test.mpf")
+                else "UNSUPPORTED_TWP_EXPANDED_EXPORT"
+            )
+            assert error.value.code == expected
+            continue
+        expanded = convert_resolved_program(original, post, ExportOptions(delimiter=True))
+        replay = _replay(expanded, post, profile, home_z=500, autodetect_arc_type=True, milling_tools=tools)
+        assert motion_traces_match(original, replay)
 
 
 def test_displaced_index_failure_preserves_existing_output(tmp_path):

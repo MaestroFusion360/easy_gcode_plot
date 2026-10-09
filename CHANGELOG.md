@@ -1,13 +1,28 @@
 # Changelog
 
-## 1.9.7 - 2026-10-08
+## 1.9.7 - 2026-10-09
 
-- Extend the immutable native Program/AST and existing milling kernel with SINUMERIK expression precedence, degree trigonometry and stack-based WHILE execution. Support bounded R arithmetic, comparisons, SIN/COS/ABS/SQRT, nested WHILE/ENDWHILE and numeric-label GOTO/IF GOTO with shared cancellation and resource budgets.
-- Keep unsupported directional GOTOF/GOTOB/GOTOC and RET fail-closed. Retain native M98 warning/continuation without FANUC dispatch; reject unmodeled native M17/M96/M97/M99 flow.
-- Support native M19 through the existing spindle-orientation signal. Preserve spindle and position state; add modal G96/G97/G961/G971 feed/spindle behavior with programmed surface speed and unknown RPM when no CSS reference axis exists.
-- Preserve supported native flow and expressions in Full Program export, keep jump labels stable, and export resolved macro drilling geometry through the existing Expanded replay contract. Block Expanded native CSS without a reference axis and recognized but unmodeled ANG/SCALE/MIRROR geometry.
-- Add circular drilling coverage and regressions for expressions, nested flow, malformed programs, budgets, cancellation, parser/executor parity, spindle modes and Full/Expanded replay.
-- Update bilingual FAQ and controller documentation for the native subset and export limits. Add the MP4 demonstration and a collapsible gallery of current dialogs and tools to the project site; extend the existing README screenshot gallery.
+- Ignore quoted tool names and messages when detecting the initial SINUMERIK G290/G291 mode.
+- Report the executed program's final units correctly in FULL export results and batch reports, including inch programs.
+- Reject boolean precision values in JSON post profiles, including per-word formatting, instead of silently reducing coordinate precision.
+- Add experimental five-axis FANUC ↔ SINUMERIK conversion in EXPANDED through the bundled multiaxis posts. Conversion may contain errors and is used entirely at the user's own risk; verify the output for the target machine before use.
+- Clarify that EXPANDED does not output G41/G42. Disable cutter-radius compensation in Options before five-axis conversion; the resulting G40 contour has no radius compensation. Tool-length H/D offsets are separate.
+- Fix missing ordinary G43/H before the first working Z approach in programs containing TCP operations. Preserve length-offset activation after tool changes and explicit reactivation following G49/D0, keep G43.4/H inside TCP, and retain the selected ordinary offset when G43 cancels TCP.
+- Support G43.4 / TRAORI TCP on standard `5ax_table_ac` and `5ax_table_bc` profiles as well as the angled AC/BC profiles.
+- Convert supported indexed AC/BC G68.2/G53.1 and CYCLE800 working planes, including nonzero origins, arcs and drilling motions. Preserve the resolved table orientation when switching working planes.
+- Preserve G54–G59 and required work offsets in supported tilted-plane exports. List required offsets in output comments; configure the same offsets on the target controller. Other unsupported displaced-WCS cases, extended/dynamic work offsets and incremental tilted-plane output remain rejected.
+- Split multi-turn helical arcs into segments supported by the target controller while preserving feeds, spindle speeds, tools and orientations.
+- Populate Tool Library's Current Program with named SINUMERIK tools from MPF files. Preserve exact tool names and recognize geometry comments, units and operation types.
+- Allow editing named program-tool geometry, assigning geometry from the library and saving named tools to numeric T1–T99 library slots without renaming the source tools.
+- Add a FANUC tool-number assignment dialog for named SINUMERIK tools. Reject duplicate or reserved slots and include the name-to-number mapping in output comments. Configure the corresponding H offsets in the target tool table.
+- Preserve explicit nonzero G53/SUPA targets, including Z-200, even when they equal configured Home. Distinguish them from zero-address home commands and allow reaching the WCS centre plane while retaining the configured-home crossing check.
+- Accept FANUC T0 as tool unloading, matching native SINUMERIK.
+- Fix table orientation at maximum tilt and repeated G53.1 orientation commands. Fix IJK arc-mode detection when reopening converted tilted-plane programs.
+- Report unverified position gaps as export limitations instead of exporting a discontinuous path.
+- Support native SINUMERIK R arithmetic, comparisons, SIN/COS/ABS/SQRT, nested WHILE/ENDWHILE and numeric-label GOTO/IF GOTO. Unsupported directional GOTOF/GOTOB/GOTOC, RET and native M17/M96/M97/M99 flow remain rejected; native M98 produces a warning without invoking a FANUC subprogram.
+- Support native M19 spindle orientation and G96/G97/G961/G971 feed/spindle modes. Keep instantaneous RPM unknown when CSS has no reference axis.
+- Preserve supported native expressions, flow and jump labels in Full Program export; reject renumbering that would invalidate native jumps. Export supported parameter-driven drilling through EXPANDED. Reject native CSS without a reference axis and unmodeled ANG/SCALE/MIRROR geometry.
+- Add a video demonstration and a collapsible gallery of dialogs and tools to the project site and expand the README screenshot gallery.
 
 ## 1.9.6 - 2026-10-08
 

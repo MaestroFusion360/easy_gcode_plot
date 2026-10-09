@@ -172,6 +172,7 @@ class ExecutionEvent:
     twp_orientation: tuple[tuple[float, float, float], ...] | None = None
     reference: ResolvedReferenceMove | None = None
     drilling: ResolvedDrillingOperation | None = None
+    length_offset: int | None = field(default=None, kw_only=True)
 
 
 @dataclass(frozen=True, slots=True)

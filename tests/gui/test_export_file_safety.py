@@ -8,16 +8,18 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.export.common import EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
+from app.gcode.export.expanded import load_post_profile
 from app.gcode.export_file import ExportRequest
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
+from app.ui.dialogs.export_tool_numbers import ExportToolNumbersDialog
 from app.ui.windows import main_window_file_ops as ops
 
 # These regressions exercise the actual GUI worker and file-target preflight.
 # pylint: disable=protected-access
 
 
-@pytest.fixture
+@pytest.fixture(scope="session")
 def qt_app():
     return QApplication.instance() or QApplication([])
 
@@ -137,6 +139,59 @@ def test_invalid_legacy_snippet_does_not_prevent_main_window_startup(qt_app, tmp
         ]
         assert (directory / "bad.txt").read_bytes() == b"\xff"
     finally:
+        window.close()
+        window.deleteLater()
+        qt_app.processEvents()
+
+
+def test_gui_exports_real_named_tool_mpf_to_fanuc_with_displaced_g55(qt_app, tmp_path, monkeypatch):
+    fixture = Path(__file__).resolve().parents[1] / "fixtures/milling/sinumerik/smpl_sim08_5ax_sinumerik_mm.mpf"
+    source = tmp_path / "part.mpf"
+    source.write_text(fixture.read_text().replace("_Z_HOME=-10", "_Z_HOME=-200"))
+    original_bytes = source.read_bytes()
+    output = tmp_path / "part.nc"
+    mapping = {"UGT0201_085": 4, "UGT0301_495": 8, "UGT0201_088": 3, "UGT0201_096": 5}
+    window = MainWindow()
+    notices = []
+    monkeypatch.setattr(ops, "_export_target", lambda *_a: (str(output), False))
+    monkeypatch.setattr(ops, "select_tool_numbers", lambda *_a: mapping)
+    monkeypatch.setattr(ops, "_show_export_error", lambda *_a: notices.append(_a))
+    monkeypatch.setattr(ops.QMessageBox, "information", lambda *_a: None)
+    monkeypatch.setattr(ops.QMessageBox, "warning", lambda *_a: notices.append(_a))
+    monkeypatch.setattr(ops.QMessageBox, "critical", lambda *_a: notices.append(_a))
+    try:
+        window.autoUpdateEnabled = False
+        window.correctionEnabled = False
+        window.rotaryKinematics = "5ax_table_ac_angled"
+        window.wcsOffsets = {code: (0.0, 0.0, 0.0) for code in range(54, 60)}
+        window.wcsOffsets[55] = (1.294, 0.0, 95.17)
+        window.exportMode = EXPANDED_EXECUTION_MODE
+        window.exportTargetCnc = 4
+        window.loadFile(str(source))
+        window.export()
+        assert not notices
+        text = output.read_text()
+        assert "G55" in text and "G53G0Z-200" in text.replace(" ", "")
+        assert "T4 M06" in text and "T8 M06" in text
+        assert text.count("G68.2 ") == 4
+        replay = execute(text, language="fanuc_mill", kinematics=window.rotaryKinematics, wcs_offsets=window.wcsOffsets)
+        assert replay.ok and replay.complete, replay.diagnostics
+        assert source.read_bytes() == original_bytes
+        dialog = ExportToolNumbersDialog(
+            window, window.execution_result, load_post_profile("fanuc_mill_multiaxis"), mapping
+        )
+        assert dialog.value() == mapping
+        dialog.fields["UGT0301_495"].setValue(4)
+        dialog.accept()
+        assert notices  # Duplicate slots are rejected without changing the source identities.
+        assert dialog.result() != dialog.DialogCode.Accepted
+        dialog.fields["UGT0301_495"].setValue(8)
+        dialog.accept()
+        assert dialog.result() == dialog.DialogCode.Accepted
+        assert set(window.millingTools) == set(mapping)
+    finally:
+        window.autoUpdateTimer.stop()
+        window.ui.editor.setModified(False)
         window.close()
         window.deleteLater()
         qt_app.processEvents()

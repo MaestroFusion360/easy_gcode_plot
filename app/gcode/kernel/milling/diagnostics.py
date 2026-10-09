@@ -17,7 +17,7 @@ def _apply_milling_tool_change(block, state, words, codes, diagnostics, occurren
         state.selected_tool = syntax.named_tool
         state.selected_tool_block = block.index
         state.selected_tool_unload = False
-    elif syntax is not None and words.get("T") == 0:
+    elif words.get("T") == 0:
         state.selected_tool = None
         state.selected_tool_block = block.index
         state.selected_tool_unload = True

@@ -29,6 +29,9 @@ from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
 
 _MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc"
 _FIXTURE_KINEMATICS = {
+    "smpl_sim08_5ax_fanuc_mm.nc": "5ax_table_ac",
+    "test_5ax_ac_fanuc.nc": "5ax_table_ac",
+    "test_5ax_bc_fanuc.nc": "5ax_table_bc",
     "indexed_table_a.nc": "4ax_table_a",
     "indexed_table_b.nc": "4ax_table_b",
     "indexed_table_c.nc": "4ax_table_c",

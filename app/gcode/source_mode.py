@@ -57,7 +57,7 @@ def sinumerik_initial_mode(source: str) -> str:
     dialect; otherwise native Siemens syntax remains the document default.
     """
     for raw in str(source).splitlines():
-        code = strip_comments(raw)
+        code = strip_comments(re.sub(r'"(?:[^"\n]|"")*"', "", raw))
         match = _MODE_RE.search(code)
         if match is None:
             continue

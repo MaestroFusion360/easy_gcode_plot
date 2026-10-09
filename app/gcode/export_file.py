@@ -65,6 +65,7 @@ class ExportRequest:
     force_decimal_explicit: bool = False
     plus_output: bool = False
     plus_output_explicit: bool = False
+    tool_numbers: dict[str, int] | None = None
 
 
 @dataclass(frozen=True)
@@ -163,6 +164,7 @@ def _options(request: ExportRequest, arc_type: str | None, *, units_explicit: bo
         force_decimal_explicit=request.force_decimal_explicit,
         plus_output=request.plus_output,
         plus_output_explicit=request.plus_output_explicit,
+        tool_numbers=request.tool_numbers,
         linearization_tolerance=0.0005 / unit_scale,
     )
 
@@ -237,6 +239,13 @@ def _preflight_export_failure(result, request, started):
                 "Expanded multiaxis export does not yet reconstruct G68.2/CYCLE800 tilted working-plane semantics",
             ),
         }
+        if supports_tcp and result.kinematics_profile in {
+            "5ax_table_ac",
+            "5ax_table_bc",
+            "5ax_table_ac_angled",
+            "5ax_table_bc_angled",
+        }:
+            unsupported.pop("TILTED_WORK_PLANE_ON")
         if not supports_tcp:
             unsupported["TCP_CONTROL_ON"] = (
                 "UNSUPPORTED_TCP_EXPANDED_EXPORT",
@@ -342,9 +351,10 @@ def write_export(
         except ExportLimitation as exc:
             return _failed_export(result, getattr(exc, "code", "UNSUPPORTED_EXPANDED_EXPORT"), str(exc), started)
         size = _atomic_export(output_path, lambda temp: temp.write_bytes(text.encode("utf-8")), cancelled=cancelled)
-    return ExportResult(
-        result, size, "inch" if request.units == "inch" else "mm", arc_type, round((perf_counter() - started) * 1000, 3)
-    )
+    effective_units = "inch" if request.units == "inch" else "mm"
+    if request.format == "nc" and request.mode == "full" and result.execution_steps:
+        effective_units = "inch" if result.execution_steps[-1].unit_scale == MM_PER_INCH else "mm"
+    return ExportResult(result, size, effective_units, arc_type, round((perf_counter() - started) * 1000, 3))
 
 
 def request_document(request: ExportRequest) -> dict[str, object]:

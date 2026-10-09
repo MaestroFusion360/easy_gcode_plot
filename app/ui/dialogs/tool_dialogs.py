@@ -444,6 +444,7 @@ class _MillingToolEditor(QDialog):
         _initialize_tool_editor(self, parent, tool_code)
         self.ui = Ui_MillingToolEditor()
         self.ui.setupUi(self)
+        self._program_tool_code = tool_code
         spec = spec or dict(DEFAULT_MILLING_TOOL)
         self.setWindowTitle(
             QCoreApplication.translate("ToolLibraryDialog", "Edit Milling Tool")
@@ -631,7 +632,7 @@ class _MillingToolEditor(QDialog):
         """Accept only valid compact tool numbers and physical geometry."""
         raw = self.toolCode.text().strip().upper()
         digits = raw[1:] if raw.startswith("T") else raw
-        if not digits.isdigit() or not 1 <= int(digits) <= 99:
+        if self.toolCode.isEnabled() and (not digits.isdigit() or not 1 <= int(digits) <= 99):
             QMessageBox.warning(
                 self,
                 QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
@@ -661,7 +662,7 @@ class _MillingToolEditor(QDialog):
         """Return compact T1-T99 tool code and milling geometry."""
         raw = self.toolCode.text().strip().upper()
         digits = raw[1:] if raw.startswith("T") else raw
-        key = f"T{int(digits)}"
+        key = f"T{int(digits)}" if self.toolCode.isEnabled() else self._program_tool_code
         tool_type = self.currentType()
         diameter = metric_value(self.diameter)
         radius = metric_value(self.cornerRadius)

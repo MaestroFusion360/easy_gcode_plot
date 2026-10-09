@@ -43,6 +43,7 @@ def reset_program_setup(window):
     window.tools = {}
     window.millingTools = {}
     window.program_tool_inference = {}
+    window.exportToolNumbers = {}
     for name in ("toolLibraryDlg",):
         dialog = getattr(window, name, None)
         if dialog is not None:

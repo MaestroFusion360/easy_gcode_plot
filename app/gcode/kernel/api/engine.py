@@ -134,6 +134,8 @@ def _autodetect_arc_type(
 ) -> int:
     tolerance = max(0.0, float(tolerance))
     for motion in motions:
+        if motion.orientation is not None:
+            motion = _compensation_frame(motion, local=True)
         if turning:
             # Detection runs before per-step geometry metadata is attached.
             # Native turning X/I values are diameters; compare physical radii.
@@ -523,9 +525,7 @@ def _resolve_milling_compensation(result, motions, motion_step_owners, milling_t
             result,
             motions,
             code="UNVERIFIED_CUTTER_COMPENSATION",
-            message=(
-                "G41/G42 requires a configured T1-T99 milling cutter and supported resolved line/arc/helix geometry"
-            ),
+            message=("G41/G42 requires a configured milling cutter and supported resolved line/arc/helix geometry"),
             predicate=lambda motion: motion.compensation_mode in (41, 42) and not motion.compensation_applied,
         )
 

@@ -31,7 +31,7 @@ from app.gcode.kernel import execute
             2,
             (444.0, 0.0, 500.0),
             (-12.0, 506.0, -86.909, 86.909, -500.0, 500.0),
-            {"UNSUPPORTED_M_CODE", "UNSUPPORTED_TOOL_NUMBER", "UNVERIFIED_CUTTER_COMPENSATION"},
+            {"UNSUPPORTED_M_CODE", "UNVERIFIED_CUTTER_COMPENSATION"},
         ),
         (
             "indexed_table_b.nc",

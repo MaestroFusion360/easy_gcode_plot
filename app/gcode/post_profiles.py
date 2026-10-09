@@ -92,7 +92,7 @@ def load_post_profile(target):
     for section, keys in required.items():
         if not isinstance(profile.get(section), dict) or any(key not in profile[section] for key in keys):
             raise ValueError(f"Missing post profile fields in {section}")
-    if not isinstance(profile["options"]["decimalPlaces"], int) or not 0 <= profile["options"]["decimalPlaces"] <= 12:
+    if not _valid_decimal_places(profile["options"]["decimalPlaces"]):
         raise ValueError("Post decimalPlaces must be an integer from 0 to 12")
     if profile["format"]["arcMode"] not in {"IJK", "R"} or profile["format"]["arcCenter"] not in {
         "absolute",
@@ -250,8 +250,12 @@ _FORMAT_WORD_TOKENS = {
 _AXIS_WORD_KEYS = frozenset({"X", "Y", "Z", "A", "B", "C"})
 
 
+def _valid_decimal_places(value):
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 12
+
+
 def _validate_format_word_format(spec):
-    if "decimals" in spec and (not isinstance(spec["decimals"], int) or not 0 <= spec["decimals"] <= 12):
+    if "decimals" in spec and not _valid_decimal_places(spec["decimals"]):
         raise ValueError("Post format.words decimals must be an integer from 0 to 12")
     if "sign" in spec and spec["sign"] not in WORD_SIGNS:
         raise ValueError("Post format.words sign must be auto, always or never")

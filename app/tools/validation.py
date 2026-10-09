@@ -334,6 +334,15 @@ def normalized_tools(raw):
 
 def normalized_milling_tools(raw):
     """Return validated milling tool geometry from persisted library data."""
+    return _normalized_milling_tools(raw, program=False)
+
+
+def normalized_program_milling_tools(raw):
+    """Validate document geometry while preserving controller tool identities."""
+    return _normalized_milling_tools(raw, program=True)
+
+
+def _normalized_milling_tools(raw, *, program):
     raw = _tool_records(raw)
 
     tools = {}
@@ -341,9 +350,11 @@ def normalized_milling_tools(raw):
         if not isinstance(raw_spec, dict):
             continue
         tool_number = _tool_number(raw_key, minimum=1, maximum=99)
-        if tool_number is None:
+        if not program and tool_number is None:
             continue
-        key = f"T{tool_number}"
+        key = raw_key if program else f"T{tool_number}"
+        if not isinstance(key, str) or not key.strip():
+            continue
 
         spec = _milling_base_spec(raw_spec)
         if spec is None:

@@ -51,6 +51,7 @@ def test_export_package_contains_only_three_paths_and_shared_helpers():
         "common.py",
         "full.py",
         "expanded.py",
+        "tool_numbers.py",
         "dxf.py",
     }
     assert {path.stem for path in (folder / "posts").glob("*.json")} == {

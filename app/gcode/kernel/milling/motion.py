@@ -54,12 +54,12 @@ def _display_machine_position(position, state: MillState, wcs_offsets) -> tuple[
 
 
 def _validate_reference_retract(state: MillState, start, end, words, wcs_offsets) -> None:
-    """Do not synthesize a table Z return through the WCS centre plane."""
+    """Reject crossing the centre plane; reaching the logical zero is allowed."""
     if state.kinematics is None or "Z" not in words or "X" in words or "Y" in words:
         return
     centre_z = _wcs_offset(wcs_offsets, state.active_wcs)[2]
     start_distance, end_distance = start[2] - centre_z, end[2] - centre_z
-    if abs(start_distance) > 1e-8 and start_distance * end_distance <= 0:
+    if min(abs(start_distance), abs(end_distance)) > 1e-8 and start_distance * end_distance < 0:
         raise ValueError("Unsafe reference retract crosses the WCS centre plane; check machine home Z and WCS offset")
 
 
@@ -281,7 +281,9 @@ def _machine_coordinate_motion(
         else:
             end_machine[index] = start_machine[index] + value
 
-    if not supa or words.get("Z") == 0.0:
+    # Explicit nonzero machine targets have identical G53/SUPA semantics.
+    # The configured-home heuristic applies only to the zero/home shorthand.
+    if words.get("Z") == 0.0:
         _validate_reference_retract(state, start_machine, end_machine, words, wcs_offsets)
     append_reference_event(
         events,

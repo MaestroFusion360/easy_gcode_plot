@@ -1232,6 +1232,7 @@ X17.0
       </div>
       <div class="workflow" id="export-dialog">
         <h3>Export Data dialog</h3>
+        <p><strong>Experimental five-axis export.</strong> Five-axis FANUC ↔ SINUMERIK conversion may contain errors and is used entirely at your own risk. EXPANDED does not output G41/G42; disable cutter compensation in Options before five-axis conversion. Independently verify the uncompensated contour, WCS, tools and retracts before machine use. <a href="#dialect-conversion">Export details</a>.</p>
         <p>The dialog is split into two columns. The left column holds the export type, the target
           controller, arc output and the expanded output representation (modal feed, decimal places,
           force decimal and plus sign). The right column holds the program-text wrappers (start/end
@@ -1435,9 +1436,15 @@ X17.0
           decimal precision, force decimal, plus sign, arc output and start/end program text — are honored
           across FANUC and SINUMERIK targets; a profile default is used only when the user does not choose.
           Cycles and variables are resolved by the kernel; supported drilling and tapping operations use the selected post's cycle templates.
-          Physical coordinates use a zero-offset G54 frame. Three-axis posts reject rotary/TCP geometry;
+          Ordinary paths use a zero-offset G54 frame; supported tilted-plane programs retain G54–G59 and require matching target offsets. Three-axis posts reject rotary/TCP geometry;
           multiaxis posts reconstruct configured indexed A/B/C, verified simultaneous table-C motion and supported angled AC/BC TCP.
-          Tilted-plane/CYCLE800 reconstruction, indexed export about a displaced WCS origin and unverified geometry-changing commands remain unsupported.</p>
+          Experimental indexed AC/BC conversion reconstructs supported G68.2/G53.1 and CYCLE800 frames through the bundled multiaxis posts. Other displaced-WCS indexed cases and unverified geometry-changing commands remain unsupported.</p>
+        <p><strong>Five-axis FANUC ↔ SINUMERIK conversion is experimental, may contain errors, and is used entirely at your own risk.</strong>
+          Successful export or a clean Tokens table does not guarantee safe machining. Before running on a machine, independently verify
+          the controller/post, kinematics, WCS, tool numbers and length offsets, compensation, rotary branches and approach/retract moves;
+          check the output in machine simulation and perform a controlled dry run. OEM CYCLE800 retract paths are not modeled.
+        </p>
+        <p>G41/G42 cutter-radius compensation: EXPANDED does not output G41/G42 commands; bundled milling posts output G40. Before five-axis conversion, disable cutter compensation in Options to avoid compensation calculation/export errors. With compensation disabled, the exported path is the contour without cutter-radius compensation, not a compensated tool-center path; check the machining result independently. This instruction concerns radius compensation, not tool-length H/D offsets. Correct output for five-axis conversion with cutter compensation enabled is not guaranteed.</p>
         <p><strong>Options → General → 840D Extended cycles</strong> selects the native cycle interface:
           checked uses Siemens 03/2009, unchecked uses classic 01/2008. CLI retains
           <code>--sinumerik-cycles classic|sl</code>; this selection does not enable unsupported cycle operations.</p>

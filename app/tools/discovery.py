@@ -17,7 +17,7 @@ from app.tools.definitions import (
     DEFAULT_MILLING_TOOL,
     DEFAULT_TURNING_TOOL,
 )
-from app.tools.validation import normalized_milling_tools, normalized_tools
+from app.tools.validation import normalized_program_milling_tools, normalized_tools
 
 _native_scan_source = native_symbol("discovery", "scan_source")
 
@@ -266,7 +266,7 @@ def _program_operation_hints(program, turning, cancelled):
                 active_tool = _tool_key(word.expr, turning)
         syntax = node.native_syntax
         if syntax is not None and syntax.named_tool is not None:
-            active_tool = None
+            active_tool = None if turning else syntax.named_tool
         modal_kind = _native_modal_kind(syntax, modal_kind)
         kind = _operation_kind(node.words, True) if turning else _native_node_operation(node, modal_kind)
         if active_tool is not None and kind is not None:
@@ -274,13 +274,40 @@ def _program_operation_hints(program, turning, cancelled):
     return operations
 
 
+def _named_tool_occurrences(program, default_unit_scale, cancelled):
+    """Read executable named selections from the controller parser, not regexes."""
+    scale = default_unit_scale
+    previous = ""
+    previous_block = -100
+    for index, node in enumerate(program.ast.nodes):
+        _cancel_checkpoint(index, cancelled)
+        if _is_g65_call(node.words):
+            continue
+        scale = _block_scale(node.words, scale)
+        for word in node.words:
+            if word.letter == "G" and word.expr in {"700", "710"}:
+                scale = 25.4 if word.expr == "700" else 1.0
+        inline = " ".join(_comments(node.raw))
+        syntax = node.native_syntax
+        if syntax is not None and syntax.named_tool:
+            nearby = previous if node.block_index - previous_block <= 8 else ""
+            yield syntax.named_tool, inline, nearby, scale
+            previous = ""
+        elif inline and (not node.words or _is_tool_comment(inline)):
+            previous, previous_block = inline, node.block_index
+        elif any(word.letter in {"T", "X", "Y", "Z"} for word in node.words):
+            previous = ""
+
+
 def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None, source_dialect="fanuc", program=None):
     """Return source tool candidates and operation-based fallback geometry."""
     headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled)
+    if program is None and not turning and source_dialect == "sinumerik":
+        program = parse_sinumerik_program(source)
     if program is not None:
         operations = _program_operation_hints(program, turning, cancelled)
-    elif not turning and source_dialect == "sinumerik":
-        operations = _program_operation_hints(parse_sinumerik_program(source), False, cancelled)
+        if not turning:
+            occurrences = [*occurrences, *_named_tool_occurrences(program, default_unit_scale, cancelled)]
     descriptions = {}
     for key, inline, nearby, scale in occurrences:
         description = inline or headers.get(key, "") or nearby
@@ -297,4 +324,4 @@ def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None, s
         if description:
             spec["description"] = description
         tools[key] = spec
-    return normalized_tools(tools) if turning else normalized_milling_tools(tools)
+    return normalized_tools(tools) if turning else normalized_program_milling_tools(tools)

@@ -380,7 +380,7 @@ def _milling_transform_error(ctx, block, evaluated_block):
     if tcp_requested and (ctx.state.kinematics is None or ctx.state.kinematics.id not in TCP_TABLE_PROFILES):
         error = (
             "TCP_KINEMATICS_REQUIRED",
-            "G43.4 requires the 5ax_table_ac_angled or 5ax_table_bc_angled kinematics profile",
+            "G43.4 requires a supported AC/BC table kinematics profile",
         )
     elif tcp_requested and (ctx.state.twp.active or twp_requested) or twp_requested and ctx.state.tcp_control:
         error = ("UNSUPPORTED_TCP_TWP_COMPOSITION", "G43.4 cannot combine with G68.2 tilted-work-plane mode")
@@ -569,11 +569,15 @@ def _append_milling_state_events(
                     "TCP_CONTROL_ON",
                     block.index,
                     code="G43.4",
+                    tool=ctx.state.active_tool,
+                    length_offset=ctx.state.tool_length_h,
                     kinematics_profile=(ctx.state.kinematics.id if ctx.state.kinematics else None),
                 )
             )
     elif was_tcp_active and not ctx.state.tcp_control:
-        occurrence_events.append(ExecutionEvent("TCP_CONTROL_OFF", block.index))
+        occurrence_events.append(
+            ExecutionEvent("TCP_CONTROL_OFF", block.index, code="G49" if 49 in codes.all_g else "G43")
+        )
 
 
 def _resolve_unknown_milling_axes(state, words):

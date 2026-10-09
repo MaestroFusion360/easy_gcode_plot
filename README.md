@@ -180,7 +180,7 @@ Unsupported or ambiguous controller behavior is reported explicitly instead of b
 - GUI/CLI/kernel TRAORI/TRAFOOF TCP on the angled AC/BC table profiles, including G2/G3 with rotary interpolation.
 - Native CYCLE800 static frames and TRAORI/TRAFOOF TCP on angled AC/BC tables. Numeric A/B/C, direct R references and incremental IC values are supported for configured axes; DC selects the shortest absolute rotary approach; ambiguous half turns remain rejected.
 - `TURN=` multi-revolution arc handling.
-- EXPANDED serialization of resolved three-axis geometry plus configured indexed A/B/C, verified `4ax_table_c` simultaneous motion and AC/BC TCP through the bundled multiaxis FANUC/SINUMERIK profiles. Tilted-plane/CYCLE800 reconstruction remains fail-closed.
+- EXPANDED serialization of resolved three-axis geometry plus configured indexed A/B/C, verified `4ax_table_c` simultaneous motion and AC/BC TCP through the bundled multiaxis FANUC/SINUMERIK profiles. Supported G68.2/G53.1 and CYCLE800 indexed AC/BC frames can be converted experimentally through the bundled multiaxis posts; other frame combinations remain rejected.
 
 See [SINUMERIK 840D](#sinumerik-840d) for the exact supported subset and current limitations.
 
@@ -324,7 +324,7 @@ The kernel keeps a single resolved arc with the complete sweep. Rendering, playb
 
 Native XYZ geometry and modal cycles are supported; the GUI/CLI/kernel also accepts the bounded TCP subset below.
 
-GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91. Native extensions such as CUT3DC and FL[] are accepted with unmodeled warnings; their effects are not simulated. GUI profile selection reaches the same kernel and plotting path. Supplied CAM examples reach M30 in regression tests, but unmodeled warnings must be reviewed when interpreting the plotted geometry. Tilted-plane/CYCLE800 reconstruction remains unsupported in EXPANDED export.
+GUI/CLI/kernel TRAORI/TRAFOOF supports TCP on the angled AC/BC table profiles, including Cartesian G2/G3 arcs with rotary interpolation. Numeric A/B/C assignments and direct R references are supported only for configured axes. CYCLE800 supports the bounded static-frame subset described above. IC(numeric/direct R) is incremental independently of G90/G91. Native extensions such as CUT3DC and FL[] are accepted with unmodeled warnings; their effects are not simulated. GUI profile selection reaches the same kernel and plotting path. Review unmodeled-command warnings when interpreting the plot; reaching M30 alone does not guarantee correct geometry. Supported G68.2/G53.1 and CYCLE800 indexed AC/BC frames can be converted experimentally through the bundled multiaxis posts; other frame combinations remain rejected.
 
 Native programmable `TRANS`/`ATRANS` and `ROT`/`AROT` model translation and rigid spatial rotation before the active WCS. `TRANS` and `ROT` replace the entire programmable frame; either command without arguments resets it. Additive commands compose in the current local axes and retain the existing frame. Frame changes preserve the physical tool position and emit no motion. XYZ rotation uses the Siemens default RPY order Z → Y′ → X″ (MD10600=1); machines configured for Euler order require a different policy and are not covered. `RPL=` rotates in G17/G18/G19 around +Z/+Y/+X. Values accept numbers, direct R references and supported named scalars, with each frame instruction in a separate block. Composition with active CYCLE800/TWP, TCP, polar mode, cycles or cutter compensation is rejected. SCALE/MIRROR and their additive forms are outside this subset. FULL retains frame instructions; EXPANDED bakes the frame into resolved coordinates and linearizes arcs outside the standard output plane within the selected tolerance.
 
@@ -343,6 +343,12 @@ Native declarations, `G290/G291` switches and controller operations break an acc
 ---
 
 ## Export model
+
+**Five-axis FANUC ↔ SINUMERIK conversion is supported experimentally and may contain errors. Use the generated NC program entirely at your own risk.** Successful export or a clean Tokens table does not guarantee correct or collision-free machining. Before running on a machine, independently verify the target controller/post, machine kinematics, WCS, tool numbers and length offsets, compensation, rotary branches, and approach/retract moves; check the output in a suitable machine simulation and perform a controlled dry run. OEM CYCLE800 retract paths and a complete physical machine are not modeled.
+
+Indexed 3+2 frame conversion covers `5ax_table_ac`, `5ax_table_bc`, `5ax_table_ac_angled` and `5ax_table_bc_angled` with `fanuc_mill_multiaxis` / `sinumerik_840d_multiaxis`, using absolute output. Supported TCP conversion uses the configured AC/BC subset. Tilted-plane output retains G54–G59 selection and lists required work offsets in comments; configure the same offsets on the target. Named SINUMERIK tools retain their source identities; the GUI asks for distinct FANUC T1–T99 slots and emits the mapping in comments. Verify the corresponding H offsets in the target tool table. Explicit nonzero G53/SUPA targets remain explicit. Unverified geometry and unsupported combinations still reject.
+
+**G41/G42 cutter-radius compensation:** EXPANDED does not output G41/G42 commands; bundled milling posts output G40. Before five-axis conversion, disable cutter compensation in **Options** to avoid compensation calculation/export errors. With compensation disabled, the exported path is the contour without cutter-radius compensation, not a compensated tool-center path; check the machining result independently. This instruction concerns radius compensation, not tool-length H/D offsets. Correct output for five-axis conversion with cutter compensation enabled is not guaranteed.
 
 The GUI and CLI expose three export families: **FULL**, **EXPANDED** and **DXF**.
 
@@ -384,15 +390,14 @@ closed as `UNSUPPORTED` instead of writing partial NC. Multi-axis geometry (rota
 `CYCLE800`, `TRAORI`/TCP) remains unsupported by the three-axis postprocessor and is reported as a limitation, not an
 error.
 
-Cycles, variables and subprogram flow are already executed before EXPANDED serialization. Physical XYZ is emitted
-in one zero-offset G54 frame. The three-axis posts reject rotary/TWP/TCP geometry; the bundled multiaxis posts also
-reconstruct configured indexed A/B/C, the verified `4ax_table_c` continuous subset and supported AC/BC TCP. Tilted
-working planes/CYCLE800 remain fail-closed. Merely having a kinematics profile selected does not make an otherwise
+Cycles, variables and subprogram flow are already executed before EXPANDED serialization. Ordinary paths use
+a zero-offset G54 frame; supported tilted-plane programs retain G54–G59 and require matching target offsets. The three-axis posts reject rotary/TWP/TCP geometry; the bundled multiaxis posts also
+reconstruct configured indexed A/B/C, the verified `4ax_table_c` continuous subset and supported AC/BC TCP. Supported G68.2/G53.1 and CYCLE800 indexed AC/BC frames can be converted experimentally through the bundled multiaxis posts; other frame combinations remain rejected. Merely having a kinematics profile selected does not make an otherwise
 XYZ-only program rotary. Reference returns are emitted through the target profile (`G28`/`G53` or native `SUPA`) and
 unresolved position gaps fail closed.
 
-Indexed rotary EXPANDED export about a non-zero WCS origin remains fail-closed as
-`UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`: the current post contract does not reconstruct target frame offsets.
+Indexed rotary EXPANDED export about a displaced WCS outside the supported tilted-plane contract remains rejected
+as `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`; target offset tables are not written automatically.
 Split/linearized TCP arcs distribute rotary angles over their XYZ segments; incremental angle output avoids
 cumulative rounding drift. Reference traces retain the table frame separately from tool/head orientation.
 

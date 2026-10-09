@@ -32,6 +32,7 @@ from app.gcode.source_mode import (
 from app.gcode.trace_tools import format_tool_list, trace_statistics
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
+from app.ui.dialogs.export_tool_numbers import select_tool_numbers
 from app.ui.windows.execution_worker import run_execution
 
 LOGGER = logging.getLogger(__name__)
@@ -268,6 +269,7 @@ def _export_request(owner) -> tuple[ExportRequest, str, str]:
         force_decimal_explicit=True,
         plus_output=bool(getattr(owner, "exportPlusOutput", False)),
         plus_output_explicit=True,
+        tool_numbers=getattr(owner, "exportToolNumbers", None),
     )
     return request, source, request.encoding
 
@@ -790,6 +792,14 @@ class MainWindowFileMixin:
             return
         result = self.execution_result
         request, source, _encoding = _export_request(self)
+        if request.mode == "expanded" and request.format == "nc":
+            tool_numbers = select_tool_numbers(
+                self, result, request.target_dialect, getattr(self, "exportToolNumbers", {})
+            )
+            if tool_numbers is None:
+                return
+            self.exportToolNumbers = tool_numbers
+            request, source, _encoding = _export_request(self)
         cancellation = Event()
         try:
             written = run_execution(

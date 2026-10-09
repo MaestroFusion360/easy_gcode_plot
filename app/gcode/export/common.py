@@ -100,6 +100,9 @@ class ExportOptions:
     radius_split_angle: float = 90.0
     arc_split_angle: float = 180.0
     full_circle: str = "two_half"
+    tool_numbers: dict[str, int] | None = None
+    preserve_wcs: bool = False
+    work_offsets: dict[int, tuple[float, float, float]] | None = None
 
 
 def _window_export_options(window, *, arc_mode: int) -> ExportOptions:
@@ -327,7 +330,10 @@ def _require_continuous_motions(
                 (motion.start_x, motion.start_y, motion.start_z),
             )
         ):
-            raise ValueError("Cannot export resolved motion with an unverified position gap")
+            raise ExportLimitation(
+                "Cannot export resolved motion with an unverified position gap",
+                code="UNSUPPORTED_UNVERIFIED_GEOMETRY_EXPANDED_EXPORT",
+            )
 
 
 def _execution_slices(result: ExecutionResult):

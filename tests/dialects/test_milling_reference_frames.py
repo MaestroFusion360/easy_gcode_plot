@@ -167,10 +167,15 @@ def test_indexed_table_b_fixture_retract_and_next_approach_stay_outside_part(ref
 
 
 @pytest.mark.parametrize("reference", ["G91 G28 Z0", "G53 Z0"])
-def test_rotated_reference_crossing_wcs_centre_is_rejected(reference):
+@pytest.mark.parametrize("home_z", [0, -10])
+def test_rotated_reference_reaches_zero_but_rejects_crossing_wcs_centre(reference, home_z):
     result = execute(
-        f"G90 G0 B180\nG0 Z135\n{reference}\nM30", language="fanuc_mill", kinematics="4ax_table_b", home_z=0
+        f"G90 G0 B180\nG0 Z135\n{reference}\nM30", language="fanuc_mill", kinematics="4ax_table_b", home_z=home_z
     )
+    if home_z == 0:
+        assert result.ok and result.complete, result.diagnostics
+        assert any(m.source_kind in {"g28", "g53"} for m in result.motions)
+        return
     assert not result.ok
     assert any("WCS centre plane" in d.message for d in result.diagnostics)
     assert not any(m.source_kind in {"g28", "g53"} for m in result.motions)
