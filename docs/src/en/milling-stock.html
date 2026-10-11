@@ -1,0 +1,51 @@
+<section id="milling-stock" class="section">
+  <div class="section-heading">
+    <h2>3D milling stock removal</h2>
+    <p class="section-intro">
+      Material-removal simulation for three-axis milling using the executed
+      toolpath and configured cutter geometry.
+    </p>
+  </div>
+  <article class="story">
+    <div class="story-copy">
+      <h3>Stock setup and playback</h3>
+      <p>
+        Automatic or manual X/Y/Z box bounds, machining allowance and five
+        Accuracy levels. Flat, face, ball, corner-radius and tapered-ball cutter
+        profiles determine the cut surface.
+      </p>
+      <p>
+        Play/Pause, stepping and rewind synchronize the remaining stock with the
+        tool position. Stock and machined-surface colors are configurable. The
+        current machining stage can be exported as STL.
+      </p>
+      <a
+        class="text-link"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#milling-stock-removal"
+        >Milling stock settings and limitations →</a
+      >
+    </div>
+    <div class="story-media">
+      <figure class="screenshot-card">
+        <a
+          href="assets-optimized/milling_3d_stock_removal.webp"
+          data-gallery="milling-stock"
+          aria-label="3D milling stock removal on the GPU"
+          ><img
+            src="assets-optimized/milling_3d_stock_removal.webp"
+            width="960"
+            height="512"
+            alt="GPU milling stock simulation with G-code, a 3D box blank and playback controls"
+            loading="lazy"
+            decoding="async"
+        /></a>
+        <figcaption>Three-axis milling stock simulation</figcaption>
+      </figure>
+    </div>
+  </article>
+  <p class="note">
+    Removal and surface rendering run on the GPU and require OpenGL 4.3. The
+    model supports a box blank and vertical cutters. Rotary/TCP removal,
+    undercuts and subtraction from imported STL solids are not supported.
+  </p>
+</section>

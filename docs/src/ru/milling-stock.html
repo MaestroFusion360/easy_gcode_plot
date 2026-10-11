@@ -1,0 +1,52 @@
+<section id="milling-stock" class="section">
+  <div class="section-heading">
+    <h2>Симуляция удаления материала при фрезеровании</h2>
+    <p class="section-intro">
+      Моделирование съёма материала по рассчитанной траектории с учётом
+      геометрии инструмента.
+    </p>
+  </div>
+  <article class="story">
+    <div class="story-copy">
+      <h3>Заготовка и воспроизведение</h3>
+      <p>
+        Настраиваются границы заготовки X/Y/Z, припуск и один из пяти уровней
+        Accuracy. Съём учитывает профиль фрезы: плоский, торцевой, шаровой, с
+        радиусом при вершине или конический шаровой.
+      </p>
+      <p>
+        Play/Pause, изменение скорости и перемотка управляют воспроизведением.
+        Припуск и обработанная поверхность различаются цветом. Текущее состояние
+        заготовки можно сохранить в STL.
+      </p>
+      <a
+        class="text-link"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#как-устроено-gpu-ядро-съёма"
+        >Параметры, устройство ядра и ограничения →</a
+      >
+    </div>
+    <div class="story-media">
+      <figure class="screenshot-card">
+        <a
+          href="../assets-optimized/milling_3d_stock_removal.webp"
+          data-gallery="milling-stock"
+          aria-label="Симуляция удаления материала при фрезеровании"
+          ><img
+            src="../assets-optimized/milling_3d_stock_removal.webp"
+            width="960"
+            height="512"
+            alt="Фрезерная GPU-симуляция: G-код, трёхмерная заготовка и управление воспроизведением"
+            loading="lazy"
+            decoding="async"
+        /></a>
+        <figcaption>Симуляция заготовки при трёхосевом фрезеровании</figcaption>
+      </figure>
+    </div>
+  </article>
+  <p class="note">
+    Съём и отображение поверхности выполняются на GPU; требуется OpenGL 4.3.
+    Поддерживаются прямоугольная заготовка и вертикальная фреза.
+    Поворотные/TCP-движения, поднутрения и вычитание из импортированной
+    STL-сетки не поддерживаются.
+  </p>
+</section>

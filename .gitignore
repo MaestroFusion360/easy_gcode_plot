@@ -27,6 +27,9 @@ app/gcode/kernel/frontend/_native_parser*.so
 app/gcode/kernel/milling/_native_executor.c
 app/gcode/kernel/milling/_native_executor*.pyd
 app/gcode/kernel/milling/_native_executor*.so
+app/gcode/**/_native_stock.c
+app/gcode/**/_native_stock*.pyd
+app/gcode/**/_native_stock*.so
 app/tools/_native_discovery.c
 app/tools/_native_discovery*.pyd
 app/tools/_native_discovery*.so

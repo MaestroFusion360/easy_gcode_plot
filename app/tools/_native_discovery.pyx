@@ -3,6 +3,10 @@
 
 import re
 
+from app.tools.discovery_patterns import is_tool_comment
+
+COMMENT_HINTS_VERSION = 2
+
 from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_FromStringAndSize, PyBytes_GET_SIZE
 from libc.stdlib cimport free, malloc, realloc
 
@@ -10,11 +14,7 @@ from libc.stdlib cimport free, malloc, realloc
 cdef object _COMMENT_TOOL = re.compile(r"\bT\s*(\d+)\b", re.IGNORECASE)
 cdef object _LITERAL_TOOL = re.compile(br"[+-]?\d+(?:\.0*)?")
 cdef object _LITERAL_G65 = re.compile(br"\+?0*65(?:\.0*)?")
-cdef object _TOOL_HINT = re.compile(
-    r"\b(?:TAP(?:PING)?|THREAD(?:ING)?|GROOV(?:E|ING)|DRILL(?:ING)?|BALL|"
-    r"FACE MILL|SLOT MILL|CHAMFER|BULL|FLAT(?: END)? MILL|TOOL|OD|ID)\b",
-    re.IGNORECASE,
-)
+cdef object _LITERAL_M6 = re.compile(br"\+?0*6(?:\.0*)?")
 
 
 cdef inline bint _alpha(unsigned char ch) noexcept:
@@ -93,6 +93,8 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
     cdef bint has_xyz = False
     cdef object operation = None
     cdef bint g65_call = False
+    cdef bint tool_change = False
+    cdef bint header = False
     cdef double initial_scale = scale
 
     while pos <= size:
@@ -134,6 +136,10 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
                             operation = "thread"
                     elif letter == 88 or letter == 89 or letter == 90:
                         has_xyz = True
+                    elif letter == 77 and _LITERAL_M6.fullmatch(expr) is not None:
+                        tool_change = True
+                    elif letter == 79:
+                        header = True
             if pos == size:
                 break
             start = pos
@@ -145,8 +151,8 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
                 depth -= 1
         pos += 1
     if g65_call:
-        return [], None, has_words, False, False, initial_scale
-    return selected, operation, has_words, has_t, has_xyz, scale
+        return [], None, has_words, False, False, initial_scale, False, False
+    return selected, operation, has_words, has_t, has_xyz, scale, tool_change, header
 
 
 def scan_source(str source, bint turning, double default_unit_scale=1.0, cancelled=None):
@@ -172,6 +178,8 @@ def scan_source(str source, bint turning, double default_unit_scale=1.0, cancell
     cdef bint has_words
     cdef bint has_t
     cdef bint has_xyz
+    cdef bint tool_change
+    cdef bint header
     cdef object inline
     cdef object nearby
     cdef object key
@@ -180,6 +188,7 @@ def scan_source(str source, bint turning, double default_unit_scale=1.0, cancell
     cdef list occurrences = []
     cdef dict operations = {}
     cdef object active_tool = None
+    cdef object selected_tool = None
     cdef object previous = ""
     cdef Py_ssize_t previous_line = -100
 
@@ -238,11 +247,17 @@ def scan_source(str source, bint turning, double default_unit_scale=1.0, cancell
 
             if comments:
                 _remember_headers(headers, comments, turning)
-            selected, operation, has_words, has_t, has_xyz, scale = _scan_words(
+            selected, operation, has_words, has_t, has_xyz, scale, tool_change, header = _scan_words(
                 clean, clean_size, turning, scale
             )
-            if selected:
-                active_tool = selected[len(selected) - 1]
+            if header:
+                active_tool, selected_tool = None, None
+            if has_t:
+                selected_tool = selected[len(selected) - 1] if selected else None
+                if turning:
+                    active_tool = selected_tool
+            if not turning and tool_change:
+                active_tool = selected_tool
             if active_tool is not None and operation is not None:
                 operations.setdefault(active_tool, operation)
 
@@ -253,7 +268,7 @@ def scan_source(str source, bint turning, double default_unit_scale=1.0, cancell
 
             if has_t:
                 previous = ""
-            elif comments and _COMMENT_TOOL.search(inline) is None and (not has_words or _TOOL_HINT.search(inline)):
+            elif comments and _COMMENT_TOOL.search(inline) is None and (not has_words or is_tool_comment(inline)):
                 previous = inline
                 previous_line = index
             elif has_xyz:

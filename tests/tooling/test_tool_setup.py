@@ -16,6 +16,7 @@ from app.gcode.program_execution import execute_program
 from app.main_window import MainWindow
 from app.tools import discovery
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
+from app.tools.milling_geometry import milling_geometry_key
 from app.tools.setup import refresh_setup
 from app.ui.dialogs import tool_dialogs, tool_library_dialog
 
@@ -62,6 +63,38 @@ def test_same_t_number_in_different_files_uses_each_program_geometry(window, tmp
     assert library.list_tools() == before
 
 
+def test_first_published_frame_uses_resolved_current_program_tool(window):
+    tool = {"type": "taper_ball_mill", "diameter": 4, "length": 30, "taperAngle": 6}
+    window.millingToolLibrary = {"T2": tool}
+    window.ui.actionLatheMode.setChecked(False)
+    window.ui.editor.setText("T2 M6\nG1 X10 Z-2 F100\nM30")
+    window.millingTools = {}
+    assert window.updateData()
+    assert window._milling_tool_item.geometry_key == milling_geometry_key(tool)
+
+
+def test_current_program_edit_rebuilds_active_stock_without_changing_saved_library(window):
+    window.ui.actionLatheMode.setChecked(False)
+    saved = {"type": "mill_flat", "diameter": 12, "length": 30}
+    assigned = {"type": "taper_ball_mill", "diameter": 4, "length": 30, "taperAngle": 6}
+    window.millingToolLibrary = {"T2": saved}
+    window.ui.editor.setText("T2 M6\nG0 Z2\nG1 Z-2 F100\nG1 X10\nM30")
+    window.analyzeEditorSource()
+    window.millingTools["T2"] = assigned
+    assert window.updateData()
+    window.ui.actionStockPlayback.setChecked(True)
+    assert window._stock_animation_active
+    window.ui.horizontalSlider.setValue(window.ui.horizontalSlider.maximum())
+    previous = window._stock_timeline
+    window.millingTools["T2"] = {**assigned, "diameter": 6}
+    window.toolLibraryDlg._program_tool_changed()
+    assert window._stock_animation_active
+    assert window._stock_timeline is not previous
+    assert window._stock_timeline.tools["T2"]["diameter"] == 6
+    assert window._milling_tool_item.geometry_key == milling_geometry_key(window.millingTools["T2"])
+    assert window.millingToolLibrary["T2"] == saved
+
+
 def test_setup_refresh_updates_inferred_tools_but_preserves_manual_geometry():
     current = {}
     previous = refresh_setup("T1 M6 (FLAT MILL D6)\nT2 M6", current, {}, turning=False)
@@ -72,6 +105,22 @@ def test_setup_refresh_updates_inferred_tools_but_preserves_manual_geometry():
     refresh_setup("T2 M6", current, previous, turning=False)
     assert "T1" not in current
     assert current["T2"]["diameter"] == 12
+
+
+@pytest.mark.parametrize("dialect", ["fanuc", "sinumerik"])
+def test_current_program_dialog_excludes_uninstalled_preselected_tools(window, dialect):
+    window.ui.actionLatheMode.setChecked(False)
+    window._document_source_dialect = dialect
+    window.millingToolLibrary = {}
+    window.millingTools = {}
+    window.program_tool_inference = {}
+    window.ui.editor.setText("T1 M6 (FACE MILL D50)\nT2 (TAP D6)\nG1 X10 F100\nT3 (BALL END MILL D8)\nM6\nT7\nM30")
+    window.discover_program_tools(window.ui.editor.text())
+    dialog = window.toolLibraryDlg
+    dialog.refresh("milling")
+    assert set(window.millingTools) == {"T1", "T3"}
+    assert set(dialog._program_tools("milling")) == {"T1", "T3"}
+    assert window.millingTools["T1"]["type"] == "face_mill"
 
 
 def test_shared_execution_preserves_gui_tool_override(monkeypatch):

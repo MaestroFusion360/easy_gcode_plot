@@ -9,7 +9,7 @@
             <item>
                 <widget class="QCheckBox" name="enabledCheck">
                     <property name="text">
-                        <string>Run Stock Removal when Play is pressed</string>
+                        <string>Enable turning stock removal</string>
                     </property>
                 </widget>
             </item>

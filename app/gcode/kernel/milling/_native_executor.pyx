@@ -133,7 +133,9 @@ def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs
                 if k_value is not None:
                     k_value += offsets[2]
             if (
-                (start_x, start_y, start_z) != (end_x, end_y, end_z)
+                abs(start_x + offsets[0] - position[0]) > 1e-9
+                or abs(start_y + offsets[1] - position[1]) > 1e-9
+                or abs(start_z + offsets[2] - position[2]) > 1e-9
                 or (state.move in (2, 3) and (i_value is not None or j_value is not None or k_value is not None or radius is not None))
             ):
                 motion = TraceMotion(

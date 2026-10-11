@@ -34,7 +34,7 @@ def test_linear_stock_sweep_does_not_use_intermediate_motion_sampling(monkeypatc
     def fail_sample(*_args, **_kwargs):
         raise AssertionError("linear stock sweep must not sample intermediate tool positions")
 
-    monkeypatch.setattr("app.gcode.stock.sample_motion", fail_sample)
+    monkeypatch.setattr("app.gcode.stock.turning_stock.sample_motion", fail_sample)
     motion = TraceMotion(1, 50.0, -5.0, 30.0, -35.0, tool="T0101", x_scale=0.5)
     stock = TurningStockTimeline(
         (motion,),

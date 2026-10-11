@@ -93,6 +93,8 @@ def _option_snapshot(window):
         "current_color": getattr(window, "plotCurrentColor", "#00b7ff"),
         "tool_color": getattr(window, "plotToolColor", "#e3aa37"),
         "background_color": getattr(window, "plotBackground", "#ffffff"),
+        "stock_color": getattr(window, "plotStockColor", "#4fa7a0"),
+        "cut_color": getattr(window, "plotCutColor", "#b8a879"),
         "stl_color": getattr(window, "stlColor", "#b0b0b0"),
         "stl_wireframe": getattr(window, "stlWireframe", False),
         "rotary_kinematics": getattr(window, "rotaryKinematics", None),
@@ -231,6 +233,7 @@ class OptionsDialog(QDialog):
         self._configure_sinumerik_cycles_control()
         self._configure_rotary_kinematics_controls()
         self._configure_caret_line_color()
+        self._configure_stock_colors()
         self.hotkeyEditor = HotkeyEditor(self)
         self._color_controls = (
             (self.ui.caretLineColorButton, self.ui.caretLineColorEdit),
@@ -245,6 +248,8 @@ class OptionsDialog(QDialog):
             (self.ui.toolColorButton, self.ui.toolColorEdit),
             (self.ui.backgroundColorButton, self.ui.backgroundColorEdit),
             (self.ui.stlColorButton, self.ui.stlColorEdit),
+            (self.ui.stockColorButton, self.ui.stockColorEdit),
+            (self.ui.cutColorButton, self.ui.cutColorEdit),
         )
         validator = QRegularExpressionValidator(QRegularExpression(r"^#[0-9A-Fa-f]{6}$"), self)
         for button, edit in self._color_controls:
@@ -288,6 +293,26 @@ class OptionsDialog(QDialog):
         row.addWidget(button)
         row.addWidget(edit)
         self.ui.editorColorsForm.addRow(label, row)
+        return button, edit
+
+    def _configure_stock_colors(self):
+        self.ui.stockColorButton, self.ui.stockColorEdit = self._create_stock_color(
+            "stockColor", QCoreApplication.translate("OptionsDlg", "Stock material")
+        )
+        self.ui.cutColorButton, self.ui.cutColorEdit = self._create_stock_color(
+            "cutColor", QCoreApplication.translate("OptionsDlg", "Removed material")
+        )
+
+    def _create_stock_color(self, name, label):
+        button = QPushButton(self.ui.plotColorsGroup)
+        button.setObjectName(name + "Button")
+        edit = QLineEdit(self.ui.plotColorsGroup)
+        edit.setObjectName(name + "Edit")
+        edit.setMaxLength(7)
+        row = QHBoxLayout()
+        row.addWidget(button)
+        row.addWidget(edit)
+        self.ui.colorsForm.addRow(label, row)
         return button, edit
 
     def _configure_sinumerik_cycles_control(self):
@@ -429,6 +454,8 @@ class OptionsDialog(QDialog):
         self.ui.backgroundColorEdit.setText(window.plotBackground)
         self.ui.backgroundGradientCheck.setChecked(getattr(window, "plotBackgroundGradient", False))
         self.ui.stlColorEdit.setText(getattr(window, "stlColor", "#b0b0b0"))
+        self.ui.stockColorEdit.setText(getattr(window, "plotStockColor", "#4fa7a0"))
+        self.ui.cutColorEdit.setText(getattr(window, "plotCutColor", "#b8a879"))
         self.ui.stlWireframeCheck.setChecked(getattr(window, "stlWireframe", False))
         self.ui.lineWidthSpin.setValue(getattr(window, "plotLineWidth", 1.5))
         self.ui.gridStepSpin.setValue(getattr(window, "plotGridStep", 0.0))
@@ -542,6 +569,8 @@ class OptionsDialog(QDialog):
     def _apply_plot_options(self, window, color_edits, previous_theme):
         """Apply the Plot tab without changing execution semantics."""
         self._apply_plot_colors(window, color_edits, previous_theme)
+        window.plotStockColor = self.ui.stockColorEdit.text()
+        window.plotCutColor = self.ui.cutColorEdit.text()
         window.plotBackgroundGradient = self.ui.backgroundGradientCheck.isChecked()
         window.stlWireframe = self.ui.stlWireframeCheck.isChecked()
         window.plotLineWidth = self.ui.lineWidthSpin.value()
@@ -788,6 +817,8 @@ class OptionsDialog(QDialog):
             (self.ui.toolColorEdit, "#e3aa37"),
             (self.ui.backgroundColorEdit, "#ffffff"),
             (self.ui.stlColorEdit, "#b0b0b0"),
+            (self.ui.stockColorEdit, "#4fa7a0"),
+            (self.ui.cutColorEdit, "#b8a879"),
         ):
             edit.setText(value)
         self.ui.backgroundGradientCheck.setChecked(False)

@@ -210,7 +210,7 @@ def test_playback_stop_has_true_zero_motion_state(qt_app):
     window.deleteLater()
 
 
-def test_turning_stock_removal_uses_play_stop_and_rebuilds_after_update(qt_app):
+def test_turning_stock_removal_uses_stock_toggle_play_stop_and_rebuilds_after_update(qt_app):
     window = main_window.MainWindow()
     window.autoUpdateEnabled = False
     window.ui.actionLatheMode.setChecked(True)
@@ -230,6 +230,8 @@ def test_turning_stock_removal_uses_play_stop_and_rebuilds_after_update(qt_app):
         }
     )
 
+    window.ui.actionStockPlayback.setChecked(True)
+    assert not window.ui.actionPlay.isChecked()
     window.ui.actionPlay.setChecked(True)
     assert window._stock_animation_active  # pylint: disable=protected-access
     assert window._stock_item in window.ui.graphicsView.items  # pylint: disable=protected-access
@@ -264,6 +266,8 @@ def test_turning_stock_removal_uses_play_stop_and_rebuilds_after_update(qt_app):
     assert not window._stock_animation_active  # pylint: disable=protected-access
     assert window._toolpath_item in window.ui.graphicsView.items  # pylint: disable=protected-access
 
+    window.ui.actionStockPlayback.setChecked(True)
+    assert not window.ui.actionPlay.isChecked()
     window.ui.actionPlay.setChecked(True)
     assert window._stock_animation_active  # pylint: disable=protected-access
     window.stop()

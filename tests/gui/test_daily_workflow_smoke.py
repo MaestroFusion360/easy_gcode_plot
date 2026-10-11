@@ -327,8 +327,9 @@ def _stock(window, app):
     assert window.turnStockFrontZ == 1
     assert window.turnStockResolution == 0.1
     window.ui.playbackSpeedSlider.setValue(5)
-    window.ui.actionPlay.setChecked(True)
+    window.ui.actionStockPlayback.setChecked(True)
     _wait(app, lambda: window._stock_animation_active, "stock playback")
+    window.ui.actionPlay.setChecked(True)
     _wait(app, lambda: window.ui.horizontalSlider.value() > 0, "stock playback advances")
     _settle(app, "Play: complete Stock Removal", 2)
     timeline = window._stock_timeline

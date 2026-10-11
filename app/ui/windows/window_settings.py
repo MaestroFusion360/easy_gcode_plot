@@ -79,6 +79,16 @@ _STOCK_SETTINGS = (
     _SettingSpec("LENGTH", "turnStockLength", 100.0, float),
     _SettingSpec("RESOLUTION", "turnStockResolution", 0.5, float),
     _SettingSpec("FRONT_ALLOWANCE", "turnStockFrontAllowance", 2.0, float),
+    _SettingSpec("MILL_MANUAL", "millingStockManual", False, bool),
+    _SettingSpec("MILL_ALLOWANCE", "millingStockAllowance", 3.0, float),
+    _SettingSpec("MILL_RESOLUTION", "millingStockResolution", 1.0, float),
+    _SettingSpec("MILL_ACCURACY", "millingStockAccuracy", 2, int, lambda value: max(0, min(4, int(value)))),
+    _SettingSpec("MILL_X_MINUS", "millingStockXMinus", -10.0, float),
+    _SettingSpec("MILL_X_PLUS", "millingStockXPlus", 10.0, float),
+    _SettingSpec("MILL_Y_MINUS", "millingStockYMinus", -10.0, float),
+    _SettingSpec("MILL_Y_PLUS", "millingStockYPlus", 10.0, float),
+    _SettingSpec("MILL_Z_MINUS", "millingStockZMinus", -10.0, float),
+    _SettingSpec("MILL_Z_PLUS", "millingStockZPlus", 10.0, float),
 )
 
 _PLOT_SETTINGS = (
@@ -470,6 +480,8 @@ class MainWindowSettingsMixin:
         self.plotBackground = theme.themed_plot_value(
             self.settings.value("PLOT/BACKGROUND", "#ffffff"), "background", self.uiTheme
         )
+        self.plotStockColor = self.settings.value("PLOT/STOCK_COLOR", "#4fa7a0", type=str)
+        self.plotCutColor = self.settings.value("PLOT/CUT_COLOR", "#b8a879", type=str)
         self.stlColor = theme.themed_plot_value(self.settings.value("PLOT/STL_COLOR", "#b0b0b0"), "stl", self.uiTheme)
         grid_color = self.settings.value("PLOT/GRID_COLOR", "#808080")
         if QColor(grid_color).name() == "#d3d3d3":
@@ -560,6 +572,7 @@ class MainWindowSettingsMixin:
 
     def setPlaybackSpeed(self, level):
         """Apply the shared playback speed from the toolbar or Options."""
+        self._milling_play_clock = None
         self.playbackSpeed = max(1, min(5, int(level)))
         self.speedTimer = playback_interval_ms(self.playbackSpeed)
         blocked = self.ui.playbackSpeedSlider.blockSignals(True)
@@ -569,6 +582,8 @@ class MainWindowSettingsMixin:
             self.timer.start(self.speedTimer, self)
         self.settings.setValue("PLOT/PLAYBACK_SPEED", self.playbackSpeed)
         self.settings.setValue("PLOT/TIMER_SPEED", self.speedTimer)
+        if getattr(self, "_stock_animation_active", False) and not self.latheMode:
+            self._request_milling_stock_quality()
 
     def _load_hotkeys(self):
         self.hotkeyActions = {key: action for key, action, _category in menu_commands(self)}
@@ -633,6 +648,8 @@ class MainWindowSettingsMixin:
         self.settings.setValue("CURRENT_COLOR", self.plotCurrentColor)
         self.settings.setValue("TOOL_COLOR", self.plotToolColor)
         self.settings.setValue("BACKGROUND", self.plotBackground)
+        self.settings.setValue("STOCK_COLOR", self.plotStockColor)
+        self.settings.setValue("CUT_COLOR", self.plotCutColor)
         self.settings.setValue("STL_COLOR", self.stlColor)
         self.settings.setValue("GRID_COLOR", self.plotGridColor)
         self.settings.endGroup()

@@ -318,6 +318,7 @@ def test_fanuc_mill_fixture_motion_trace_never_teleports_between_adjacent_moves(
         language="fanuc_mill",
         kinematics=kinematics,
         home_z=500.0,
+        autodetect_arc_type=True,
     )
     assert result.ok and result.complete, result.diagnostics
     assert result.motions

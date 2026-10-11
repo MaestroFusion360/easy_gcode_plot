@@ -265,7 +265,7 @@ class ToolLibraryDialog(QDialog):
             return
         _key, spec = editor.value()
         tools[key] = deepcopy(spec)
-        self.parent().updateData()
+        self._program_tool_changed()
         self.refresh(kind, selected_program=key)
 
     def assign_from_library(self, kind):
@@ -274,8 +274,18 @@ class ToolLibraryDialog(QDialog):
         if program_key is None or library_key is None:
             return
         self._program_tools(kind)[program_key] = deepcopy(self.library_tools(kind)[library_key])
-        self.parent().updateData()
+        self._program_tool_changed()
         self.refresh(kind, selected_program=program_key, selected_library=library_key)
+
+    def _program_tool_changed(self):
+        parent = self.parent()
+        stock_active = bool(getattr(parent, "_stock_animation_active", False))
+        position = parent.ui.horizontalSlider.value()
+        parent._deferred_execution_result = None  # pylint: disable=protected-access
+        parent._deferred_execution_source = None  # pylint: disable=protected-access
+        if parent.updateData() and stock_active:
+            parent.ui.actionStockPlayback.setChecked(True)
+            parent.ui.horizontalSlider.setValue(min(position, parent.ui.horizontalSlider.maximum()))
 
     def save_program_to_library(self, kind):
         program_key = self._selected_key(kind, "program")

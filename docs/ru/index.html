@@ -17,14 +17,14 @@
       content="Редактируйте G-код, изучайте траектории в 3D, создавайте геометрию, анализируйте программы и экспортируйте исполнение."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Easy G-Code Plot 1.9.8" />
+    <meta property="og:title" content="Easy G-Code Plot 2.0.0" />
     <meta
       property="og:url"
       content="https://maestrofusion360.github.io/easy_gcode_plot/ru/"
     />
     <meta
       property="og:image"
-      content="https://maestrofusion360.github.io/easy_gcode_plot/assets/img1.png"
+      content="https://maestrofusion360.github.io/easy_gcode_plot/assets-optimized/img1.webp"
     />
     <meta name="theme-color" content="#151619" />
     <title>Easy G-Code Plot — Редактор и визуализатор программ ЧПУ</title>
@@ -43,7 +43,7 @@
     <a class="brand" href="../index.html"
       ><img src="../assets/logo.svg" width="36" height="36" alt="" /><span
         >Easy G-Code Plot</span
-      ><span class="version">1.9.8</span></a
+      ><span class="version">2.0.0</span></a
     >
     <button
       class="nav-toggle"
@@ -88,6 +88,12 @@
         data-windows-download="gui"
         href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
         >Скачать для Windows <span aria-hidden="true">↗</span></a
+      >
+      <a
+        class="button"
+        data-linux-download="archive"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        >Скачать для Linux (.tar.gz)</a
       ><a class="button" href="#visualization"
         >Посмотреть возможности <span aria-hidden="true">↓</span></a
       >
@@ -132,15 +138,17 @@
         loop
         playsinline
         controls
-        poster="../assets/easy_gcode_plot-poster.jpg"
+        poster="../assets-optimized/easy_gcode_plot-poster.webp"
         preload="none"
         aria-label="Демонстрация траектории в Easy G-Code Plot"
       >
         <source
-          src="../assets/easy_gcode_plot.mp4?v=1.9.8-crop1"
+          src="../assets-optimized/easy_gcode_plot.mp4?v=2.0.0-webp1"
           type="video/mp4"
         />
-        <a href="../assets/easy_gcode_plot.mp4?v=1.9.8-crop1">Открыть видео</a>
+        <a href="../assets-optimized/easy_gcode_plot.mp4?v=2.0.0-webp1"
+          >Открыть видео</a
+        >
       </video>
       <button
         type="button"
@@ -154,7 +162,9 @@
     </div>
     <figcaption>
       Управляющая программа и траектория инструмента.
-      <a data-video-viewer href="../assets/easy_gcode_plot.mp4?v=1.9.8-crop1"
+      <a
+        data-video-viewer
+        href="../assets-optimized/easy_gcode_plot.mp4?v=2.0.0-webp1"
         >Смотреть видео ↗</a
       >
     </figcaption>
@@ -165,6 +175,58 @@
   <p><span>02</span>Расчёт и визуализация траектории</p>
   <p><span>03</span>Анализ и экспорт</p>
 </div>
+<section id="milling-stock" class="section">
+  <div class="section-heading">
+    <h2>Симуляция удаления материала при фрезеровании</h2>
+    <p class="section-intro">
+      Моделирование съёма материала по рассчитанной траектории с учётом
+      геометрии инструмента.
+    </p>
+  </div>
+  <article class="story">
+    <div class="story-copy">
+      <h3>Заготовка и воспроизведение</h3>
+      <p>
+        Настраиваются границы заготовки X/Y/Z, припуск и один из пяти уровней
+        Accuracy. Съём учитывает профиль фрезы: плоский, торцевой, шаровой, с
+        радиусом при вершине или конический шаровой.
+      </p>
+      <p>
+        Play/Pause, изменение скорости и перемотка управляют воспроизведением.
+        Припуск и обработанная поверхность различаются цветом. Текущее состояние
+        заготовки можно сохранить в STL.
+      </p>
+      <a
+        class="text-link"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#как-устроено-gpu-ядро-съёма"
+        >Параметры, устройство ядра и ограничения →</a
+      >
+    </div>
+    <div class="story-media">
+      <figure class="screenshot-card">
+        <a
+          href="../assets-optimized/milling_3d_stock_removal.webp"
+          data-gallery="milling-stock"
+          aria-label="Симуляция удаления материала при фрезеровании"
+          ><img
+            src="../assets-optimized/milling_3d_stock_removal.webp"
+            width="960"
+            height="512"
+            alt="Фрезерная GPU-симуляция: G-код, трёхмерная заготовка и управление воспроизведением"
+            loading="lazy"
+            decoding="async"
+        /></a>
+        <figcaption>Симуляция заготовки при трёхосевом фрезеровании</figcaption>
+      </figure>
+    </div>
+  </article>
+  <p class="note">
+    Съём и отображение поверхности выполняются на GPU; требуется OpenGL 4.3.
+    Поддерживаются прямоугольная заготовка и вертикальная фреза.
+    Поворотные/TCP-движения, поднутрения и вычитание из импортированной
+    STL-сетки не поддерживаются.
+  </p>
+</section>
 <section id="visualization" class="section">
   <div class="section-heading">
     <div>
@@ -189,11 +251,11 @@
     <div class="story-media">
       <figure class="screenshot-card">
         <a
-          href="../assets/impeller.gif"
+          href="../assets-optimized/impeller.webp"
           data-gallery="visualization"
           aria-label="Пошаговый просмотр траектории инструмента"
           ><img
-            src="../assets/impeller.gif"
+            src="../assets-optimized/impeller.webp"
             width="1280"
             height="720"
             alt="Пошаговый просмотр траектории инструмента"
@@ -207,11 +269,11 @@
         <div class="media-pair reference-body">
           <figure class="screenshot-card">
             <a
-              href="../assets/stl_objects.png"
+              href="../assets-optimized/stl_objects.webp"
               data-gallery="visualization"
               aria-label="STL-модели в сцене"
               ><img
-                src="../assets/stl_objects.png"
+                src="../assets-optimized/stl_objects.webp"
                 width="1326"
                 height="733"
                 alt="STL-модели в сцене"
@@ -222,11 +284,11 @@
           </figure>
           <figure class="screenshot-card">
             <a
-              href="../assets/img3.png"
+              href="../assets-optimized/img3.webp"
               data-gallery="visualization"
               aria-label="Проверка фрезерной траектории"
               ><img
-                src="../assets/img3.png"
+                src="../assets-optimized/img3.webp"
                 width="1203"
                 height="603"
                 alt="Проверка фрезерной траектории"
@@ -252,11 +314,11 @@
     <div class="story-media">
       <figure class="screenshot-card">
         <a
-          href="../assets/stock_removal.gif"
+          href="../assets-optimized/stock_removal.webp"
           data-gallery="visualization"
           aria-label="Снятие материала при точении"
           ><img
-            src="../assets/stock_removal.gif"
+            src="../assets-optimized/stock_removal.webp"
             width="1280"
             height="720"
             alt="Снятие материала при точении"
@@ -270,11 +332,11 @@
         <div class="media-pair reference-body">
           <figure class="screenshot-card">
             <a
-              href="../assets/img4.png"
+              href="../assets-optimized/img4.webp"
               data-gallery="visualization"
               aria-label="Траектории токарных циклов"
               ><img
-                src="../assets/img4.png"
+                src="../assets-optimized/img4.webp"
                 width="1200"
                 height="606"
                 alt="Траектории токарных циклов"
@@ -285,11 +347,11 @@
           </figure>
           <figure class="screenshot-card">
             <a
-              href="../assets/img5.png"
+              href="../assets-optimized/img5.webp"
               data-gallery="visualization"
               aria-label="Профиль токарной заготовки"
               ><img
-                src="../assets/img5.png"
+                src="../assets-optimized/img5.webp"
                 width="1200"
                 height="606"
                 alt="Профиль токарной заготовки"
@@ -314,11 +376,11 @@
     </div>
     <figure class="screenshot-card">
       <a
-        href="../assets/4ax_table.gif"
+        href="../assets-optimized/4ax_table.webp"
         data-gallery="visualization"
         aria-label="Обработка с поворотными осями"
         ><img
-          src="../assets/4ax_table.gif"
+          src="../assets-optimized/4ax_table.webp"
           width="1280"
           height="720"
           alt="Обработка с поворотными осями"
@@ -348,11 +410,11 @@
   <div class="media-pair">
     <figure class="screenshot-card">
       <a
-        href="../assets/tool_library.png"
+        href="../assets-optimized/tool_library.webp"
         data-gallery="tools"
         aria-label="Библиотека фрезерного инструмента"
         ><img
-          src="../assets/tool_library.png"
+          src="../assets-optimized/tool_library.webp"
           width="942"
           height="652"
           alt="Библиотека фрезерного инструмента"
@@ -363,11 +425,11 @@
     </figure>
     <figure class="screenshot-card">
       <a
-        href="../assets/tool_library2.png"
+        href="../assets-optimized/tool_library2.webp"
         data-gallery="tools"
         aria-label="Библиотека токарного инструмента"
         ><img
-          src="../assets/tool_library2.png"
+          src="../assets-optimized/tool_library2.webp"
           width="942"
           height="652"
           alt="Библиотека токарного инструмента"
@@ -382,11 +444,11 @@
     <div class="media-pair reference-body">
       <figure class="screenshot-card">
         <a
-          href="../assets/snippets.png"
+          href="../assets-optimized/snippets.webp"
           data-gallery="tools"
           aria-label="Повторно используемые фрагменты кода"
           ><img
-            src="../assets/snippets.png"
+            src="../assets-optimized/snippets.webp"
             width="728"
             height="462"
             alt="Повторно используемые фрагменты кода"
@@ -397,11 +459,11 @@
       </figure>
       <figure class="screenshot-card">
         <a
-          href="../assets/optons.png"
+          href="../assets-optimized/optons.webp"
           data-gallery="tools"
           aria-label="Настройки редактора и расчёта"
           ><img
-            src="../assets/optons.png"
+            src="../assets-optimized/optons.webp"
             width="662"
             height="588"
             alt="Настройки редактора и расчёта"
@@ -435,11 +497,11 @@
     <div class="media-pair">
       <figure class="screenshot-card">
         <a
-          href="../assets/hole_calculator.png"
+          href="../assets-optimized/hole_calculator.webp"
           data-gallery="generators"
           aria-label="Отверстия по окружности"
           ><img
-            src="../assets/hole_calculator.png"
+            src="../assets-optimized/hole_calculator.webp"
             width="687"
             height="392"
             alt="Отверстия по окружности"
@@ -450,11 +512,11 @@
       </figure>
       <figure class="screenshot-card">
         <a
-          href="../assets/hole_calculator2.png"
+          href="../assets-optimized/hole_calculator2.webp"
           data-gallery="generators"
           aria-label="Прямоугольная сетка отверстий"
           ><img
-            src="../assets/hole_calculator2.png"
+            src="../assets-optimized/hole_calculator2.webp"
             width="687"
             height="392"
             alt="Прямоугольная сетка отверстий"
@@ -476,11 +538,11 @@
     <div class="media-pair">
       <figure class="screenshot-card">
         <a
-          href="../assets/poctet_calculator.png"
+          href="../assets-optimized/poctet_calculator.webp"
           data-gallery="generators"
           aria-label="Круглый карман"
           ><img
-            src="../assets/poctet_calculator.png"
+            src="../assets-optimized/poctet_calculator.webp"
             width="861"
             height="452"
             alt="Круглый карман"
@@ -491,11 +553,11 @@
       </figure>
       <figure class="screenshot-card">
         <a
-          href="../assets/poctet_calculator2.png"
+          href="../assets-optimized/poctet_calculator2.webp"
           data-gallery="generators"
           aria-label="Прямоугольный карман"
           ><img
-            src="../assets/poctet_calculator2.png"
+            src="../assets-optimized/poctet_calculator2.webp"
             width="861"
             height="454"
             alt="Прямоугольный карман"
@@ -542,7 +604,8 @@
       <h3>Геометрия инструмента</h3>
       <p>
         Библиотека и настройки текущей программы задают геометрию для
-        поддержанной компенсации и снятия материала при точении.
+        поддержанной компенсации, снятия материала при точении и трёхосевом
+        фрезеровании.
       </p>
     </article>
   </div>
@@ -572,11 +635,11 @@
     </div>
     <figure class="screenshot-card">
       <a
-        href="../assets/export.png"
+        href="../assets-optimized/export.webp"
         data-gallery="export"
         aria-label="Настройки экспорта"
         ><img
-          src="../assets/export.png"
+          src="../assets-optimized/export.webp"
           width="622"
           height="462"
           alt="Настройки экспорта"
@@ -603,11 +666,11 @@
   <div class="report-preview">
     <figure class="screenshot-card">
       <a
-        href="../assets/statistics.html.png"
+        href="../assets-optimized/statistics.html.webp"
         data-gallery="statistics"
         aria-label="Статистика программы и каждого инструмента"
         ><img
-          src="../assets/statistics.html.png"
+          src="../assets-optimized/statistics.html.webp"
           width="721"
           height="623"
           alt="Статистика программы и каждого инструмента"

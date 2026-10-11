@@ -16,6 +16,19 @@ from app.gcode.program_execution import execute_program
 TARGETS = ("fanuc_mill_multiaxis", "sinumerik_840d_multiaxis")
 
 
+@pytest.mark.parametrize("cycle", (False, True))
+@pytest.mark.parametrize("explicit_motion", (False, True))
+def test_absolute_position_after_incremental_roundoff_has_no_extra_motion(cycle, explicit_motion):
+    source = "G90 G0 Z5\nG91 Y0.1\nY0.2\nG90\n"
+    source += "G81 Y0.3 Z-1 R2 F100\nG80\n" if cycle else ("G0 " if explicit_motion else "") + "Y0.3\n"
+    result = execute(source + "M30", language="fanuc_mill")
+    assert result.ok and result.complete, result.diagnostics
+    assert len(result.motions) == (6 if cycle else 3)
+    assert result.motions[-1].end_y == pytest.approx(0.3)
+    if cycle:
+        assert [motion.move for motion in result.motions[-3:]] == [0, 1, 0]
+
+
 def _replay(text, target, profile, **kwargs):
     result = execute(
         text,
@@ -134,11 +147,9 @@ def test_real_fixture_semantic_replay(fixture_text, fixture, kinematics, target,
     )
     assert original.ok and original.complete, original.diagnostics
     if fixture == "fanuc/indexed_table_b.nc":
-        assert any(d.code == "UNVERIFIED_CUTTER_COMPENSATION" for d in original.diagnostics)
-        with pytest.raises(ExportLimitation) as error:
-            convert_resolved_program(original, target, ExportOptions(incremental=incremental))
-        assert error.value.code == "UNSUPPORTED_UNVERIFIED_GEOMETRY_EXPANDED_EXPORT"
-        return
+        # A preselected next tool must not inherit the active tool's drill
+        # cycle and incorrectly invalidate the later milling compensation.
+        assert not any(d.code == "UNVERIFIED_CUTTER_COMPENSATION" for d in original.diagnostics)
     text = convert_resolved_program(original, target, ExportOptions(delimiter=True, incremental=incremental))
     replay = _replay(text, target, kinematics, home_z=500, autodetect_arc_type=True)
     assert motion_traces_match(original, replay, allow_split_cycle_rapids=True)

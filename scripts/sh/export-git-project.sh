@@ -41,7 +41,7 @@ trap 'rm -rf -- "$temporary_git" "$staging"' EXIT
 git --git-dir="$temporary_git" --work-tree="$project_root" init --quiet
 count=0
 while IFS= read -r -d '' relative_path; do
-    if $skip_assets && [[ $relative_path == docs/assets/* ]]; then
+    if $skip_assets && [[ $relative_path == docs/assets/* || $relative_path == docs/assets-optimized/* ]]; then
         continue
     fi
 

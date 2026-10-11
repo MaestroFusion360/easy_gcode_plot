@@ -2,114 +2,18 @@
 
 ## Current direction
 
-Current baseline: **1.9.8**. This roadmap tracks remaining work and future priorities. Release history is maintained in [CHANGELOG](CHANGELOG.md).
+Current development baseline: **2.0.0**, **not released**. Three-axis milling stock removal is now implemented. The current phase focuses on testing, performance tuning and fixing the new simulation alongside the existing turning, execution and export workflows.
 
-Until **2.0.0**, the project is in **feature freeze**.
+The 1.9.x stabilization phase is complete; its delivered changes are recorded under versions 1.9.5–1.9.8 in [CHANGELOG](CHANGELOG.md). This roadmap tracks current validation and future work rather than repeating completed stabilization tasks.
 
-The goal is not to add new user-facing capabilities, but to stabilize the existing system, remove heuristic behavior, close architectural debt, and make all existing layers predictable across GUI, CLI, export, visualization, Tool Library, generators, reports, tests, Windows and Linux.
+## 2.0.0 — Validation before release
 
-The export refactor and multiaxis export work are considered architectural completion of the existing export subsystem rather than new product features.
-
----
-
-# 1.9.x → 2.0.0 — Stabilization phase
-
-## Remaining stabilization work toward 2.0.0
-
-### Milling verification priority
-
-Focus the next geometry/post audit on `fanuc_mill` and native SINUMERIK milling:
-
-- indexed 3+1 motion on configured single rotary axes;
-- indexed 3+2 machining with working-plane and WCS transformations;
-- simultaneous four-axis motion, starting with the supported table-C contract;
-- five-axis TCP motion on the supported AC/BC profiles, including arcs and orientation changes.
-
-Use real CAM programs, independently specified geometry and export/re-execution comparisons. Test configured tools, compensation on/off, units, reference returns and displaced WCS origins. Verify native compatibility across cycle interface generations. Extend spatial-arc verification to indexed/TCP frames and target-controller arc reconstruction; planar G2/G3 coverage does not establish support for arbitrary spatial arcs.
-
-### Export limitations and verification
-
-- Harden experimental five-axis FANUC ↔ SINUMERIK conversion, including the supported AC/BC `G68.2/G53.1` and `CYCLE800` frame reconstruction. Expand independent machine/post verification; conversion may contain errors and remains at the user's own risk.
-- Extend displaced-WCS indexed export beyond the supported tilted-plane contract, which already retains G54–G59 and documents required target offsets. Remaining cases reject with `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`; verify compensation and OEM retract behavior independently.
-- Extend continuous rotary reconstruction beyond the verified table-C and AC/BC TCP subsets only when replay can verify the resulting geometry and state.
-- Add semantic drilling-cycle reconstruction for supported FANUC turning operations; reading and plotting these operations does not imply cycle reconstruction in EXPANDED.
-
-The [README export model](README.md#export-model), [English FAQ](FAQ.md#export) and [Russian FAQ](FAQ_RU.md#экспорт) describe the current user contract. The items above extend that contract and require semantic replay verification before becoming supported.
-
-### Post profile hardening
-
-Increase test coverage for JSON post profiles:
-
-- `supports.axes`;
-- TCP support;
-- word order;
-- required/modal words;
-- absolute/incremental output;
-- modal motion;
-- IJK absolute/relative;
-- radius arcs;
-- linearized arcs;
-- decimals;
-- sign output;
-- leading zero;
-- delimiter;
-- safety/start/end program blocks;
-- reference move syntax;
-- TCP on/off commands.
-
-Where possible, validate profiles through:
-
-```text
-source
-→ execute
-→ export
-→ re-execute exported NC
-→ compare trajectory/orientation semantics
-```
-
----
-
-## 1.9.x — Bugfix and heuristic cleanup
-
-No feature expansion.
-
-Priority areas:
-
-- eliminate remaining heuristic interpretation where deterministic semantics are available;
-- improve source-line diagnostics and remove misleading global diagnostics;
-- keep warnings separate from true export blockers;
-- fix GUI/CLI behavior mismatches;
-- fix Windows/Linux differences;
-- verify packaged builds, not only source-tree execution;
-- improve cancellation and long-program behavior;
-- continue regression coverage for real CAM programs;
-- keep batch export as a semantic regression tool;
-- fix edge cases in FANUC and SINUMERIK dialect handling;
-- harden Tool Library data flow and current-program tool handling;
-- stabilize reports, generators, snippets, and export dialogs without adding new capabilities.
-
----
-
-# 2.0.0 — Stable baseline
-
-2.0.0 should mark the point where the existing product surface is considered technically coherent and stable.
-
-Expected baseline:
-
-- GUI works as the main desktop workflow;
-- CLI is stable and shares the same kernel/export contracts;
-- visualization is reliable;
-- Tool Library is reliable;
-- three-axis export/conversion is stable;
-- multiaxis export has a deterministic supported contract;
-- FANUC/SINUMERIK execution paths are covered by real fixtures;
-- GUI/CLI/batch use shared execution and export services;
-- Windows and Linux build paths are validated;
-- diagnostics identify the real source frame;
-- batch semantic regression prevents silent export corruption;
-- no known major architectural subsystem remains on a legacy path.
-
-2.0.0 is the end of the stabilization phase, not the end of development.
+- Verify milling stock removal on real CAM programs, including large files and ball-mill finishing.
+- Check all playback speeds, rapid slider seeks, rewind, tool changes and cancellation, keeping the stock and tool position synchronized.
+- Verify the five fixed Accuracy levels across playback speeds and GPU memory limits.
+- Verify STL export tolerances, units, closed surfaces, cancellation and import into CAD tools.
+- Keep turning behavior covered by regressions while validating GPU milling removal and packaged Windows/Linux builds.
+- Fix issues found during this phase before deciding on a release. The version number does not mark a published release or completed validation.
 
 ---
 
@@ -272,24 +176,13 @@ Keep this intentionally limited to NC contour construction rather than evolving 
 
 ---
 
-## Priority E — Milling stock removal
+## Priority E — Further stock simulation development
 
-Add material-removal simulation for milling.
+Three-axis milling stock removal is part of the 2.0.0 development baseline. Continue work on this foundation after its current validation phase:
 
-This is expected to be the most technically expensive post-2.0 feature.
-
-Initial scope should be **3-axis only**.
-
-Possible staged implementation:
-
-1. simple rectangular/cylindrical stock;
-2. cutter swept-volume removal;
-3. playback/rewind synchronization;
-4. remaining-stock visualization;
-5. collision checks against remaining stock;
-6. only after the 3-axis model is stable, consider indexed/multiaxis extension.
-
-The implementation should prefer deterministic geometry over visual approximation.
+- additional stock shapes beyond the current rectangular milling blank;
+- collision checks against remaining stock;
+- indexed/multiaxis removal only after the three-axis model is stable and its geometry can be verified.
 
 ---
 
@@ -306,9 +199,9 @@ Recommended sequence:
 7. Post-aware generators and additional NC templates.
 8. Initial snippet presets.
 9. Contour editor / DXF contour workflow.
-10. 3-axis milling stock removal.
+10. Further stock shapes, collision checks and verified stock-simulation extensions.
 
-The first eight items mostly expose or extend capabilities already present in the architecture. The last two introduce substantially larger geometry subsystems and should remain later work.
+The first eight items mostly expose or extend capabilities already present in the architecture. Contour authoring and broader stock-simulation geometry remain larger follow-up tasks; the initial three-axis milling simulation is already implemented in 2.0.0.
 
 ---
 

@@ -1,7 +1,9 @@
-// Resolve the versioned Windows GUI asset without hard-coding a release tag.
+// Resolve versioned release assets without hard-coding a release tag.
 // The latest release page remains usable if the API is unavailable.
-async function resolveWindowsDownloads() {
-  const links = document.querySelectorAll("[data-windows-download]");
+async function resolveDownloads() {
+  const links = document.querySelectorAll(
+    "[data-windows-download], [data-linux-download]",
+  );
   if (!links.length) return;
 
   try {
@@ -19,9 +21,16 @@ async function resolveWindowsDownloads() {
     const cli = release.assets.find(
       (asset) => asset.name === "easy_gcode_plot_cli.exe",
     );
+    const linux = release.assets.find((asset) =>
+      /^Easy-G-Code-Plot-.+-Linux-x64\.tar\.gz$/i.test(asset.name),
+    );
 
     for (const link of links) {
-      const asset = link.dataset.windowsDownload === "gui" ? gui : cli;
+      const asset = link.dataset.linuxDownload
+        ? linux
+        : link.dataset.windowsDownload === "gui"
+          ? gui
+          : cli;
       if (!asset) continue;
       const url = new URL(asset.browser_download_url);
       if (
@@ -38,4 +47,4 @@ async function resolveWindowsDownloads() {
   }
 }
 
-resolveWindowsDownloads();
+resolveDownloads();

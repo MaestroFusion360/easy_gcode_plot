@@ -203,6 +203,7 @@ def test_cycle_arc_playback_keeps_stock_timeline_on_motion_boundary():
             "resolution": 2.0,
         }
     )
+    window.ui.actionStockPlayback.setChecked(True)
     window.ui.actionPlay.setChecked(True)
 
     arc_index = next(

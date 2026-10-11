@@ -5,7 +5,7 @@ Russian is [https://maestrofusion360.github.io/easy_gcode_plot/ru/](https://maes
 
 The English output is `index.html`; the Russian output is `ru/index.html`.
 Editable HTML lives in `src/en/` and `src/ru/`, with matching section names.
-Both pages share `styles.css`, `site.js`, `downloads.js` and the images in `assets/`.
+Both pages share `styles.css`, `site.js`, `downloads.js` and the media in `assets-optimized/`.
 Python assembles the HTML locally; there is no JavaScript framework dependency,
 browser-side fragment loading or Jekyll configuration. `.nojekyll` disables Jekyll.
 
@@ -111,18 +111,33 @@ the general capability model rather than as separate marketing sections.
 Windows download buttons resolve the GUI and CLI asset URLs from the latest
 GitHub release through `downloads.js`. If the API is unavailable, the GUI link
 opens the latest release page; the CLI link uses GitHub's latest-asset redirect. All landing-page screenshots and animations live in
-`docs/assets/`. Keep screenshots next to their related feature, with an accurate caption and actual image dimensions; do not restore a separate mixed gallery. Both pages use the same asset filenames and relative links, including under the GitHub Pages repository path.
+`docs/assets-optimized/`. Keep screenshots next to their related feature, with an accurate caption and actual image dimensions; do not restore a separate mixed gallery. Both pages use the same asset filenames and relative links, including under the GitHub Pages repository path.
 
 ## Local assets
 
-`assets/` is tracked in this repository and served directly by GitHub Pages.
+`assets-optimized/` holds the published WebP images/animations and compressed MP4.
+`assets/` holds the logo, font/license and downloadable HTML report. Both directories
+are tracked in this repository and served directly by GitHub Pages.
 There is no automatic asset download or generation during HTML assembly. If an
-archive omits it, restore the real directory from the repository before checking
-or publishing; `npm run test:assets` intentionally fails when it is absent.
+archive omits them, restore the real directories from the repository before checking
+or publishing; `npm run test:assets` intentionally fails when referenced files are absent.
+
+Optimize newly added media with FFmpeg from any working directory. From the repository root:
+
+```powershell
+.\scripts\ps1\optimize-assets.ps1
+```
+
+By default the script reads new originals from `docs/assets/` and writes to
+`docs/assets-optimized/`; existing optimized files are kept. Use `-SourceDirectory`
+to read originals stored outside the repository, or `-OutputDirectory` to select
+another destination. Update the HTML fragments and README links, check the result,
+and remove replaced originals before publishing so both copies are not shipped.
+
 The video poster can be regenerated from the existing cropped MP4:
 
 ```sh
-ffmpeg -ss 5 -i docs/assets/easy_gcode_plot.mp4 -frames:v 1 -q:v 3 -update 1 docs/assets/easy_gcode_plot-poster.jpg
+ffmpeg -ss 5 -i docs/assets-optimized/easy_gcode_plot.mp4 -frames:v 1 -c:v libwebp -quality 85 -update 1 docs/assets-optimized/easy_gcode_plot-poster.webp
 ```
 
 The project logo is copied from `app/resources/icons/logo.svg` to

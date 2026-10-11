@@ -7,6 +7,7 @@ import gcode_samples
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 EXPECTED_FIXTURES = {
+    "milling/fanuc/bottle.nc",
     "milling/fanuc/fusion_benchmark_1001.nc",
     "milling/sinumerik/fusion_benchmark_1001.mpf",
     "milling/fanuc/smpl_sim08_5ax_fanuc_mm.nc",

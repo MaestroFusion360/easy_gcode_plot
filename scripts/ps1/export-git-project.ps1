@@ -131,7 +131,8 @@ try {
 
             if ($SkipAssets -and (
                 $RelativePath.Equals('docs/assets', [System.StringComparison]::OrdinalIgnoreCase) -or
-                $RelativePath.StartsWith('docs/assets/', [System.StringComparison]::OrdinalIgnoreCase)
+                $RelativePath.StartsWith('docs/assets/', [System.StringComparison]::OrdinalIgnoreCase) -or
+                $RelativePath.StartsWith('docs/assets-optimized/', [System.StringComparison]::OrdinalIgnoreCase)
             )) {
                 continue
             }

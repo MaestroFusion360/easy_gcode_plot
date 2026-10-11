@@ -90,6 +90,7 @@ M30
         "G20 G90 G94\nG0 X0 Y0 Z0.5\nG1 X1 F12\nY1\nG21 X30 F300\nM30\n",
         "G21 G90 G54\nG0 X1 Y2\nG55 X3\nG1 Y4 F100\nG54 X5\nM30\n",
         "X1\nY2\nG1 X3 F100\nM30\n",
+        "G90 G0 Z5\nG91 Y0.1\nY0.2\nG90\nY0.3\nM30\n",
     ],
 )
 def test_native_milling_modal_transitions_match_python_fallback(monkeypatch, source):

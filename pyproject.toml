@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "1.9.8"
+version = "2.0.0"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -31,6 +31,10 @@ sources = ["app/gcode/kernel/milling/_native_executor.pyx"]
 [[tool.setuptools.ext-modules]]
 name = "app.tools._native_discovery"
 sources = ["app/tools/_native_discovery.pyx"]
+
+[[tool.setuptools.ext-modules]]
+name = "app.gcode.stock._native_stock"
+sources = ["app/gcode/stock/_native_stock.pyx"]
 
 [tool.setuptools.packages.find]
 include = ["app", "app.*"]

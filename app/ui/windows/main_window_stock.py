@@ -1,9 +1,10 @@
-"""Main-window integration for turning Stock Removal playback."""
+"""Stock mode lifecycle and turning simulation integration."""
 
 from __future__ import annotations
 
 import logging
 from time import perf_counter
+from typing import cast
 
 import numpy as np
 from PyQt6.QtCore import QCoreApplication
@@ -11,30 +12,35 @@ from PyQt6.QtGui import QColor
 from pyqtgraph.opengl import GLLinePlotItem
 
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline
-from app.gcode.turning_stock_bounds import auto_turning_stock_suggestion, stock_outline_bounds
+from app.gcode.stock.replay import stock_render_interval_seconds
+from app.gcode.stock.turning_stock_bounds import auto_turning_stock_suggestion, stock_outline_bounds
 from app.tools.definitions import DEFAULT_TURNING_TOOL
 from app.ui.plot.stock_overlay import TurningStockOverlayItem
+from app.ui.windows.main_window_milling_stock import MainWindowMillingStockMixin
 
 STOCK_OUTLINE_COLOR = "#4fa7a0"
 LOGGER = logging.getLogger(__name__)
 _SLOW_STOCK_TIMELINE_MS = 100.0
 _STALLED_STOCK_FRAME_MS = 500.0
 _SLOW_LOG_INTERVAL_SECONDS = 1.0
-_MIN_STOCK_RENDER_INTERVAL_SECONDS = 1.0 / 30.0
-_MAX_STOCK_RENDER_INTERVAL_SECONDS = 0.25
-_STOCK_RENDER_COST_MULTIPLIER = 2.0
 
 
-def stock_render_interval_seconds(last_mesh_seconds: float) -> float:
-    """Keep mesh rebuilding from monopolizing the UI while retaining live playback."""
-    return min(
-        _MAX_STOCK_RENDER_INTERVAL_SECONDS,
-        max(_MIN_STOCK_RENDER_INTERVAL_SECONDS, last_mesh_seconds * _STOCK_RENDER_COST_MULTIPLIER),
-    )
-
-
-class MainWindowStockMixin:
+class MainWindowStockMixin(MainWindowMillingStockMixin):
     """Own the stock timeline and its isolated playback scene."""
+
+    def toggleStockPlayback(self, enabled):
+        """Simulation is a mode controlled independently of Play/Pause."""
+        if enabled:
+            self._pause_playback()
+            if not self._start_stock_animation():
+                action = self.ui.actionStockPlayback
+                action.blockSignals(True)
+                action.setChecked(False)
+                action.blockSignals(False)
+        else:
+            self.ui.actionPlay.setChecked(False)
+            self.timer.stop()
+            self._leave_stock_animation()
 
     def _current_stock_spec(self):
         spec = TurningStockSpec(
@@ -198,11 +204,11 @@ class MainWindowStockMixin:
         return None if spec is None else stock_outline_bounds(spec)
 
     def stockFitBounds(self):
-        """Return effective stock bounds for Lathe Fit View, independent of outline visibility."""
-        if not self.latheMode:
-            return None
+        """Return stock bounds during either stock playback, including milling."""
         if getattr(self, "_stock_animation_active", False):
             return self.stockAnimationBounds()
+        if not self.latheMode:
+            return None
         spec = self._effective_stock_spec()
         return None if spec is None else stock_outline_bounds(spec)
 
@@ -266,6 +272,8 @@ class MainWindowStockMixin:
         return True
 
     def _start_stock_animation(self) -> bool:
+        if not self.latheMode:
+            return self._start_milling_stock_animation()
         started = perf_counter()
         if not self.latheMode or not getattr(self, "stockEnabled", False):
             return False
@@ -292,13 +300,23 @@ class MainWindowStockMixin:
         return True
 
     def _leave_stock_animation(self, *, restore_plot: bool = True) -> None:
+        self._cancel_milling_seek()
         if not getattr(self, "_stock_animation_active", False):
             return
+        action = getattr(self.ui, "actionStockPlayback", None)
+        if action is not None:
+            was_blocked = action.blockSignals(True)
+            action.setChecked(False)
+            action.blockSignals(was_blocked)
         self._stock_animation_active = False
+        self.ui.actionSaveStockStl.setEnabled(False)
         self._stock_timeline = None
         item = getattr(self, "_stock_item", None)
         if item is not None:
             item.clear()
+        milling_item = getattr(self, "_milling_stock_item", None)
+        if milling_item is not None:
+            milling_item.clear()
         if restore_plot:
             self.loadPlot()
             self._create_trace_items()
@@ -307,14 +325,38 @@ class MainWindowStockMixin:
         LOGGER.info("stock_playback_left restore_plot=%s", restore_plot)
 
     def _clear_stock_animation(self) -> None:
+        self._cancel_milling_seek()
+        action = getattr(self.ui, "actionStockPlayback", None)
+        if action is not None:
+            was_blocked = action.blockSignals(True)
+            action.setChecked(False)
+            action.blockSignals(was_blocked)
         self._stock_animation_active = False
+        self.ui.actionSaveStockStl.setEnabled(False)
         self._stock_timeline = None
         item = getattr(self, "_stock_item", None)
         if item is not None:
             item.clear()
+        milling_item = getattr(self, "_milling_stock_item", None)
+        if milling_item is not None:
+            milling_item.clear()
         self._update_stock_outline()
 
     def _load_stock_animation_plot(self) -> None:
+        if not self.latheMode:
+            self.ui.graphicsView.clear()
+            self.ui.graphicsView.setBackgroundGradient(
+                getattr(self, "plotBackgroundGradient", False), self.plotBackground
+            )
+            self.ui.graphicsView.addItem(self._milling_stock_item)
+            if getattr(self, "_milling_tool_item", None) is not None:
+                self.ui.graphicsView.addItem(self._milling_tool_item)
+            for entry in getattr(self, "_stl_entries", ()):
+                overlay = entry.section_overlay or entry.overlay
+                self.ui.graphicsView.addItem(
+                    overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
+                )
+            return
         self.ui.graphicsView.clear()
         self.ui.graphicsView.setBackgroundGradient(
             getattr(self, "plotBackgroundGradient", False),
@@ -325,9 +367,15 @@ class MainWindowStockMixin:
             self.ui.graphicsView.addItem(item)
 
     def _update_stock_animation_frame(self, playback_count: int) -> None:
-        timeline = getattr(self, "_stock_timeline", None)
+        if not self.latheMode:
+            self._update_milling_stock_animation_frame(playback_count)
+            return
+        self._update_turning_stock_animation_frame(playback_count)
+
+    def _update_turning_stock_animation_frame(self, playback_count):
+        timeline = cast(TurningStockTimeline, getattr(self, "_stock_timeline", None))
         result = getattr(self, "execution_result", None)
-        if timeline is None or result is None or not result.motions:
+        if not isinstance(timeline, TurningStockTimeline) or result is None or not result.motions:
             return
         started = perf_counter()
         previous_count = timeline.motion_count
@@ -389,7 +437,7 @@ class MainWindowStockMixin:
                 timeline_ms,
                 mesh_ms,
                 timeline.revision,
-                len(timeline.z),
+                len(getattr(timeline, "z", ())),
                 self._stock_item.last_stock_vertex_count,
                 self._stock_item.last_stock_face_count,
                 motion.tool or "unknown",
@@ -400,6 +448,9 @@ class MainWindowStockMixin:
         if not getattr(self, "_stock_animation_active", False) or timeline is None:
             return None
         bounds = timeline.bounds
+        if not self.latheMode:
+            margin = max(2.0, max(b[1] - b[0] for b in bounds) * 0.08)
+            return tuple((low - margin, high + margin) for low, high in bounds)
         margin = max(2.0, timeline.spec.outer_diameter * 0.09)
         return (
             (bounds[0][0] - margin, bounds[0][1] + margin),

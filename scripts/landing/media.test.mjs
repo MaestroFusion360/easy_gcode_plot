@@ -68,7 +68,9 @@ for (const language of ["en", "ru"]) {
     const document = window.document;
     assert.equal(video.autoplay, false);
     assert.equal(video.preload, "none");
-    assert.ok(video.poster.endsWith("easy_gcode_plot-poster.jpg"));
+    assert.ok(
+      video.poster.endsWith("assets-optimized/easy_gcode_plot-poster.webp"),
+    );
     video.currentTime = 12;
     video.volume = 0.4;
     video.playbackRate = 1.5;

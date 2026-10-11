@@ -192,6 +192,9 @@ class PlotView(GLViewWidget):
 
     def paintGL(self):
         if not self._background_gradient:
+            # Translucent scene items can leave depth writes disabled. glClear
+            # obeys that mask, so restore it before clearing the next frame.
+            GL.glDepthMask(True)
             super().paintGL()
             return
 
@@ -206,6 +209,7 @@ class PlotView(GLViewWidget):
         region = self.getViewport()
         self.setProjection(region, region)
         self.setModelview()
+        GL.glDepthMask(True)
         GL.glClear(GL.GL_DEPTH_BUFFER_BIT)
         self.drawItemTree()
 

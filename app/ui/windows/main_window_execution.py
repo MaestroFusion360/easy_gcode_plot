@@ -56,8 +56,16 @@ class _PlotCompletion:
             self.cancelled = not self.finished and cancelled()
 
     def calculation(self, payload, cancelled):
-        result, points, _updated_tools, _inferred, _execution_ms, render_limited = payload
+        result, points, updated_tools, inferred, _execution_ms, render_limited = payload
         if not render_limited:
+            # Scene publication also draws the cutter. Publish this execution's
+            # program assignments before it can display geometry from the old setup.
+            if self.expected_source is None or self.owner.ui.editor.text() == self.expected_source:
+                attribute = "tools" if self.owner.latheMode else "millingTools"
+                setattr(self.owner, attribute, deepcopy(updated_tools))
+                inference = dict(getattr(self.owner, "program_tool_inference", {}) or {})
+                inference[attribute] = deepcopy(inferred)
+                self.owner.program_tool_inference = inference
             self._finish(result, points, cancelled)
         return payload
 
@@ -213,25 +221,34 @@ class MainWindowExecutionMixin:
         self.timer.start(self._playback_visual_interval(), self)
         return True
 
+    def _advance_stock_playback(self):
+        """Advance only when the previous stock frame is ready."""
+        if not self.latheMode and getattr(self, "_milling_frame_worker", None) is not None:
+            return
+        maximum = self.ui.horizontalSlider.maximum()
+        value = self.ui.horizontalSlider.value()
+        if maximum <= 0 or value >= maximum:
+            LOGGER.debug(
+                "playback_reached_end value=%d maximum=%d stock_animation=True",
+                value,
+                maximum,
+            )
+            self.ui.actionPlay.setChecked(False)
+            self.timer.stop()
+            self._set_playback_program_end(True)
+            return
+        if not self.latheMode:
+            self._advance_milling_stock_playback(maximum, value)
+        else:
+            self.ui.horizontalSlider.setValue(value + 1)
+
     def timerEvent(self, event):
         """Advance playback, visually sampling analytical arcs while Play runs."""
         if event.timerId() != self.timer.timerId():
             return super().timerEvent(event)
 
         if getattr(self, "_stock_animation_active", False):
-            maximum = self.ui.horizontalSlider.maximum()
-            value = self.ui.horizontalSlider.value()
-            if maximum <= 0 or value >= maximum:
-                LOGGER.debug(
-                    "playback_reached_end value=%d maximum=%d stock_animation=True",
-                    value,
-                    maximum,
-                )
-                self.ui.actionPlay.setChecked(False)
-                self.timer.stop()
-                self._set_playback_program_end(True)
-                return
-            self.ui.horizontalSlider.setValue(value + 1)
+            self._advance_stock_playback()
             return
 
         if self._advance_playback_arc_visual():
@@ -271,16 +288,9 @@ class MainWindowExecutionMixin:
 
     def play(self):
         """Start or pause playback of toolpath highlighting."""
+        self._milling_play_clock = None
         if self.ui.actionPlay.isChecked():
-            stock_playback = (
-                self.latheMode and getattr(self, "stockEnabled", False) and hasattr(self, "_start_stock_animation")
-            )
-            if stock_playback:
-                if not self._start_stock_animation():
-                    self.ui.actionPlay.setChecked(False)
-                    self.timer.stop()
-                    return
-            elif self.ui.horizontalSlider.value() >= self.ui.horizontalSlider.maximum():
+            if self.ui.horizontalSlider.value() >= self.ui.horizontalSlider.maximum():
                 self._clear_playback_visual_state()
                 self.ui.horizontalSlider.setValue(self.ui.horizontalSlider.minimum())
             interval = (

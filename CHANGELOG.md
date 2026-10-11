@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.0.0 - 2026-10-10 - 2026-10-11
+
+**The main feature of 2.0.0 is 3D milling stock removal on the GPU.** It adds inspection of the remaining material throughout a three-axis program, configurable surface detail and export of the current machining stage as STL, alongside the existing turning simulator.
+
+### GPU milling stock removal
+
+The milling simulator now keeps material state in GPU memory and renders the machined surface directly. Compute shaders apply cutter sweeps to affected stock regions, and a height hierarchy supports surface rendering. This replaces CPU material subtraction and repeated CPU reconstruction of display triangles. Program execution and trajectory preparation remain on the CPU; STL serialization reads the simulated GPU state. OpenGL 4.3 is required.
+
+- Add 3D material-removal simulation for three-axis milling alongside the existing turning simulation. Resolve removal from cutter sweeps and configured tool geometry, including flat, face, ball and corner-radius mills. The current milling model is a three-axis height field; tilted cutters and undercuts are outside its scope.
+- Add a separate **Stock Removal** toolbar toggle for entering and leaving simulation. Keep Play/Pause, stepping, rewind and the playback slider synchronized with the displayed stock and tool position. Retain the turning simulation engine and replay behavior.
+- Extend the Stock dialog with automatic milling bounds, machining allowance and manual X/Y/Z bounds. Automatic stock uses the selected WCS zero as its top; manual bounds support facing above zero. Persist milling stock settings independently of turning settings.
+- Move milling material removal to OpenGL 4.3 compute shaders, keeping the remaining stock in GPU memory. Remove CPU material-removal kernels and CPU adaptive surface reconstruction. Update affected texture regions and their height hierarchy; render the surface directly on the GPU.
+- Preserve the selected five-level milling **Accuracy** regardless of program size, playback speed or frame cost. Changing Accuracy rebuilds the current GPU state at the selected resolution.
+- Prepare trajectory frames on a cancellable background worker, coalesce slider requests and discard obsolete frames. Perform GPU updates and rendering on the thread owning the OpenGL context.
+- Render bilinear height patches with analytical ray intersections and surface normals. Restore solid stock-colored box sides and bottom faces, including visibility from below; through cuts leave no false bottom cap. Retain rapid-cut damage coloring.
+- Add **Save stock as STL** to the Plot context menu during milling simulation. Export a detached readback of the current GPU stock on a cancellable worker and replace the destination atomically. Length units and maximum edge length control serialization; surface detail comes from simulation Accuracy. The retained linear/angular deviation fields do not reconstruct a finer surface.
+- Add configurable stock-material and machined-surface colors in Options / Colors, with persistence and Restore Defaults. Update English/Russian stock and export interface strings and packaged Qt resources.
+
+### Tool setup, execution and release checks
+
+- Refresh milling tool-name discovery for face, flat, ball, bull, tapered-ball, slot and chamfer cutters, including common CAM naming variants. Correct the first D50 face mill in `toolchange.nc` and the D10 ball mill in `bottle.nc`.
+- Treat milling T addresses as preselection until M6 activates the selected tool, including M6 in a following block and named SINUMERIK tools. Exclude tools that are only preselected from Tool Library / Current Program, keep operation hints attached to the active tool, and preserve turning tool-selection semantics.
+- Rebuild active stock simulation after editing or assigning current-program tool geometry, restoring the playback position. Cancel outstanding milling workers when leaving simulation or closing the window.
+- Remove obsolete CPU milling-stock tests and cover actual GPU removal, ball geometry, rewind/replay, rapid damage, Accuracy, box sides/bottom and STL readback. Keep turning simulation and its regression coverage unchanged.
+- Fix spurious milling positioning moves caused by floating-point roundoff after incremental motion followed by absolute coordinates or drilling cycles. Restore FANUC and SINUMERIK incremental indexed-program replay checks without expected-failure marks.
+- Preserve installed development tools when synchronizing the native build environment, avoiding attempts to remove a running Ruff language server during packaging.
+
 ## 1.9.8 - 2026-10-09
 
 - Reorganize the bilingual project landing page into feature sections with grouped screenshots, blue controls and larger text. Retain the video demonstration, crop its white borders and add full-viewport image/video previews with a top-right close button.

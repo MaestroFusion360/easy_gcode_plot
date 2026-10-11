@@ -185,6 +185,16 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Where do I set work coordinate systems and home values?](#where-do-i-set-work-coordinate-systems-and-home-values)
     - [How do I set turning stock dimensions?](#how-do-i-set-turning-stock-dimensions)
     - [Is Stock Removal available for milling?](#is-stock-removal-available-for-milling)
+  - [Milling Stock Removal](#milling-stock-removal)
+    - [How do I start milling stock simulation?](#how-do-i-start-milling-stock-simulation)
+    - [How do milling stock bounds and allowance work?](#how-do-milling-stock-bounds-and-allowance-work)
+    - [Which milling cutters and movements are supported?](#which-milling-cutters-and-movements-are-supported)
+    - [What does milling Accuracy control?](#what-does-milling-accuracy-control)
+    - [How do playback and tool edits affect the stock?](#how-do-playback-and-tool-edits-affect-the-stock)
+    - [What do the stock colors and box faces represent?](#what-do-the-stock-colors-and-box-faces-represent)
+    - [How do I export the simulated milling stock?](#how-do-i-export-the-simulated-milling-stock)
+    - [How does the GPU stock engine work?](#how-does-the-gpu-stock-engine-work)
+    - [What are the milling stock requirements and limits?](#what-are-the-milling-stock-requirements-and-limits)
   - [Turning Stock Removal](#turning-stock-removal)
     - [What is Turning Stock Removal?](#what-is-turning-stock-removal)
     - [How is automatic stock estimated?](#how-is-automatic-stock-estimated)
@@ -1784,6 +1794,8 @@ Auto Update has a sampled-segment limit. Large edits may be left pending until e
 
 If source changes while a refresh is running, the stale calculation is cancelled/ignored and a new refresh is queued.
 
+**Settings → Options** also exposes arc tolerance, arc sampling preset, maximum/minimum circular radius and minimum chord length. Sampling controls change the GUI trace representation without changing the resolved CNC geometry. General settings include the maximum generated motions, automatic sampled-segment limit and toolbar icon size. Explicit Refresh is cancellable.
+
 ### What does Cancel stop?
 
 The execution dialog covers the expensive source-to-result pipeline, including reading, parsing, execution, tool discovery, trace sampling and final plot publication. Cancellation is cooperative and checked throughout the execution budget.
@@ -1875,9 +1887,91 @@ Press **OK** to apply manual dimensions; **Cancel** discards the dialog edits. M
 
 ### Is Stock Removal available for milling?
 
-No. Material removal is currently implemented for turning only. Milling does not yet have stock-removal simulation.
+Yes. **3D milling stock removal on the GPU is the main addition in 2.0.0.** It shows the material remaining throughout a three-axis program and exports the current machining stage as STL. See the [milling stock guide](#milling-stock-removal) below. The turning simulator remains separate.
 
-For milling reference geometry, load an STL model and open **Settings → STL Objects**. The panel provides model positioning, rotation, copying, arrays, sections and statistics. It displays reference models alongside the toolpath; it does not subtract milling tool motions from the STL. See the [Interface, editor and playback](#interface-editor-and-playback) section for the panel workflow.
+---
+
+## Milling Stock Removal
+
+### How do I start milling stock simulation?
+
+1. Open a three-axis milling program and calculate it successfully through completion.
+2. Check **Tool Library / Current Program**. Assign the cutter types and dimensions used by the program; the cut depends on that geometry.
+3. Open **Settings → Stock**, select the milling tab and configure the box and **Accuracy**.
+4. Confirm the settings and enable **Stock Removal** on the toolbar. Use Play/Pause, step controls or the playback slider to inspect the stock at different machining stages.
+5. Rotate the scene to inspect the machined surface, outer walls and underside. Save the current state with **Save stock as STL** in the Plot context menu when needed.
+
+Stock simulation consumes the already resolved execution trace, including cycle expansion and program flow. It does not interpret a second copy of the G-code. If a tool has not been configured, check the missing-tool warning: substituted geometry can give an inaccurate result.
+
+### How do milling stock bounds and allowance work?
+
+The initial milling blank is a rectangular box. Automatic sizing uses cutting-motion bounds, cutter radius and machining allowance; its top is at the selected WCS Z0. The lower Z bound extends below the cutting trace. The allowance applies to the automatic suggestion; it does not add material above the WCS zero automatically.
+
+Manual sizing exposes X−/X+, Y−/Y+ and Z−/Z+ relative to the selected WCS origin. Set a positive Z+ to include material above zero for a facing operation. Each maximum must exceed its corresponding minimum. Manual dimensions are saved independently of turning stock settings. **Use automatic bounds** returns the dialog to the trajectory-derived suggestion. Inch display converts the dimensions; internal geometry uses millimetres.
+
+### Which milling cutters and movements are supported?
+
+The swept cut uses the configured axial/radial cutter profile. Supported profiles include flat end mills, face mills, ball mills, corner-radius mills and tapered-ball mills. Diameter, tip shape, corner radius and taper affect the result where applicable. Changing only a tool's display name is not a substitute for assigning its physical geometry.
+
+The simulator follows resolved three-axis linear, arc and helical motion, including movements generated by supported cycles and macros. Straight sweeps and constant-Z XY arcs have analytical GPU handling; other curved trajectories are prepared within the selected contour tolerance. Rapid movement through stock also removes intersected material and records rapid damage.
+
+### What does milling Accuracy control?
+
+The slider has five fixed levels. Moving toward higher accuracy makes the XY height grid finer and tightens curved-trajectory preparation. It increases GPU memory use and processing work. The selected level stays fixed at every playback speed and for large programs; it is not reduced in response to frame time.
+
+The current implementation uses these internal presets, in millimetres:
+
+| Level, left to right | Curved-trajectory contour tolerance | Grid spacing limit parameter |
+| --- | ---: | ---: |
+| 1 | 0.20 | 0.50 |
+| 2 | 0.10 | 0.25 |
+| 3 | 0.05 | 0.15 |
+| 4 | 0.02 | 0.08 |
+| 5 | 0.01 | 0.05 |
+
+Actual XY node spacing is no greater than the grid parameter divided by √2, adjusted to cover the box boundaries. These are discretization settings, not a certified bound on total machining error. The displayed surface interpolates the stored heights with bilinear patches. Increasing Accuracy rebuilds the stock at the current playback position; it can reveal detail that the coarser grid could not represent.
+
+### How do playback and tool edits affect the stock?
+
+Play/Pause, stepping and seeking use the same logical-motion position as the tool display. Forward playback adds the new cutter sweeps to the existing GPU stock. Rewinding clears and replays the required prefix to reconstruct the earlier material state. A quality change also reconstructs the current state at the new resolution.
+
+Editing or assigning current-program tool geometry rebuilds the active simulation while restoring its playback position. Background frame preparation coalesces seek requests and discards superseded work. Leaving simulation or closing the window cancels outstanding milling work. Turning retains its own stock engine and replay behavior.
+
+### What do the stock colors and box faces represent?
+
+Options provides separate stock-material and machined-surface colors. Untouched stock retains the stock color; the cut surface uses the machined color and surface lighting. Rapid cuts carry damage coloring. This identifies intersections with the configured stock, rather than checking an entire machine for collisions.
+
+The box has visible outside walls and a bottom wherever material remains. Through removal does not leave an artificial bottom cap. You can inspect the underside by rotating the scene. The GPU computes normals for the interpolated top surface and uses the corresponding plane normals for the outside box faces.
+
+### How do I export the simulated milling stock?
+
+During milling simulation, open the Plot context menu and choose **Save stock as STL**. Export captures the actual GPU material state at the current playback position, so an intermediate operation can be saved as well as the completed result. Select the simulation Accuracy you need before saving.
+
+| Export setting | Current effect |
+| --- | --- |
+| Length units | Writes coordinates in millimetres or inches. |
+| Maximum edge length | Subdivides mesh edges exceeding the selected length. |
+| Linear/angular deviation | Retained dialog fields; they do not reconstruct or refine the GPU stock surface. |
+
+GPU readback uses the thread owning the OpenGL context. Mesh serialization runs on a cancellable worker and replaces the destination only after successful completion. Export tessellates the captured height field; smaller output edges alone cannot recover detail absent from the simulation.
+
+### How does the GPU stock engine work?
+
+The engine keeps remaining height and rapid-damage state in a GPU texture. OpenGL 4.3 compute shaders apply the cutter sweeps to their affected XY rectangles. Forward updates retain the existing material texture and update the changed regions and their maximum-height hierarchy.
+
+The display shader traverses that hierarchy and intersects viewing rays with bilinear height patches, deriving their surface normals and writing scene depth. There is no repeated CPU construction and upload of a display triangle mesh. CPU responsibilities include CNC execution, cutter/trajectory preparation and STL serialization. A background worker prepares immutable trajectory frames; GPU removal, drawing and readback run on the OpenGL context thread.
+
+Relevant implementation files are `app/gcode/stock/milling_stock.py`, `milling_stock_sweep.py`, and `app/ui/plot/milling_stock_gpu.py`, `milling_stock_shaders.py`, `milling_stock_overlay.py`. CPU triangle generation remains for STL export of GPU readback.
+
+### What are the milling stock requirements and limits?
+
+- **OpenGL 4.3** and a working graphics driver are required. There is no CPU milling-removal fallback.
+- The model stores one remaining height per XY node above the box base. It supports vertical cutters and three-axis work; rotary/TCP motion, tilted cutters and undercuts are outside its scope.
+- Imported STL meshes remain reference geometry. Stock removal operates on the configured box, not arbitrary STL solids.
+- Resolution is limited by the device's maximum texture dimensions and available GPU memory. Exceeding the texture-size limit reports an explicit error rather than lowering Accuracy silently.
+- Runtime depends on the GPU, box dimensions, selected Accuracy and cutter sweeps. No fixed speed multiplier is promised.
+
+If the blank appears misplaced, check the selected WCS and the six stock bounds. If the cut has the wrong width or shape, check the active tool geometry. For missing fine detail, increase Accuracy. If initialization reports an OpenGL or texture-size error, check the graphics driver and the requested box/resolution.
 
 ---
 
@@ -2043,6 +2137,8 @@ For EXPANDED these options are user-owned: the target profile supplies syntax an
 
 The profile's `format.words` object gives every frame token an `order` and a `required` flag: `motion`, `X`, `Y`, `Z`, `A`, `B`, `C`, `I`, `J`, `K` and `R`. `required=true` emits the address whenever it has a resolved value (for example `Y0` instead of omitting zero `Y`); `required=false` allows the serializer's normal omission of an unchanged value. `motion.required=false` makes the motion code modal, so `G1` is restated only when the motion changes. Per-word `decimals`/`sign` are stored in the same object. An axis entry is only accepted when that axis is declared in `supports.axes`, and `F` is deliberately excluded because feed is controlled by Modal Feed. Address requiredness is a property of a specific post/controller, so it lives only in the profile and has no separate GUI/CLI switch.
 
+Additional arc controls live under `format`: `turnsWord`, `radiusSplitAngle`, `arcSplitAngle` and `fullCircle`. Capability declarations under `supports` include `axes`, `inverseTime`, `multiTurnArcs` and `absoluteArcCenters`. A request beyond the selected post's capabilities returns `UNSUPPORTED` instead of writing partial NC. Three-axis posts reject rotary/TWP/TCP geometry; select an appropriate multiaxis post for the supported indexed/TCP subset.
+
 ### Which milling Expanded arc output modes exist?
 
 The CLI contract exposes:
@@ -2158,6 +2254,8 @@ The application supports a bounded native Siemens milling subset (`G290`, also t
 
 Unsaved editor text selects native SINUMERIK when executable commands such as SUPA, CIP, MCALL, TRANS or CYCLE800 are present. Comments and quoted strings do not select a dialect; Undo/Redo updates the selection. Named files retain their extension-based source contract.
 
+`D0` cancels cutting-edge selection; `D1` through `D12` select an edge while retaining nominal tool geometry. Edges above D1 report `UNVERIFIED_SINUMERIK_EDGE_OFFSETS` because controller offset tables are unavailable. CYCLE800 ST220000/220001 computes a new/additive frame without indexing. The `DMG` frame-only data-set name is accepted on `5ax_table_bc_angled` with FR0; OEM indexing remains unsupported.
+
 Programmable `TRANS`/`ATRANS` and `ROT`/`AROT` affect subsequent XYZ geometry relative to the active WCS. `TRANS` and `ROT` replace all programmable frame components; bare `TRANS` or `ROT` resets the frame. `ATRANS` adds a translation in the current local axes; `AROT` adds a local rotation and preserves translation. Changing the frame rebases program coordinates without moving the physical tool. Spatial XYZ angles use the default Siemens RPY order Z → Y′ → X″ (MD10600=1), regardless of address order in the block. Machines configured for Euler order are outside this policy. `RPL=` rotates in the active plane about +Z (G17), +Y (G18) or +X (G19). Each command requires a separate NC block and accepts numeric values, direct R references or supported named scalars; general expressions are not added. Active TWP/CYCLE800, TCP, polar mode, cycles and cutter compensation cannot be combined with these commands. SCALE/ASCALE and MIRROR/AMIRROR remain unsupported. FULL preserves frame commands; EXPANDED resolves their effect into output coordinates and linearizes arcs whose physical plane cannot be represented by the selected standard plane.
 
 Native CR radius arcs require a SINUMERIK source document: use .mpf/.spf, or unnamed text detected by executable native commands. A named .nc document retains FANUC syntax. Native X/Y/Z=IC(...) is incremental independently of G90/G91. MSG() is accepted.
@@ -2170,7 +2268,7 @@ R assignments, address values and supported cycle parameters accept bounded arit
 
 Native `M19` emits a spindle-orientation signal without moving the tool or changing spindle state. `G96/G961` enable CSS with revolution/linear feed respectively; `G97/G971` select RPM with revolution/linear feed. CSS retains programmed surface speed without inferring an instantaneous RPM from a milling X coordinate. FULL preserves supported native expressions and flow; EXPANDED exports resolved geometry, but rejects CSS without a reliable reference axis. `ANG`, `SCALE/ASCALE` and `MIRROR/AMIRROR` are recognized but their geometry is unmodeled, so execution stops before motion. Native `M17/M96/M97/M99` flow is unsupported; `M66` and `M98` retain explicit auxiliary warnings, and native M98 never enters FANUC subprogram dispatch.
 
-Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc (IJK or CR, G40, no active MCALL), according to [Siemens](https://support.industry.siemens.com/cs/attachments/104985512/802Dsl_BPF_1006_en.pdf). The trace keeps one analytical arc/helix with the total sweep. Rendering, playback and statistics retain those turns; DXF uses a sampled polyline, and FANUC/ISO exporters split arcs only during serialization. The existing stock material-removal timeline supports turning; this release does not add milling stock removal. Standalone native `G4 F...` uses seconds and leaves modal feed unchanged; spindle-revolution dwell is not modeled.
+Native `TURN=n` adds integer 0..999 complete revolutions to the base `G2/G3` arc (IJK or CR, G40, no active MCALL), according to [Siemens](https://support.industry.siemens.com/cs/attachments/104985512/802Dsl_BPF_1006_en.pdf). The trace keeps one analytical arc/helix with the total sweep. Rendering, playback and statistics retain those turns; DXF uses a sampled polyline, and FANUC/ISO exporters split arcs only during serialization. Stock removal supports turning and, since 2.0.0, three-axis milling with vertical cutters. Standalone native `G4 F...` uses seconds and leaves modal feed unchanged; spindle-revolution dwell is not modeled.
 
 The GUI/CLI/kernel also supports a bounded TRAORI/TRAFOOF TCP subset on `5ax_table_ac_angled` and `5ax_table_bc_angled`. Configured numeric A/B/C assignments and direct R references follow G90/G91; rotary TCP arcs retain analytical Cartesian geometry and orientation endpoints. The GUI preserves rotary selection and executes native AC/BC programs through the same kernel. CYCLE800 builds its own Siemens rotation matrix and uses the common TWP solver/rebasing. FR0/1/2 are logical retract requests, with no OEM retract trajectory; FR_I must be zero/blank and DMODE0/1 is supported. DIR chooses the principal first-table-joint branch. IC(numeric/direct R) is incremental independently of G90/G91. ORI*, FGROUP, FL[], FGREF[], SPOS, CUT3DC/CUT3DF/CUT3DFF and path-control extensions are parsed with unverified warnings; their effects are not simulated. Arbitrary Siemens subprogram calls remain fail-closed. Cancel TCP before G290/G291; active TCP transitions are rejected. Native MCALL and G41/G42 cannot be activated under TCP, and active MCALL must be cancelled before rotary positioning. The bundled multiaxis posts reconstruct configured indexed A/B/C, verified `4ax_table_c` continuous motion and the supported AC/BC TCP subset across FANUC and SINUMERIK. Supported G68.2/G53.1 and CYCLE800 indexed AC/BC frames can be converted experimentally through the bundled multiaxis posts; other frame combinations remain rejected.
 
@@ -2571,6 +2669,8 @@ sinumerik_native_to_fanuc_mill
 
 They run the built CLI with an explicit JSON post profile and write below `tmp/test_export`. They do not rebuild the application.
 
+Run the named scripts as `.\scripts\ps1\batch\<name>.ps1` on Windows or `bash scripts/sh/batch/<name>.sh` on Linux. Their semantic regression gate, `tests/export/test_batch_export_semantics.py`, re-executes successfully exported programs and compares trajectory signatures with the source.
+
 ---
 
 ## Configuration
@@ -2876,6 +2976,17 @@ On Windows, run the full test suite and project lint checks from the repository 
 .\scripts\ps1\test.ps1
 .\scripts\ps1\lint.ps1
 ```
+
+| Task | Windows PowerShell | Linux shell |
+| --- | --- | --- |
+| Tests | `.\scripts\ps1\test.ps1` | `bash scripts/sh/test.sh` |
+| Lint | `.\scripts\ps1\lint.ps1` | `bash scripts/sh/lint.sh` |
+| Native extensions | `.\scripts\ps1\build-native.ps1` | `bash scripts/sh/build-native.sh` |
+| PyInstaller package | `.\scripts\ps1\build.ps1` | `bash scripts/sh/build.sh` |
+
+Repository working-tree text uses CRLF; Bash scripts use LF. Git attributes and VS Code workspace settings enforce these defaults. Run `.\scripts\ps1\lint.ps1 -Fix -CheckResources` to normalize text and regenerated Qt modules. Without `-Fix`, the linter reports incorrect or mixed endings. Normalization preserves encoding and skips binary assets and ignored build/temporary outputs. Git stores normalized text with LF.
+
+New CNC semantics belong in `app/gcode/kernel/` and require deterministic regression coverage. Exporters consume the authoritative execution result. See [website publishing](docs/PUBLISHING.md) for landing-page development.
 
 ### How do I run the daily GUI smoke test with a visible window?
 

@@ -212,8 +212,20 @@ class MainWindow(
             QIcon(":/resource/icons/stock.png"), QCoreApplication.translate("MainWindow", "Stock"), self
         )
         self.ui.actionStock.setObjectName("actionStock")
-        self.ui.actionStock.setToolTip(QCoreApplication.translate("MainWindow", "Configure turning Stock Removal"))
+        self.ui.actionStock.setToolTip(QCoreApplication.translate("MainWindow", "Configure Stock Removal"))
         self.ui.menuSettings.insertAction(self.ui.actionWCS, self.ui.actionStock)
+        self.ui.actionStockPlayback = QAction(
+            QIcon(":/resource/icons/stock.png"), QCoreApplication.translate("MainWindow", "Stock Removal"), self
+        )
+        self.ui.actionStockPlayback.setObjectName("actionStockPlayback")
+        self.ui.actionStockPlayback.setCheckable(True)
+        self.ui.actionStockPlayback.setToolTip(
+            QCoreApplication.translate("MainWindow", "Toggle stock simulation (3-axis milling or turning)")
+        )
+        self.ui.playbackToolBar.insertAction(self.ui.actionStep_Backward, self.ui.actionStockPlayback)
+        self.ui.actionSaveStockStl = QAction(QCoreApplication.translate("MainWindow", "Save stock as STL"), self)
+        self.ui.actionSaveStockStl.setObjectName("actionSaveStockStl")
+        self.ui.actionSaveStockStl.setEnabled(False)
         self.ui.menuCNC_Functions.addSeparator()
         self.ui.cncToolBar.addSeparator()
         self.viewActionGroup = QActionGroup(self)
@@ -448,6 +460,10 @@ class MainWindow(
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""
+        if getattr(self, "_stock_export_active", False):
+            self._stock_export_cancel.set()
+            event.ignore()
+            return
         if getattr(self, "_kernel_execution_active", False):
             self._kernel_cancel_requested = True
             self.ui.statusbar.showMessage(
@@ -456,6 +472,7 @@ class MainWindow(
             event.ignore()
             return
         if self.maybeSave():
+            self._cancel_milling_seek()
             self.saveSettings()
             self._dispose_trace_item()
             event.accept()
@@ -509,6 +526,8 @@ class MainWindow(
         self.ui.actionPrevToolchange.triggered.connect(self.previousToolchange)
         self.ui.actionNextToolchange.triggered.connect(self.nextToolchange)
         self.ui.actionStock.triggered.connect(self.stockDlg.show)
+        self.ui.actionStockPlayback.toggled.connect(self.toggleStockPlayback)
+        self.ui.actionSaveStockStl.triggered.connect(self.saveMillingStockStl)
         self.ui.actionWCS.triggered.connect(lambda: self.wcsDlg.show())
         self.ui.actionOptions.triggered.connect(self.optionsDlg.show)
         self.ui.actionTokens.triggered.connect(self.tokensDlg.show)
@@ -557,7 +576,8 @@ class MainWindow(
     def syncGuiCapabilities(self):
         """Synchronize machine-specific actions with the active execution profile."""
         turning = bool(self.latheMode)
-        self.ui.actionStock.setEnabled(turning)
+        self.ui.actionStock.setEnabled(True)
+        self.ui.actionSaveStockStl.setEnabled(not turning and bool(getattr(self, "_stock_animation_active", False)))
         self.ui.actionToolLibrary.setEnabled(not self._tool_library_load_error)
         milling_assistants_enabled = not turning
         getattr(self.ui, "actionHoleCalculator").setEnabled(milling_assistants_enabled)

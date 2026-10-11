@@ -139,7 +139,7 @@ class Ui_StockDialog(object):
 
     def retranslateUi(self, StockDialog):
         StockDialog.setWindowTitle(QCoreApplication.translate("StockDialog", u"Stock", None))
-        self.enabledCheck.setText(QCoreApplication.translate("StockDialog", u"Run Stock Removal when Play is pressed", None))
+        self.enabledCheck.setText(QCoreApplication.translate("StockDialog", u"Enable turning stock removal", None))
         self.outerLabel.setText(QCoreApplication.translate("StockDialog", u"Outside diameter", None))
         self.outerSpin.setSuffix(QCoreApplication.translate("StockDialog", u" mm", None))
         self.innerLabel.setText(QCoreApplication.translate("StockDialog", u"Inside diameter", None))

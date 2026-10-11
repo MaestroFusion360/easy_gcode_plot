@@ -907,6 +907,8 @@ class MainWindowPlotMixin:
         menu.addAction(self.ui.actionLeft)
         menu.addSeparator()
         menu.addAction(self.ui.actionGrid)
+        menu.addSeparator()
+        menu.addAction(self.ui.actionSaveStockStl)
         menu.exec(self.ui.graphicsView.mapToGlobal(point))
 
     def _cached_toolpath_bounds(self):

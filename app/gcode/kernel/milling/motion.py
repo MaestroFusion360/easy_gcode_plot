@@ -180,7 +180,8 @@ def _motion(
             raise ValueError("G51 axis-specific scaling of arcs requires spiral interpolation, which is not modeled")
     state.x, state.y, state.z = end
     has_arc_definition = state.move in (2, 3) and any(key in words for key in ("I", "J", "K", "R"))
-    if start_m == end_m and not has_arc_definition and not (tcp_rotary or continuous_c):
+    same_position = all(abs(start - end) <= 1e-9 for start, end in zip(start_m, end_m, strict=True))
+    if same_position and not has_arc_definition and not (tcp_rotary or continuous_c):
         return None
     arc_axes = _arc_definition_axes(state, words, absolute_center_axes)
     motion = TraceMotion(

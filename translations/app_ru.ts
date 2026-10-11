@@ -87,7 +87,7 @@
         <translation>Свободное ПО с открытым исходным кодом под лицензией MIT.</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/about.ui" line="136"/>
+        <location filename="../app/ui/generated/dialogs/about.ui" line="149"/>
         <source>© 2025–2026 MaestroFusion360</source>
         <translation>© 2025–2026 MaestroFusion360</translation>
     </message>
@@ -596,7 +596,7 @@
         <translation>Перемещение %1 / %2</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="589"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="584"/>
         <source>Trajectory exceeds the Auto Update limit of %1 points; press Update.</source>
         <translation>Траектория превышает предел автообновления в %1 точек; нажмите «Обновить».</translation>
     </message>
@@ -604,12 +604,12 @@
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
         <location filename="../app/ui/windows/main_window_editor_ops.py" line="330"/>
         <location filename="../app/ui/windows/main_window_editor_ops.py" line="337"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="460"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="525"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="590"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="615"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="662"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="681"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="469"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="534"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="611"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="636"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="683"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="702"/>
         <source>Easy G-code Plot</source>
         <translation>Easy G-code Plot</translation>
     </message>
@@ -1066,7 +1066,7 @@
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="829"/>
-        <location filename="../app/main_window.py" line="437"/>
+        <location filename="../app/main_window.py" line="451"/>
         <source>Tool Library</source>
         <translation>Библиотека инструментов</translation>
     </message>
@@ -1113,8 +1113,8 @@
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="899"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="724"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="746"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="745"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="767"/>
         <source>Tool List</source>
         <translation>Список инструментов</translation>
     </message>
@@ -1179,47 +1179,42 @@
         <translation>Заготовка</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="215"/>
-        <source>Configure turning Stock Removal</source>
-        <translation>Настроить снятие заготовки для точения</translation>
-    </message>
-    <message>
-        <location filename="../app/main_window.py" line="228"/>
+        <location filename="../app/main_window.py" line="242"/>
         <source>Hole Calculator</source>
         <translation>Калькулятор отверстий</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="233"/>
+        <location filename="../app/main_window.py" line="247"/>
         <source>Pocket Calculator</source>
         <translation>Калькулятор карманов</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="238"/>
+        <location filename="../app/main_window.py" line="252"/>
         <source>Snippets</source>
         <translation>Шаблоны</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="276"/>
+        <location filename="../app/main_window.py" line="290"/>
         <source>Text File</source>
         <translation>Текстовый файл</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="277"/>
+        <location filename="../app/main_window.py" line="291"/>
         <source>ISO G-Code</source>
         <translation>ISO G-код</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="306"/>
+        <location filename="../app/main_window.py" line="320"/>
         <source>File Type</source>
         <translation>Тип файла</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="429"/>
+        <location filename="../app/main_window.py" line="443"/>
         <source>Tool Library is unavailable because tools.db could not be read</source>
         <translation>Библиотека инструментов недоступна: не удалось прочитать tools.db</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="454"/>
+        <location filename="../app/main_window.py" line="472"/>
         <source>Cancelling CNC execution; close again when it has stopped.</source>
         <translation>Отмена выполнения ЧПУ; закройте окно ещё раз после остановки.</translation>
     </message>
@@ -1237,206 +1232,206 @@
 &apos;%s&apos;</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="311"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="303"/>
         <source>Cancelling CNC execution...</source>
         <translation>Отмена выполнения ЧПУ...</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="469"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="657"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="464"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="652"/>
         <source>CNC execution</source>
         <translation>Выполнение ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="471"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="466"/>
         <source>Executing CNC program…</source>
         <translation>Выполнение программы ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="472"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="467"/>
         <source>Cancelling CNC execution…</source>
         <translation>Отмена выполнения ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="659"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="654"/>
         <source>Building toolpath…</source>
         <translation>Построение траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="470"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="658"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="465"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="653"/>
         <source>Updating plot…</source>
         <translation>Обновление графика…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="660"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="655"/>
         <source>Cancelling toolpath calculation…</source>
         <translation>Отмена расчёта траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="126"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="130"/>
         <source>line {0}</source>
         <translation>строка {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="131"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="135"/>
         <source>Source: {0}</source>
         <translation>Исходный блок: {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="143"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="147"/>
         <source>Export failed</source>
         <translation>Ошибка экспорта</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="146"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="150"/>
         <source>Export is unavailable because CNC execution is invalid or incomplete.</source>
         <translation>Экспорт недоступен: выполнение программы ЧПУ содержит ошибки или не завершено.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="151"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="155"/>
         <source>Correct the diagnostics below and run the export again.</source>
         <translation>Исправьте перечисленные ниже проблемы и повторите экспорт.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="154"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="158"/>
         <source>The program could not be exported.</source>
         <translation>Не удалось экспортировать программу.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="397"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="406"/>
         <source>Recent Files</source>
         <translation>Недавние файлы</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="424"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="471"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="433"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="480"/>
         <source>(Empty)</source>
         <translation>(Пусто)</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="479"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="488"/>
         <source>Clear Recent</source>
         <translation>Очистить список</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="461"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="526"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="470"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="535"/>
         <source>File not found:
 {0}</source>
         <translation>Файл не найден:
 {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="407"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="416"/>
         <source>Recent STL</source>
         <translation>Недавние STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="432"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="441"/>
         <source>Clear Recent STL</source>
         <translation>Очистить список STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="591"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="612"/>
         <source>The document has been modified.
 Do you want to save your changes?</source>
         <translation>Документ был изменён.
 Сохранить изменения?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="616"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="637"/>
         <source>Cannot read file %s:
 %s.</source>
         <translation>Не удалось прочитать файл %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="663"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="684"/>
         <source>The file was changed by another application. Overwrite those changes?</source>
         <translation>Файл был изменён другим приложением. Перезаписать эти изменения?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="356"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="365"/>
         <source>Reload file</source>
         <translation>Загрузить файл заново</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="347"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="356"/>
         <source>This file has been modified by another program.
 Do you want to reload it from disk?</source>
         <translation>Этот файл изменён другой программой.
 Загрузить его заново с диска?</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="351"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="360"/>
         <source>Reloading will discard your unsaved changes.</source>
         <translation>Несохранённые изменения будут потеряны.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="682"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="703"/>
         <source>Cannot write file %s:
 %s.</source>
         <translation>Не удалось записать файл %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="709"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="730"/>
         <source>%s[*] - Easy G-code Plot</source>
         <translation>%s[*] - Easy G-code Plot</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="726"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="747"/>
         <source>Text files (*.txt);;All files (*)</source>
         <translation>Текстовые файлы (*.txt);;Все файлы (*)</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="747"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="768"/>
         <source>Cannot write tool list %s:
 %s.</source>
         <translation>Не удалось записать список инструментов %s:
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="751"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="772"/>
         <source>Tool list exported to %s</source>
         <translation>Список инструментов экспортирован в %s</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="769"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="790"/>
         <source>No valid CNC execution result is available for export</source>
         <translation>Нет корректного результата выполнения программы ЧПУ для экспорта</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="793"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="803"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="829"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="822"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="832"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="858"/>
         <source>Export</source>
         <translation>Экспорт</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="794"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="823"/>
         <source>Exporting program…</source>
         <translation>Экспорт программы…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="795"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="824"/>
         <source>Cancelling export…</source>
         <translation>Отмена экспорта…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="800"/>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="804"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="829"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="833"/>
         <source>Export cancelled.</source>
         <translation>Экспорт отменён.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="811"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="840"/>
         <source>Export unavailable</source>
         <translation>Экспорт недоступен</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="812"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="841"/>
         <source>The selected post cannot represent this program.
 
 {0}</source>
@@ -1445,14 +1440,14 @@ Do you want to reload it from disk?</source>
 {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="830"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="859"/>
         <source>Program exported successfully:
 {0}</source>
         <translation>Программа успешно экспортирована:
 {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_file_ops.py" line="825"/>
+        <location filename="../app/ui/windows/main_window_file_ops.py" line="854"/>
         <source>Export Execution time: {0:.3f} ms</source>
         <translation>Время экспорта: {0:.3f} мс</translation>
     </message>
@@ -1487,32 +1482,48 @@ Do you want to reload it from disk?</source>
         <translation>??????? ??????? STL: {0:,} ?????????????</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="87"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="302"/>
+        <source>Writing stock STL...</source>
+        <translation>Запись STL заготовки...</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="303"/>
+        <source>Cancelling stock STL export...</source>
+        <translation>Отмена экспорта STL заготовки...</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="309"/>
+        <source>STL: {0} triangles</source>
+        <translation>STL: {0} треугольников</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="364"/>
         <source>Turning stock configured</source>
         <translation>Заготовка для точения настроена</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="100"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="377"/>
         <source>Turning stock set to Auto</source>
         <translation>Заготовка переключена в авторежим</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="226"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="503"/>
         <source>Configure turning stock in Settings &gt; Stock first.</source>
         <translation>Сначала настройте заготовку в Настройки &gt; Заготовка.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="232"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="509"/>
         <source>Stock Removal needs a calculated turning toolpath.</source>
         <translation>Для снятия заготовки нужна рассчитанная токарная траектория.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="238"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="515"/>
         <source>Stock Removal needs a complete turning program.</source>
         <translation>Для снятия заготовки нужна полная токарная программа.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_stock.py" line="247"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="174"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="524"/>
         <source>Stock Removal is unavailable: {0}</source>
         <translation>Снятие заготовки недоступно: {0}</translation>
     </message>
@@ -1676,24 +1687,70 @@ Do you want to reload it from disk?</source>
         <translation>Очистить</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="327"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="328"/>
         <source>Center of the source mesh bounding box, in model coordinates.</source>
         <translation>Центр габаритного параллелепипеда исходной сетки в координатах модели.</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="330"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="331"/>
         <source>Minimum X, Y and Z. Shift+Click any highlighted bounding-box corner to use it.</source>
         <translation>Минимальные X, Y и Z. Shift+щелчок по выделенному углу габаритов задаёт его базовой точкой.</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="333"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="334"/>
         <source>Model coordinate origin (0, 0, 0).</source>
         <translation>Начало координат модели (0, 0, 0).</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="334"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="335"/>
         <source>Enter a point in model coordinates, then apply it.</source>
         <translation>Введите координаты модели и задайте базовую точку.</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="215"/>
+        <source>Configure Stock Removal</source>
+        <translation>Параметры симуляции съёма материала</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="218"/>
+        <source>Stock Removal</source>
+        <translation>Съём материала</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="223"/>
+        <source>Toggle stock simulation (3-axis milling or turning)</source>
+        <translation>Включить или выключить симуляцию съёма материала (трёхосевое фрезерование или точение)</translation>
+    </message>
+    <message>
+        <location filename="../app/main_window.py" line="227"/>
+        <source>Save stock as STL</source>
+        <translation>Сохранить заготовку в STL</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="123"/>
+        <source>Milling stock configured</source>
+        <translation>Заготовка для фрезерования настроена</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="152"/>
+        <source>Stock Removal needs a complete milling toolpath.</source>
+        <translation>Для симуляции съёма материала требуется полностью рассчитанная траектория фрезерования.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="157"/>
+        <source>3-axis milling stock requires FANUC or native SINUMERIK.</source>
+        <translation>Симуляция трёхосевого фрезерования доступна для FANUC и SINUMERIK.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="197"/>
+        <source>Stock Removal: missing tool(s) {0}; default cutter used. Removal geometry may be inaccurate.</source>
+        <translation>Съём материала: отсутствуют инструменты {0}; используется фреза по умолчанию. Геометрия съёма может быть неточной.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/main_window_stock.py" line="277"/>
+        <location filename="../app/ui/windows/main_window_stock.py" line="301"/>
+        <source>Save simulated stock</source>
+        <translation>Сохранить модель заготовки</translation>
     </message>
 </context>
 <context>
@@ -1750,32 +1807,32 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/editors/milling_tool_editor.ui" line="18"/>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="594"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="595"/>
         <source>Chamfer angle, deg</source>
         <translation>Угол фаски, °</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="484"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="485"/>
         <source>Length to holder</source>
         <translation>Длина до оправки</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="485"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="486"/>
         <source>Flute length</source>
         <translation>Длина режущей части</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="486"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="487"/>
         <source>Body length</source>
         <translation>Длина нережущей части</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="592"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="593"/>
         <source>Taper angle, deg</source>
         <translation>Угол конуса, °</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="652"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="653"/>
         <source>Flute length must be greater than zero.</source>
         <translation>Длина режущей части должна быть больше нуля.</translation>
     </message>
@@ -1804,9 +1861,9 @@ Do you want to reload it from disk?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
-        <location filename="../app/ui/dialogs/options.py" line="476"/>
-        <location filename="../app/ui/dialogs/options.py" line="488"/>
-        <location filename="../app/ui/dialogs/options.py" line="499"/>
+        <location filename="../app/ui/dialogs/options.py" line="518"/>
+        <location filename="../app/ui/dialogs/options.py" line="530"/>
+        <location filename="../app/ui/dialogs/options.py" line="541"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -1962,12 +2019,12 @@ Do you want to reload it from disk?</source>
         <translation>Подсвечивать текущую строку</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="262"/>
+        <location filename="../app/ui/dialogs/options.py" line="273"/>
         <source>Current line (light theme)</source>
         <translation>Текущая строка (светлая тема)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="265"/>
+        <location filename="../app/ui/dialogs/options.py" line="276"/>
         <source>Current line (dark theme)</source>
         <translation>Текущая строка (тёмная тема)</translation>
     </message>
@@ -2157,7 +2214,7 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="565"/>
-        <location filename="../app/main_window.py" line="335"/>
+        <location filename="../app/main_window.py" line="349"/>
         <source>Playback speed</source>
         <translation>Скорость воспроизведения</translation>
     </message>
@@ -2207,51 +2264,61 @@ Do you want to reload it from disk?</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="176"/>
-        <location filename="../app/ui/dialogs/options.py" line="208"/>
-        <location filename="../app/ui/dialogs/options.py" line="714"/>
+        <location filename="../app/ui/dialogs/options.py" line="181"/>
+        <location filename="../app/ui/dialogs/options.py" line="213"/>
+        <location filename="../app/ui/dialogs/options.py" line="759"/>
         <source>Rotary kinematics JSON</source>
         <translation>JSON поворотной кинематики</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="297"/>
+        <location filename="../app/ui/dialogs/options.py" line="335"/>
         <source>Rotary kinematics</source>
         <translation>Поворотная кинематика</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="303"/>
+        <location filename="../app/ui/dialogs/options.py" line="341"/>
         <source>Edit</source>
         <translation>Редак-ть</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="322"/>
+        <location filename="../app/ui/dialogs/options.py" line="360"/>
         <source>None</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="282"/>
+        <location filename="../app/ui/dialogs/options.py" line="320"/>
         <source>840D Extended cycles</source>
         <translation>840D Расширенные циклы</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="286"/>
+        <location filename="../app/ui/dialogs/options.py" line="324"/>
         <source>Checked: 840D Extended cycles interface (Siemens 03/2009). Unchecked: classic cycle interface (Siemens 01/2008). Applies to native source cycles and native SINUMERIK export.</source>
         <translation>Включено: интерфейс расширенных циклов 840D (Siemens 03/2009). Выключено: классический интерфейс циклов (Siemens 01/2008). Применяется к native-циклам исходной программы и native-экспорту SINUMERIK.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="477"/>
+        <location filename="../app/ui/dialogs/options.py" line="519"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="489"/>
+        <location filename="../app/ui/dialogs/options.py" line="531"/>
         <source>Hotkeys must be unique.</source>
         <translation>Горячие клавиши не должны повторяться.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="500"/>
+        <location filename="../app/ui/dialogs/options.py" line="542"/>
         <source>Colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета должны быть корректными именами цветов Qt, например #008000.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="300"/>
+        <source>Stock material</source>
+        <translation>Заготовка</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="303"/>
+        <source>Removed material</source>
+        <translation>Обработанная поверхность</translation>
     </message>
 </context>
 <context>
@@ -2643,7 +2710,7 @@ Do you want to reload it from disk?</source>
         <translation>Инструмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="944"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="939"/>
         <source>No Data Available</source>
         <translation>Нет данных</translation>
     </message>
@@ -2651,7 +2718,7 @@ Do you want to reload it from disk?</source>
 <context>
     <name>StlObjectsPanelForm</name>
     <message>
-        <location filename="../app/ui/generated/panels/stl_objects_panel.ui" line="42"/>
+        <location filename="../app/ui/generated/panels/stl_objects_panel.ui" line="41"/>
         <source>Close</source>
         <translation>Закрыть</translation>
     </message>
@@ -2685,28 +2752,28 @@ Do you want to reload it from disk?</source>
 <context>
     <name>StlStatistics</name>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="408"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="409"/>
         <source>Surface area</source>
         <translation>Площадь поверхности</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="409"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="410"/>
         <source>Volume</source>
         <translation>Объём</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="410"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="411"/>
         <source>Center of mass</source>
         <translation>Центр масс</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="411"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="412"/>
         <source>Bounding box</source>
         <translation>Габариты</translation>
     </message>
     <message>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="415"/>
-        <location filename="../app/ui/panels/stl_objects_panel.py" line="420"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="416"/>
+        <location filename="../app/ui/panels/stl_objects_panel.py" line="421"/>
         <source>undefined (open mesh)</source>
         <translation>не определёно (открытая сетка)</translation>
     </message>
@@ -2720,8 +2787,8 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/stock.ui" line="12"/>
-        <source>Run Stock Removal when Play is pressed</source>
-        <translation>Запускать снятие заготовки при нажатии Пуск</translation>
+        <source>Enable turning stock removal</source>
+        <translation>Включить симуляцию съёма материала при точении</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/stock.ui" line="21"/>
@@ -2771,6 +2838,61 @@ Do you want to reload it from disk?</source>
         <source>Reset to Auto</source>
         <translation>Сбросить на авто</translation>
     </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="71"/>
+        <source>Turning</source>
+        <translation>Точение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="108"/>
+        <source>Milling</source>
+        <translation>Фрезерование</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="74"/>
+        <source>Manual stock box</source>
+        <translation>Задать границы заготовки вручную</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="79"/>
+        <source>X- from WCS</source>
+        <translation>X− относительно СК детали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="80"/>
+        <source>X+ from WCS</source>
+        <translation>X+ относительно СК детали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="81"/>
+        <source>Y- from WCS</source>
+        <translation>Y− относительно СК детали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="82"/>
+        <source>Y+ from WCS</source>
+        <translation>Y+ относительно СК детали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="83"/>
+        <source>Z- from WCS</source>
+        <translation>Z− относительно СК детали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="84"/>
+        <source>Z+ from WCS</source>
+        <translation>Z+ относительно СК детали</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="98"/>
+        <source>Automatic stock allowance</source>
+        <translation>Припуск для автоматического расчёта</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/stock_dialog.py" line="105"/>
+        <source>Use automatic bounds</source>
+        <translation>Определить границы автоматически</translation>
+    </message>
 </context>
 <context>
     <name>TokensDlg</name>
@@ -2801,8 +2923,8 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/tokens.ui" line="213"/>
-        <location filename="../app/ui/dialogs/tokens.py" line="361"/>
-        <location filename="../app/ui/dialogs/tokens.py" line="376"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="393"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="408"/>
         <source>Export CSV</source>
         <translation>Экспорт CSV</translation>
     </message>
@@ -2818,44 +2940,44 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/tokens.ui" line="158"/>
-        <location filename="../app/ui/dialogs/tokens.py" line="301"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="311"/>
         <source>No execution data.</source>
         <translation>Нет данных выполнения.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="210"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="219"/>
         <source>#</source>
         <translation>№</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="211"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="220"/>
         <source>Value</source>
         <translation>Значение</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="294"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="304"/>
         <source>Execution is stale. Update the toolpath to inspect Macro Variables.</source>
         <translation>Данные выполнения устарели. Обновите траекторию для просмотра макропеременных.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="348"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="380"/>
         <source>Copy</source>
         <translation>Копировать</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="377"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="409"/>
         <source>Unable to write {0}:
 {1}</source>
         <translation>Не удалось записать {0}:
 {1}</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="383"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="415"/>
         <source>Macro variables exported to {0}</source>
         <translation>Макропеременные экспортированы в {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="385"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="417"/>
         <source>Token validation exported to {0}</source>
         <translation>Проверка токенов экспортирована в {0}</translation>
     </message>
@@ -2881,14 +3003,14 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/generated/editors/tool_library.ui" line="6"/>
         <location filename="../app/ui/dialogs/tool_dialogs.py" line="375"/>
         <location filename="../app/ui/dialogs/tool_dialogs.py" line="382"/>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="625"/>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="637"/>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="644"/>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="651"/>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="328"/>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="352"/>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="364"/>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="385"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="626"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="638"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="645"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="652"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="331"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="355"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="367"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="388"/>
         <source>Tool Library</source>
         <translation>Библиотека инструментов</translation>
     </message>
@@ -3029,47 +3151,47 @@ Do you want to reload it from disk?</source>
         <translation>Выберите доступный тип инструмента.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="449"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="450"/>
         <source>Edit Milling Tool</source>
         <translation>Изменить фрезерный инструмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="451"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="452"/>
         <source>Add Milling Tool</source>
         <translation>Добавить фрезерный инструмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="638"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="639"/>
         <source>T code must be T1-T99.</source>
         <translation>Номер T должен быть T1–T99.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_dialogs.py" line="645"/>
+        <location filename="../app/ui/dialogs/tool_dialogs.py" line="646"/>
         <source>Diameter and length must be greater than zero.</source>
         <translation>Диаметр и длина должны быть больше нуля.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="286"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="289"/>
         <source>Save Tool to Library</source>
         <translation>Сохранить инструмент в библиотеку</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="329"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="332"/>
         <source>No free tool number is available.</source>
         <translation>Нет свободного номера инструмента.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="353"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="356"/>
         <source>Remove saved tool {0}?</source>
         <translation>Удалить сохранённый инструмент {0}?</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="365"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="368"/>
         <source>Saved tool {0} already exists. Replace it?</source>
         <translation>Сохранённый инструмент {0} уже существует. Заменить его?</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="386"/>
+        <location filename="../app/ui/dialogs/tool_library_dialog.py" line="389"/>
         <source>Could not save the tool library. Please retry.</source>
         <translation>Не удалось сохранить библиотеку инструментов. Повторите попытку.</translation>
     </message>
@@ -3321,6 +3443,37 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/generated/dialogs/wcs.ui" line="472"/>
         <source>Inches</source>
         <translation>Дюймы</translation>
+    </message>
+</context>
+<context>
+    <name>StockStlExportDialog</name>
+    <message>
+        <source>STL export parameters</source>
+        <translation>Параметры экспорта STL</translation>
+    </message>
+    <message>
+        <source>Millimeters</source>
+        <translation>Миллиметры</translation>
+    </message>
+    <message>
+        <source>Inches</source>
+        <translation>Дюймы</translation>
+    </message>
+    <message>
+        <source>Length units</source>
+        <translation>Единицы измерения</translation>
+    </message>
+    <message>
+        <source>Maximum linear deviation</source>
+        <translation>Максимальное линейное отклонение</translation>
+    </message>
+    <message>
+        <source>Maximum angular deviation</source>
+        <translation>Максимальное угловое отклонение</translation>
+    </message>
+    <message>
+        <source>Maximum edge length</source>
+        <translation>Максимальная длина ребра</translation>
     </message>
 </context>
 </TS>

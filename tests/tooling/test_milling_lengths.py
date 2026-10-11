@@ -119,7 +119,9 @@ def test_turning_axial_lengths_are_unchanged():
 
 
 def test_discovery_converts_explicit_pair_to_metric_and_total_alone_stays_unsplit():
-    tools = discover_tools("G20\nT1 (FLAT END MILL D.25 FL1 BL.5)\nG21\nT2 (TAPER BALL MILL D6 L73)\n", turning=False)
+    tools = discover_tools(
+        "G20\nT1 M6 (FLAT END MILL D.25 FL1 BL.5)\nG21\nT2 M6 (TAPER BALL MILL D6 L73)\n", turning=False
+    )
     assert tools["T1"]["fluteLength"] == pytest.approx(25.4)
     assert tools["T1"]["bodyLength"] == pytest.approx(12.7)
     assert tools["T1"]["length"] == pytest.approx(38.1)

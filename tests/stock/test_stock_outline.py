@@ -180,7 +180,7 @@ def test_stock_outline_restored_after_stock_playback_stop(qt_app):
     )
     assert _outline_items(window)
 
-    window.ui.actionPlay.setChecked(True)
+    window.ui.actionStockPlayback.setChecked(True)
     qt_app.processEvents()
     assert window._stock_animation_active  # pylint: disable=protected-access
     assert not _outline_items(window)
@@ -215,7 +215,7 @@ def test_stock_playback_uses_current_program_auto_bounds(qt_app):
     assert window.updateData()
     expected = window.stockOutlineBounds()
 
-    window.ui.actionPlay.setChecked(True)
+    window.ui.actionStockPlayback.setChecked(True)
     qt_app.processEvents()
 
     timeline = window._stock_timeline  # pylint: disable=protected-access

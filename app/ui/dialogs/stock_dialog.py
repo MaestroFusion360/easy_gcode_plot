@@ -1,8 +1,20 @@
-"""Turning stock configuration dialog."""
+"""Milling and turning stock configuration dialog."""
 
 from __future__ import annotations
 
-from PyQt6.QtWidgets import QDialog, QMessageBox
+from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDoubleSpinBox,
+    QFormLayout,
+    QMessageBox,
+    QPushButton,
+    QSlider,
+    QTabWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
 from app.ui.generated.dialogs.stock import Ui_StockDialog
 from app.ui.support.units import metric_value, register_length_spinboxes, set_length_units, set_metric_value
@@ -12,7 +24,7 @@ _DEFAULT_ACCURACY_INDEX = _ACCURACY_RESOLUTIONS.index(0.5)
 
 
 class StockDialog(QDialog):
-    """Edit axisymmetric turning stock without mutating settings on Cancel."""
+    """Edit milling and turning stock without mutating settings on Cancel."""
 
     def __init__(self, window):
         super().__init__(window)
@@ -34,7 +46,120 @@ class StockDialog(QDialog):
         self.reset_auto_button.clicked.connect(self._reset_to_auto)
         self.ui.buttonBox.accepted.connect(self._apply)
         self.ui.buttonBox.rejected.connect(self.reject)
-        self.resize(430, self.sizeHint().height())
+        self._setup_milling_tab()
+        self.resize(465, self.sizeHint().height())
+
+    def _setup_milling_tab(self):
+        """Keep the existing turning form and add one independent milling form."""
+        root, tabs = self._create_stock_tabs()
+        self._create_milling_form(root, tabs)
+
+    def _create_stock_tabs(self):
+        root = self.layout()
+        elements = []
+        while root.count():
+            elements.append(root.takeAt(0))
+        tabs = QTabWidget(self)
+        tabs.setObjectName("stockTabs")
+        turning = QWidget(tabs)
+        turning_layout = QVBoxLayout(turning)
+        for element in elements:
+            layout = element.layout()
+            if layout is not None:
+                turning_layout.addLayout(layout)
+            elif element.widget() is not None:
+                turning_layout.addWidget(element.widget())
+        # The Ok/Cancel buttons must remain available on both tabs.
+        button_layout = self.ui.buttonLayout
+        button_layout.removeWidget(self.ui.buttonBox)
+        self.ui.buttonBox.setParent(self)
+        tabs.addTab(turning, QCoreApplication.translate("StockDialog", "Turning"))
+        return root, tabs
+
+    def _create_milling_form(self, root, tabs):
+        milling = QWidget(tabs)
+        form = QFormLayout(milling)
+        self.milling_manual = QCheckBox(QCoreApplication.translate("StockDialog", "Manual stock box"), milling)
+        self.milling_manual.toggled.connect(self._set_milling_manual)
+        form.addRow(self.milling_manual)
+        self.milling_fields = {}
+        for key, label in (
+            ("x_minus", QCoreApplication.translate("StockDialog", "X- from WCS")),
+            ("x_plus", QCoreApplication.translate("StockDialog", "X+ from WCS")),
+            ("y_minus", QCoreApplication.translate("StockDialog", "Y- from WCS")),
+            ("y_plus", QCoreApplication.translate("StockDialog", "Y+ from WCS")),
+            ("z_minus", QCoreApplication.translate("StockDialog", "Z- from WCS")),
+            ("z_plus", QCoreApplication.translate("StockDialog", "Z+ from WCS")),
+        ):
+            spin = QDoubleSpinBox(milling)
+            spin.setObjectName("millingStock" + key.title().replace("_", "") + "Spin")
+            spin.setDecimals(3)
+            spin.setRange(-100000.0, 100000.0)
+            spin.setSuffix(" mm")
+            form.addRow(label, spin)
+            self.milling_fields[key] = spin
+        self.milling_allowance = QDoubleSpinBox(milling)
+        self.milling_allowance.setObjectName("millingStockAllowanceSpin")
+        self.milling_allowance.setRange(0.0, 10000.0)
+        self.milling_allowance.setDecimals(3)
+        self.milling_allowance.setSuffix(" mm")
+        form.addRow(QCoreApplication.translate("StockDialog", "Automatic stock allowance"), self.milling_allowance)
+        self._create_milling_accuracy(milling, form)
+        self._milling_length_controls = (*self.milling_fields.values(), self.milling_allowance)
+        register_length_spinboxes(self._milling_length_controls)
+        self.milling_inches = QCheckBox(QCoreApplication.translate("StockDialog", "Inches"), milling)
+        self.milling_inches.setObjectName("millingStockInchesCheck")
+        self.milling_inches.toggled.connect(self._set_milling_units)
+        form.addRow(self.milling_inches)
+        self.milling_reset = QPushButton(QCoreApplication.translate("StockDialog", "Use automatic bounds"), milling)
+        self.milling_reset.clicked.connect(self._milling_reset_to_auto)
+        form.addRow(self.milling_reset)
+        tabs.addTab(milling, QCoreApplication.translate("StockDialog", "Milling"))
+        root.addWidget(tabs)
+        root.addWidget(self.ui.buttonBox)
+        self.stock_tabs = tabs
+        self._set_milling_manual(self.milling_manual.isChecked())
+
+    def _create_milling_accuracy(self, milling, form):
+        self.milling_accuracy = QSlider(Qt.Orientation.Horizontal, milling)
+        self.milling_accuracy.setObjectName("millingStockAccuracySlider")
+        self.milling_accuracy.setRange(0, 4)
+        self.milling_accuracy.setPageStep(1)
+        self.milling_accuracy.setTickPosition(QSlider.TickPosition.TicksBelow)
+        self.milling_accuracy.setTickInterval(1)
+        self.milling_accuracy.setToolTip(
+            QCoreApplication.translate(
+                "StockDialog", "Higher accuracy gives a finer stock model and uses more processing time."
+            )
+        )
+        form.addRow(QCoreApplication.translate("StockDialog", "Accuracy"), self.milling_accuracy)
+
+    def _set_milling_manual(self, enabled):
+        for spin in self.milling_fields.values():
+            spin.setEnabled(enabled)
+
+    def _milling_reset_to_auto(self):
+        self.milling_manual.setChecked(False)
+        self._load_milling_values(force_auto=True)
+
+    def _load_milling_values(self, *, force_auto=False):
+        spec = self.window.millingStockDialogSpec(force_auto=force_auto)
+        if spec is not None:
+            ox, oy, oz = self.window.millingStockOrigin()
+            values = {
+                "x_minus": spec.x_min - ox,
+                "x_plus": spec.x_max - ox,
+                "y_minus": spec.y_min - oy,
+                "y_plus": spec.y_max - oy,
+                "z_minus": spec.z_min - oz,
+                "z_plus": spec.z_max - oz,
+            }
+            for key, spin in self.milling_fields.items():
+                set_metric_value(spin, values[key])
+        self.milling_manual.setChecked(False if force_auto else bool(getattr(self.window, "millingStockManual", False)))
+        self._set_milling_manual(self.milling_manual.isChecked())
+        set_metric_value(self.milling_allowance, float(getattr(self.window, "millingStockAllowance", 3.0)))
+        self.milling_accuracy.setValue(int(getattr(self.window, "millingStockAccuracy", 2)))
 
     @staticmethod
     def _accuracy_index_for_resolution(resolution: float) -> int:
@@ -48,6 +173,9 @@ class StockDialog(QDialog):
 
     def _set_units(self, inches: bool):
         set_length_units(self._length_controls, bool(inches), suffix=True, context="StockDialog")
+
+    def _set_milling_units(self, inches: bool):
+        set_length_units(self._milling_length_controls, bool(inches), suffix=True, context="StockDialog")
 
     def showEvent(self, event):
         self.enabled.setChecked(getattr(self.window, "stockEnabled", False))
@@ -75,6 +203,8 @@ class StockDialog(QDialog):
             set_metric_value(self.front_z, manual_front)
         resolution = float(getattr(self.window, "turnStockResolution", 0.5))
         self.accuracy.setValue(self._accuracy_index_for_resolution(resolution))
+        self._load_milling_values()
+        self.stock_tabs.setCurrentIndex(0 if self.window.latheMode else 1)
         super().showEvent(event)
 
     def _reset_to_auto(self):
@@ -82,6 +212,19 @@ class StockDialog(QDialog):
         self.accept()
 
     def _apply(self):
+        if self.stock_tabs.currentIndex() == 1:
+            values = {key: metric_value(spin) for key, spin in self.milling_fields.items()}
+            values["manual"] = self.milling_manual.isChecked()
+            values["allowance"] = metric_value(self.milling_allowance)
+            values["resolution"] = self.window.millingStockResolution
+            values["accuracy"] = self.milling_accuracy.value()
+            try:
+                self.window.applyMillingStockSettings(values)
+            except ValueError as exc:
+                QMessageBox.warning(self, "Stock", str(exc))
+                return
+            self.accept()
+            return
         front_z = metric_value(self.front_z)
         front_allowance = max(0.0, front_z - self._front_base_z)
         values = {

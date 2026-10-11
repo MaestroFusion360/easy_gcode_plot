@@ -9,7 +9,9 @@ import pytest
 
 from app import settings
 from app.gcode.kernel import execute
+from app.gcode.kernel.frontend.program import parse_program
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline
+from app.tools import discovery
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.discovery import _scan_source_python, discover_tools
 from app.tools.library import ToolLibrary
@@ -92,18 +94,138 @@ def test_milling_types(comment, kind):
     assert spec["type"] == kind
 
 
+@pytest.mark.parametrize(
+    "comment,kind",
+    [
+        ("flat-endmill", "mill_flat"),
+        ("SQUARE END MILL", "mill_flat"),
+        ("ENDMILL", "mill_flat"),
+        ("mill_flat", "mill_flat"),
+        ("BALLNOSE", "mill_ball"),
+        ("BALL_NOSE_END_MILL", "mill_ball"),
+        ("SPHERICAL ENDMILL", "mill_ball"),
+        ("END_MILL_SPHER", "mill_ball"),
+        ("mill_ball", "mill_ball"),
+        ("BULLNOSE", "mill_bull"),
+        ("CORNER-RADIUS END MILL", "mill_bull"),
+        ("RADIUS END MILL", "mill_bull"),
+        ("TOROIDAL CUTTER", "mill_bull"),
+        ("TAPERED BALLNOSE", "taper_ball_mill"),
+        ("TAPER_BALL_MILL", "taper_ball_mill"),
+        ("TAPERED BALL END MILL", "taper_ball_mill"),
+        ("FACEMILL", "face_mill"),
+        ("FACE_MILL", "face_mill"),
+        ("SHELL MILL", "face_mill"),
+        ("SLOT-MILL", "slot_mill"),
+        ("T-SLOT CUTTER", "slot_mill"),
+        ("WOODRUFF KEYSEAT CUTTER", "slot_mill"),
+        ("DISC MILL", "slot_mill"),
+        ("CHAMFER_MILL", "chamfer_mill"),
+        ("COUNTERSINK", "chamfer_mill"),
+        ("V-BIT", "chamfer_mill"),
+        ("SPOT_DRILL", "drill"),
+        ("CENTRE DRILL", "drill"),
+        ("RIGHT HAND TAP", "tap"),
+        ("LEFT-HAND TAP", "tap"),
+        ("ТОРЦЕВАЯ ФРЕЗА", "face_mill"),
+        ("МЕТЧИК", "tap"),
+        ("СВЕРЛО", "drill"),
+    ],
+)
+def test_milling_tool_name_variants(comment, kind):
+    assert discover_tools(f"T7 M6 ({comment} D=8)", turning=False)["T7"]["type"] == kind
+
+
+@pytest.mark.parametrize("python_scanner", [False, True])
+@pytest.mark.parametrize("shared_program", [False, True])
+def test_toolchange_first_tool_is_face_mill_not_preselected_tap(
+    fixture_text, monkeypatch, python_scanner, shared_program
+):
+    source = fixture_text("milling/fanuc/toolchange.nc")
+    if python_scanner:
+        monkeypatch.setattr(discovery, "_native_scan_source", None)
+    tools = discover_tools(source, turning=False, program=parse_program(source) if shared_program else None)
+    assert {key: (spec["type"], spec["diameter"]) for key, spec in tools.items()} == {
+        "T1": ("face_mill", 50),
+        "T2": ("mill_flat", 8),
+        "T3": ("drill", 5),
+        "T8": ("tap", 6),
+    }
+    assert tools["T3"]["tipAngle"] == 118
+
+
+@pytest.mark.parametrize("change", ["M6", "M06", "M6.0", "M06.000"])
+def test_preselected_tool_does_not_inherit_current_tool_cycle(change):
+    tools = discover_tools(
+        f"T8 {change} (RIGHT HAND TAP D6)\nT1\nG84 Z-5\nG80\nT1 {change} (FACE MILL D50)\nG1 X10", turning=False
+    )
+    assert tools["T8"]["type"] == "tap"
+    assert tools["T1"]["type"] == "face_mill"
+
+
+def test_milling_comment_shape_parameters_and_dimensions():
+    tools = discover_tools(
+        "T1 M6 (TAPERED BALLNOSE DIA:6,35MM TAPER=8DEG FL=20 BL=30)\n"
+        "T2 M6 (CORNER RADIUS END MILL Ø8 CORNER_RADIUS=1.5)\n"
+        "T3 M6 (COUNTERSINK D=12 TIP_DIAMETER=2 CHAMFER_ANGLE=60DEG)\n"
+        "T4 M6 (FACE MILL DIAM=50 SHANK_DIA=20)\n"
+        "T5 M6 (TWIST DRILL ⌀5 POINT_ANGLE=135DEG)\n",
+        turning=False,
+    )
+    assert tools["T1"]["diameter"] == 6.35
+    assert tools["T1"]["taperAngle"] == 8
+    assert tools["T1"]["fluteLength"] == 20 and tools["T1"]["bodyLength"] == 30
+    assert tools["T2"]["cornerRadius"] == 1.5
+    assert tools["T3"]["tipDiameter"] == 2 and tools["T3"]["chamferAngle"] == 60
+    assert tools["T4"]["diameter"] == 50 and tools["T4"]["shankDiameter"] == 20
+    assert tools["T5"]["diameter"] == 5 and tools["T5"]["tipAngle"] == 135
+
+
 @pytest.mark.parametrize("turning", [True, False])
 def test_defaults_and_non_executable_t_words(turning):
     tools = discover_tools("(T8 DRILL)\n; T9 TAP\nT0\nT10000\nT3.2\nT#1\nT[2+4]\nT07", turning=turning)
     key = "T0007" if turning else "T7"
-    assert tools == {key: DEFAULT_TURNING_TOOL if turning else DEFAULT_MILLING_TOOL}
+    assert tools == ({key: DEFAULT_TURNING_TOOL} if turning else {})
 
 
 def test_units_and_invalid_dimensions():
-    tools = discover_tools("G20\nT7 (FLAT END MILL D=.25 CR=.01)\nG21\nT8 (DRILL D=-4)", turning=False)
+    tools = discover_tools("G20\nT7 M6 (FLAT END MILL D=.25 CR=.01)\nG21\nT8 M6 (DRILL D=-4)", turning=False)
     assert tools["T7"]["diameter"] == pytest.approx(6.35)
     assert tools["T7"]["cornerRadius"] == pytest.approx(0.254)
     assert tools["T8"]["diameter"] == 10
+
+
+@pytest.mark.parametrize("dialect", ["fanuc", "sinumerik"])
+@pytest.mark.parametrize("change", ["M6", "M06", "M06.000"])
+def test_current_program_contains_only_installed_milling_tools(dialect, change):
+    source = (
+        "(T1 FACE MILL D50)\n(T2 FLAT END MILL D8)\n(T3 DRILL D5)\n"
+        f"T1 {change}\nT2\nG1 X10 F100\nT7 (TAP D6)\nT3\n{change}\nT8\nM30\n"
+    )
+    tools = discover_tools(source, turning=False, source_dialect=dialect)
+    assert set(tools) == {"T1", "T3"}
+    assert tools["T1"]["type"] == "face_mill"
+    assert tools["T3"]["type"] == "drill"
+
+
+def test_named_sinumerik_preselection_is_not_current_program_tool():
+    tools = discover_tools(
+        'T="FACE" ; FACE MILL D50\nM6\nT="UNUSED" ; TAP D6\nT="BALL" ; BALLNOSE D8\nG0 Z50\nM06\nT="NEXT"\nM30\n',
+        turning=False,
+        source_dialect="sinumerik",
+    )
+    assert set(tools) == {"FACE", "BALL"}
+    assert tools["FACE"]["type"] == "face_mill"
+    assert tools["BALL"]["type"] == "mill_ball"
+
+
+def test_pending_milling_tool_without_m6_never_creates_a_candidate():
+    assert discover_tools("T1 (FACE MILL D50)\nG1 X10 F100\nT2 (TAP D6)\nM30", turning=False) == {}
+
+
+def test_turning_t_words_remain_immediate_without_m6():
+    tools = discover_tools("T0101 (OD R0.8)\nG1 X20\nT0202 (ID R0.4)\nM30", turning=True)
+    assert set(tools) == {"T0101", "T0202"}
 
 
 def test_milling_cycle_context_selects_default_drill_and_tap_geometry():
@@ -142,6 +264,15 @@ def test_cycle_operation_selects_type_while_comment_supplies_dimensions():
 
     assert tools["T7"]["type"] == "drill"
     assert tools["T7"]["diameter"] == 6.0
+
+
+def test_operation_hints_respect_preselection_and_subprogram_header():
+    source = (
+        "O1\nT1 M6 (DRILL D6)\nT2\nG81 Z-5\nG80\nT2 M6 (FLAT END MILL D10)\nG1 X10\nM30\nO8000 T1\nG81 Z-5\nG80\nM99"
+    )
+    tools = discover_tools(source, turning=False, program=parse_program(source))
+    assert tools["T1"]["type"] == "drill"
+    assert tools["T2"]["type"] == "mill_flat"
 
 
 def test_real_program_fixtures(fixture_text):

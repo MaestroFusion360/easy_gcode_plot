@@ -4,7 +4,7 @@ import pytest
 
 from app.gcode.kernel import TraceMotion, execute
 from app.gcode.kernel.api_types import ArcGeometry
-from app.gcode.turning_stock_bounds import auto_turning_stock_suggestion
+from app.gcode.stock.turning_stock_bounds import auto_turning_stock_suggestion
 
 
 def test_auto_stock_uses_cutting_motions_and_ignores_rapid_outliers():

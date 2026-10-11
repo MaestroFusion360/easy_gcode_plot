@@ -225,7 +225,9 @@ def _expand_drilling_cycle(
     def add(kind: int, a, b, motion_feed=None):
         am = _machine(a, state, wcs_offsets)
         bm = _machine(b, state, wcs_offsets)
-        if am == bm:
+        # G91 accumulation followed by an absolute cycle position can differ
+        # by roundoff alone. Do not emit a fictitious XY positioning move.
+        if all(abs(start - end) <= 1e-9 for start, end in zip(am, bm, strict=True)):
             return
         checkpoint("generated_motions")
         out.append(

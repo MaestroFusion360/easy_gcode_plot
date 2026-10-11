@@ -58,6 +58,7 @@ try {
         '--collect-submodules', 'app.gcode.export',
         '--hidden-import', 'app.gcode.kernel.frontend._native_parser',
         '--hidden-import', 'app.tools._native_discovery',
+        '--hidden-import', 'app.gcode.stock._native_stock',
         '--hidden-import', 'app.gcode.kernel.milling._native_executor',
         '--add-data', "$(Join-Path $projectRoot 'pyproject.toml')${separator}.",
         '--add-data', "$(Join-Path $projectRoot 'app\gcode\kernel\milling\rotary_profiles.json')${separator}app/gcode/kernel/milling",
