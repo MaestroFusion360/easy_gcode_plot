@@ -1,0 +1,2196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+    <class>PostProfileEditorDlg</class>
+    <widget class="QWidget" name="PostProfileEditorDlg">
+        <property name="geometry">
+            <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>720</width>
+                <height>440</height>
+            </rect>
+        </property>
+        <property name="minimumSize">
+            <size>
+                <width>560</width>
+                <height>340</height>
+            </size>
+        </property>
+        <property name="windowTitle">
+            <string>Postprocessor editor</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+                <widget class="QTabWidget" name="tabs">
+                    <widget class="QWidget" name="sourceTab">
+                        <attribute name="title">
+                            <string>Source</string>
+                        </attribute>
+                        <layout class="QFormLayout" name="sourceForm">
+                            <item row="0" column="0">
+                                <widget class="QLabel" name="nameEditLabel">
+                                    <property name="text">
+                                        <string>Name</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="0" column="1">
+                                <widget class="QLineEdit" name="nameEdit">
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>320</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="0">
+                                <widget class="QLabel" name="machineComboLabel">
+                                    <property name="text">
+                                        <string>Machine</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="1">
+                                <widget class="QComboBox" name="machineCombo">
+                                    <item>
+                                        <property name="text">
+                                            <string>mill</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>lathe</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>180</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>16</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="0">
+                                <widget class="QLabel" name="extensionEditLabel">
+                                    <property name="text">
+                                        <string>File extension</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="1">
+                                <widget class="QLineEdit" name="extensionEdit">
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>180</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="3" column="0">
+                                <widget class="QLabel" name="idLabelLabel">
+                                    <property name="text">
+                                        <string>Controller id</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="3" column="1">
+                                <widget class="QLabel" name="idLabel">
+                                </widget>
+                            </item>
+                            <item row="4" column="0">
+                                <widget class="QLabel" name="axesLayoutLabel">
+                                    <property name="text">
+                                        <string>Supported axes</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="4" column="1">
+                                <layout class="QHBoxLayout" name="axesLayout">
+                                    <item>
+                                        <widget class="QCheckBox" name="axisXCheck">
+                                            <property name="text">
+                                                <string>X</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QCheckBox" name="axisYCheck">
+                                            <property name="text">
+                                                <string>Y</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QCheckBox" name="axisZCheck">
+                                            <property name="text">
+                                                <string>Z</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QCheckBox" name="axisACheck">
+                                            <property name="text">
+                                                <string>A</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QCheckBox" name="axisBCheck">
+                                            <property name="text">
+                                                <string>B</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QCheckBox" name="axisCCheck">
+                                            <property name="text">
+                                                <string>C</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <property name="fieldGrowthPolicy">
+                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                            </property>
+                            <property name="formAlignment">
+                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                            </property>
+                            <property name="verticalSpacing">
+                                <number>4</number>
+                            </property>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="outputTab">
+                        <attribute name="title">
+                            <string>Output</string>
+                        </attribute>
+                        <layout class="QFormLayout" name="outputForm">
+                            <item row="0" column="0">
+                                <widget class="QLabel" name="unitsLabel">
+                                    <property name="text">
+                                        <string>Units</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="0" column="1">
+                                <widget class="QComboBox" name="units">
+                                    <item>
+                                        <property name="text">
+                                            <string>Millimeters</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>Inches</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>180</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>16</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="0">
+                                <widget class="QLabel" name="coordinatesLabel">
+                                    <property name="text">
+                                        <string>Position output</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="1">
+                                <widget class="QComboBox" name="coordinates">
+                                    <item>
+                                        <property name="text">
+                                            <string>Absolute coordinates</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>Incremental coordinates</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>180</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>16</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="0">
+                                <widget class="QLabel" name="arcsLabel">
+                                    <property name="text">
+                                        <string>Arc output</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="1">
+                                <widget class="QComboBox" name="arcs">
+                                    <item>
+                                        <property name="text">
+                                            <string>Center offsets from the start point (IJK)</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>Absolute center coordinates (IJK)</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>Radius (R / CR)</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>Linear segments</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>320</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>16</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="3" column="0" colspan="2">
+                                <widget class="QCheckBox" name="multiTurn">
+                                    <property name="text">
+                                        <string>Keep arcs spanning multiple revolutions</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="4" column="0">
+                                <widget class="QLabel" name="centerSplitLabel">
+                                    <property name="text">
+                                        <string>Maximum sweep per center arc</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="4" column="1">
+                                <widget class="QComboBox" name="centerSplit">
+                                    <item>
+                                        <property name="text">
+                                            <string>30°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>45°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>90°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>120°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>180°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>360°</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>90</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>6</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="5" column="0">
+                                <widget class="QLabel" name="radiusSplitLabel">
+                                    <property name="text">
+                                        <string>Maximum sweep per radius arc</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="5" column="1">
+                                <widget class="QComboBox" name="radiusSplit">
+                                    <item>
+                                        <property name="text">
+                                            <string>30°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>45°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>90°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>120°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>180°</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>360°</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>90</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>6</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <property name="fieldGrowthPolicy">
+                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                            </property>
+                            <property name="formAlignment">
+                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                            </property>
+                            <property name="verticalSpacing">
+                                <number>4</number>
+                            </property>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="formatTab">
+                        <attribute name="title">
+                            <string>Format</string>
+                        </attribute>
+                        <layout class="QFormLayout" name="formatForm">
+                            <item row="0" column="0">
+                                <widget class="QLabel" name="precisionLabel">
+                                    <property name="text">
+                                        <string>Maximum decimal places</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="0" column="1">
+                                <widget class="QComboBox" name="precision">
+                                    <item>
+                                        <property name="text">
+                                            <string>0</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>1</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>2</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>3</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>4</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>5</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>6</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>7</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>8</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>9</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>10</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>11</string>
+                                        </property>
+                                    </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>12</string>
+                                        </property>
+                                    </item>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>90</width>
+                                            <height>16777215</height>
+                                        </size>
+                                    </property>
+                                    <property name="sizeAdjustPolicy">
+                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                    </property>
+                                    <property name="minimumContentsLength">
+                                        <number>6</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="0" colspan="2">
+                                <widget class="QCheckBox" name="spaces">
+                                    <property name="text">
+                                        <string>Separate words with spaces</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="0" colspan="2">
+                                <widget class="QCheckBox" name="leadingZero">
+                                    <property name="text">
+                                        <string>Leading zero in G codes (G01)</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="3" column="0" colspan="2">
+                                <widget class="QCheckBox" name="forceDecimal">
+                                    <property name="text">
+                                        <string>Decimal point for whole numbers (X1.)</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="4" column="0" colspan="2">
+                                <widget class="QCheckBox" name="plusSign">
+                                    <property name="text">
+                                        <string>Plus sign for positive numbers (X+1)</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <property name="fieldGrowthPolicy">
+                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                            </property>
+                            <property name="formAlignment">
+                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                            </property>
+                            <property name="verticalSpacing">
+                                <number>4</number>
+                            </property>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="sequencingTab">
+                        <attribute name="title">
+                            <string>Sequencing</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="sequencingLayout">
+                            <item>
+                                <widget class="QLabel" name="sequencingHint">
+                                    <property name="text">
+                                        <string>Drag addresses to change their order. Select an address to edit its settings.</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QWidget" name="addressOrder">
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>0</width>
+                                            <height>120</height>
+                                        </size>
+                                    </property>
+                                    <property name="maximumSize">
+                                        <size>
+                                            <width>16777215</width>
+                                            <height>156</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QLabel" name="selectedAddressLabel">
+                                    <property name="text">
+                                        <string>Address settings</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <layout class="QFormLayout" name="sequencingForm">
+                                    <item row="0" column="0">
+                                        <widget class="QLabel" name="addressPrecisionLabel">
+                                            <property name="text">
+                                                <string>Decimal places</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                        <widget class="QComboBox" name="addressPrecision">
+                                            <item>
+                                                <property name="text">
+                                                    <string>Use general precision</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>0</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>1</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>2</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>3</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>4</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>5</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>6</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>7</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>8</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>9</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>10</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>11</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>12</string>
+                                                </property>
+                                            </item>
+                                            <property name="maximumSize">
+                                                <size>
+                                                    <width>210</width>
+                                                    <height>16777215</height>
+                                                </size>
+                                            </property>
+                                            <property name="sizeAdjustPolicy">
+                                                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                            </property>
+                                            <property name="minimumContentsLength">
+                                                <number>16</number>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="0">
+                                        <widget class="QLabel" name="addressSignLabel">
+                                            <property name="text">
+                                                <string>Sign</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="1">
+                                        <widget class="QComboBox" name="addressSign">
+                                            <item>
+                                                <property name="text">
+                                                    <string>Use general sign</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Negative only</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Always show sign</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>No plus sign</string>
+                                                </property>
+                                            </item>
+                                            <property name="maximumSize">
+                                                <size>
+                                                    <width>210</width>
+                                                    <height>16777215</height>
+                                                </size>
+                                            </property>
+                                            <property name="sizeAdjustPolicy">
+                                                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                            </property>
+                                            <property name="minimumContentsLength">
+                                                <number>16</number>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="0">
+                                        <widget class="QLabel" name="addressRequiredLabel">
+                                            <property name="text">
+                                                <string>Output</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="1">
+                                        <widget class="QComboBox" name="addressRequired">
+                                            <item>
+                                                <property name="text">
+                                                    <string>When needed</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Every applicable block</string>
+                                                </property>
+                                            </item>
+                                            <property name="maximumSize">
+                                                <size>
+                                                    <width>210</width>
+                                                    <height>16777215</height>
+                                                </size>
+                                            </property>
+                                            <property name="sizeAdjustPolicy">
+                                                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                            </property>
+                                            <property name="minimumContentsLength">
+                                                <number>16</number>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <property name="fieldGrowthPolicy">
+                                        <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                    </property>
+                                    <property name="formAlignment">
+                                        <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                    </property>
+                                    <property name="verticalSpacing">
+                                        <number>4</number>
+                                    </property>
+                                </layout>
+                            </item>
+                            <item>
+                                <spacer name="sequencingSpacer">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Vertical</enum>
+                                    </property>
+                                    <property name="sizeHint" stdset="0">
+                                        <size>
+                                            <width>20</width>
+                                            <height>10</height>
+                                        </size>
+                                    </property>
+                                </spacer>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="motionsTab">
+                        <attribute name="title">
+                            <string>Motions</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="motionsTabLayout" stretch="0">
+                            <item>
+                                <widget class="QScrollArea" name="motionsTabScroll">
+                                    <property name="frameShape">
+                                        <enum>QFrame::Shape::NoFrame</enum>
+                                    </property>
+                                    <property name="widgetResizable">
+                                        <bool>true</bool>
+                                    </property>
+                                    <widget class="QWidget" name="motionsTabContents">
+                                        <property name="geometry">
+                                            <rect>
+                                                <x>0</x>
+                                                <y>0</y>
+                                                <width>640</width>
+                                                <height>430</height>
+                                            </rect>
+                                        </property>
+                                        <layout class="QFormLayout" name="motionsForm">
+                                            <item row="0" column="0">
+                                                <widget class="QLabel" name="rapidMoveEditLabel">
+                                                    <property name="text">
+                                                        <string>Rapid move</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="0" column="1">
+                                                <widget class="QLineEdit" name="rapidMoveEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="0">
+                                                <widget class="QLabel" name="linearMoveEditLabel">
+                                                    <property name="text">
+                                                        <string>Linear move</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="1">
+                                                <widget class="QLineEdit" name="linearMoveEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="0">
+                                                <widget class="QLabel" name="circularMoveCWEditLabel">
+                                                    <property name="text">
+                                                        <string>Circular CW</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="1">
+                                                <widget class="QLineEdit" name="circularMoveCWEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="0">
+                                                <widget class="QLabel" name="circularMoveCCWEditLabel">
+                                                    <property name="text">
+                                                        <string>Circular CCW</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="1">
+                                                <widget class="QLineEdit" name="circularMoveCCWEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="0">
+                                                <widget class="QLabel" name="planeXYEditLabel">
+                                                    <property name="text">
+                                                        <string>Plane XY</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="1">
+                                                <widget class="QLineEdit" name="planeXYEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="0">
+                                                <widget class="QLabel" name="planeXZEditLabel">
+                                                    <property name="text">
+                                                        <string>Plane XZ</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="1">
+                                                <widget class="QLineEdit" name="planeXZEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="0">
+                                                <widget class="QLabel" name="planeYZEditLabel">
+                                                    <property name="text">
+                                                        <string>Plane YZ</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="1">
+                                                <widget class="QLineEdit" name="planeYZEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="0">
+                                                <widget class="QLabel" name="threadMoveEditLabel">
+                                                    <property name="text">
+                                                        <string>Thread move</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="1">
+                                                <widget class="QLineEdit" name="threadMoveEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="8" column="0">
+                                                <widget class="QLabel" name="absoluteEditLabel">
+                                                    <property name="text">
+                                                        <string>Absolute command</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="8" column="1">
+                                                <widget class="QLineEdit" name="absoluteEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="9" column="0">
+                                                <widget class="QLabel" name="incrementalEditLabel">
+                                                    <property name="text">
+                                                        <string>Incremental command</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="9" column="1">
+                                                <widget class="QLineEdit" name="incrementalEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="10" column="0">
+                                                <widget class="QLabel" name="referenceRapidEditLabel">
+                                                    <property name="text">
+                                                        <string>Reference rapid</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="10" column="1">
+                                                <widget class="QLineEdit" name="referenceRapidEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="11" column="0">
+                                                <widget class="QLabel" name="referenceLinearEditLabel">
+                                                    <property name="text">
+                                                        <string>Reference linear</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="11" column="1">
+                                                <widget class="QLineEdit" name="referenceLinearEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <property name="fieldGrowthPolicy">
+                                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                            </property>
+                                            <property name="formAlignment">
+                                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                            </property>
+                                            <property name="verticalSpacing">
+                                                <number>4</number>
+                                            </property>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="homeTab">
+                        <attribute name="title">
+                            <string>Home</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="homeTabLayout" stretch="0">
+                            <item>
+                                <widget class="QScrollArea" name="homeTabScroll">
+                                    <property name="frameShape">
+                                        <enum>QFrame::Shape::NoFrame</enum>
+                                    </property>
+                                    <property name="widgetResizable">
+                                        <bool>true</bool>
+                                    </property>
+                                    <widget class="QWidget" name="homeTabContents">
+                                        <property name="geometry">
+                                            <rect>
+                                                <x>0</x>
+                                                <y>0</y>
+                                                <width>640</width>
+                                                <height>360</height>
+                                            </rect>
+                                        </property>
+                                        <layout class="QFormLayout" name="homeForm">
+                                            <item row="0" column="0">
+                                                <widget class="QLabel" name="homeG28AllEditLabel">
+                                                    <property name="text">
+                                                        <string>G28 all axes</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="0" column="1">
+                                                <widget class="QLineEdit" name="homeG28AllEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="0">
+                                                <widget class="QLabel" name="homeG28XEditLabel">
+                                                    <property name="text">
+                                                        <string>G28 X</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="1">
+                                                <widget class="QLineEdit" name="homeG28XEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="0">
+                                                <widget class="QLabel" name="homeG28YEditLabel">
+                                                    <property name="text">
+                                                        <string>G28 Y</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="1">
+                                                <widget class="QLineEdit" name="homeG28YEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="0">
+                                                <widget class="QLabel" name="homeG28ZEditLabel">
+                                                    <property name="text">
+                                                        <string>G28 Z</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="1">
+                                                <widget class="QLineEdit" name="homeG28ZEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="0">
+                                                <widget class="QLabel" name="homeG53AllEditLabel">
+                                                    <property name="text">
+                                                        <string>G53 all axes</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="1">
+                                                <widget class="QLineEdit" name="homeG53AllEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="0">
+                                                <widget class="QLabel" name="homeG53XEditLabel">
+                                                    <property name="text">
+                                                        <string>G53 X</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="1">
+                                                <widget class="QLineEdit" name="homeG53XEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="0">
+                                                <widget class="QLabel" name="homeG53YEditLabel">
+                                                    <property name="text">
+                                                        <string>G53 Y</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="1">
+                                                <widget class="QLineEdit" name="homeG53YEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="0">
+                                                <widget class="QLabel" name="homeG53ZEditLabel">
+                                                    <property name="text">
+                                                        <string>G53 Z</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="1">
+                                                <widget class="QLineEdit" name="homeG53ZEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <property name="fieldGrowthPolicy">
+                                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                            </property>
+                                            <property name="formAlignment">
+                                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                            </property>
+                                            <property name="verticalSpacing">
+                                                <number>4</number>
+                                            </property>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="cyclesTab">
+                        <attribute name="title">
+                            <string>Cycles</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="cyclesTabLayout" stretch="0">
+                            <item>
+                                <widget class="QScrollArea" name="cyclesTabScroll">
+                                    <property name="frameShape">
+                                        <enum>QFrame::Shape::NoFrame</enum>
+                                    </property>
+                                    <property name="widgetResizable">
+                                        <bool>true</bool>
+                                    </property>
+                                    <widget class="QWidget" name="cyclesTabContents">
+                                        <property name="geometry">
+                                            <rect>
+                                                <x>0</x>
+                                                <y>0</y>
+                                                <width>640</width>
+                                                <height>700</height>
+                                            </rect>
+                                        </property>
+                                        <layout class="QFormLayout" name="cyclesForm">
+                                            <item row="0" column="0">
+                                                <widget class="QLabel" name="cyclesSyntaxComboLabel">
+                                                    <property name="text">
+                                                        <string>Syntax</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="0" column="1">
+                                                <widget class="QComboBox" name="cyclesSyntaxCombo">
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>iso</string>
+                                                        </property>
+                                                    </item>
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>native</string>
+                                                        </property>
+                                                    </item>
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="sizeAdjustPolicy">
+                                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                                    </property>
+                                                    <property name="minimumContentsLength">
+                                                        <number>16</number>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="0">
+                                                <widget class="QLabel" name="cyclesCancelEditLabel">
+                                                    <property name="text">
+                                                        <string>Cancel</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="1">
+                                                <widget class="QLineEdit" name="cyclesCancelEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="0">
+                                                <widget class="QLabel" name="cyclesReturnInitialEditLabel">
+                                                    <property name="text">
+                                                        <string>Return initial</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="1">
+                                                <widget class="QLineEdit" name="cyclesReturnInitialEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="0">
+                                                <widget class="QLabel" name="cyclesReturnSafetyEditLabel">
+                                                    <property name="text">
+                                                        <string>Return safety</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="1">
+                                                <widget class="QLineEdit" name="cyclesReturnSafetyEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="0">
+                                                <widget class="QLabel" name="cyclesRigidTapEditLabel">
+                                                    <property name="text">
+                                                        <string>Rigid tap</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="1">
+                                                <widget class="QLineEdit" name="cyclesRigidTapEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="0">
+                                                <widget class="QLabel" name="cyclesDrillEditLabel">
+                                                    <property name="text">
+                                                        <string>Drill</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesDrillEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="0">
+                                                <widget class="QLabel" name="cyclesDrillDwellEditLabel">
+                                                    <property name="text">
+                                                        <string>Drill dwell</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesDrillDwellEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="0">
+                                                <widget class="QLabel" name="cyclesPeckDrillEditLabel">
+                                                    <property name="text">
+                                                        <string>Peck drill</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesPeckDrillEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="8" column="0">
+                                                <widget class="QLabel" name="cyclesHighSpeedPeckEditLabel">
+                                                    <property name="text">
+                                                        <string>High-speed peck</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="8" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesHighSpeedPeckEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="9" column="0">
+                                                <widget class="QLabel" name="cyclesTapEditLabel">
+                                                    <property name="text">
+                                                        <string>Tap</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="9" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesTapEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="10" column="0">
+                                                <widget class="QLabel" name="cyclesBoreFeedEditLabel">
+                                                    <property name="text">
+                                                        <string>Bore feed</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="10" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesBoreFeedEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="11" column="0">
+                                                <widget class="QLabel" name="cyclesBoreStopEditLabel">
+                                                    <property name="text">
+                                                        <string>Bore stop</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="11" column="1">
+                                                <widget class="QPlainTextEdit" name="cyclesBoreStopEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <property name="fieldGrowthPolicy">
+                                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                            </property>
+                                            <property name="formAlignment">
+                                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                            </property>
+                                            <property name="verticalSpacing">
+                                                <number>4</number>
+                                            </property>
+                                            <item row="12" column="0">
+                                                <widget class="QLabel" name="nativeCycleCallEditLabel">
+                                                    <property name="text">
+                                                        <string>Cycle call</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="12" column="1">
+                                                <widget class="QLineEdit" name="nativeCycleCallEdit" />
+                                            </item>
+                                            <item row="13" column="0">
+                                                <widget class="QLabel" name="nativeDwellDefinitionEditLabel">
+                                                    <property name="text">
+                                                        <string>Dwell definition</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="13" column="1">
+                                                <widget class="QLineEdit" name="nativeDwellDefinitionEdit" />
+                                            </item>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="commandsTab">
+                        <attribute name="title">
+                            <string>Commands</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="commandsTabLayout" stretch="0">
+                            <item>
+                                <widget class="QScrollArea" name="commandsTabScroll">
+                                    <property name="frameShape">
+                                        <enum>QFrame::Shape::NoFrame</enum>
+                                    </property>
+                                    <property name="widgetResizable">
+                                        <bool>true</bool>
+                                    </property>
+                                    <widget class="QWidget" name="commandsTabContents">
+                                        <property name="geometry">
+                                            <rect>
+                                                <x>0</x>
+                                                <y>0</y>
+                                                <width>640</width>
+                                                <height>560</height>
+                                            </rect>
+                                        </property>
+                                        <layout class="QFormLayout" name="commandsForm">
+                                            <item row="0" column="0">
+                                                <widget class="QLabel" name="toolChangeEditLabel">
+                                                    <property name="text">
+                                                        <string>Tool change</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="0" column="1">
+                                                <widget class="QLineEdit" name="toolChangeEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="0">
+                                                <widget class="QLabel" name="spindleCWEditLabel">
+                                                    <property name="text">
+                                                        <string>Spindle CW</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="1">
+                                                <widget class="QLineEdit" name="spindleCWEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="0">
+                                                <widget class="QLabel" name="spindleCCWEditLabel">
+                                                    <property name="text">
+                                                        <string>Spindle CCW</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="1">
+                                                <widget class="QLineEdit" name="spindleCCWEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="0">
+                                                <widget class="QLabel" name="spindleStopEditLabel">
+                                                    <property name="text">
+                                                        <string>Spindle stop</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="1">
+                                                <widget class="QLineEdit" name="spindleStopEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="0">
+                                                <widget class="QLabel" name="spindleCSSOnEditLabel">
+                                                    <property name="text">
+                                                        <string>CSS on</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="1">
+                                                <widget class="QLineEdit" name="spindleCSSOnEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="0">
+                                                <widget class="QLabel" name="spindleCSSOffEditLabel">
+                                                    <property name="text">
+                                                        <string>CSS off</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="1">
+                                                <widget class="QLineEdit" name="spindleCSSOffEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="0">
+                                                <widget class="QLabel" name="spindleMaxSpeedEditLabel">
+                                                    <property name="text">
+                                                        <string>Max speed</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="1">
+                                                <widget class="QLineEdit" name="spindleMaxSpeedEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="0">
+                                                <widget class="QLabel" name="coolantMistEditLabel">
+                                                    <property name="text">
+                                                        <string>Coolant mist</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="1">
+                                                <widget class="QLineEdit" name="coolantMistEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="8" column="0">
+                                                <widget class="QLabel" name="coolantFloodEditLabel">
+                                                    <property name="text">
+                                                        <string>Coolant flood</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="8" column="1">
+                                                <widget class="QLineEdit" name="coolantFloodEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="9" column="0">
+                                                <widget class="QLabel" name="coolantOffEditLabel">
+                                                    <property name="text">
+                                                        <string>Coolant off</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="9" column="1">
+                                                <widget class="QLineEdit" name="coolantOffEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="10" column="0">
+                                                <widget class="QLabel" name="feedPerMinuteEditLabel">
+                                                    <property name="text">
+                                                        <string>Feed per minute</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="10" column="1">
+                                                <widget class="QLineEdit" name="feedPerMinuteEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="11" column="0">
+                                                <widget class="QLabel" name="feedPerRevEditLabel">
+                                                    <property name="text">
+                                                        <string>Feed per revolution</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="11" column="1">
+                                                <widget class="QLineEdit" name="feedPerRevEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="12" column="0">
+                                                <widget class="QLabel" name="feedInverseTimeEditLabel">
+                                                    <property name="text">
+                                                        <string>Inverse time feed</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="12" column="1">
+                                                <widget class="QLineEdit" name="feedInverseTimeEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="13" column="0">
+                                                <widget class="QLabel" name="unitsInchEditLabel">
+                                                    <property name="text">
+                                                        <string>Inch command</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="13" column="1">
+                                                <widget class="QLineEdit" name="unitsInchEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="14" column="0">
+                                                <widget class="QLabel" name="unitsMetricEditLabel">
+                                                    <property name="text">
+                                                        <string>Metric command</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="14" column="1">
+                                                <widget class="QLineEdit" name="unitsMetricEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="15" column="0">
+                                                <widget class="QLabel" name="dwellCommandEditLabel">
+                                                    <property name="text">
+                                                        <string>Dwell command</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="15" column="1">
+                                                <widget class="QLineEdit" name="dwellCommandEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="16" column="0">
+                                                <widget class="QLabel" name="dwellAddressComboLabel">
+                                                    <property name="text">
+                                                        <string>Dwell address</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="16" column="1">
+                                                <widget class="QComboBox" name="dwellAddressCombo">
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>P</string>
+                                                        </property>
+                                                    </item>
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>F</string>
+                                                        </property>
+                                                    </item>
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>X</string>
+                                                        </property>
+                                                    </item>
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="sizeAdjustPolicy">
+                                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                                    </property>
+                                                    <property name="minimumContentsLength">
+                                                        <number>16</number>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="17" column="0">
+                                                <widget class="QLabel" name="dwellScaleEditLabel">
+                                                    <property name="text">
+                                                        <string>Dwell scale</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="17" column="1">
+                                                <widget class="QLineEdit" name="dwellScaleEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>90</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <property name="fieldGrowthPolicy">
+                                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                            </property>
+                                            <property name="formAlignment">
+                                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                            </property>
+                                            <property name="verticalSpacing">
+                                                <number>4</number>
+                                            </property>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="programTab">
+                        <attribute name="title">
+                            <string>Program</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="programTabLayout" stretch="0">
+                            <item>
+                                <widget class="QScrollArea" name="programTabScroll">
+                                    <property name="frameShape">
+                                        <enum>QFrame::Shape::NoFrame</enum>
+                                    </property>
+                                    <property name="widgetResizable">
+                                        <bool>true</bool>
+                                    </property>
+                                    <widget class="QWidget" name="programTabContents">
+                                        <property name="geometry">
+                                            <rect>
+                                                <x>0</x>
+                                                <y>0</y>
+                                                <width>640</width>
+                                                <height>520</height>
+                                            </rect>
+                                        </property>
+                                        <layout class="QFormLayout" name="programForm">
+                                            <item row="0" column="0">
+                                                <widget class="QLabel" name="programStartEditLabel">
+                                                    <property name="text">
+                                                        <string>Start program template</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="0" column="1">
+                                                <widget class="QPlainTextEdit" name="programStartEdit">
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>72</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>16777215</width>
+                                                            <height>120</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="0">
+                                                <widget class="QLabel" name="programModeComboLabel">
+                                                    <property name="text">
+                                                        <string>Mode</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="1">
+                                                <widget class="QComboBox" name="programModeCombo">
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>G290</string>
+                                                        </property>
+                                                    </item>
+                                                    <item>
+                                                        <property name="text">
+                                                            <string>G291</string>
+                                                        </property>
+                                                    </item>
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="sizeAdjustPolicy">
+                                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                                    </property>
+                                                    <property name="minimumContentsLength">
+                                                        <number>16</number>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="0">
+                                                <widget class="QLabel" name="programStopEditLabel">
+                                                    <property name="text">
+                                                        <string>Stop</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="1">
+                                                <widget class="QLineEdit" name="programStopEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="0">
+                                                <widget class="QLabel" name="programOptionalStopEditLabel">
+                                                    <property name="text">
+                                                        <string>Optional stop</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="1">
+                                                <widget class="QLineEdit" name="programOptionalStopEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="0">
+                                                <widget class="QLabel" name="programEndEditLabel">
+                                                    <property name="text">
+                                                        <string>End program template</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="1">
+                                                <widget class="QPlainTextEdit" name="programEndEdit">
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>72</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>16777215</width>
+                                                            <height>120</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="0">
+                                                <widget class="QLabel" name="commentTemplateEditLabel">
+                                                    <property name="text">
+                                                        <string>Comment template</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="1">
+                                                <widget class="QLineEdit" name="commentTemplateEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="0">
+                                                <widget class="QLabel" name="preambleEditLabel">
+                                                    <property name="text">
+                                                        <string>Preamble lines</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="6" column="1">
+                                                <widget class="QPlainTextEdit" name="preambleEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="0">
+                                                <widget class="QLabel" name="safetyEditLabel">
+                                                    <property name="text">
+                                                        <string>Safety lines</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="7" column="1">
+                                                <widget class="QPlainTextEdit" name="safetyEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>48</height>
+                                                        </size>
+                                                    </property>
+                                                    <property name="minimumSize">
+                                                        <size>
+                                                            <width>0</width>
+                                                            <height>36</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <property name="fieldGrowthPolicy">
+                                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                            </property>
+                                            <property name="formAlignment">
+                                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                            </property>
+                                            <property name="verticalSpacing">
+                                                <number>4</number>
+                                            </property>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="supportsTab">
+                        <attribute name="title">
+                            <string>Supports</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="supportsTabLayout" stretch="0">
+                            <item>
+                                <widget class="QScrollArea" name="supportsTabScroll">
+                                    <property name="frameShape">
+                                        <enum>QFrame::Shape::NoFrame</enum>
+                                    </property>
+                                    <property name="widgetResizable">
+                                        <bool>true</bool>
+                                    </property>
+                                    <widget class="QWidget" name="supportsTabContents">
+                                        <property name="geometry">
+                                            <rect>
+                                                <x>0</x>
+                                                <y>0</y>
+                                                <width>640</width>
+                                                <height>300</height>
+                                            </rect>
+                                        </property>
+                                        <layout class="QFormLayout" name="supportsForm">
+                                            <item row="0" column="0" colspan="2">
+                                                <widget class="QCheckBox" name="inverseTimeCheck">
+                                                    <property name="text">
+                                                        <string>Allow G93 inverse-time feed</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="1" column="0" colspan="2">
+                                                <widget class="QCheckBox" name="supportsMultiTurnArcsCheck">
+                                                    <property name="text">
+                                                        <string>Allow arcs over 360°</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="2" column="0" colspan="2">
+                                                <widget class="QCheckBox" name="absoluteArcCentersCheck">
+                                                    <property name="text">
+                                                        <string>Allow absolute IJK centers</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="3" column="0" colspan="2">
+                                                <widget class="QCheckBox" name="tcpCheck">
+                                                    <property name="text">
+                                                        <string>Allow TCP output</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="0">
+                                                <widget class="QLabel" name="tcpOnEditLabel">
+                                                    <property name="text">
+                                                        <string>TCP on</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="4" column="1">
+                                                <widget class="QLineEdit" name="tcpOnEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="0">
+                                                <widget class="QLabel" name="tcpOffEditLabel">
+                                                    <property name="text">
+                                                        <string>TCP off</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item row="5" column="1">
+                                                <widget class="QLineEdit" name="tcpOffEdit">
+                                                    <property name="maximumSize">
+                                                        <size>
+                                                            <width>320</width>
+                                                            <height>16777215</height>
+                                                        </size>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <property name="fieldGrowthPolicy">
+                                                <enum>QFormLayout::FieldGrowthPolicy::AllNonFixedFieldsGrow</enum>
+                                            </property>
+                                            <property name="formAlignment">
+                                                <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                                            </property>
+                                            <property name="verticalSpacing">
+                                                <number>4</number>
+                                            </property>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                </widget>
+            </item>
+
+        </layout>
+    </widget>
+    <resources />
+    <connections/>
+</ui>

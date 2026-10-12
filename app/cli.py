@@ -54,7 +54,8 @@ def _add_export_options(command: argparse.ArgumentParser) -> None:
         metavar="NAME_OR_JSON",
         help=(
             "Expanded NC post profile: fanuc_mill, fanuc_mill_multiaxis, fanuc_lathe_a/b, "
-            "sinumerik_iso, sinumerik_840d, sinumerik_840d_multiaxis, or JSON path"
+            "sinumerik_iso, sinumerik_840d, sinumerik_840d_multiaxis, "
+            "heidanhain_itnc530, or JSON path"
         ),
     )
     command.add_argument("--mode", choices=("expanded", "full"), default="expanded", help="NC export mode")

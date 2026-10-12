@@ -18,15 +18,18 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
 from PyQt6.QtWidgets import (QAbstractButton, QAbstractItemView, QApplication, QCheckBox,
     QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
     QFontComboBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QPushButton,
-    QSizePolicy, QSlider, QSpinBox, QTabWidget,
-    QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget)
+    QHeaderView, QLabel, QLineEdit, QListWidget,
+    QListWidgetItem, QPushButton, QSizePolicy, QSlider,
+    QSpinBox, QSplitter, QTabWidget, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget)
+
+import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
 
 class Ui_OptionsDlg(object):
     def setupUi(self, OptionsDlg):
         if not OptionsDlg.objectName():
             OptionsDlg.setObjectName(u"OptionsDlg")
-        OptionsDlg.resize(660, 470)
+        OptionsDlg.resize(1060, 720)
         self.verticalLayout = QVBoxLayout(OptionsDlg)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.tabs = QTabWidget(OptionsDlg)
@@ -560,6 +563,88 @@ class Ui_OptionsDlg(object):
         self.colorsLayout.addWidget(self.plotColorsGroup)
 
         self.tabs.addTab(self.colorsTab, "")
+        self.postprocessorsTab = QWidget()
+        self.postprocessorsTab.setObjectName(u"postprocessorsTab")
+        self.postprocessorsLayout = QVBoxLayout(self.postprocessorsTab)
+        self.postprocessorsLayout.setObjectName(u"postprocessorsLayout")
+        self.postprocessorsHelp = QLabel(self.postprocessorsTab)
+        self.postprocessorsHelp.setObjectName(u"postprocessorsHelp")
+        self.postprocessorsHelp.setWordWrap(True)
+
+        self.postprocessorsLayout.addWidget(self.postprocessorsHelp)
+
+        self.postProfileSplitter = QSplitter(self.postprocessorsTab)
+        self.postProfileSplitter.setObjectName(u"postProfileSplitter")
+        self.postProfileSplitter.setOrientation(Qt.Orientation.Horizontal)
+        self.postProfileSidebar = QWidget(self.postProfileSplitter)
+        self.postProfileSidebar.setObjectName(u"postProfileSidebar")
+        self.postProfileSidebarLayout = QVBoxLayout(self.postProfileSidebar)
+        self.postProfileSidebarLayout.setObjectName(u"postProfileSidebarLayout")
+        self.postProfileSidebarLayout.setContentsMargins(0, 0, 0, 0)
+        self.postProfileList = QListWidget(self.postProfileSidebar)
+        self.postProfileList.setObjectName(u"postProfileList")
+
+        self.postProfileSidebarLayout.addWidget(self.postProfileList)
+
+        self.postProfileActions = QHBoxLayout()
+        self.postProfileActions.setObjectName(u"postProfileActions")
+        self.newPostProfileButton = QPushButton(self.postProfileSidebar)
+        self.newPostProfileButton.setObjectName(u"newPostProfileButton")
+        icon = QIcon()
+        icon.addFile(u":/resource/icons/add.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.newPostProfileButton.setIcon(icon)
+        self.newPostProfileButton.setIconSize(QSize(24, 24))
+
+        self.postProfileActions.addWidget(self.newPostProfileButton)
+
+        self.savePostProfileButton = QPushButton(self.postProfileSidebar)
+        self.savePostProfileButton.setObjectName(u"savePostProfileButton")
+        icon1 = QIcon()
+        icon1.addFile(u":/resource/icons/save.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.savePostProfileButton.setIcon(icon1)
+        self.savePostProfileButton.setIconSize(QSize(24, 24))
+
+        self.postProfileActions.addWidget(self.savePostProfileButton)
+
+        self.renamePostProfileButton = QPushButton(self.postProfileSidebar)
+        self.renamePostProfileButton.setObjectName(u"renamePostProfileButton")
+        icon2 = QIcon()
+        icon2.addFile(u":/resource/icons/rename.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.renamePostProfileButton.setIcon(icon2)
+        self.renamePostProfileButton.setIconSize(QSize(24, 24))
+
+        self.postProfileActions.addWidget(self.renamePostProfileButton)
+
+        self.removePostProfileButton = QPushButton(self.postProfileSidebar)
+        self.removePostProfileButton.setObjectName(u"removePostProfileButton")
+        icon3 = QIcon()
+        icon3.addFile(u":/resource/icons/trash.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.removePostProfileButton.setIcon(icon3)
+        self.removePostProfileButton.setIconSize(QSize(24, 24))
+
+        self.postProfileActions.addWidget(self.removePostProfileButton)
+
+
+        self.postProfileSidebarLayout.addLayout(self.postProfileActions)
+
+        self.postProfileSplitter.addWidget(self.postProfileSidebar)
+        self.postProfileEditorHost = QWidget(self.postProfileSplitter)
+        self.postProfileEditorHost.setObjectName(u"postProfileEditorHost")
+        self.postProfileEditorLayout = QVBoxLayout(self.postProfileEditorHost)
+        self.postProfileEditorLayout.setObjectName(u"postProfileEditorLayout")
+        self.postProfileEditorLayout.setContentsMargins(0, 0, 0, 0)
+        self.postProfileSplitter.addWidget(self.postProfileEditorHost)
+
+        self.postprocessorsLayout.addWidget(self.postProfileSplitter)
+
+        self.postProfileErrorLabel = QLabel(self.postprocessorsTab)
+        self.postProfileErrorLabel.setObjectName(u"postProfileErrorLabel")
+        self.postProfileErrorLabel.setWordWrap(True)
+
+        self.postprocessorsLayout.addWidget(self.postProfileErrorLabel)
+
+        self.postprocessorsLayout.setStretch(1, 1)
+        self.tabs.addTab(self.postprocessorsTab, "")
         self.hotkeysTab = QWidget()
         self.hotkeysTab.setObjectName(u"hotkeysTab")
         self.hotkeysLayout = QVBoxLayout(self.hotkeysTab)
@@ -703,6 +788,37 @@ class Ui_OptionsDlg(object):
         self.stlColorLabel.setText(QCoreApplication.translate("OptionsDlg", u"STL", None))
         self.stlColorButton.setText("")
         self.tabs.setTabText(self.tabs.indexOf(self.colorsTab), QCoreApplication.translate("OptionsDlg", u"Colors", None))
+        self.postprocessorsHelp.setText(QCoreApplication.translate("OptionsDlg", u"Select a profile to view or edit. Built-in profiles are read-only; add a copy to customize it.", None))
+#if QT_CONFIG(tooltip)
+        self.newPostProfileButton.setToolTip(QCoreApplication.translate("OptionsDlg", u"Add", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(accessibility)
+        self.newPostProfileButton.setAccessibleName(QCoreApplication.translate("OptionsDlg", u"Add", None))
+#endif // QT_CONFIG(accessibility)
+        self.newPostProfileButton.setText("")
+#if QT_CONFIG(tooltip)
+        self.savePostProfileButton.setToolTip(QCoreApplication.translate("OptionsDlg", u"Save", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(accessibility)
+        self.savePostProfileButton.setAccessibleName(QCoreApplication.translate("OptionsDlg", u"Save", None))
+#endif // QT_CONFIG(accessibility)
+        self.savePostProfileButton.setText("")
+#if QT_CONFIG(tooltip)
+        self.renamePostProfileButton.setToolTip(QCoreApplication.translate("OptionsDlg", u"Rename", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(accessibility)
+        self.renamePostProfileButton.setAccessibleName(QCoreApplication.translate("OptionsDlg", u"Rename", None))
+#endif // QT_CONFIG(accessibility)
+        self.renamePostProfileButton.setText("")
+#if QT_CONFIG(tooltip)
+        self.removePostProfileButton.setToolTip(QCoreApplication.translate("OptionsDlg", u"Delete", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(accessibility)
+        self.removePostProfileButton.setAccessibleName(QCoreApplication.translate("OptionsDlg", u"Delete", None))
+#endif // QT_CONFIG(accessibility)
+        self.removePostProfileButton.setText("")
+        self.postProfileErrorLabel.setText("")
+        self.tabs.setTabText(self.tabs.indexOf(self.postprocessorsTab), QCoreApplication.translate("OptionsDlg", u"Postprocessors", None))
         ___qtablewidgetitem = self.hotkeysTable.horizontalHeaderItem(0)
         ___qtablewidgetitem.setText(QCoreApplication.translate("OptionsDlg", u"Command", None))
         ___qtablewidgetitem1 = self.hotkeysTable.horizontalHeaderItem(1)

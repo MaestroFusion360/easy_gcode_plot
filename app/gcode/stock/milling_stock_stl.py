@@ -1,5 +1,7 @@
 """Validated physical tolerances for stock STL export."""
 
+# pylint: disable=use-implicit-booleaness-not-len  # ndarray truthiness is ambiguous.
+
 import math
 from dataclasses import dataclass
 
@@ -37,6 +39,7 @@ class StockStlOptions:
     linear_deviation: float = 0.1
     angular_deviation: float = 15.0
     edge_length: float = 5.0
+    calculated: bool = False
 
     def validate(self):
         if self.units not in {"mm", "in"}:
@@ -68,18 +71,76 @@ class StockStlOptions:
         return min(self.linear_deviation, radius * (1 - math.cos(math.radians(self.angular_deviation) / 2)))
 
 
-def limit_edges(triangles, length, cancelled):
-    """Subdivide shared edges identically, including box walls and bottom faces."""
+def _bilinear_height(stock, xy):
+    """Sample the same piecewise-bilinear surface rendered by the GPU."""
+    u = np.clip((xy[..., 0] - stock.spec.x_min) / stock.dx, 0, stock.nx)
+    v = np.clip((xy[..., 1] - stock.spec.y_min) / stock.dy, 0, stock.ny)
+    x = np.minimum(np.floor(u).astype(np.intp), stock.nx - 1)
+    y = np.minimum(np.floor(v).astype(np.intp), stock.ny - 1)
+    fx = u - x
+    fy = v - y
+    height = stock.height
+    return (
+        (1 - fx) * (1 - fy) * height[y, x]
+        + fx * (1 - fy) * height[y, x + 1]
+        + fx * fy * height[y + 1, x + 1]
+        + (1 - fx) * fy * height[y + 1, x]
+    )
+
+
+def _surface_edges(triangles, stock, options):
+    """Return exact surface midpoints and edge refinement requirements.
+
+    Linear error is the sag of a bilinear edge relative to its STL chord.
+    Angular error is the maximum tangent/chord angle on that edge. Both
+    depend only on the shared edge, so adjacent facets split consistently.
+    """
+    next_vertices = np.roll(triangles, -1, axis=1)
+    midpoint = (triangles + next_vertices) * 0.5
+    z = _bilinear_height(stock, midpoint[..., :2])
+    sag = z - midpoint[..., 2]
+    midpoint[..., 2] = z
+    delta = next_vertices - triangles
+    # Along a straight XY edge inside a bilinear patch, height is quadratic.
+    # The coefficient of t^2 is determined exactly by the midpoint sample.
+    curvature = -4 * sag
+    horizontal2 = np.sum(delta[..., :2] ** 2, axis=-1)
+    horizontal = np.sqrt(horizontal2)
+    dz = delta[..., 2]
+    cross = horizontal * np.abs(curvature)
+    angle0 = np.arctan2(cross, horizontal2 + dz * (dz - curvature))
+    angle1 = np.arctan2(cross, horizontal2 + dz * (dz + curvature))
+    bend = np.maximum(angle0, angle1)
+    marked = (np.abs(sag) > options.linear_deviation) | (bend > np.deg2rad(options.angular_deviation))
+    return midpoint, marked
+
+
+def limit_edges(triangles, length, cancelled, *, stock=None, options=None):
+    """Conforming edge bisection; optionally follow the actual GPU bilinear surface.
+
+    Curvature correction applies only to the top surface. Walls and bottom
+    are planar, and their shared edges must retain identical split points.
+    These tolerances measure tessellation of the sampled heightfield, not
+    machining error smaller than the GPU grid pitch.
+    """
     pending = [np.asarray(triangles, dtype=np.float64)]
     while pending:
         if cancelled is not None and cancelled():
             raise InterruptedError("Stock STL export cancelled")
         batch = pending.pop()
-        marked = np.linalg.norm(batch - np.roll(batch, -1, axis=1), axis=2) > length * (1 + 1e-10)
+        if not len(batch):
+            continue
+        next_vertices = np.roll(batch, -1, axis=1)
+        marked = np.linalg.norm(batch - next_vertices, axis=2) > length * (1 + 1e-10)
+        midpoint = None
+        if stock is not None and options is not None:
+            midpoint, curved = _surface_edges(batch, stock, options)
+            marked |= curved
         small = ~np.any(marked, axis=1)
         if np.any(small):
             yield batch[small]
         selected = batch[~small]
         if len(selected):
-            refined, _ = _split(selected, np.arange(len(selected)), marked[~small])
+            selected_midpoints = None if midpoint is None else midpoint[~small]
+            refined, _ = _split(selected, np.arange(len(selected)), marked[~small], selected_midpoints)
             pending.extend(refined[first : first + 65536] for first in range(0, len(refined), 65536))

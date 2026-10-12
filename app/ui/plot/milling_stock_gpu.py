@@ -1,5 +1,6 @@
 """Persistent GPU stock state; CPU supplies immutable cutter sweeps only."""
 
+import logging
 import math
 from dataclasses import dataclass
 
@@ -11,6 +12,8 @@ from app.gcode.stock.milling_stock import MillingStockSnapshot
 from app.gcode.stock.milling_stock_sweep import CutterSweep, compact_profile
 from app.tools.milling_geometry import milling_geometry
 from app.ui.plot import milling_stock_shaders as shaders
+
+LOGGER = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -26,12 +29,14 @@ class StockFrame:
 class GpuStock:
     """Compute removal in RG32F dexels, then ray-cast their maximum hierarchy."""
 
-    def __init__(self):
+    def __init__(self, memory_budget=4 * 1024**3):
+        self.memory_budget = memory_budget
         self.context = None
         self.texture = 0
         self.key = None
         self.count = 0
         self.sweeps = ()
+        self._snapshot_cache = None
 
     def initialize(self, context):
         if self.context is context:
@@ -40,6 +45,7 @@ class GpuStock:
         minor = int(GL.glGetIntegerv(GL.GL_MINOR_VERSION))
         if (major, minor) < (4, 3):
             raise RuntimeError(f"GPU stock removal requires OpenGL 4.3; current context is {major}.{minor}")
+        LOGGER.info("milling_stock_gpu_initialize opengl=%d.%d budget_bytes=%d", major, minor, self.memory_budget)
         self.remove = compileProgram(compileShader(shaders.REMOVE, GL.GL_COMPUTE_SHADER))
         self.reduce = compileProgram(compileShader(shaders.REDUCE, GL.GL_COMPUTE_SHADER))
         self.display = compileProgram(
@@ -62,7 +68,15 @@ class GpuStock:
             self.locations[key] = GL.glGetUniformLocation(program, name)
         return self.locations[key]
 
-    def _rectangle(self, program, first, last):
+    def _rectangle(self, program, first, last, cancelled=None):
+        if cancelled is not None:
+            # Bound individual dispatches so a snapshot can stop between tiles.
+            for y in range(int(first[1]), int(last[1]), 256):
+                for x in range(int(first[0]), int(last[0]), 256):
+                    if cancelled():
+                        raise InterruptedError("Stock snapshot cancelled")
+                    self._rectangle(program, (x, y), (min(x + 256, last[0]), min(y + 256, last[1])))
+            return
         GL.glUniform2i(self.uniform(program, "first"), *map(int, first))
         GL.glUniform2i(self.uniform(program, "last"), *map(int, last))
         width, height = np.asarray(last) - first
@@ -70,22 +84,45 @@ class GpuStock:
             GL.glDispatchCompute((int(width) + 7) // 8, (int(height) + 7) // 8, 1)
             GL.glMemoryBarrier(GL.GL_SHADER_IMAGE_ACCESS_BARRIER_BIT | GL.GL_TEXTURE_FETCH_BARRIER_BIT)
 
-    def _allocate(self, frame):
+    def validate_frame(self, frame):
+        """Check padded texture storage on the CPU before publishing a frame."""
+        spec = frame.timeline.spec
+        extent = np.asarray((spec.x_max - spec.x_min, spec.y_max - spec.y_min))
+        cells = np.maximum(1, np.ceil(extent / (frame.edge_error / math.sqrt(2))).astype(np.int64)) + 1
+        shape = tuple(1 << (int(n) - 1).bit_length() for n in cells)
+        levels = max(shape).bit_length()
+        required = sum(max(1, shape[0] >> level) * max(1, shape[1] >> level) * 8 for level in range(levels))
+        if required > self.memory_budget:
+            raise ValueError(
+                f"Stock Accuracy needs {required / 1024**2:.1f} MiB for GPU texture storage; "
+                f"the budget is {self.memory_budget / 1024**2:.1f} MiB. "
+                "Choose a lower Stock Accuracy or smaller stock. Accuracy was not reduced."
+            )
+        return cells, shape, levels
+
+    def _allocate(self, frame, cancelled=None):
+        cells, shape, levels = self.validate_frame(frame)
         spec = frame.timeline.spec
         self.origin = np.asarray((spec.x_min, spec.y_min, spec.z_min), dtype=np.float64)
         self.extent = np.asarray((spec.x_max, spec.y_max, spec.z_max)) - self.origin
         # Heights are samples at patch vertices, including the stock boundary.
-        spacing = frame.edge_error / math.sqrt(2)
-        self.cells = np.maximum(1, np.ceil(self.extent[:2] / spacing).astype(np.int64)) + 1
+        self.cells = cells
         self.pitch = self.extent[:2] / (self.cells - 1)
-        self.shape = tuple(1 << (int(n) - 1).bit_length() for n in self.cells)
+        self.shape = shape
         limit = int(GL.glGetIntegerv(GL.GL_MAX_TEXTURE_SIZE))
         if max(self.shape) > limit:
             raise ValueError(
                 f"Stock Accuracy needs {self.cells[0]} x {self.cells[1]} GPU dexels; "
                 f"this GPU supports textures up to {limit}. Accuracy was not reduced."
             )
-        self.levels = max(self.shape).bit_length()
+        self.levels = levels
+        LOGGER.info(
+            "milling_stock_gpu_allocate cells=%s shape=%s levels=%d budget_bytes=%d",
+            tuple(self.cells),
+            self.shape,
+            self.levels,
+            self.memory_budget,
+        )
         if self.texture:
             GL.glDeleteTextures([self.texture])
         self.texture = GL.glGenTextures(1)
@@ -99,14 +136,14 @@ class GpuStock:
         GL.glBindImageTexture(0, self.texture, 0, False, 0, GL.GL_READ_WRITE, GL.GL_RG32F)
         GL.glUniform1i(self.uniform(self.remove, "reset"), 1)
         GL.glUniform1f(self.uniform(self.remove, "top"), 0)
-        self._rectangle(self.remove, (0, 0), self.shape)
+        self._rectangle(self.remove, (0, 0), self.shape, cancelled)
         GL.glUniform1f(self.uniform(self.remove, "top"), float(self.extent[2]))
-        self._rectangle(self.remove, (0, 0), self.cells)
+        self._rectangle(self.remove, (0, 0), self.cells, cancelled)
         GL.glUniform1i(self.uniform(self.remove, "reset"), 0)
         self.count = 0
         self.sweeps = ()
 
-    def _cut(self, sweep):
+    def _cut(self, sweep, cancelled=None):
         geometry = milling_geometry(sweep.tool)
         if geometry is None:
             raise ValueError("Invalid milling cutter geometry")
@@ -137,6 +174,8 @@ class GpuStock:
         else:
             segments = zip(points, points[1:])
         for begin, end in segments:
+            if cancelled is not None and cancelled():
+                raise InterruptedError("Stock snapshot cancelled")
             if sweep.planar_arc is not None:
                 low, high = sweep.bounds
                 low, high = low - self.origin[:2], high - self.origin[:2]
@@ -148,22 +187,35 @@ class GpuStock:
                 continue
             GL.glUniform3f(self.uniform(self.remove, "begin"), *map(float, begin))
             GL.glUniform3f(self.uniform(self.remove, "end"), *map(float, end))
-            self._rectangle(self.remove, first, last)
+            self._rectangle(self.remove, first, last, cancelled)
             dirty = (first, last) if dirty is None else (np.minimum(dirty[0], first), np.maximum(dirty[1], last))
         return dirty
 
-    def update(self, frame):
+    def update(self, frame, *, cancelled=None):
+        try:
+            self._update(frame, cancelled)
+        except Exception:
+            # A partially updated texture must be rebuilt before the next draw.
+            self.key = None
+            self._snapshot_cache = None
+            raise
+
+    def _update(self, frame, cancelled):
+        if cancelled is not None and cancelled():
+            raise InterruptedError("Stock snapshot cancelled")
         key = frame.timeline, frame.surface_error, frame.edge_error
         reset = self.key != key or frame.count < self.count
+        if reset or frame.count != self.count or frame.sweeps != self.sweeps:
+            self._snapshot_cache = None
         if reset:
-            self._allocate(frame)
+            self._allocate(frame, cancelled)
             self.key = key
         dirty = (np.asarray((0, 0)), np.asarray(self.shape)) if reset else None
         GL.glUseProgram(self.remove)
         GL.glBindImageTexture(0, self.texture, 0, False, 0, GL.GL_READ_WRITE, GL.GL_RG32F)
         GL.glUniform2f(self.uniform(self.remove, "pitch"), *map(float, self.pitch))
         for sweep in frame.sweeps[len(self.sweeps) :]:
-            changed = self._cut(sweep)
+            changed = self._cut(sweep, cancelled)
             if changed is not None:
                 dirty = (
                     changed if dirty is None else (np.minimum(dirty[0], changed[0]), np.maximum(dirty[1], changed[1]))
@@ -177,7 +229,7 @@ class GpuStock:
                 last = np.minimum(last, size)
                 GL.glBindImageTexture(0, self.texture, level - 1, False, 0, GL.GL_READ_ONLY, GL.GL_RG32F)
                 GL.glBindImageTexture(1, self.texture, level, False, 0, GL.GL_WRITE_ONLY, GL.GL_RG32F)
-                self._rectangle(self.reduce, first, last)
+                self._rectangle(self.reduce, first, last, cancelled)
         self.count, self.sweeps = frame.count, frame.sweeps
 
     def draw(self, mvp, colors):
@@ -223,8 +275,11 @@ class GpuStock:
         self.context = None
         self.texture = 0
         self.key = None
+        self._snapshot_cache = None
 
     def snapshot(self, timeline):
+        if self._snapshot_cache is not None and self._snapshot_cache[0] is timeline:
+            return self._snapshot_cache[1]
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
         data = np.empty((self.shape[1], self.shape[0], 2), dtype=np.float32)
         GL.glMemoryBarrier(GL.GL_TEXTURE_UPDATE_BARRIER_BIT)
@@ -233,7 +288,9 @@ class GpuStock:
         height = data[:ny, :nx, 0].copy() + np.float32(timeline.spec.z_min)
         rapid = data[:ny, :nx, 1] > 0.5
         height.flags.writeable = rapid.flags.writeable = False
-        return MillingStockSnapshot(timeline.spec, height, rapid, *map(float, self.pitch))
+        snapshot = MillingStockSnapshot(timeline.spec, height, rapid, *map(float, self.pitch))
+        self._snapshot_cache = timeline, snapshot
+        return snapshot
 
 
 def prepare_frame(timeline, surface_error, edge_error, cancelled):

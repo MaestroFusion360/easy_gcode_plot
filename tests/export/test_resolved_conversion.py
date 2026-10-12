@@ -6,7 +6,7 @@ import pytest
 
 from app.gcode.batch_export import export_directory
 from app.gcode.export.common import ExportOptions
-from app.gcode.export.expanded import MILLING_TARGETS, convert_resolved_program
+from app.gcode.export.expanded import convert_resolved_program
 from app.gcode.export_file import ExportRequest, export_file
 from app.gcode.kernel import execute
 from app.gcode.trace_tools import motion_length
@@ -21,8 +21,12 @@ SOURCES = (
     ),
 )
 
+# Only these output languages have an input parser. Native Heidenhain blocks
+# are checked directly in test_heidenhain.py, including sampled geometry.
+REPLAY_TARGETS = ("fanuc_mill", "sinumerik_iso", "sinumerik_840d")
 
-@pytest.mark.parametrize("target", MILLING_TARGETS)
+
+@pytest.mark.parametrize("target", REPLAY_TARGETS)
 @pytest.mark.parametrize("scale", [1.0, 25.4])
 def test_resolved_conversion_preserves_planes_units_dwell_and_feed(target, scale):
     source = "G1 X10 F100\nG4 F2\nG18 G3 X0 Z10 I=AC(0) K=AC(0) TURN=2\nG19 G3 Y10 Z0 J=AC(0) K=AC(0)\nM30"
@@ -51,7 +55,7 @@ def test_native_absolute_centers_are_not_exported_as_comments():
 
 
 @pytest.mark.parametrize("dialect,source", SOURCES)
-@pytest.mark.parametrize("target", MILLING_TARGETS)
+@pytest.mark.parametrize("target", REPLAY_TARGETS)
 def test_resolved_conversion_matrix_preserves_geometry_and_machine_controls(dialect, source, target):
     result = execute(source, language="fanuc_mill", source_dialect=dialect)
     assert result.ok and result.complete
@@ -70,7 +74,7 @@ def test_resolved_conversion_matrix_preserves_geometry_and_machine_controls(dial
         assert max(m.arc.sweep for m in replay.motions if m.arc) > math.tau
 
 
-@pytest.mark.parametrize("target", MILLING_TARGETS)
+@pytest.mark.parametrize("target", REPLAY_TARGETS)
 def test_resolved_targets_use_single_file_and_batch_service(tmp_path, target):
     source = tmp_path / "input"
     source.mkdir()

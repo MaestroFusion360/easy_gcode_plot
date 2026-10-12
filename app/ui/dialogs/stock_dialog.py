@@ -42,6 +42,10 @@ class StockDialog(QDialog):
         self._length_controls = (self.outer, self.inner, self.length, self.front_z)
         register_length_spinboxes(self._length_controls)
         self._front_base_z = 0.0
+        self._reset_turning_pending = False
+        self._initial_values = {}
+        for control in self._length_controls:
+            control.valueChanged.connect(self._turning_value_changed)
         self.inches.toggled.connect(self._set_units)
         self.reset_auto_button.clicked.connect(self._reset_to_auto)
         self.ui.buttonBox.accepted.connect(self._apply)
@@ -172,16 +176,26 @@ class StockDialog(QDialog):
         return _ACCURACY_RESOLUTIONS[self.accuracy.value()]
 
     def _set_units(self, inches: bool):
+        reset_pending = self._reset_turning_pending
         set_length_units(self._length_controls, bool(inches), suffix=True, context="StockDialog")
+        self._reset_turning_pending = reset_pending
 
     def _set_milling_units(self, inches: bool):
         set_length_units(self._milling_length_controls, bool(inches), suffix=True, context="StockDialog")
 
     def showEvent(self, event):
+        self._load_turning_values()
+        self._reset_turning_pending = False
+        self._load_milling_values()
+        self._initial_values = {0: self._turning_values(), 1: self._milling_values()}
+        self.stock_tabs.setCurrentIndex(0 if self.window.latheMode else 1)
+        super().showEvent(event)
+
+    def _load_turning_values(self, *, force_auto=False):
         self.enabled.setChecked(getattr(self.window, "stockEnabled", False))
         front_allowance = max(0.0, float(getattr(self.window, "turnStockFrontAllowance", 2.0)))
         suggestion = getattr(self.window, "_stock_auto_suggestion", None)
-        use_auto = not getattr(self.window, "_stock_manual_override", False)
+        use_auto = force_auto or not getattr(self.window, "_stock_manual_override", False)
         if use_auto and suggestion is not None:
             self._front_base_z = float(suggestion.front_z)
             set_metric_value(self.outer, max(0.01, float(suggestion.outer_diameter)))
@@ -203,41 +217,46 @@ class StockDialog(QDialog):
             set_metric_value(self.front_z, manual_front)
         resolution = float(getattr(self.window, "turnStockResolution", 0.5))
         self.accuracy.setValue(self._accuracy_index_for_resolution(resolution))
-        self._load_milling_values()
-        self.stock_tabs.setCurrentIndex(0 if self.window.latheMode else 1)
-        super().showEvent(event)
+
+    def _turning_value_changed(self, _value):
+        self._reset_turning_pending = False
 
     def _reset_to_auto(self):
-        self.window.resetStockToAuto()
-        self.accept()
+        self._load_turning_values(force_auto=True)
+        self._reset_turning_pending = True
 
-    def _apply(self):
-        if self.stock_tabs.currentIndex() == 1:
-            values = {key: metric_value(spin) for key, spin in self.milling_fields.items()}
-            values["manual"] = self.milling_manual.isChecked()
-            values["allowance"] = metric_value(self.milling_allowance)
-            values["resolution"] = self.window.millingStockResolution
-            values["accuracy"] = self.milling_accuracy.value()
-            try:
-                self.window.applyMillingStockSettings(values)
-            except ValueError as exc:
-                QMessageBox.warning(self, "Stock", str(exc))
-                return
-            self.accept()
-            return
+    def _milling_values(self):
+        values = {key: metric_value(spin) for key, spin in self.milling_fields.items()}
+        values.update(
+            manual=self.milling_manual.isChecked(),
+            allowance=metric_value(self.milling_allowance),
+            resolution=self.window.millingStockResolution,
+            accuracy=self.milling_accuracy.value(),
+        )
+        return values
+
+    def _turning_values(self):
         front_z = metric_value(self.front_z)
-        front_allowance = max(0.0, front_z - self._front_base_z)
-        values = {
+        return {
             "enabled": self.enabled.isChecked(),
             "outer_diameter": metric_value(self.outer),
             "inner_diameter": metric_value(self.inner),
             "length": metric_value(self.length),
-            "front_allowance": front_allowance,
+            "front_allowance": max(0.0, front_z - self._front_base_z),
             "front_z": front_z,
             "resolution": self.resolution(),
         }
+
+    def _apply(self):
+        tab = self.stock_tabs.currentIndex()
+        values = self._milling_values() if tab == 1 else self._turning_values()
         try:
-            self.window.applyStockSettings(values)
+            if tab == 0 and self._reset_turning_pending:
+                values["manual"] = False
+                self.window.applyStockSettings(values)
+            elif values != self._initial_values.get(tab):
+                apply = self.window.applyMillingStockSettings if tab == 1 else self.window.applyStockSettings
+                apply(values)
         except ValueError as exc:
             QMessageBox.warning(self, "Stock", str(exc))
             return

@@ -6,7 +6,9 @@ def finish_milling_seek(timeline, *, count, cancelled):
         if cancelled():
             raise InterruptedError("Stock seek cancelled")
         timeline.set_motion_count(count, time_budget=0.02)
-    return timeline.snapshot()
+    if cancelled():
+        raise InterruptedError("Stock seek cancelled")
+    return timeline.snapshot(cancelled=cancelled)
 
 
 _MIN_STOCK_RENDER_INTERVAL_SECONDS = 1.0 / 30.0

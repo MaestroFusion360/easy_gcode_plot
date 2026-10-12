@@ -163,7 +163,8 @@ def test_invalid_legacy_snippet_does_not_prevent_main_window_startup(qt_app, tmp
         qt_app.processEvents()
 
 
-def test_gui_exports_real_named_tool_mpf_to_fanuc_with_displaced_g55(qt_app, tmp_path, monkeypatch):
+def test_gui_exports_real_named_tool_mpf_to_fanuc_with_displaced_g55(qt_app, tmp_path, monkeypatch, caplog):
+    caplog.set_level("INFO", logger=ops.__name__)
     fixture = Path(__file__).resolve().parents[1] / "fixtures/milling/sinumerik/smpl_sim08_5ax_sinumerik_mm.mpf"
     source = tmp_path / "part.mpf"
     source.write_text(fixture.read_text().replace("_Z_HOME=-10", "_Z_HOME=-200"))
@@ -189,6 +190,9 @@ def test_gui_exports_real_named_tool_mpf_to_fanuc_with_displaced_g55(qt_app, tmp
         window.loadFile(str(source))
         window.export()
         assert not notices
+        assert "file_opened" in caplog.text
+        assert "export_started" in caplog.text and "target_post=fanuc_mill_multiaxis" in caplog.text
+        assert "export_completed" in caplog.text
         text = output.read_text()
         assert "G55" in text and "G53G0Z-200" in text.replace(" ", "")
         assert "T4 M06" in text and "T8 M06" in text

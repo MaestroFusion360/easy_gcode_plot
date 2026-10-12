@@ -229,6 +229,10 @@ def convert_resolved_program(result, target="fanuc_mill", options=None, *, cance
     profile = select_cycle_profile(
         load_post_profile(target), result.sinumerik_840d_sl if sinumerik_840d_sl is None else sinumerik_840d_sl
     )
+    if profile.get("id") == "heidanhain_itnc530":
+        from .heidenhain import export_heidenhain  # pylint: disable=import-outside-toplevel
+
+        return export_heidenhain(result, profile, options, cancelled=cancelled)
     turning = result.language == "fanuc_turn"
     if (profile["machine"] == "lathe") != turning:
         raise ValueError("Post profile machine does not match the executed geometry")
@@ -472,7 +476,12 @@ def _post_options(options, profile):
         options = replace(options, output_unit_scale=profile_unit_scale)
     if options.arc_mode not in range(4):
         raise ValueError("Arc output must be IJK relative, IJK absolute, radius or linearized")
-    word_formats, word_order, word_required = _resolve_format_words(arc.get("words"), defaults["decimalPlaces"])
+    default_sign = (
+        "always" if (options.plus_output if options.plus_output_explicit else defaults["plusOutput"]) else "auto"
+    )
+    word_formats, word_order, word_required = _resolve_format_words(
+        arc.get("words"), defaults["decimalPlaces"], default_sign=default_sign
+    )
     return replace(
         options,
         decimal_places=options.decimal_places if options.decimal_places_explicit else defaults["decimalPlaces"],
@@ -492,7 +501,7 @@ def _post_options(options, profile):
     )
 
 
-def _resolve_format_words(words, default_decimals: int):
+def _resolve_format_words(words, default_decimals: int, *, default_sign="auto"):
     """Return ``(formats, order, required)`` from a ``format.words`` section.
 
     ``order`` is a tuple of internal motion-token names sorted by the profile's
@@ -510,7 +519,7 @@ def _resolve_format_words(words, default_decimals: int):
         order_tokens.append(token)
         required[token] = bool(spec["required"])
         if key != "motion" and ("decimals" in spec or "sign" in spec):
-            formats[key] = (int(spec.get("decimals", default_decimals)), str(spec.get("sign", "auto")))
+            formats[key] = (int(spec.get("decimals", default_decimals)), str(spec.get("sign", default_sign)))
     if "motion" in order_tokens:
         order_tokens.insert(order_tokens.index("motion") + 1, "turns")
     return formats or None, tuple(order_tokens), required

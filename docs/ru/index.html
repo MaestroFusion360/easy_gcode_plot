@@ -54,7 +54,8 @@
       Меню <span aria-hidden="true">☰</span>
     </button>
     <nav id="site-nav" aria-label="Основная навигация">
-      <a href="#visualization">Возможности</a
+      <a href="#milling-stock">Снятие материала</a
+      ><a href="#visualization">Возможности</a
       ><a href="#generators">Генераторы</a><a href="#statistics">Статистика</a
       ><a href="#comparison">Сравнение</a
       ><a href="#documentation">Документация</a>
@@ -177,15 +178,19 @@
 </div>
 <section id="milling-stock" class="section">
   <div class="section-heading">
-    <h2>Симуляция удаления материала при фрезеровании</h2>
+    <div>
+      <p class="eyebrow">ОТ ЗАГОТОВКИ К ДЕТАЛИ</p>
+      <h2>Снятие материала при фрезеровании и точении</h2>
+    </div>
     <p class="section-intro">
-      Моделирование съёма материала по рассчитанной траектории с учётом
-      геометрии инструмента.
+      Одна кнопка Stock Removal и общий диалог заготовки для фрезерования и
+      точения. Проверяйте оставшийся материал по исполненной траектории с учётом
+      геометрии инструмента и параметров выбранного режима обработки.
     </p>
   </div>
   <article class="story">
     <div class="story-copy">
-      <h3>Заготовка и воспроизведение</h3>
+      <h3>3D-симуляция снятия материала при фрезеровании</h3>
       <p>
         Настраиваются границы заготовки X/Y/Z, припуск и один из пяти уровней
         Accuracy. Съём учитывает профиль фрезы: плоский, торцевой, шаровой, с
@@ -220,11 +225,73 @@
       </figure>
     </div>
   </article>
+  <article class="story story-reverse">
+    <div class="story-copy">
+      <h3>Снятие материала при точении</h3>
+      <p>
+        Проверяйте наружное, внутреннее и торцевое точение, канавки и профиль
+        резьбы. Снятие материала рассчитывается по геометрии инструмента и
+        исполненной траектории. Возвращайтесь к любому шагу воспроизведения.
+      </p>
+    </div>
+    <div class="story-media">
+      <figure class="screenshot-card">
+        <a
+          href="../assets-optimized/stock_removal.webp"
+          data-gallery="milling-stock"
+          aria-label="Снятие материала при точении"
+          ><img
+            src="../assets-optimized/stock_removal.webp"
+            width="1280"
+            height="720"
+            alt="Снятие материала при точении"
+            loading="lazy"
+            decoding="async"
+        /></a>
+        <figcaption>Снятие материала при точении</figcaption>
+      </figure>
+      <details class="reference-panel">
+        <summary>Примеры токарной траектории и заготовки</summary>
+        <div class="media-pair reference-body">
+          <figure class="screenshot-card">
+            <a
+              href="../assets-optimized/img4.webp"
+              data-gallery="milling-stock"
+              aria-label="Траектории токарных циклов"
+              ><img
+                src="../assets-optimized/img4.webp"
+                width="1200"
+                height="606"
+                alt="Траектории токарных циклов"
+                loading="lazy"
+                decoding="async"
+            /></a>
+            <figcaption>Траектории токарных циклов</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a
+              href="../assets-optimized/img5.webp"
+              data-gallery="milling-stock"
+              aria-label="Профиль токарной заготовки"
+              ><img
+                src="../assets-optimized/img5.webp"
+                width="1200"
+                height="606"
+                alt="Профиль токарной заготовки"
+                loading="lazy"
+                decoding="async"
+            /></a>
+            <figcaption>Профиль токарной заготовки</figcaption>
+          </figure>
+        </div>
+      </details>
+    </div>
+  </article>
   <p class="note">
-    Съём и отображение поверхности выполняются на GPU; требуется OpenGL 4.3.
-    Поддерживаются прямоугольная заготовка и вертикальная фреза.
-    Поворотные/TCP-движения, поднутрения и вычитание из импортированной
-    STL-сетки не поддерживаются.
+    При трёхосевом фрезеровании съём и отображение поверхности выполняются на
+    GPU; требуется OpenGL 4.3. Фрезерная модель поддерживает прямоугольную
+    заготовку и вертикальную фрезу. Поворотные/TCP-движения, поднутрения и
+    вычитание из импортированной STL-сетки не поддерживаются.
   </p>
 </section>
 <section id="visualization" class="section">
@@ -301,72 +368,9 @@
       </details>
     </div>
   </article>
-  <article class="story story-reverse">
-    <div class="story-copy">
-      <p class="eyebrow">02 / ПРОСМОТР ТРАЕКТОРИИ</p>
-      <h3>Снятие материала при точении</h3>
-      <p>
-        Проверяйте наружное, внутреннее и торцевое точение, канавки и профиль
-        резьбы. Снятие материала рассчитывается по геометрии инструмента и
-        исполненной траектории. Возвращайтесь к любому шагу воспроизведения.
-      </p>
-    </div>
-    <div class="story-media">
-      <figure class="screenshot-card">
-        <a
-          href="../assets-optimized/stock_removal.webp"
-          data-gallery="visualization"
-          aria-label="Снятие материала при точении"
-          ><img
-            src="../assets-optimized/stock_removal.webp"
-            width="1280"
-            height="720"
-            alt="Снятие материала при точении"
-            loading="lazy"
-            decoding="async"
-        /></a>
-        <figcaption>Снятие материала при точении</figcaption>
-      </figure>
-      <details class="reference-panel">
-        <summary>Примеры токарной траектории и заготовки</summary>
-        <div class="media-pair reference-body">
-          <figure class="screenshot-card">
-            <a
-              href="../assets-optimized/img4.webp"
-              data-gallery="visualization"
-              aria-label="Траектории токарных циклов"
-              ><img
-                src="../assets-optimized/img4.webp"
-                width="1200"
-                height="606"
-                alt="Траектории токарных циклов"
-                loading="lazy"
-                decoding="async"
-            /></a>
-            <figcaption>Траектории токарных циклов</figcaption>
-          </figure>
-          <figure class="screenshot-card">
-            <a
-              href="../assets-optimized/img5.webp"
-              data-gallery="visualization"
-              aria-label="Профиль токарной заготовки"
-              ><img
-                src="../assets-optimized/img5.webp"
-                width="1200"
-                height="606"
-                alt="Профиль токарной заготовки"
-                loading="lazy"
-                decoding="async"
-            /></a>
-            <figcaption>Профиль токарной заготовки</figcaption>
-          </figure>
-        </div>
-      </details>
-    </div>
-  </article>
   <article class="story">
     <div class="story-copy">
-      <p class="eyebrow">03 / ПРОСМОТР ТРАЕКТОРИИ</p>
+      <p class="eyebrow">02 / ПРОСМОТР ТРАЕКТОРИИ</p>
       <h3>Обработка с поворотными осями</h3>
       <p>
         Просматривайте индексную обработку и поддержанные непрерывные движения
@@ -391,8 +395,8 @@
     </figure>
   </article>
   <p class="note">
-    STL служит визуальным ориентиром. Объёмное вычитание материала при
-    фрезеровании и полная проверка столкновений станка пока не моделируются.
+    Импортированные STL-модели служат визуальным ориентиром. Полная проверка
+    столкновений станка пока не моделируется.
   </p>
 </section>
 <section class="section" id="tools">
@@ -439,6 +443,173 @@
       <figcaption>Библиотека токарного инструмента</figcaption>
     </figure>
   </div>
+  <details class="reference-panel">
+    <summary>Типы фрезерного инструмента — 9 вариантов</summary>
+    <div class="reference-body">
+      <p>
+        На вкладке фрезерного инструмента выберите добавление в библиотеку,
+        затем тип и размеры. Названия в таблице совпадают со списком редактора.
+        Для всех типов задаются диаметр, длина режущей части и длина корпуса;
+        длина до держателя равна сумме двух длин. Размеры можно вводить в
+        миллиметрах или дюймах.
+      </p>
+      <div
+        class="table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="Типы фрезерного инструмента"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Тип в редакторе</th>
+              <th scope="col">Форма</th>
+              <th scope="col">Особые параметры</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Flat Mill</td>
+              <td>Концевая фреза с плоским торцом</td>
+              <td>Диаметр и длины</td>
+            </tr>
+            <tr>
+              <td>Bull Mill</td>
+              <td>Концевая фреза с радиусом при вершине</td>
+              <td>Угловой радиус, не больше половины диаметра</td>
+            </tr>
+            <tr>
+              <td>Ball Mill</td>
+              <td>Шаровая фреза</td>
+              <td>Радиус сферы автоматически равен половине диаметра</td>
+            </tr>
+            <tr>
+              <td>Taper Ball Mill</td>
+              <td>Коническая фреза со сферическим концом</td>
+              <td>Диаметр сферического конца и угол конусности</td>
+            </tr>
+            <tr>
+              <td>Face Mill</td>
+              <td>Торцевая фреза</td>
+              <td>Диаметр хвостовика меньше диаметра головки</td>
+            </tr>
+            <tr>
+              <td>Slot Mill</td>
+              <td>Грибковая фреза</td>
+              <td>Диаметр хвостовика и длина режущей части</td>
+            </tr>
+            <tr>
+              <td>Chamfer Mill</td>
+              <td>Фасочная фреза</td>
+              <td>Диаметр площадки на конце и угол фаски</td>
+            </tr>
+            <tr>
+              <td>Drill</td>
+              <td>Сверло</td>
+              <td>Угол при вершине</td>
+            </tr>
+            <tr>
+              <td>Tap</td>
+              <td>Метчик</td>
+              <td>Диаметр и длины</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Для торцевой и грибковой фрезы длина режущей части задаёт высоту
+        головки. В старых записях с одной общей длиной редактор сохраняет
+        отдельное поле высоты режущей части, пока раздельные длины не изменены.
+      </p>
+    </div>
+  </details>
+  <details class="reference-panel">
+    <summary>Типы токарного инструмента — 9 вариантов</summary>
+    <div class="reference-body">
+      <p>
+        В токарном редакторе выберите категорию, направление обработки и
+        доступный тип. OD означает наружную обработку, ID — внутреннюю, Face —
+        торцевую. Список типов и положений вершины P зависит от выбранного
+        направления.
+      </p>
+      <div
+        class="table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="Типы токарного инструмента"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Тип в редакторе</th>
+              <th scope="col">Форма</th>
+              <th scope="col">Параметры</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Diamond 80</td>
+              <td>Ромбическая пластина 80°</td>
+              <td>Радиус вершины, размер пластины, положение P</td>
+            </tr>
+            <tr>
+              <td>Diamond 35</td>
+              <td>Ромбическая пластина 35°</td>
+              <td>Радиус вершины, размер пластины, положение P</td>
+            </tr>
+            <tr>
+              <td>Square</td>
+              <td>Квадратная пластина</td>
+              <td>Радиус вершины, размер пластины, положение P</td>
+            </tr>
+            <tr>
+              <td>Round</td>
+              <td>Круглая пластина</td>
+              <td>Диаметр пластины, радиус вершины, положение P</td>
+            </tr>
+            <tr>
+              <td>Triangle</td>
+              <td>Треугольная пластина</td>
+              <td>Радиус вершины, размер пластины, положение P</td>
+            </tr>
+            <tr>
+              <td>Groove</td>
+              <td>Канавочный резец</td>
+              <td>
+                Ширина, радиус вершины, положение P; радиальная или торцевая
+                геометрия канавки
+              </td>
+            </tr>
+            <tr>
+              <td>Thread</td>
+              <td>Резьбовой резец</td>
+              <td>
+                Размер пластины, угол профиля, ширина вершины EX, радиус
+                скругления RC и положение P
+              </td>
+            </tr>
+            <tr>
+              <td>Drill</td>
+              <td>Сверло</td>
+              <td>Диаметр, длина, угол при вершине</td>
+            </tr>
+            <tr>
+              <td>Tap</td>
+              <td>Метчик</td>
+              <td>Диаметр, длина, угол при вершине</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        Сохранённая библиотека и инструменты текущей программы — отдельные
+        списки. Назначьте запись из библиотеки инструменту программы, чтобы
+        использовать её геометрию; отредактированный инструмент программы можно
+        сохранить в библиотеку для следующих работ. Предпросмотр помогает
+        проверить форму и ориентацию до сохранения.
+      </p>
+    </div>
+  </details>
   <details class="reference-panel">
     <summary>Сниппеты редактора и настройки</summary>
     <div class="media-pair reference-body">
@@ -629,6 +800,11 @@
         программы. GUI, CLI и пакетный экспорт используют одинаковый расчёт и
         правила вывода.
       </p>
+      <p>
+        В EXPANDED EXECUTION выберите встроенный или сохранённый
+        пользовательский пост в Target CNC. Кнопка + импортирует готовый
+        JSON-профиль для текущего типа станка, не меняя исходный файл.
+      </p>
       <a class="text-link" href="#dialect-conversion"
         >Подробнее о конвертации стоек →</a
       >
@@ -638,15 +814,64 @@
         href="../assets-optimized/export.webp"
         data-gallery="export"
         aria-label="Настройки экспорта"
-        ><img
+      >
+        <img
           src="../assets-optimized/export.webp"
-          width="622"
+          width="649"
           height="462"
           alt="Настройки экспорта"
           loading="lazy"
           decoding="async"
-      /></a>
+        />
+      </a>
       <figcaption>Настройки экспорта</figcaption>
+    </figure>
+  </article>
+  <article class="story story-reverse">
+    <div class="story-copy">
+      <h3>Постпроцессоры для вашей стойки</h3>
+      <p>Доступны восемь встроенных постов экспорта:</p>
+      <ul>
+        <li>
+          Фрезерование: FANUC, SINUMERIK 840D ISO-M (G291), SINUMERIK 840D
+          native и Heidenhain iTNC 530.
+        </li>
+        <li>Многоосевое фрезерование: FANUC и SINUMERIK 840D native.</li>
+        <li>Токарная обработка: FANUC lathe A и FANUC lathe B.</li>
+      </ul>
+      <p>
+        Пост Heidenhain выводит BEGIN/END PGM, TOOL CALL, L/FMAX, CC с C/CP, CR
+        и циклы сверления в EXPANDED.
+      </p>
+      <p>
+        Настраивайте посты в «Настройки / Постпроцессоры». Слева выбирается
+        профиль, справа редактируются его параметры. Кнопки под списком создают
+        копию, сохраняют, переименовывают и удаляют пользовательские профили;
+        встроенные посты доступны только для чтения.
+      </p>
+      <p>
+        Сохраните новую копию кнопкой «Сохранить» или OK. Перед сохранением
+        профиль проверяется; «Отмена» отбрасывает несохранённые правки.
+        Пользовательские профили появляются в экспорте рядом со встроенными
+        постами.
+      </p>
+    </div>
+    <figure class="screenshot-card">
+      <a
+        href="../assets-optimized/posts.webp"
+        data-gallery="export"
+        aria-label="Библиотека постпроцессоров и встроенный редактор"
+      >
+        <img
+          src="../assets-optimized/posts.webp"
+          width="992"
+          height="652"
+          alt="Библиотека постпроцессоров и встроенный редактор"
+          loading="lazy"
+          decoding="async"
+        />
+      </a>
+      <figcaption>Библиотека постпроцессоров и встроенный редактор</figcaption>
     </figure>
   </article>
   <p class="note">
@@ -2271,7 +2496,7 @@ X17.0
     </div>
     <p class="section-intro">
       Сравнение поддержки команд FANUC Milling, FANUC Turning и SINUMERIK 840D.
-      Актуально для версии 1.9.8. Указаны поддерживаемые команды, ограничения и
+      Актуально для версии 2.1.0. Указаны поддерживаемые команды, ограничения и
       источники данных.
     </p>
   </div>
@@ -2283,11 +2508,12 @@ X17.0
     <div class="reference-body comparison-content">
       <p><strong>Обозначения:</strong> ✅ — подтверждённая функция в указанном объёме; ⚠️ — частичная поддержка / ограниченная семантика; ❌ — явно отсутствует; <strong>?</strong> — точное поведение CIMCO Edit 8 не подтверждено. <strong>Отсутствие данных о поддержке функции не означает её отсутствие.</strong> «≈» — сопоставимо только в указанном объёме. Сравнивается <strong>CIMCO Edit 8 Backplot</strong>, не CIMCO Edit 2022–2026 и не отдельная CIMCO Machine Simulation. Для CIMCO статусы по SINUMERIK, отсутствующие в руководстве, перенесены из исходной таблицы автора <span class="source-ref">[U]</span>. «Есть команда в фильтре» не означает правильное моделирование геометрии.</p>
 <p><a href="../COMPARISON.md">Версия на английском</a>.</p>
-<details class="reference-panel"><summary>Что изменилось в 1.9.8</summary><div class="reference-body"><ul><li>Добавлены фрезерные G74, G76, G87, G89 и синхронные шаги Q для G74/G84. Направление отвода Q и параметры возврата при резьбонарезании задаются в настройках ядра.</li><li>Добавлены native CYCLE85/86/87/89. CYCLE84 поддерживает правую/левую метрическую резьбу и глубокую резьбу VARI=1/2 с DAM/VRT и выравниванием последних шагов. CYCLE88 остаётся неподдержанным.</li><li>Исправлены локальная плоскость окружности Siemens и чистое быстрое индексирование поворотных осей при активном CYCLE800.</li><li>Обе исходные программы Fusion 1001 доходят до M30 с кинематикой <code>5ax_table_ac</code>; регрессии проверяют home Z=0 и 500. Без геометрии инструмента компенсация остаётся непроверенной. DC вне 0–360° нормализуется с предупреждением для визуализации; это не подтверждает допустимость таких значений на стойке.</li><li>G92.1 с нулевыми селекторами осей учитывается как preset без физического перемещения. Ручные/G92-сдвиги в модели отсутствуют. G53 и G28 с заданным home поддерживались и раньше.</li><li>Ошибка дуги даёт диагностику, но последующие блоки могут исполняться. Завершённость и корректность результата проверяются отдельно.</li></ul></div></details>
-<details class="reference-panel"><summary>1. FANUC Mill</summary><div class="reference-body"><div class="table-wrap" tabindex="0" role="region" aria-label="Таблица сравнения"><table><thead><tr><th scope="col">Область / команда</th><th scope="col">CIMCO Edit 8</th><th scope="col">Easy G-Code Plot 1.9.8</th><th scope="col">Сопоставление</th></tr></thead><tbody><tr><td>G0/G1, модальные XYZ</td><td>✅ Backplot <span class="source-ref">[C1]</span></td><td>✅ исполнение и trace</td><td>≈</td></tr><tr><td>G2/G3, IJK, R</td><td>✅ дуги, настраиваемый тип [C1, C2]</td><td>✅ IJK absolute/incremental, R</td><td>≈; варианты не сопоставлены</td></tr><tr><td>Полные окружности</td><td>✅ настройка Draw zero arcs <span class="source-ref">[C2]</span></td><td>✅</td><td>≈</td></tr><tr><td>Винтовые дуги G2/G3</td><td>? конкретная геометрия</td><td>✅ аналитические дуги/винтовые траектории</td><td>Не установлено</td></tr><tr><td>G4</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ выдержка / сигнал</td><td>≈</td></tr><tr><td>G17/G18/G19</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅</td><td>≈</td></tr><tr><td>G20/G21</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ единицы и экспорт мм↔дюймы</td><td>≈ по чтению</td></tr><tr><td>G90/G91</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅</td><td>≈</td></tr><tr><td>G28</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ заданный home и промежуточная точка</td><td>≈ в базовом режиме</td></tr><tr><td>G53</td><td>? точный nonmodal-контракт</td><td>✅ машинные координаты</td><td>Не установлено</td></tr><tr><td>G30</td><td>?</td><td>❌ второй референтный пункт не моделируется как G28</td><td>Не установлено</td></tr><tr><td>G54–G59</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ WCS со смещениями</td><td>≈</td></tr><tr><td>G54.1 P1–P99</td><td>?</td><td>⚠️ выбор; смещение 0 без G10 L20</td><td>Не установлено</td></tr><tr><td>G10 L2/L20</td><td>? программирование WCS в Backplot</td><td>✅ runtime WCS updates</td><td>Не установлено</td></tr><tr><td>G52</td><td>?</td><td>✅ local shift</td><td>Не установлено</td></tr><tr><td>G68/G69</td><td>✅ в FANUC-фильтре; G68 исправлялся <span class="source-ref">[C3]</span></td><td>✅ поворот рабочей плоскости / отмена</td><td>≈ по наличию, не точности</td></tr><tr><td>G50/G51 (scaling)</td><td>?</td><td>⚠️ ограниченная модель масштаба</td><td>Не установлено</td></tr><tr><td>G15/G16 (polar)</td><td>?</td><td>⚠️ поддержка полярных координат, ограничения дуг</td><td>Не установлено</td></tr><tr><td>G40/G41/G42</td><td>✅ компенсация/настройка Backplot [C1, C2]</td><td>✅ геометрическая 2D компенсация в поддержанных случаях</td><td>≈; без парного теста</td></tr><tr><td>G43 H / G49</td><td>⚠️ распознаёт, но <strong>по проверке автора H не сдвигает Backplot</strong>; исправлялся G43 H [C3, U]</td><td>⚠️ хранит состояние, H не меняет plotted path <span class="source-ref">[E]</span></td><td>≈ по наблюдаемой геометрии</td></tr><tr><td>G68.2/G53.1 (3+2)</td><td>⚠️ G68.2 присутствует в фильтре <span class="source-ref">[C3]</span>; точный контракт G53.1 не подтверждён</td><td>✅ поддержанные индексированные AC/BC и 2-осевые профили</td><td>Не ранжируется</td></tr><tr><td>G43.4 TCP</td><td>? контракт интерпретации в 8 не подтверждён</td><td>✅ ограниченный AC/BC TCP, G0/G1/G2/G3</td><td>Не установлено</td></tr><tr><td>G68.2 вместе с G43.4</td><td>?</td><td>❌ совмещение не поддерживается</td><td>Не установлено</td></tr><tr><td>Индексирование 3+1 (A/B/C)</td><td>✅ 4/5-axis Backplot с конфигурацией <span class="source-ref">[C2]</span></td><td>✅ выбранные table A/B/C</td><td>≈ на поддерживаемых профилях</td></tr><tr><td>Индексирование 3+2</td><td>✅ настройка 4/5-axis Backplot; полнота фреймов не установлена [C2, C3]</td><td>✅ поддержанный G68.2/G53.1 subset</td><td>Не ранжируется</td></tr><tr><td>Непрерывное 4-axis X/C</td><td>✅ заявлен 4/5-axis Backplot <span class="source-ref">[C2]</span>; точная семантика X/C неизвестна</td><td>✅ проверенный 4ax_table_c subset</td><td>Не установлено</td></tr><tr><td>Непрерывное 5-axis AC/BC</td><td>✅ 5-axis Backplot <span class="source-ref">[C2]</span>, объём TCP неизвестен</td><td>✅ AC/BC TCP subset, ориентация инструмента</td><td>Не ранжируется</td></tr><tr><td>Полная машинная симуляция</td><td>? у рассматриваемого Backplot не подтверждена; настройка rotary ≠ симуляция узлов станка</td><td>❌</td><td>Подтверждённой эквивалентности нет</td></tr><tr><td>STL-модель готовой детали</td><td>? возможности V8 Overlay отдельно не подтверждены</td><td>✅ STL overlay без вычитания материала</td><td>Не установлено</td></tr><tr><td>Объёмное снятие материала при фрезеровании</td><td>✅ Solid Animation в V8 <span class="source-ref">[C2]</span></td><td>❌</td><td>CIMCO (только эта функция)</td></tr><tr><td>G73 high-speed peck</td><td>? конкретная семантика</td><td>✅ ограниченный цикл</td><td>Не установлено</td></tr><tr><td>G74 reverse tapping (mill)</td><td>?</td><td>✅ левое резьбонарезание с синхронным выходом и Q</td><td>Не установлено</td></tr><tr><td>G76 fine boring (mill)</td><td>?</td><td>✅ растачивание с ориентацией и Q-отводом; направление XY настраивается</td><td>Не установлено</td></tr><tr><td>G80</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ отмена цикла</td><td>≈</td></tr><tr><td>G81</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅</td><td>≈</td></tr><tr><td>G82</td><td>? для конкретной формы</td><td>✅ выдержка</td><td>Не установлено</td></tr><tr><td>G83</td><td>✅ упоминается в старых релизных исправлениях <span class="source-ref">[C4]</span></td><td>✅ peck с возвратом к R</td><td>≈ по классу, детали неизвестны</td></tr><tr><td>G84 + M29</td><td>✅ G84 <span class="source-ref">[C1]</span>; синхронизация M29 не проверена</td><td>✅ G84, M29 prepare, режим подачи и синхронные шаги Q</td><td>≈ по G84</td></tr><tr><td>G85</td><td>✅ исторические исправления <span class="source-ref">[C4]</span></td><td>✅ feed-return boring</td><td>≈ по классу</td></tr><tr><td>G86</td><td>?</td><td>✅ stop-spindle boring signal</td><td>Не установлено</td></tr><tr><td>G87</td><td>?</td><td>✅ обратное растачивание с Q; возврат к исходной плоскости</td><td>Не установлено</td></tr><tr><td>G88</td><td>?</td><td>❌</td><td>Не установлено</td></tr><tr><td>G89</td><td>?</td><td>✅ выдержка и выход на подаче</td><td>Не установлено</td></tr><tr><td>G92.1</td><td>?</td><td>⚠️ preset с нулевыми селекторами без физического перемещения; ручные сдвиги не моделируются</td><td>Не установлено</td></tr><tr><td>G98/G99 (цикл)</td><td>? точная геометрия</td><td>✅ возврат к initial/R plane</td><td>Не установлено</td></tr><tr><td>G93 inverse-time</td><td>?</td><td>✅ по F с rotary/TCP; есть ограничения</td><td>Не установлено</td></tr><tr><td>G94/G95</td><td>✅ базовый режим программирования; детализация неизвестна</td><td>✅ mm/min и mm/rev</td><td>≈ по наличию</td></tr><tr><td>M3/M4/M5, M6, M8/M9</td><td>✅ стандартный пример <span class="source-ref">[C1]</span></td><td>✅ состояния/сигналы, без физики станка</td><td>≈</td></tr><tr><td>#variables / nested <code>#[...]</code></td><td>✅ nested variables в FANUC/Haas-фильтре версии 8 <span class="source-ref">[C3]</span></td><td>✅ Macro B runtime: чтение/запись/косвенные переменные</td><td>≈ по наличию, глубина неизвестна</td></tr><tr><td>Macro B <code>IF/GOTO</code>, <code>WHILE/DO</code></td><td>⚠️ есть исправления Macro B в Backplot 8 <span class="source-ref">[C3]</span>, точные формы не установлены</td><td>✅ исполняемые выражения и flow</td><td>Не ранжируется</td></tr><tr><td>G65, локальные переменные</td><td>? реальное исполнение G65 в Backplot 8</td><td>✅ O-макросы, локальный стек, L</td><td>Не установлено</td></tr><tr><td>M98/M99</td><td>? конкретный runtime в Backplot 8</td><td>✅ подпрограммы и L; M99 P не поддержан</td><td>Не установлено</td></tr><tr><td>EXPANDED export / FANUC↔SINUMERIK</td><td>? эквивалентного replay-контракта CIMCO 8 нет в источниках</td><td>✅ семантический экспорт; AC/BC экспериментально</td><td>Разные подтверждённые контракты</td></tr></tbody></table></div></div></details>
-<details class="reference-panel"><summary>2. FANUC Lathe</summary><div class="reference-body"><div class="table-wrap" tabindex="0" role="region" aria-label="Таблица сравнения"><table><thead><tr><th scope="col">Область / команда</th><th scope="col">CIMCO Edit 8</th><th scope="col">Easy G-Code Plot 1.9.8</th><th scope="col">Сопоставление</th></tr></thead><tbody><tr><td>G0/G1</td><td>✅ токарный Backplot <span class="source-ref">[C5]</span></td><td>✅ X/Z trace</td><td>≈</td></tr><tr><td>G2/G3 I/K, R</td><td>✅ в токарных примерах <span class="source-ref">[C5]</span></td><td>✅ G18 arcs, absolute/relative I/K и R</td><td>≈ по базовым дугам</td></tr><tr><td>X/Z в диаметрах/радиусах</td><td>✅ Diameter programming <span class="source-ref">[C2]</span></td><td>✅ физический радиус + режим диаметра</td><td>≈</td></tr><tr><td>U/W incremental</td><td>✅ настройка U/V/W [C2, C5]</td><td>✅ независимо от X/Z-режима</td><td>≈</td></tr><tr><td>FANUC Type A / Type B</td><td>? различия диалектов в фильтрах V8 не конкретизированы</td><td>✅ переключаемые Type A / B; Type C нет</td><td>Не установлено</td></tr><tr><td>G20/G21</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅ mm/inch</td><td>≈</td></tr><tr><td>G53</td><td>?</td><td>✅ nonmodal G0/G1; дуги отклоняются</td><td>Не установлено</td></tr><tr><td>G28/G30</td><td>? полная семантика</td><td>✅ G28 по заданному home; G30 не моделируется</td><td>Не установлено</td></tr><tr><td>G54–G59</td><td>✅ G54 в учебной УП <span class="source-ref">[C5]</span></td><td>✅ WCS</td><td>≈</td></tr><tr><td>G54.1 P / G10 L2/L20</td><td>?</td><td>✅ runtime offset state</td><td>Не установлено</td></tr><tr><td>G40/G41/G42 (nose compensation)</td><td>✅ настройка геометрии инструментов [C2, C5]; точность траектории не сопоставлена</td><td>✅ верифицируемая 2D nose compensation при доступной геометрии</td><td>Не ранжируется</td></tr><tr><td>T0101, tool/offset</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅ tool/offset state</td><td>≈</td></tr><tr><td>G96/G97 CSS/RPM</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅ CSS/RPM</td><td>≈</td></tr><tr><td>G50 S spindle clamp</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅</td><td>≈</td></tr><tr><td>G98/G99 (Type A, feed)</td><td>✅ G99 в FANUC turning example <span class="source-ref">[C5]</span></td><td>✅ feed/min, feed/rev</td><td>≈</td></tr><tr><td>G94/G95 (Type B, feed)</td><td>? для Type B</td><td>✅</td><td>Не установлено</td></tr><tr><td>G32/G33 single threading</td><td>? геометрическое исполнение</td><td>✅ синхронизированные threading motions</td><td>Не установлено</td></tr><tr><td>G70 P/Q finishing</td><td>✅ учебный пример и Backplot <span class="source-ref">[C5]</span></td><td>✅ развертка профиля P/Q</td><td>≈</td></tr><tr><td>G71 longitudinal rough</td><td>✅ OD/ID с реальной геометрией <span class="source-ref">[C5]</span>; исправлялся в 8 <span class="source-ref">[C3]</span></td><td>✅ черновые проходы OD/ID, ограничения Type II</td><td>≈ по базовой функции</td></tr><tr><td>G72 face rough</td><td>✅ в исторических исправлениях CIMCO 7 <span class="source-ref">[C4]</span></td><td>✅; ограничения сложного Type II</td><td>≈ по классу</td></tr><tr><td>G73 pattern repetition</td><td>? в V8</td><td>✅ повторное смещение профиля</td><td>Не установлено</td></tr><tr><td>G74 face peck drilling/grooving</td><td>✅ упоминание исправлений в CIMCO 7 <span class="source-ref">[C4]</span></td><td>✅ по Z</td><td>≈ по классу</td></tr><tr><td>G75 grooving</td><td>✅ упоминание исправлений в CIMCO 7 <span class="source-ref">[C4]</span></td><td>✅ по X</td><td>≈ по классу</td></tr><tr><td>G76 multipass threading</td><td>✅ двухстрочная программа и визуализация <span class="source-ref">[C6]</span>; исправлялся в 8 <span class="source-ref">[C3]</span></td><td>✅ двухстрочный цикл, проходы, thread geometry</td><td>≈ по основному циклу</td></tr><tr><td>G83 axial peck drilling</td><td>✅ историческое упоминание <span class="source-ref">[C4]</span></td><td>✅</td><td>≈ по классу</td></tr><tr><td>G84 axial tapping</td><td>✅ историческое упоминание <span class="source-ref">[C4]</span></td><td>✅</td><td>≈ по классу</td></tr><tr><td>G90/G92/G94 (простые Type A циклы)</td><td>? конкретная геометрия V8</td><td>✅ modal turning/thread/facing</td><td>Не установлено</td></tr><tr><td>G77/G78/G79 (Type B циклы)</td><td>?</td><td>✅ modal turning/thread/facing</td><td>Не установлено</td></tr><tr><td><code>A</code> угловая точка контура</td><td>?</td><td>✅ ограниченное вычисление конечной точки</td><td>Не установлено</td></tr><tr><td><code>C</code> фаска / <code>R</code> скругление</td><td>?</td><td>✅ G1 contour chamfer/fillet</td><td>Не установлено</td></tr><tr><td>Macro B <code>#</code>, IF/WHILE, G65</td><td>⚠️ Macro B исправлялся для Backplot 8, но полный runtime не описан <span class="source-ref">[C3]</span></td><td>✅ общий runtime с milling</td><td>Не ранжируется</td></tr><tr><td>M98/M99</td><td>?</td><td>✅ O-подпрограммы, L</td><td>Не установлено</td></tr><tr><td>2D turning Stock Removal</td><td>✅ Solid Animation, в т.ч. 2D Turning [C2, C5]</td><td>✅ рассчитанный stock + профиль резьбы</td><td>≈ по наличию, алгоритмы различны</td></tr><tr><td>Токарно-фрезерная обработка C/Y</td><td>? <strong>для CIMCO Edit 8</strong> (демо CIMCO 2022 нельзя переносить на 8)</td><td>❌ C/Y mill-turn в fanuc_turn</td><td>Не установлено</td></tr><tr><td>Полная симуляция узлов станка</td><td>? не подтверждена для рассматриваемого Backplot</td><td>❌</td><td>Подтверждённой эквивалентности нет</td></tr><tr><td>FANUC turning → EXPANDED</td><td>? сопоставимого режима не найдено</td><td>⚠️ геометрическое представление и экспорт с ограничениями токарных циклов</td><td>Не установлено</td></tr></tbody></table></div></div></details>
-<details class="reference-panel"><summary>3. SINUMERIK 840D Native (без ISO)</summary><div class="reference-body"><div class="table-wrap" tabindex="0" role="region" aria-label="Таблица сравнения"><table><thead><tr><th scope="col">Область / команда</th><th scope="col">CIMCO Edit 8</th><th scope="col">Easy G-Code Plot 1.9.8</th><th scope="col">Сопоставление</th></tr></thead><tbody><tr><td>G0/G1, модальные XYZ</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>ANG=</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ немоделируемая геометрия, остановка</td><td>CIMCO</td></tr><tr><td>CHF/CHR/RND</td><td>✅ геометрия <span class="source-ref">[U]</span></td><td>⚠️ парсинг без изменения геометрии</td><td>CIMCO</td></tr><tr><td>G2/G3, CR=, TURN=</td><td>✅ G2/G3 <span class="source-ref">[U]</span>; расширенные формы не установлены</td><td>✅ дуги, CR/TURN и локальная плоскость окружности</td><td>Расширенные формы попарно не сравнивались</td></tr><tr><td>CIP</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ пространственные дуги через промежуточную точку</td><td>≈</td></tr><tr><td>G4 F/S</td><td>✅ <span class="source-ref">[U]</span></td><td>⚠️ <code>G4 F</code>; <code>G4 S</code> — warning</td><td>CIMCO по G4 S</td></tr><tr><td>G17/G18/G19</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G40/G41/G42</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ milling, 2D compensation</td><td>≈ в subset</td></tr><tr><td>G500</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ rebasing WCS</td><td>≈</td></tr><tr><td>G54–G59</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G70/G71, G700/G710 (units)</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G90/G91</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G93/G94/G95</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ G93 inverse-time с TCP/rotary</td><td>≈ по наличию</td></tr><tr><td>G96/G97, G961/G971</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ CSS/RPM модель с ограничениями</td><td>≈ в subset</td></tr><tr><td>G937</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>TRANS/ATRANS</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ исполняемые programmable frames</td><td>≈</td></tr><tr><td>ROT/AROT/RPL</td><td>✅ <span class="source-ref">[U]</span>; ROT/AROT исправлялись в 8 <span class="source-ref">[C3]</span></td><td>✅ пространственные повороты / RPL</td><td>≈ по поддержанным формам</td></tr><tr><td>SCALE/ASCALE</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ геометрия не моделируется, stop</td><td>CIMCO</td></tr><tr><td>MIRROR/AMIRROR</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ геометрия не моделируется, stop</td><td>CIMCO</td></tr><tr><td>GOTO / IF GOTO</td><td>✅ <span class="source-ref">[U]</span>; сокращённая форма в релизных примечаниях 8 <span class="source-ref">[C3]</span></td><td>✅ числовые N-метки</td><td>CIMCO шире по формам</td></tr><tr><td>WHILE/ENDWHILE</td><td>? по V8 для конкретного native-flow</td><td>✅ вложенные циклы с лимитами</td><td>Не установлено</td></tr><tr><td>RET/GOTOC/GOTOB/GOTOF</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-flow, диагностика и stop</td><td>CIMCO</td></tr><tr><td><code>=AC()</code> / <code>=IC()</code></td><td>✅ AC; ⚠️ IC-дуги по проверке автора <span class="source-ref">[U]</span></td><td>✅ AC для IJK, IC для XYZABC</td><td>Easy для IC subset</td></tr><tr><td>DC() поворотных осей</td><td>? точная семантика V8</td><td>⚠️ кратчайший путь; вне диапазона — нормализация с предупреждением; неоднозначные 180° отклоняются</td><td>Не установлено</td></tr><tr><td>R-параметры и арифметика</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ <code>+ - * /</code>, сравнения, SIN/COS/ABS/SQRT</td><td>≈ по subset</td></tr><tr><td>Именованные production-переменные</td><td>✅ <span class="source-ref">[U]</span></td><td>⚠️ R и ограниченный <code>_NAME</code>; произвольные имена не исполняются</td><td>CIMCO</td></tr><tr><td>Символьные метки и подпрограммы SPF</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ произвольные именованные вызовы/метки</td><td>CIMCO</td></tr><tr><td>M17, M96/M97/M99</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-flow, stop</td><td>CIMCO</td></tr><tr><td>M66/M98</td><td>✅ <span class="source-ref">[U]</span></td><td>⚠️ предупреждение, без native subprogram call</td><td>CIMCO по вызову</td></tr><tr><td>M3/M4/M5/M6/M8/M9, M19</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ сигналы, без симуляции станка</td><td>≈ по сигналам</td></tr><tr><td>T=&quot;...&quot; / D0/D1/D2</td><td>✅ именованные инструменты <span class="source-ref">[U]</span>; T имена подтверждены в релизе 8 <span class="source-ref">[C3]</span></td><td>✅ имя и D state, без отсутствующих offset tables</td><td>≈ в subset</td></tr><tr><td>SUPA / G0 SUPA</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ в заданной модели возврата</td><td>≈ в subset</td></tr><tr><td>CYCLE800 3+2 / reset</td><td>❌ <strong>по сравнительной таблице автора</strong> <span class="source-ref">[U]</span>; другие сборки V8 не проверены</td><td>✅ статические AC/BC, 14–16 аргументов, сброс; чистое быстрое индексирование сохраняет фрейм</td><td>Easy по указанной проверке</td></tr><tr><td>TRAORI / TRAFOOF</td><td>? точный TCP-контракт V8</td><td>✅ поддержанный AC/BC TCP subset</td><td>Не установлено</td></tr><tr><td>4/5-axis Backplot / rotary</td><td>✅ настройка 4/5-axis <span class="source-ref">[C2]</span></td><td>✅ профили AC/BC и ориентация инструмента</td><td>≈ по классу, геометрия не сопоставлена</td></tr><tr><td>Полная машинная симуляция</td><td>? не подтверждена для Backplot</td><td>❌</td><td>Подтверждённой эквивалентности нет</td></tr><tr><td>CYCLE81</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ ограниченный drilling subset</td><td>≈ в subset</td></tr><tr><td>CYCLE801</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>CYCLE82</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ сверление с выдержкой</td><td>≈ в subset</td></tr><tr><td>CYCLE83</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ peck/chip-breaking subset</td><td>≈ в subset</td></tr><tr><td>CYCLE84</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ правая/левая метрическая и глубокая резьба; G94, явный PIT, SST/SST1 равны S</td><td>≈ в subset</td></tr><tr><td>CYCLE840</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>CYCLE85</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ развёртывание с разными FFR/RFF</td><td>≈ в subset</td></tr><tr><td>CYCLE86</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ растачивание с ориентацией и отводами RPA/RPO/RPAP</td><td>≈ в subset</td></tr><tr><td>CYCLE87</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ растачивание с сигналами остановки шпинделя и оператора, быстрый возврат</td><td>≈ в subset, без моделирования оператора</td></tr><tr><td>CYCLE88</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>CYCLE89</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ выдержка и выход на подаче</td><td>≈ в subset</td></tr><tr><td>CYCLE90</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>POCKET1/2/3/4</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-циклы; GUI-генератор карманов — отдельная функция</td><td>CIMCO по native-циклам</td></tr><tr><td>HOLES1/HOLES2</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-циклы; GUI-генератор отверстий — отдельная функция</td><td>CIMCO по native-циклам</td></tr><tr><td>LONGHOLE, SLOT1/SLOT2</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE71/72</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE73/74/75/76/77</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE60 (engraving)</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE899</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE832</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>⚠️ распознаётся как игнорируемая настройка</td><td>Easy только по распознаванию</td></tr><tr><td><code>MCALL CYCLE81/82/83/84/85/86/87/89</code></td><td>✅ <span class="source-ref">[U]</span></td><td>✅ modal drilling/tapping/boring в subset</td><td>≈ в subset</td></tr><tr><td>MCALL пользовательской SPF</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>HOLES2 с MCALL</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ генерация схем отверстий</td><td>CIMCO</td></tr><tr><td><code>STOPRE</code></td><td>✅ <span class="source-ref">[U]</span></td><td>❌ неподдержанная native-команда</td><td>CIMCO</td></tr><tr><td>EXPANDED / native ↔ FANUC</td><td>? эквивалентный replay-контракт V8 не найден</td><td>✅ 3 оси и экспериментальные AC/BC с fail-closed</td><td>Разные контракты</td></tr></tbody></table></div></div></details>
-<details class="reference-panel"><summary>Источники / пределы подтверждения</summary><div class="reference-body"><ul><li><strong><span class="source-ref">[U]</span></strong> Исходная предоставленная пользователем таблица <code>sinumerik_cimco_1.9.7(1).md</code>, включая его наблюдения CIMCO Edit 8 и два production MPF. Не является официальным исчерпывающим перечнем CIMCO. Для 1.9.8 новые парные прогоны бинарной версии CIMCO не выполнялись.</li><li><strong><span class="source-ref">[E]</span></strong> Текущий исходный код 1.9.8: <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md">FAQ</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/app/gcode/kernel/">ядро</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/app/gcode/export/">экспорт</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/dialects/test_fusion_benchmark.py">регрессии Fusion</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/dialects/test_sinumerik_cam_cycles.py">native-циклы</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/export/test_drilling_operations.py">проверки экспорта</a>.</li><li><strong><span class="source-ref">[C1]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesMillingFanucGMCodes.html">CIMCO Edit V8: Fanuc G/M Codes</a>.</li><li><strong><span class="source-ref">[C2]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/SetupBackplot.html">CIMCO Edit V8: Backplot Setup</a> — выбор кинематики 4/5 осей и Solid Animation; не подтверждает полноценную Machine Simulation.</li><li><strong><span class="source-ref">[C3]</span></strong> <a href="https://www.cimco.com/download/releases/?p=edit&amp;v=8.00.30">CIMCO Edit 8: Release Notes</a> — FANUC G68.2, G43 H, Macro B, nested variables, G71/G76, Siemens flow/ROT.</li><li><strong><span class="source-ref">[C4]</span></strong> <a href="https://www.cimco.com/download/releases/?p=edit&amp;v=7.55.68">CIMCO Edit 7: Release Notes</a> — историческое подтверждение отдельных FANUC циклов, не проверка всех вариантов V8.</li><li><strong><span class="source-ref">[C5]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesTurningFanuc1.html">CIMCO Edit V8: Fanuc Turning Exercise 1</a> — G70/G71 и Solid Animation.</li><li><strong><span class="source-ref">[C6]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesTurningFanuc4.html">CIMCO Edit V8: Fanuc Turning Exercise 4</a> — G76 и Backplot.</li></ul>
+<details class="reference-panel"><summary>Что изменилось в 2.1.0</summary><div class="reference-body"><ul><li>В версии 2.0 появилась 3D Stock Removal для трёхосевого фрезерования FANUC и native SINUMERIK в дополнение к существующей 2D-симуляции токарной обработки. Текущее сравнение учитывает исправления 2.1.0.</li><li>Фрезерный съём выполняется на GPU по геометрии инструмента и сетке высот. Поддерживаются прямоугольная заготовка, вертикальная фреза, воспроизведение и перемотка, пять уровней Accuracy и экспорт текущего состояния в STL. Требуется OpenGL 4.3; rotary/TCP-съём, поднутрения и вычитание из импортированных STL-моделей не входят в эту модель.</li><li>Фрезерование и точение используют одну кнопку Stock Removal и общий диалог заготовки с настройками выбранного режима обработки. Импортированные STL-модели остаются визуальными ориентирами.</li><li>Поддержка языков и команд стоек не изменилась. Существующее сравнение команд ниже сохранено; симуляция съёма материала не включает полную проверку столкновений узлов станка.</li></ul></div></details>
+<details class="reference-panel"><summary>Изменения языков, сохранённые с 1.9.8</summary><div class="reference-body"><ul><li>Добавлены фрезерные G74, G76, G87, G89 и синхронные шаги Q для G74/G84. Направление отвода Q и параметры возврата при резьбонарезании задаются в настройках ядра.</li><li>Добавлены native CYCLE85/86/87/89. CYCLE84 поддерживает правую/левую метрическую резьбу и глубокую резьбу VARI=1/2 с DAM/VRT и выравниванием последних шагов. CYCLE88 остаётся неподдержанным.</li><li>Исправлены локальная плоскость окружности Siemens и чистое быстрое индексирование поворотных осей при активном CYCLE800.</li><li>Обе исходные программы Fusion 1001 доходят до M30 с кинематикой <code>5ax_table_ac</code>; регрессии проверяют home Z=0 и 500. Без геометрии инструмента компенсация остаётся непроверенной. DC вне 0–360° нормализуется с предупреждением для визуализации; это не подтверждает допустимость таких значений на стойке.</li><li>G92.1 с нулевыми селекторами осей учитывается как preset без физического перемещения. Ручные/G92-сдвиги в модели отсутствуют. G53 и G28 с заданным home поддерживались и раньше.</li><li>Ошибка дуги даёт диагностику, но последующие блоки могут исполняться. Завершённость и корректность результата проверяются отдельно.</li></ul></div></details>
+<details class="reference-panel"><summary>1. FANUC Mill</summary><div class="reference-body"><div class="table-wrap" tabindex="0" role="region" aria-label="Таблица сравнения"><table><thead><tr><th scope="col">Область / команда</th><th scope="col">CIMCO Edit 8</th><th scope="col">Easy G-Code Plot 2.1.0</th><th scope="col">Сопоставление</th></tr></thead><tbody><tr><td>G0/G1, модальные XYZ</td><td>✅ Backplot <span class="source-ref">[C1]</span></td><td>✅ исполнение и trace</td><td>≈</td></tr><tr><td>G2/G3, IJK, R</td><td>✅ дуги, настраиваемый тип [C1, C2]</td><td>✅ IJK absolute/incremental, R</td><td>≈; варианты не сопоставлены</td></tr><tr><td>Полные окружности</td><td>✅ настройка Draw zero arcs <span class="source-ref">[C2]</span></td><td>✅</td><td>≈</td></tr><tr><td>Винтовые дуги G2/G3</td><td>? конкретная геометрия</td><td>✅ аналитические дуги/винтовые траектории</td><td>Не установлено</td></tr><tr><td>G4</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ выдержка / сигнал</td><td>≈</td></tr><tr><td>G17/G18/G19</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅</td><td>≈</td></tr><tr><td>G20/G21</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ единицы и экспорт мм↔дюймы</td><td>≈ по чтению</td></tr><tr><td>G90/G91</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅</td><td>≈</td></tr><tr><td>G28</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ заданный home и промежуточная точка</td><td>≈ в базовом режиме</td></tr><tr><td>G53</td><td>? точный nonmodal-контракт</td><td>✅ машинные координаты</td><td>Не установлено</td></tr><tr><td>G30</td><td>?</td><td>❌ второй референтный пункт не моделируется как G28</td><td>Не установлено</td></tr><tr><td>G54–G59</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ WCS со смещениями</td><td>≈</td></tr><tr><td>G54.1 P1–P99</td><td>?</td><td>⚠️ выбор; смещение 0 без G10 L20</td><td>Не установлено</td></tr><tr><td>G10 L2/L20</td><td>? программирование WCS в Backplot</td><td>✅ runtime WCS updates</td><td>Не установлено</td></tr><tr><td>G52</td><td>?</td><td>✅ local shift</td><td>Не установлено</td></tr><tr><td>G68/G69</td><td>✅ в FANUC-фильтре; G68 исправлялся <span class="source-ref">[C3]</span></td><td>✅ поворот рабочей плоскости / отмена</td><td>≈ по наличию, не точности</td></tr><tr><td>G50/G51 (scaling)</td><td>?</td><td>⚠️ ограниченная модель масштаба</td><td>Не установлено</td></tr><tr><td>G15/G16 (polar)</td><td>?</td><td>⚠️ поддержка полярных координат, ограничения дуг</td><td>Не установлено</td></tr><tr><td>G40/G41/G42</td><td>✅ компенсация/настройка Backplot [C1, C2]</td><td>✅ геометрическая 2D компенсация в поддержанных случаях</td><td>≈; без парного теста</td></tr><tr><td>G43 H / G49</td><td>⚠️ распознаёт, но <strong>по проверке автора H не сдвигает Backplot</strong>; исправлялся G43 H [C3, U]</td><td>⚠️ хранит состояние, H не меняет plotted path <span class="source-ref">[E]</span></td><td>≈ по наблюдаемой геометрии</td></tr><tr><td>G68.2/G53.1 (3+2)</td><td>⚠️ G68.2 присутствует в фильтре <span class="source-ref">[C3]</span>; точный контракт G53.1 не подтверждён</td><td>✅ поддержанные индексированные AC/BC и 2-осевые профили</td><td>Не ранжируется</td></tr><tr><td>G43.4 TCP</td><td>? контракт интерпретации в 8 не подтверждён</td><td>✅ ограниченный AC/BC TCP, G0/G1/G2/G3</td><td>Не установлено</td></tr><tr><td>G68.2 вместе с G43.4</td><td>?</td><td>❌ совмещение не поддерживается</td><td>Не установлено</td></tr><tr><td>Индексирование 3+1 (A/B/C)</td><td>✅ 4/5-axis Backplot с конфигурацией <span class="source-ref">[C2]</span></td><td>✅ выбранные table A/B/C</td><td>≈ на поддерживаемых профилях</td></tr><tr><td>Индексирование 3+2</td><td>✅ настройка 4/5-axis Backplot; полнота фреймов не установлена [C2, C3]</td><td>✅ поддержанный G68.2/G53.1 subset</td><td>Не ранжируется</td></tr><tr><td>Непрерывное 4-axis X/C</td><td>✅ заявлен 4/5-axis Backplot <span class="source-ref">[C2]</span>; точная семантика X/C неизвестна</td><td>✅ проверенный 4ax_table_c subset</td><td>Не установлено</td></tr><tr><td>Непрерывное 5-axis AC/BC</td><td>✅ 5-axis Backplot <span class="source-ref">[C2]</span>, объём TCP неизвестен</td><td>✅ AC/BC TCP subset, ориентация инструмента</td><td>Не ранжируется</td></tr><tr><td>Полная машинная симуляция</td><td>? у рассматриваемого Backplot не подтверждена; настройка rotary ≠ симуляция узлов станка</td><td>❌</td><td>Подтверждённой эквивалентности нет</td></tr><tr><td>STL-модель готовой детали</td><td>? возможности V8 Overlay отдельно не подтверждены</td><td>✅ визуальный STL overlay; съём выполняется из отдельной прямоугольной заготовки</td><td>Не установлено</td></tr><tr><td>3D Stock Removal при фрезеровании</td><td>✅ Solid Animation в V8 <span class="source-ref">[C2]</span></td><td>✅ GPU-съём для трёх осей и прямоугольной заготовки; модель высот, OpenGL 4.3 <span class="source-ref">[E]</span></td><td>≈ по наличию функции; объём поддержки и точность не сопоставлены</td></tr><tr><td>G73 high-speed peck</td><td>? конкретная семантика</td><td>✅ ограниченный цикл</td><td>Не установлено</td></tr><tr><td>G74 reverse tapping (mill)</td><td>?</td><td>✅ левое резьбонарезание с синхронным выходом и Q</td><td>Не установлено</td></tr><tr><td>G76 fine boring (mill)</td><td>?</td><td>✅ растачивание с ориентацией и Q-отводом; направление XY настраивается</td><td>Не установлено</td></tr><tr><td>G80</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅ отмена цикла</td><td>≈</td></tr><tr><td>G81</td><td>✅ <span class="source-ref">[C1]</span></td><td>✅</td><td>≈</td></tr><tr><td>G82</td><td>? для конкретной формы</td><td>✅ выдержка</td><td>Не установлено</td></tr><tr><td>G83</td><td>✅ упоминается в старых релизных исправлениях <span class="source-ref">[C4]</span></td><td>✅ peck с возвратом к R</td><td>≈ по классу, детали неизвестны</td></tr><tr><td>G84 + M29</td><td>✅ G84 <span class="source-ref">[C1]</span>; синхронизация M29 не проверена</td><td>✅ G84, M29 prepare, режим подачи и синхронные шаги Q</td><td>≈ по G84</td></tr><tr><td>G85</td><td>✅ исторические исправления <span class="source-ref">[C4]</span></td><td>✅ feed-return boring</td><td>≈ по классу</td></tr><tr><td>G86</td><td>?</td><td>✅ stop-spindle boring signal</td><td>Не установлено</td></tr><tr><td>G87</td><td>?</td><td>✅ обратное растачивание с Q; возврат к исходной плоскости</td><td>Не установлено</td></tr><tr><td>G88</td><td>?</td><td>❌</td><td>Не установлено</td></tr><tr><td>G89</td><td>?</td><td>✅ выдержка и выход на подаче</td><td>Не установлено</td></tr><tr><td>G92.1</td><td>?</td><td>⚠️ preset с нулевыми селекторами без физического перемещения; ручные сдвиги не моделируются</td><td>Не установлено</td></tr><tr><td>G98/G99 (цикл)</td><td>? точная геометрия</td><td>✅ возврат к initial/R plane</td><td>Не установлено</td></tr><tr><td>G93 inverse-time</td><td>?</td><td>✅ по F с rotary/TCP; есть ограничения</td><td>Не установлено</td></tr><tr><td>G94/G95</td><td>✅ базовый режим программирования; детализация неизвестна</td><td>✅ mm/min и mm/rev</td><td>≈ по наличию</td></tr><tr><td>M3/M4/M5, M6, M8/M9</td><td>✅ стандартный пример <span class="source-ref">[C1]</span></td><td>✅ состояния/сигналы, без физики станка</td><td>≈</td></tr><tr><td>#variables / nested <code>#[...]</code></td><td>✅ nested variables в FANUC/Haas-фильтре версии 8 <span class="source-ref">[C3]</span></td><td>✅ Macro B runtime: чтение/запись/косвенные переменные</td><td>≈ по наличию, глубина неизвестна</td></tr><tr><td>Macro B <code>IF/GOTO</code>, <code>WHILE/DO</code></td><td>⚠️ есть исправления Macro B в Backplot 8 <span class="source-ref">[C3]</span>, точные формы не установлены</td><td>✅ исполняемые выражения и flow</td><td>Не ранжируется</td></tr><tr><td>G65, локальные переменные</td><td>? реальное исполнение G65 в Backplot 8</td><td>✅ O-макросы, локальный стек, L</td><td>Не установлено</td></tr><tr><td>M98/M99</td><td>? конкретный runtime в Backplot 8</td><td>✅ подпрограммы и L; M99 P не поддержан</td><td>Не установлено</td></tr><tr><td>EXPANDED export / FANUC↔SINUMERIK</td><td>? эквивалентного replay-контракта CIMCO 8 нет в источниках</td><td>✅ семантический экспорт; AC/BC экспериментально</td><td>Разные подтверждённые контракты</td></tr></tbody></table></div></div></details>
+<details class="reference-panel"><summary>2. FANUC Lathe</summary><div class="reference-body"><div class="table-wrap" tabindex="0" role="region" aria-label="Таблица сравнения"><table><thead><tr><th scope="col">Область / команда</th><th scope="col">CIMCO Edit 8</th><th scope="col">Easy G-Code Plot 2.1.0</th><th scope="col">Сопоставление</th></tr></thead><tbody><tr><td>G0/G1</td><td>✅ токарный Backplot <span class="source-ref">[C5]</span></td><td>✅ X/Z trace</td><td>≈</td></tr><tr><td>G2/G3 I/K, R</td><td>✅ в токарных примерах <span class="source-ref">[C5]</span></td><td>✅ G18 arcs, absolute/relative I/K и R</td><td>≈ по базовым дугам</td></tr><tr><td>X/Z в диаметрах/радиусах</td><td>✅ Diameter programming <span class="source-ref">[C2]</span></td><td>✅ физический радиус + режим диаметра</td><td>≈</td></tr><tr><td>U/W incremental</td><td>✅ настройка U/V/W [C2, C5]</td><td>✅ независимо от X/Z-режима</td><td>≈</td></tr><tr><td>FANUC Type A / Type B</td><td>? различия диалектов в фильтрах V8 не конкретизированы</td><td>✅ переключаемые Type A / B; Type C нет</td><td>Не установлено</td></tr><tr><td>G20/G21</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅ mm/inch</td><td>≈</td></tr><tr><td>G53</td><td>?</td><td>✅ nonmodal G0/G1; дуги отклоняются</td><td>Не установлено</td></tr><tr><td>G28/G30</td><td>? полная семантика</td><td>✅ G28 по заданному home; G30 не моделируется</td><td>Не установлено</td></tr><tr><td>G54–G59</td><td>✅ G54 в учебной УП <span class="source-ref">[C5]</span></td><td>✅ WCS</td><td>≈</td></tr><tr><td>G54.1 P / G10 L2/L20</td><td>?</td><td>✅ runtime offset state</td><td>Не установлено</td></tr><tr><td>G40/G41/G42 (nose compensation)</td><td>✅ настройка геометрии инструментов [C2, C5]; точность траектории не сопоставлена</td><td>✅ верифицируемая 2D nose compensation при доступной геометрии</td><td>Не ранжируется</td></tr><tr><td>T0101, tool/offset</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅ tool/offset state</td><td>≈</td></tr><tr><td>G96/G97 CSS/RPM</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅ CSS/RPM</td><td>≈</td></tr><tr><td>G50 S spindle clamp</td><td>✅ <span class="source-ref">[C5]</span></td><td>✅</td><td>≈</td></tr><tr><td>G98/G99 (Type A, feed)</td><td>✅ G99 в FANUC turning example <span class="source-ref">[C5]</span></td><td>✅ feed/min, feed/rev</td><td>≈</td></tr><tr><td>G94/G95 (Type B, feed)</td><td>? для Type B</td><td>✅</td><td>Не установлено</td></tr><tr><td>G32/G33 single threading</td><td>? геометрическое исполнение</td><td>✅ синхронизированные threading motions</td><td>Не установлено</td></tr><tr><td>G70 P/Q finishing</td><td>✅ учебный пример и Backplot <span class="source-ref">[C5]</span></td><td>✅ развертка профиля P/Q</td><td>≈</td></tr><tr><td>G71 longitudinal rough</td><td>✅ OD/ID с реальной геометрией <span class="source-ref">[C5]</span>; исправлялся в 8 <span class="source-ref">[C3]</span></td><td>✅ черновые проходы OD/ID, ограничения Type II</td><td>≈ по базовой функции</td></tr><tr><td>G72 face rough</td><td>✅ в исторических исправлениях CIMCO 7 <span class="source-ref">[C4]</span></td><td>✅; ограничения сложного Type II</td><td>≈ по классу</td></tr><tr><td>G73 pattern repetition</td><td>? в V8</td><td>✅ повторное смещение профиля</td><td>Не установлено</td></tr><tr><td>G74 face peck drilling/grooving</td><td>✅ упоминание исправлений в CIMCO 7 <span class="source-ref">[C4]</span></td><td>✅ по Z</td><td>≈ по классу</td></tr><tr><td>G75 grooving</td><td>✅ упоминание исправлений в CIMCO 7 <span class="source-ref">[C4]</span></td><td>✅ по X</td><td>≈ по классу</td></tr><tr><td>G76 multipass threading</td><td>✅ двухстрочная программа и визуализация <span class="source-ref">[C6]</span>; исправлялся в 8 <span class="source-ref">[C3]</span></td><td>✅ двухстрочный цикл, проходы, thread geometry</td><td>≈ по основному циклу</td></tr><tr><td>G83 axial peck drilling</td><td>✅ историческое упоминание <span class="source-ref">[C4]</span></td><td>✅</td><td>≈ по классу</td></tr><tr><td>G84 axial tapping</td><td>✅ историческое упоминание <span class="source-ref">[C4]</span></td><td>✅</td><td>≈ по классу</td></tr><tr><td>G90/G92/G94 (простые Type A циклы)</td><td>? конкретная геометрия V8</td><td>✅ modal turning/thread/facing</td><td>Не установлено</td></tr><tr><td>G77/G78/G79 (Type B циклы)</td><td>?</td><td>✅ modal turning/thread/facing</td><td>Не установлено</td></tr><tr><td><code>A</code> угловая точка контура</td><td>?</td><td>✅ ограниченное вычисление конечной точки</td><td>Не установлено</td></tr><tr><td><code>C</code> фаска / <code>R</code> скругление</td><td>?</td><td>✅ G1 contour chamfer/fillet</td><td>Не установлено</td></tr><tr><td>Macro B <code>#</code>, IF/WHILE, G65</td><td>⚠️ Macro B исправлялся для Backplot 8, но полный runtime не описан <span class="source-ref">[C3]</span></td><td>✅ общий runtime с milling</td><td>Не ранжируется</td></tr><tr><td>M98/M99</td><td>?</td><td>✅ O-подпрограммы, L</td><td>Не установлено</td></tr><tr><td>2D turning Stock Removal</td><td>✅ Solid Animation, в т.ч. 2D Turning [C2, C5]</td><td>✅ рассчитанный stock + профиль резьбы</td><td>≈ по наличию, алгоритмы различны</td></tr><tr><td>Токарно-фрезерная обработка C/Y</td><td>? <strong>для CIMCO Edit 8</strong> (демо CIMCO 2022 нельзя переносить на 8)</td><td>❌ C/Y mill-turn в fanuc_turn</td><td>Не установлено</td></tr><tr><td>Полная симуляция узлов станка</td><td>? не подтверждена для рассматриваемого Backplot</td><td>❌</td><td>Подтверждённой эквивалентности нет</td></tr><tr><td>FANUC turning → EXPANDED</td><td>? сопоставимого режима не найдено</td><td>⚠️ геометрическое представление и экспорт с ограничениями токарных циклов</td><td>Не установлено</td></tr></tbody></table></div></div></details>
+<details class="reference-panel"><summary>3. SINUMERIK 840D Native (без ISO)</summary><div class="reference-body"><div class="table-wrap" tabindex="0" role="region" aria-label="Таблица сравнения"><table><thead><tr><th scope="col">Область / команда</th><th scope="col">CIMCO Edit 8</th><th scope="col">Easy G-Code Plot 2.1.0</th><th scope="col">Сопоставление</th></tr></thead><tbody><tr><td>G0/G1, модальные XYZ</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>ANG=</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ немоделируемая геометрия, остановка</td><td>CIMCO</td></tr><tr><td>CHF/CHR/RND</td><td>✅ геометрия <span class="source-ref">[U]</span></td><td>⚠️ парсинг без изменения геометрии</td><td>CIMCO</td></tr><tr><td>G2/G3, CR=, TURN=</td><td>✅ G2/G3 <span class="source-ref">[U]</span>; расширенные формы не установлены</td><td>✅ дуги, CR/TURN и локальная плоскость окружности</td><td>Расширенные формы попарно не сравнивались</td></tr><tr><td>CIP</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ пространственные дуги через промежуточную точку</td><td>≈</td></tr><tr><td>G4 F/S</td><td>✅ <span class="source-ref">[U]</span></td><td>⚠️ <code>G4 F</code>; <code>G4 S</code> — warning</td><td>CIMCO по G4 S</td></tr><tr><td>G17/G18/G19</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G40/G41/G42</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ milling, 2D compensation</td><td>≈ в subset</td></tr><tr><td>G500</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ rebasing WCS</td><td>≈</td></tr><tr><td>G54–G59</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G70/G71, G700/G710 (units)</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G90/G91</td><td>✅ <span class="source-ref">[U]</span></td><td>✅</td><td>≈</td></tr><tr><td>G93/G94/G95</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ G93 inverse-time с TCP/rotary</td><td>≈ по наличию</td></tr><tr><td>G96/G97, G961/G971</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ CSS/RPM модель с ограничениями</td><td>≈ в subset</td></tr><tr><td>G937</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>TRANS/ATRANS</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ исполняемые programmable frames</td><td>≈</td></tr><tr><td>ROT/AROT/RPL</td><td>✅ <span class="source-ref">[U]</span>; ROT/AROT исправлялись в 8 <span class="source-ref">[C3]</span></td><td>✅ пространственные повороты / RPL</td><td>≈ по поддержанным формам</td></tr><tr><td>SCALE/ASCALE</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ геометрия не моделируется, stop</td><td>CIMCO</td></tr><tr><td>MIRROR/AMIRROR</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ геометрия не моделируется, stop</td><td>CIMCO</td></tr><tr><td>GOTO / IF GOTO</td><td>✅ <span class="source-ref">[U]</span>; сокращённая форма в релизных примечаниях 8 <span class="source-ref">[C3]</span></td><td>✅ числовые N-метки</td><td>CIMCO шире по формам</td></tr><tr><td>WHILE/ENDWHILE</td><td>? по V8 для конкретного native-flow</td><td>✅ вложенные циклы с лимитами</td><td>Не установлено</td></tr><tr><td>RET/GOTOC/GOTOB/GOTOF</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-flow, диагностика и stop</td><td>CIMCO</td></tr><tr><td><code>=AC()</code> / <code>=IC()</code></td><td>✅ AC; ⚠️ IC-дуги по проверке автора <span class="source-ref">[U]</span></td><td>✅ AC для IJK, IC для XYZABC</td><td>Easy для IC subset</td></tr><tr><td>DC() поворотных осей</td><td>? точная семантика V8</td><td>⚠️ кратчайший путь; вне диапазона — нормализация с предупреждением; неоднозначные 180° отклоняются</td><td>Не установлено</td></tr><tr><td>R-параметры и арифметика</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ <code>+ - * /</code>, сравнения, SIN/COS/ABS/SQRT</td><td>≈ по subset</td></tr><tr><td>Именованные production-переменные</td><td>✅ <span class="source-ref">[U]</span></td><td>⚠️ R и ограниченный <code>_NAME</code>; произвольные имена не исполняются</td><td>CIMCO</td></tr><tr><td>Символьные метки и подпрограммы SPF</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ произвольные именованные вызовы/метки</td><td>CIMCO</td></tr><tr><td>M17, M96/M97/M99</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-flow, stop</td><td>CIMCO</td></tr><tr><td>M66/M98</td><td>✅ <span class="source-ref">[U]</span></td><td>⚠️ предупреждение, без native subprogram call</td><td>CIMCO по вызову</td></tr><tr><td>M3/M4/M5/M6/M8/M9, M19</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ сигналы, без симуляции станка</td><td>≈ по сигналам</td></tr><tr><td>T=&quot;...&quot; / D0/D1/D2</td><td>✅ именованные инструменты <span class="source-ref">[U]</span>; T имена подтверждены в релизе 8 <span class="source-ref">[C3]</span></td><td>✅ имя и D state, без отсутствующих offset tables</td><td>≈ в subset</td></tr><tr><td>SUPA / G0 SUPA</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ в заданной модели возврата</td><td>≈ в subset</td></tr><tr><td>CYCLE800 3+2 / reset</td><td>❌ <strong>по сравнительной таблице автора</strong> <span class="source-ref">[U]</span>; другие сборки V8 не проверены</td><td>✅ статические AC/BC, 14–16 аргументов, сброс; чистое быстрое индексирование сохраняет фрейм</td><td>Easy по указанной проверке</td></tr><tr><td>TRAORI / TRAFOOF</td><td>? точный TCP-контракт V8</td><td>✅ поддержанный AC/BC TCP subset</td><td>Не установлено</td></tr><tr><td>4/5-axis Backplot / rotary</td><td>✅ настройка 4/5-axis <span class="source-ref">[C2]</span></td><td>✅ профили AC/BC и ориентация инструмента</td><td>≈ по классу, геометрия не сопоставлена</td></tr><tr><td>3D Stock Removal при фрезеровании</td><td>✅ Solid Animation <span class="source-ref">[C2]</span>; объём native SINUMERIK не подтверждён</td><td>✅ трёхосевое native-фрезерование, GPU-заготовка и экспорт STL <span class="source-ref">[E]</span></td><td>≈ по наличию функции; поддержка диалекта не сопоставлена</td></tr><tr><td>Полная машинная симуляция</td><td>? не подтверждена для Backplot</td><td>❌</td><td>Подтверждённой эквивалентности нет</td></tr><tr><td>CYCLE81</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ ограниченный drilling subset</td><td>≈ в subset</td></tr><tr><td>CYCLE801</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>CYCLE82</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ сверление с выдержкой</td><td>≈ в subset</td></tr><tr><td>CYCLE83</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ peck/chip-breaking subset</td><td>≈ в subset</td></tr><tr><td>CYCLE84</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ правая/левая метрическая и глубокая резьба; G94, явный PIT, SST/SST1 равны S</td><td>≈ в subset</td></tr><tr><td>CYCLE840</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>CYCLE85</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ развёртывание с разными FFR/RFF</td><td>≈ в subset</td></tr><tr><td>CYCLE86</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ растачивание с ориентацией и отводами RPA/RPO/RPAP</td><td>≈ в subset</td></tr><tr><td>CYCLE87</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ растачивание с сигналами остановки шпинделя и оператора, быстрый возврат</td><td>≈ в subset, без моделирования оператора</td></tr><tr><td>CYCLE88</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>CYCLE89</td><td>✅ <span class="source-ref">[U]</span></td><td>✅ выдержка и выход на подаче</td><td>≈ в subset</td></tr><tr><td>CYCLE90</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>POCKET1/2/3/4</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-циклы; GUI-генератор карманов — отдельная функция</td><td>CIMCO по native-циклам</td></tr><tr><td>HOLES1/HOLES2</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ native-циклы; GUI-генератор отверстий — отдельная функция</td><td>CIMCO по native-циклам</td></tr><tr><td>LONGHOLE, SLOT1/SLOT2</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE71/72</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE73/74/75/76/77</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE60 (engraving)</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE899</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>❌</td><td>≈: нет поддержки</td></tr><tr><td>CYCLE832</td><td>❌ по таблице автора <span class="source-ref">[U]</span></td><td>⚠️ распознаётся как игнорируемая настройка</td><td>Easy только по распознаванию</td></tr><tr><td><code>MCALL CYCLE81/82/83/84/85/86/87/89</code></td><td>✅ <span class="source-ref">[U]</span></td><td>✅ modal drilling/tapping/boring в subset</td><td>≈ в subset</td></tr><tr><td>MCALL пользовательской SPF</td><td>✅ <span class="source-ref">[U]</span></td><td>❌</td><td>CIMCO</td></tr><tr><td>HOLES2 с MCALL</td><td>✅ <span class="source-ref">[U]</span></td><td>❌ генерация схем отверстий</td><td>CIMCO</td></tr><tr><td><code>STOPRE</code></td><td>✅ <span class="source-ref">[U]</span></td><td>❌ неподдержанная native-команда</td><td>CIMCO</td></tr><tr><td>EXPANDED / native ↔ FANUC</td><td>? эквивалентный replay-контракт V8 не найден</td><td>✅ 3 оси и экспериментальные AC/BC с fail-closed</td><td>Разные контракты</td></tr></tbody></table></div></div></details>
+<details class="reference-panel"><summary>Источники / пределы подтверждения</summary><div class="reference-body"><ul><li><strong><span class="source-ref">[U]</span></strong> Исходная предоставленная пользователем таблица <code>sinumerik_cimco_1.9.7(1).md</code>, включая его наблюдения CIMCO Edit 8 и два production MPF. Не является официальным исчерпывающим перечнем CIMCO. Для 2.1.0 новые парные прогоны бинарной версии CIMCO не выполнялись.</li><li><strong><span class="source-ref">[E]</span></strong> Текущий исходный код 2.1.0: <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md">FAQ</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/app/gcode/kernel/">ядро</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/app/gcode/export/">экспорт</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/app/ui/plot/milling_stock_gpu.py">GPU-съём материала</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/app/gcode/stock/milling_stock.py">воспроизведение и экспорт заготовки в STL</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/stock/test_milling_stock_gpu.py">GPU-регрессии</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/dialects/test_fusion_benchmark.py">регрессии Fusion</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/dialects/test_sinumerik_cam_cycles.py">native-циклы</a>, <a href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/tests/export/test_drilling_operations.py">проверки экспорта</a>.</li><li><strong><span class="source-ref">[C1]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesMillingFanucGMCodes.html">CIMCO Edit V8: Fanuc G/M Codes</a>.</li><li><strong><span class="source-ref">[C2]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/SetupBackplot.html">CIMCO Edit V8: Backplot Setup</a> — выбор кинематики 4/5 осей и Solid Animation; не подтверждает полноценную Machine Simulation.</li><li><strong><span class="source-ref">[C3]</span></strong> <a href="https://www.cimco.com/download/releases/?p=edit&amp;v=8.00.30">CIMCO Edit 8: Release Notes</a> — FANUC G68.2, G43 H, Macro B, nested variables, G71/G76, Siemens flow/ROT.</li><li><strong><span class="source-ref">[C4]</span></strong> <a href="https://www.cimco.com/download/releases/?p=edit&amp;v=7.55.68">CIMCO Edit 7: Release Notes</a> — историческое подтверждение отдельных FANUC циклов, не проверка всех вариантов V8.</li><li><strong><span class="source-ref">[C5]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesTurningFanuc1.html">CIMCO Edit V8: Fanuc Turning Exercise 1</a> — G70/G71 и Solid Animation.</li><li><strong><span class="source-ref">[C6]</span></strong> <a href="https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesTurningFanuc4.html">CIMCO Edit V8: Fanuc Turning Exercise 4</a> — G76 и Backplot.</li></ul>
 <p><strong>Ограничение:</strong> статусы CIMCO обозначают подтверждённую документацией или наблюдением пользователя функцию, а не доказанную точность каждой траектории. Режим ISO SINUMERIK исключён. Сравнения с CIMCO 2022–2026 и отдельной Machine Simulation нет.</p></div></details>
     </div>
   </details>

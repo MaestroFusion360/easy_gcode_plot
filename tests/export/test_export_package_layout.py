@@ -51,6 +51,7 @@ def test_export_package_contains_only_three_paths_and_shared_helpers():
         "common.py",
         "full.py",
         "expanded.py",
+        "heidenhain.py",
         "tool_numbers.py",
         "dxf.py",
     }
@@ -62,6 +63,7 @@ def test_export_package_contains_only_three_paths_and_shared_helpers():
         "sinumerik_iso",
         "sinumerik_840d",
         "sinumerik_840d_multiaxis",
+        "heidanhain_itnc530",
     }
     assert callable(common.motion_line)
     assert callable(full.normalize_full_program)

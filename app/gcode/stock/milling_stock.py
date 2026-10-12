@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import math
 import struct
 from dataclasses import dataclass
@@ -11,12 +12,21 @@ from time import perf_counter
 import numpy as np
 
 from app.gcode.file_io import atomic_export
+from app.gcode.stock.milling_stock_compact_mesh import compact_triangle_batches
 from app.gcode.stock.milling_stock_mesh import triangle_batches
-from app.gcode.stock.milling_stock_stl import limit_edges
+from app.gcode.stock.milling_stock_stl import _bilinear_height, limit_edges
 from app.gcode.stock.milling_stock_sweep import CutterSweep
 from app.gcode.trace_tools import _arc_extreme_coordinates
 from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.tools.milling_geometry import milling_tool_profile
+
+# Keep exported stock well below the importer's two-million-facet limit.
+MAX_STOCK_STL_TRIANGLES = 500_000
+LOGGER = logging.getLogger(__name__)
+
+
+class _StockMeshBudgetExceeded(ValueError):
+    """Retry with a smaller detached export surface, never change simulation."""
 
 
 @dataclass(frozen=True)
@@ -188,12 +198,14 @@ class MillingStockTimeline:
         # The overlay retains immutable frames; GPU state is consumed in paint.
         return
 
-    def snapshot(self):
+    def snapshot(self, *, cancelled=None):
         """Read the actual GPU material state on its owning OpenGL thread."""
-        return self.snapshot_reader(self)
+        if cancelled is None:
+            return self.snapshot_reader(self)
+        return self.snapshot_reader(self, cancelled=cancelled)
 
     @staticmethod
-    def _unattached_snapshot(_timeline):
+    def _unattached_snapshot(_timeline, *, cancelled=None):
         raise ValueError("Stock snapshot requires an attached GPU renderer")
 
 
@@ -223,37 +235,76 @@ def milling_stock_triangles(timeline):
         yield from triangles
 
 
-def write_milling_stock_stl(path: str | Path, timeline, *, cancelled=None, precise=True, options=None):
+def write_milling_stock_stl(path: str | Path, timeline, *, cancelled=None, precise=True, options=None, report=None):
     """Vectorized binary STL from a detached playback snapshot, atomically saved."""
 
     timeline = timeline.snapshot() if hasattr(timeline, "snapshot") else timeline
     if options is not None:
         options.validate()
         timeline = _export_snapshot(timeline, options, cancelled)
-    timeline.__dict__["_cancelled"] = cancelled
     triangle_dtype = np.dtype([("normal", "<f4", (3,)), ("vertices", "<f4", (3, 3)), ("attribute", "<u2")])
     count = 0
+    simplified = False
 
     def write(temporary):
         nonlocal count
+        count = 0
         with temporary.open("wb") as stream:
             stream.write(b"Easy G-Code Plot milling stock".ljust(80, b"\0"))
             stream.write(struct.pack("<I", 0))
-            for triangles, normal, _cut, _rapid in _export_batches(
-                _stock_stl_batches(timeline, precise), options, cancelled
-            ):
+            if simplified or (options is not None and options.calculated):
+                batches = compact_triangle_batches(timeline, cancelled)
+            else:
+                batches = _export_batches(
+                    _stock_stl_batches(timeline, precise, tagged=options is not None), timeline, options, cancelled
+                )
+            for triangles, normal, _cut, _rapid in batches:
                 if cancelled is not None and cancelled():
                     raise InterruptedError("Stock STL export cancelled")
+                if count + len(triangles) > MAX_STOCK_STL_TRIANGLES:
+                    raise _StockMeshBudgetExceeded()
                 records = np.zeros(len(triangles), dtype=triangle_dtype)
                 records["normal"] = normal
-                records["vertices"] = triangles
+                scale = options.scale if options is not None and (simplified or options.calculated) else 1.0
+                records["vertices"] = triangles * scale
                 stream.write(records.tobytes())
                 count += len(records)
             stream.seek(80)
             stream.write(struct.pack("<I", count))
 
-    atomic_export(path, write, cancelled=cancelled)
+    try:
+        atomic_export(path, write, cancelled=cancelled)
+    except _StockMeshBudgetExceeded:
+        timeline = _bounded_export_surface(timeline, cancelled)
+        simplified = True
+        atomic_export(path, write, cancelled=cancelled)
+        LOGGER.warning(
+            "stock_stl_mesh_simplified path=%s triangles=%d grid=%dx%d", path, count, timeline.nx, timeline.ny
+        )
+    if report is not None:
+        report.update(simplified=simplified, triangles=count)
     return count
+
+
+def _bounded_export_surface(stock, cancelled):
+    """Resample only the detached readback; retain bounds and physical units."""
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Stock STL export cancelled")
+    # A mixed cell needs at most four top and four bottom facets. Reserve
+    # additional faces for conforming patch boundaries and the outer walls.
+    max_cells = MAX_STOCK_STL_TRIANGLES // 16
+    factor = max(1.0, math.sqrt(stock.nx * stock.ny / max_cells))
+    nx, ny = max(1, int(stock.nx / factor)), max(1, int(stock.ny / factor))
+    while nx * ny > max_cells:
+        if nx >= ny:
+            nx -= 1
+        else:
+            ny -= 1
+    dx = (stock.spec.x_max - stock.spec.x_min) / nx
+    dy = (stock.spec.y_max - stock.spec.y_min) / ny
+    x, y = np.meshgrid(stock.spec.x_min + np.arange(nx + 1) * dx, stock.spec.y_min + np.arange(ny + 1) * dy)
+    height = _bilinear_height(stock, np.stack((x, y), axis=-1)).astype(np.float32)
+    return MillingStockSnapshot(stock.spec, height, np.zeros_like(height, dtype=bool), dx, dy)
 
 
 def _export_snapshot(stock, options, cancelled):
@@ -263,16 +314,31 @@ def _export_snapshot(stock, options, cancelled):
     return stock.snapshot() if hasattr(stock, "snapshot") else stock
 
 
-def _export_batches(source, options, cancelled):
-    for triangles, normal, cut, rapid in source:
+def _export_batches(source, stock, options, cancelled):
+    for item in source:
+        triangles, normal, cut, rapid = item[:4]
         if options is None:
             yield triangles, normal, cut, rapid
             continue
-        for batch in limit_edges(triangles, options.edge_length, cancelled):
+        top_surface = item[4]
+        for batch in limit_edges(
+            triangles,
+            options.edge_length,
+            cancelled,
+            stock=stock if top_surface else None,
+            options=options if top_surface else None,
+        ):
             normals = np.cross(batch[:, 1] - batch[:, 0], batch[:, 2] - batch[:, 0])
-            normals /= np.maximum(np.linalg.norm(normals, axis=1)[:, None], 1e-30)
+            norms = np.linalg.norm(normals, axis=1)
+            valid = norms > 1e-16
+            if not np.any(valid):
+                continue
+            batch = batch[valid]
+            normals = normals[valid] / norms[valid, None]
             yield batch * options.scale, normals, False, False
 
 
-def _stock_stl_batches(timeline, precise):
-    yield from triangle_batches(timeline, bottom=True)
+def _stock_stl_batches(timeline, precise, *, tagged=False):
+    # "precise" is kept for source compatibility. STL tessellation accuracy
+    # is controlled by StockStlOptions against the GPU-sampled surface.
+    yield from triangle_batches(timeline, bottom=True, tagged=tagged)

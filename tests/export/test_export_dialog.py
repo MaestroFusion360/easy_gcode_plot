@@ -34,13 +34,14 @@ def test_export_dialog_has_four_logical_modes_and_separate_representation_option
     assert dialog.ui.arcOutputCmbBox.count() == 4
     assert dialog.ui.incrCmbBox.itemText(0) == "G90 Absolute"
     assert dialog.ui.incrCmbBox.itemText(1) == "G91 Incremental"
-    assert dialog.targetCncCombo.count() == 6
+    assert dialog.targetCncCombo.count() == 7
     assert dialog.targetCncCombo.itemText(0) == "Auto (source controller)"
     assert dialog.targetCncCombo.itemText(1) == "FANUC milling"
     assert dialog.targetCncCombo.itemText(2) == "SINUMERIK 840D ISO-M (G291)"
     assert dialog.targetCncCombo.itemText(3) == "SINUMERIK 840D native"
-    assert dialog.targetCncCombo.itemText(4) == "FANUC milling (multi-axis)"
-    assert dialog.targetCncCombo.itemText(5) == "SINUMERIK 840D native (multi-axis)"
+    assert dialog.targetCncCombo.itemText(4) == "Heidenhain iTNC 530"
+    assert dialog.targetCncCombo.itemText(5) == "FANUC milling (multi-axis)"
+    assert dialog.targetCncCombo.itemText(6) == "SINUMERIK 840D native (multi-axis)"
 
     dialog.ui.langCmbBox.setCurrentIndex(MILL_FULL_PROGRAM_MODE)
     assert not dialog.targetCncCombo.isEnabled()

@@ -1,5 +1,6 @@
 """Unified current-program setup and persistent tool-library dialog."""
 
+import logging
 from copy import deepcopy
 
 from PyQt6.QtCore import QCoreApplication, Qt
@@ -21,8 +22,12 @@ from app.tools.definitions import (
     TURNING_INSERT_TYPES,
     TURNING_TOOL_LABELS,
 )
+from app.tools.program_io import read_program_tools, write_program_tools
+from app.tools.setup import refresh_setup
 from app.ui.dialogs.tool_dialogs import _export_tool_library, _MillingToolEditor, _TurningToolEditor
 from app.ui.generated.editors.tool_library import Ui_ToolLibraryDialog
+
+LOGGER = logging.getLogger(__name__)
 
 
 class ToolLibraryDialog(QDialog):
@@ -60,6 +65,7 @@ class ToolLibraryDialog(QDialog):
             self._move_preview_footer_outside_splitter(kind, splitter)
             splitter.setStretchFactor(0, 2)
             splitter.setStretchFactor(1, 1)
+            splitter.setSizes([600, 300])
             self.pages[kind]["widget"].setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
             getattr(self.ui, f"{kind}TablesWidget").setSizePolicy(
                 QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding
@@ -126,6 +132,12 @@ class ToolLibraryDialog(QDialog):
             getattr(self.ui, f"{prefix}SaveButton").clicked.connect(
                 lambda _checked=False, k=kind: self.save_program_to_library(k)
             )
+            getattr(self.ui, f"{prefix}ImportProgramButton").clicked.connect(
+                lambda _checked=False, k=kind: self.import_program_tools(k)
+            )
+            getattr(self.ui, f"{prefix}ExportProgramButton").clicked.connect(
+                lambda _checked=False, k=kind: self.export_program_tools(k)
+            )
             getattr(self.ui, f"{prefix}AddLibraryButton").clicked.connect(
                 lambda _checked=False, k=kind: self.add_library_tool(k)
             )
@@ -145,19 +157,35 @@ class ToolLibraryDialog(QDialog):
     def showEvent(self, event):
         parent = self.parent()
         if parent is not None:
-            parent.discover_program_tools(parent.ui.editor.text())
             self.ui.tabs.setCurrentIndex(1 if parent.latheMode else 0)
         self.begin_session()
+        self._discover_program_tools()
         self.refresh()
         super().showEvent(event)
 
     def begin_session(self):
+        self._program_working = {}
+        self._program_inference = {}
         for kind in ("milling", "turning"):
             attribute = "turningToolLibrary" if kind == "turning" else "millingToolLibrary"
             library = deepcopy(getattr(self.parent(), attribute, {}))
             self._library_original[kind] = library
             self._library_working[kind] = deepcopy(library)
             self._preview_sources[kind] = None
+
+    def _discover_program_tools(self):
+        parent = self.parent()
+        kind = "turning" if parent.latheMode else "milling"
+        attribute = "tools" if parent.latheMode else "millingTools"
+        self._program_inference[attribute] = refresh_setup(
+            parent.ui.editor.text(),
+            self._editable_program_tools(kind),
+            getattr(parent, "program_tool_inference", {}).get(attribute, {}),
+            turning=parent.latheMode,
+            library_tools=self.library_tools(kind),
+            source_dialect=getattr(parent, "_document_source_dialect", "fanuc"),
+            default_unit_scale=25.4 if parent.defaultUnits == "inch" else 1.0,
+        )
 
     def refresh(self, kind=None, selected_program=None, selected_library=None):
         kinds = (kind,) if kind else ("milling", "turning")
@@ -189,7 +217,14 @@ class ToolLibraryDialog(QDialog):
         table.blockSignals(False)
 
     def _program_tools(self, kind):
+        if kind in self._program_working:
+            return self._program_working[kind]
         return getattr(self.parent(), "tools" if kind == "turning" else "millingTools", {})
+
+    def _editable_program_tools(self, kind):
+        if kind not in self._program_working:
+            self._program_working[kind] = deepcopy(self._program_tools(kind))
+        return self._program_working[kind]
 
     def library_tools(self, kind):
         return self._library_working[kind]
@@ -264,8 +299,7 @@ class ToolLibraryDialog(QDialog):
         if editor.exec() != QDialog.DialogCode.Accepted:
             return
         _key, spec = editor.value()
-        tools[key] = deepcopy(spec)
-        self._program_tool_changed()
+        self._editable_program_tools(kind)[key] = deepcopy(spec)
         self.refresh(kind, selected_program=key)
 
     def assign_from_library(self, kind):
@@ -273,8 +307,7 @@ class ToolLibraryDialog(QDialog):
         library_key = self._selected_key(kind, "library")
         if program_key is None or library_key is None:
             return
-        self._program_tools(kind)[program_key] = deepcopy(self.library_tools(kind)[library_key])
-        self._program_tool_changed()
+        self._editable_program_tools(kind)[program_key] = deepcopy(self.library_tools(kind)[library_key])
         self.refresh(kind, selected_program=program_key, selected_library=library_key)
 
     def _program_tool_changed(self):
@@ -344,6 +377,60 @@ class ToolLibraryDialog(QDialog):
             return
         self._persist_library_change(kind, new_key, deepcopy(library[key]))
 
+    def import_program_tools(self, kind, path=None):
+        """Apply matching T slots to this document without touching saved tools."""
+        if path is None:
+            path, _selected = QFileDialog.getOpenFileName(
+                self, self.tr("Import Current Program Tools"), "", "JSON (*.json)"
+            )
+        if not path:
+            return False
+        try:
+            imported = read_program_tools(path, kind)
+            tools = self._program_tools(kind)
+            matching = {key: spec for key, spec in imported.items() if key in tools}
+            if not matching:
+                raise ValueError(self.tr("No tool numbers match the current program."))
+        except (OSError, ValueError, TypeError) as exc:
+            LOGGER.warning("program_tools_import_failed path=%s kind=%s reason=%s", path, kind, exc)
+            self._program_file_error(exc)
+            return False
+        self._editable_program_tools(kind).update(matching)
+        self.refresh(kind, selected_program=sorted(matching)[0])
+        unused = imported.keys() - matching.keys()
+        LOGGER.info(
+            "program_tools_imported path=%s kind=%s applied=%s skipped=%s", path, kind, sorted(matching), sorted(unused)
+        )
+        if unused:
+            QMessageBox.information(
+                self,
+                self.tr("Import Current Program Tools"),
+                self.tr("These tools are not used by the current program and were skipped: {0}").format(
+                    ", ".join(sorted(unused))
+                ),
+            )
+        return True
+
+    def export_program_tools(self, kind, path=None):
+        """Export the whole current program setup regardless of table selection."""
+        if path is None:
+            path, _selected = QFileDialog.getSaveFileName(
+                self, self.tr("Export Current Program Tools"), f"{kind}_program_tools.json", "JSON (*.json)"
+            )
+        if not path:
+            return False
+        try:
+            write_program_tools(path, kind, self._program_tools(kind))
+        except (OSError, ValueError, TypeError) as exc:
+            LOGGER.warning("program_tools_export_failed path=%s kind=%s reason=%s", path, kind, exc)
+            self._program_file_error(exc)
+            return False
+        LOGGER.info("program_tools_exported path=%s kind=%s tools=%d", path, kind, len(self._program_tools(kind)))
+        return True
+
+    def _program_file_error(self, error):
+        QMessageBox.warning(self, self.tr("Current Program"), str(error))
+
     def export_library_tool(self, kind, path=None):
         library = self.library_tools(kind)
         if not isinstance(path, str):
@@ -404,6 +491,15 @@ class ToolLibraryDialog(QDialog):
                 continue
             attribute = "turningToolLibrary" if kind == "turning" else "millingToolLibrary"
             setattr(self.parent(), attribute, deepcopy(self._library_working[kind]))
+        program_changed = False
+        for kind, tools in self._program_working.items():
+            attribute = "tools" if kind == "turning" else "millingTools"
+            if tools != getattr(self.parent(), attribute, {}):
+                setattr(self.parent(), attribute, deepcopy(tools))
+                program_changed = True
+        if program_changed:
+            self.parent().program_tool_inference.update(self._program_inference)
+            self._program_tool_changed()
         super().accept()
 
     def reject(self):

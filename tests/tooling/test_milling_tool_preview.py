@@ -4,6 +4,7 @@ import pytest
 from PyQt6.QtGui import QVector3D
 from PyQt6.QtWidgets import QApplication
 
+from app.gcode.turning_tool_geometry import display_tool_geometry
 from app.main_window import MainWindow
 from app.settings import normalized_milling_tools, normalized_tools
 from app.tools.milling_geometry import milling_tool_profile
@@ -48,6 +49,22 @@ def test_drill_has_conical_point_and_cylindrical_body(qt_app):
     assert item.show_tool({"type": "drill", "diameter": 12.0, "length": 50.0}, (0.0, 0.0, 0.0))
     assert item.geometry_key == ("drill", 12.0, 50.0, 0.0, 118.0)
     assert len(item.meshes) == 1
+
+
+def test_tap_has_same_flat_tip_profile_as_flat_mill(qt_app):
+    geometry = {"diameter": 12.0, "length": 50.0}
+    assert milling_tool_profile({"type": "tap", **geometry}) == milling_tool_profile({"type": "mill_flat", **geometry})
+    item = MillingToolPreviewItem()
+    assert item.show_tool({"type": "tap", **geometry}, (0, 0, 0))
+    vertices = item.meshes[0].opts["meshdata"].vertexes()
+    tip_ring = vertices[vertices[:, 2] == 0]
+    assert abs(tip_ring[:, 0]).max() == pytest.approx(6.0)
+
+
+def test_turning_tap_preview_has_flat_front_face():
+    points, _depth, key = display_tool_geometry({"type": "tap", "diameter": 12.0, "length": 50.0}, 100)
+    assert points == ((-6.0, 0.0), (-6.0, 50.0), (6.0, 50.0), (6.0, 0.0))
+    assert key == ("tap", 12.0, 50.0)
 
 
 def test_drill_geometry_change_updates_existing_scene_mesh(qt_app):

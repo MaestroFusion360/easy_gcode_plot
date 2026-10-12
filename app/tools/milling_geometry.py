@@ -252,15 +252,14 @@ def _cutting_tool_profile(geometry):
 
 
 def _axial_tool_profile(geometry, tool_type, length, radius):
-    """Build point geometry for drills, taps and chamfer mills."""
+    """Build axial profiles, including a flat-ended cylindrical tap."""
     if tool_type == "drill":
         half_angle = math.radians(float(geometry["tipAngle"]) * 0.5)
         cone_height = min(length, radius / max(math.tan(half_angle), 1.0e-9))
         return ((0.0, 0.0), (cone_height, radius), (length, radius))
 
     if tool_type == "tap":
-        cone_height = min(length, radius / math.sqrt(3.0))
-        return ((0.0, 0.0), (cone_height, radius), (length, radius))
+        return ((0.0, radius), (length, radius))
 
     tip_radius = float(geometry["tipDiameter"]) * 0.5
     half_angle = math.radians(float(geometry["chamferAngle"]) * 0.5)

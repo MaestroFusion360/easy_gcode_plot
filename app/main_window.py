@@ -472,7 +472,14 @@ class MainWindow(
             event.ignore()
             return
         if self.maybeSave():
-            self._cancel_milling_seek()
+            if not self._cancel_milling_seek():
+                self.ui.statusbar.showMessage(
+                    QCoreApplication.translate(
+                        "MainWindow", "Cancelling stock preparation; close again when it has stopped."
+                    )
+                )
+                event.ignore()
+                return
             self.saveSettings()
             self._dispose_trace_item()
             event.accept()

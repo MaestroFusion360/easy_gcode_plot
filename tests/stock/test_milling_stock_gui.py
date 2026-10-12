@@ -3,6 +3,7 @@
 # pylint: disable=protected-access
 
 import pytest
+from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from app.main_window import MainWindow
@@ -15,7 +16,8 @@ def stock_qt_app():
 
 
 @pytest.fixture
-def milling_window(stock_qt_app):
+def milling_window(stock_qt_app, monkeypatch):
+    monkeypatch.setattr("app.ui.windows.main_window_milling_stock.QMessageBox.warning", lambda *_: None)
     app = stock_qt_app
     window = MainWindow()
     window.autoUpdateEnabled = False
@@ -81,7 +83,13 @@ def test_close_with_active_milling_stock(milling_window):
     window.ui.actionStockPlayback.setChecked(True)
     assert isinstance(window._milling_stock_item, MillingStockOverlayItem)
     window.ui.editor.setModified(False)
-    assert window.close()
+    if not window.close():
+        # Closing is deferred while cancelled QThreads release their timeline.
+        for _ in range(100):
+            QTest.qWait(10)
+            if not any(worker.isRunning() for worker in window._milling_retired_workers):
+                break
+        assert window.close()
 
 
 def test_milling_accuracy_is_applied_and_restored_on_reopen(milling_window):
@@ -117,3 +125,88 @@ def test_rotary_milling_simulation_remains_unavailable(milling_window, program):
     assert not getattr(window, "_stock_animation_active")
     assert not window.ui.actionStockPlayback.isChecked()
     assert not window.ui.actionSaveStockStl.isEnabled()
+
+
+def test_stock_resource_limit_notifies_without_reducing_accuracy(milling_window, monkeypatch, caplog):
+    _, window = milling_window
+    messages = []
+    monkeypatch.setattr(
+        "app.ui.windows.main_window_milling_stock.QMessageBox.warning", lambda *args: messages.append(args[-1])
+    )
+    window.millingStockXMinus = window.millingStockYMinus = -300
+    window.millingStockXPlus = window.millingStockYPlus = 300
+    window.millingStockAccuracy = 4
+    window.ui.editor.setText("G21 G17 G90\nT1 M6\nG0 Z5\nG1 Z-2 F100\nM30")
+    assert window.updateData()
+    window.ui.actionStockPlayback.setChecked(True)
+    assert not window._stock_animation_active
+    assert window._stock_timeline is None
+    assert not window.ui.actionStockPlayback.isChecked()
+    assert not window.ui.actionSaveStockStl.isEnabled()
+    assert window.millingStockAccuracy == 4
+    assert len(messages) == 1 and "4096.0 MiB" in messages[0]
+    assert "milling_stock_unavailable" in caplog.text
+
+
+def test_gpu_failure_stops_playback_after_paint_and_ignores_stale_signal(milling_window, monkeypatch, caplog):
+    app, window = milling_window
+    messages = []
+    monkeypatch.setattr(
+        "app.ui.windows.main_window_milling_stock.QMessageBox.warning", lambda *args: messages.append(args[-1])
+    )
+    window.ui.editor.setText("G21 G17 G90\nT1 M6\nG0 Z5\nG1 Z-2 F100\nM30")
+    assert window.updateData()
+    window.ui.actionStockPlayback.setChecked(True)
+    item, timeline = window._milling_stock_item, window._stock_timeline
+    window._milling_stock_render_failed(object(), RuntimeError("stale"))
+    assert window._stock_animation_active and not messages
+    item.renderFailed.emit(timeline, RuntimeError("GPU allocation failed"))
+    assert window._stock_animation_active
+    app.processEvents()
+    assert not window._stock_animation_active
+    assert not window.ui.actionPlay.isChecked()
+    assert not window.ui.actionSaveStockStl.isEnabled()
+    assert item._frame is None
+    assert len(messages) == 1 and "GPU allocation failed" in messages[0]
+    assert "milling_stock_render_failed" in caplog.text
+
+
+def test_live_stock_zoom_at_speed_four(milling_window, fixture_text):
+    app, window = milling_window
+    if app.platformName() in {"offscreen", "minimal"}:
+        pytest.skip("Live zoom regression needs a native OpenGL window")
+    window.resize(1280, 800)
+    window.show()
+    QTest.qWait(100)
+    context = window.ui.graphicsView.context()
+    if context is None or (context.format().majorVersion(), context.format().minorVersion()) < (4, 3):
+        pytest.skip("GPU stock requires OpenGL 4.3")
+    window.millingStockXMinus, window.millingStockXPlus = -100, 100
+    window.millingStockYMinus, window.millingStockYPlus = -70, 80
+    window.millingStockZMinus, window.millingStockZPlus = 0, 22
+    window.millingStockAccuracy = 4
+    window.setPlaybackSpeed(4)
+    window.ui.editor.setText(fixture_text("milling/fanuc/toolchange.nc"))
+    assert window.updateData()
+    window.ui.actionStockPlayback.setChecked(True)
+    window.ui.actionPlay.setChecked(True)
+    maximum_seen = 0
+    for step in range(180):
+        QTest.qWait(200)
+        maximum_seen = max(maximum_seen, window.ui.horizontalSlider.value())
+        if not window.ui.actionPlay.isChecked():
+            window.ui.actionPlay.setChecked(True)
+        if step % 48 < 24:
+            window.zoomIn()
+        else:
+            window.zoomOut()
+        assert window._stock_animation_active
+        assert window._milling_stock_item._failure is None
+        assert window.millingStockAccuracy == 4
+        if step >= 143 and maximum_seen == window.ui.horizontalSlider.maximum():
+            break
+    window._pause_playback()
+    window._leave_stock_animation()
+    QTest.qWait(100)
+    assert maximum_seen == window.ui.horizontalSlider.maximum()
+    assert window.playbackSpeed == 4

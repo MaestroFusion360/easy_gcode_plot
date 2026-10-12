@@ -24,6 +24,8 @@ class MillingStockFrameWorker(QThread):
                 self.timeline.set_motion_count(self.count, time_budget=0.012)
                 if deadline is not None and perf_counter() >= deadline:
                     break
+            if self.isInterruptionRequested():
+                raise InterruptedError("Stock frame superseded")
             started = perf_counter()
             self.tiles = self.item.build_frame(self.timeline, self.isInterruptionRequested)
             self.mesh_seconds = perf_counter() - started

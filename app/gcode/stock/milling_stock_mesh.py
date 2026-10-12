@@ -5,7 +5,7 @@ import numpy as np
 TRIANGLE_CORNERS = (0, 1, 2, 0, 2, 3)
 
 
-def triangle_batches(stock, bounds=None, *, bottom=False):
+def triangle_batches(stock, bounds=None, *, bottom=False, tagged=False):
     if bounds is None:
         for y in range(0, stock.ny, 128):
             for x in range(0, stock.nx, 128):
@@ -13,6 +13,7 @@ def triangle_batches(stock, bounds=None, *, bottom=False):
                     stock,
                     (x, min(stock.nx, x + 128), y, min(stock.ny, y + 128)),
                     bottom=bottom,
+                    tagged=tagged,
                 )
         return
     x0, x1, y0, y1 = bounds
@@ -25,12 +26,21 @@ def triangle_batches(stock, bounds=None, *, bottom=False):
         vertices[..., corner, 1] = stock.spec.y_min + (y + oy) * stock.dy
     vertices[..., 2] = z
     active = np.any(z > stock.spec.z_min, axis=-1)
-    triangles = vertices[active][:, TRIANGLE_CORNERS].reshape(-1, 3, 3)
-    yield _batch(triangles, stock)
+    # A diagonal through three dry corners creates coincident top/bottom
+    # facets. A bilinear centre keeps every triangle of a mixed cell wet.
+    mixed = active & np.any(z <= stock.spec.z_min, axis=-1)
+    triangles = vertices[active & ~mixed][:, TRIANGLE_CORNERS].reshape(-1, 3, 3)
+    patches = vertices[mixed]
+    centre = patches.mean(axis=1)
+    fan = np.stack((patches, np.roll(patches, -1, axis=1), np.repeat(centre[:, None], 4, axis=1)), axis=2)
+    triangles = np.concatenate((triangles, fan.reshape(-1, 3, 3)))
+    surface = _batch(triangles, stock)
+    yield (*surface, True) if tagged else surface
     if bottom:
-        base = vertices[active].copy()
+        base = triangles[:, (0, 2, 1)].copy()
         base[..., 2] = stock.spec.z_min
-        yield _batch(base[:, (0, 2, 1, 0, 3, 2)].reshape(-1, 3, 3), stock)
+        base_batch = _batch(base, stock)
+        yield (*base_batch, False) if tagged else base_batch
     for outer, edge in (
         (y0 == 0, vertices[0][:, (0, 1)]),
         (x1 == stock.nx, vertices[:, -1, :, :][:, (1, 2)]),
@@ -42,7 +52,8 @@ def triangle_batches(stock, bounds=None, *, bottom=False):
         edge = np.asarray(edge).reshape(-1, 2, 3)
         wall = edge[:, (0, 0, 1, 1)].copy()
         wall[:, (1, 2), 2] = stock.spec.z_min
-        yield _batch(wall[:, TRIANGLE_CORNERS].reshape(-1, 3, 3), stock)
+        wall_batch = _batch(wall[:, TRIANGLE_CORNERS].reshape(-1, 3, 3), stock)
+        yield (*wall_batch, False) if tagged else wall_batch
 
 
 def _batch(triangles, stock):

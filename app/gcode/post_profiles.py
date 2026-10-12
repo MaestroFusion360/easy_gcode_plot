@@ -23,8 +23,9 @@ POST_TARGETS = (
     "sinumerik_iso",
     "sinumerik_840d",
     "sinumerik_840d_multiaxis",
+    "heidanhain_itnc530",
 )
-MILLING_TARGETS = ("fanuc_mill", "sinumerik_iso", "sinumerik_840d")
+MILLING_TARGETS = ("fanuc_mill", "sinumerik_iso", "sinumerik_840d", "heidanhain_itnc530")
 
 
 def target_post_for_index(target: int, *, turning: bool) -> str | None:
@@ -152,12 +153,42 @@ def _validate_post_commands(profile):
 
 
 def _validate_post_extras(profile):
+    _validate_heidenhain_native(profile)
     _validate_cycles(profile.get("cycles"))
     _validate_cycle_profiles(profile.get("cycleProfiles"))
     _validate_post_arc_extras(profile["format"])
     _validate_supports(profile.get("supports"))
     _validate_multiaxis(profile)
     _validate_format_words(profile["format"].get("words"), profile.get("supports"))
+
+
+def _validate_heidenhain_native(profile):
+    native = profile.get("native")
+    if profile.get("id") != "heidanhain_itnc530":
+        if native is not None:
+            raise ValueError("Post native commands are reserved for the Heidenhain iTNC 530 profile")
+        return
+    keys = {
+        "linear",
+        "circleCenter",
+        "circle",
+        "polarCircle",
+        "radiusCircle",
+        "clockwise",
+        "counterclockwise",
+        "rapidFeed",
+        "compensationOff",
+        "machineCoordinates",
+        "cycleCall",
+        "dwellDefinition",
+    }
+    if not isinstance(native, dict) or set(native) != keys:
+        raise ValueError("Heidenhain native commands are incomplete")
+    if any(not isinstance(native[key], str) or not native[key].strip() for key in keys):
+        raise ValueError("Heidenhain native commands must be non-empty strings")
+    words = profile["format"].get("words")
+    if not isinstance(words, dict) or set(words) != {"motion", "X", "Y", "Z"}:
+        raise ValueError("Heidenhain native output accepts only motion and X/Y/Z address formatting")
 
 
 def _validate_cycle_profiles(profiles):

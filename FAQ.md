@@ -180,8 +180,10 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What does Pocket Calculator generate?](#what-does-pocket-calculator-generate)
     - [Where are snippets stored?](#where-are-snippets-stored)
   - [Options and scene configuration](#options-and-scene-configuration)
+    - [Where can I read execution errors and warnings?](#where-can-i-read-execution-errors-and-warnings)
     - [How do I change the interface language?](#how-do-i-change-the-interface-language)
     - [How do I change the theme?](#how-do-i-change-the-theme)
+    - [How do I change the current-line highlight color?](#how-do-i-change-the-current-line-highlight-color)
     - [Where do I set work coordinate systems and home values?](#where-do-i-set-work-coordinate-systems-and-home-values)
     - [How do I set turning stock dimensions?](#how-do-i-set-turning-stock-dimensions)
     - [Is Stock Removal available for milling?](#is-stock-removal-available-for-milling)
@@ -214,6 +216,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What does Full Program mean?](#what-does-full-program-mean)
     - [What does Expanded Execution mean?](#what-does-expanded-execution-mean)
     - [What does Auto (source controller) mean?](#what-does-auto-source-controller-mean)
+    - [How do I manage user postprocessors in the GUI?](#how-do-i-manage-user-postprocessors-in-the-gui)
     - [How does Modal Feed work?](#how-does-modal-feed-work)
     - [Can I choose formatting options when converting to a specific controller?](#can-i-choose-formatting-options-when-converting-to-a-specific-controller)
     - [What does DXF contain?](#what-does-dxf-contain)
@@ -1539,6 +1542,8 @@ No.
 
 G40/G41/G42 uses configured milling tool diameter and works on supported line, arc and compatible helical contours.
 
+Supported cutters include Flat, Bull, Ball, Face, Slot and Chamfer Mill. Compensation uses half the configured diameter; for Chamfer Mill this is the nominal cutter radius, without calculating a depth-dependent contact radius. Tap previews have a flat front face in both milling and turning.
+
 For indexed table A/B milling, the offset is calculated in the local programmed working plane before the completed geometry is transformed into the fixed WCS plot. Execution continues when the tool or contour cannot be verified, with `UNVERIFIED_CUTTER_COMPENSATION` reported. The 3D view uses left drag to pan and middle drag to orbit around the cursor, as in CNCEditor; the table B 3D/ISO preset shows +Y vertically upward, +X upward-right and +Z downward-right while table A keeps the vertical mill preset.
 
 For `4ax_table_c`, G41/G42 is not resolved. The trace retains the programmed X/C tool-tip coordinates and emits `UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION`; G40 ends the modal request. This limit is specific to the current C-table implementation.
@@ -1581,11 +1586,19 @@ This SQLite database is authoritative for Saved Library tools.
 
 ### What is the difference between Current Program and Saved Library?
 
+Current Program tool export accepts only `.json` filenames (case-insensitive). Other extensions, including `.nc` and `.mpf`, and filenames without an extension are rejected before writing; existing files remain intact.
+
 **Current Program** is temporary state for the open CNC program. Literal T selections can be discovered from source and assigned geometry without modifying the persistent library.
+
+**Import** and **Export** below Current Program exchange the current milling or turning setup as JSON, independently of Saved Library and `tools.db`. Export saves all current tools, regardless of the selected row. Import validates the entire file first, replaces matching T slots, keeps other current tools unchanged and reports unused imported numbers. The file retains geometry, controller identities, offsets and custom metadata; dimensions are in millimetres. Imported assignments, Edit Geometry and library assignments stay pending until **OK**. **Cancel** discards them without recalculating the simulation.
+
+Simulation settings in **Options**, **Tool Library**, **WCS** and **Stock** take effect only after **OK**. Editing controls, selecting rotary kinematics or resetting stock to automatic bounds does not regenerate 3D milling or 2D turning stock. **Cancel** keeps the active simulation unchanged; **OK** without simulation changes does not rebuild it. Rotary JSON edits made from Options are also pending until its **OK**.
 
 The operation identifies the fallback tool type first. A matching T number in the corresponding Saved Library then supplies the actual geometry, including its saved type and dimensions. If no valid matching record exists, discovery uses source comment dimensions and the operation-based default. Milling `T02` matches `T2`; turning `T202` matches `T0202`, while different packed offsets remain distinct. Manual Current Program edits take priority on subsequent recalculations.
 
 **Saved Library** is persistent and is committed to `tools.db` only when the Tool Library window is accepted.
+
+Import does not work in an empty NC program: it updates tool slots already found in the source. First add a tool selection/change with a number present in the JSON, for example `T1 M6` for FANUC milling or `T0101` for FANUC turning. Refresh the program analysis or reopen Current Program so the tool appears in the list, then import the file. At least one tool number must match.
 
 ### Does opening a program write discovered tools to the database?
 
@@ -1917,6 +1930,12 @@ The simulator follows resolved three-axis linear, arc and helical motion, includ
 
 ### What does milling Accuracy control?
 
+GPU textures have a **4 GiB maximum**, including power-of-two padding and all hierarchy levels. Available GPU memory and the device texture-size limit may impose a lower limit. If resources are insufficient, a warning explains the failure and simulation stops; Accuracy is preserved. Choose a smaller stock or lower Accuracy and retry.
+
+Steep walls use smoothed lighting normals and a soft fill light to suppress grid stripes. This affects shading only; it does not change the calculated stock, intersection depth or exported STL.
+
+Zoom remains available during playback. GPU ray traversal advances through the grid in one direction and has a finite bound derived from its dimensions, preventing repeated visits to shared boundaries when zoom changes floating-point rounding. This does not lower Accuracy.
+
 The slider has five fixed levels. Moving toward higher accuracy makes the XY height grid finer and tightens curved-trajectory preparation. It increases GPU memory use and processing work. The selected level stays fixed at every playback speed and for large programs; it is not reduced in response to frame time.
 
 The current implementation uses these internal presets, in millimetres:
@@ -1950,10 +1969,11 @@ During milling simulation, open the Plot context menu and choose **Save stock as
 | Export setting | Current effect |
 | --- | --- |
 | Length units | Writes coordinates in millimetres or inches. |
-| Maximum edge length | Subdivides mesh edges exceeding the selected length. |
-| Linear/angular deviation | Retained dialog fields; they do not reconstruct or refine the GPU stock surface. |
+| Use calculated stock without mesh refinement | Enabled by default. Saves the displayed GPU state without replay or additional subdivision. Constant-height regions are merged exactly to reduce file size. |
+| Maximum edge length | Starts from simulation Accuracy. Applies only when additional mesh refinement is enabled. |
+| Linear/angular deviation | Linear deviation starts from simulation Accuracy. Simulation has no separate angular tolerance. Optional refinement follows the captured bilinear heightfield, without recalculating material removal. |
 
-GPU readback uses the thread owning the OpenGL context. Mesh serialization runs on a cancellable worker and replaces the destination only after successful completion. Export tessellates the captured height field; smaller output edges alone cannot recover detail absent from the simulation.
+GPU readback uses the thread owning the OpenGL context and is reused until the GPU stock changes. Mesh serialization runs on a cancellable worker and replaces the destination only after successful completion. Export time depends on the remaining surface complexity and file size; smaller output edges cannot recover detail absent from the simulation.
 
 ### How does the GPU stock engine work?
 
@@ -2091,13 +2111,27 @@ FULL preserves ordinary source blocks, comments, modal commands, controller dial
 
 EXPANDED is the controller-conversion path. One generic postprocessor emits resolved geometry and machine state through a JSON profile. Cycles, variables and subprogram flow have already been executed. Target profiles define syntax, mandatory frames, capabilities and defaults; they do not disable user output options.
 
-Bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`, `fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d` and `sinumerik_840d_multiaxis`; an external JSON path can be supplied with `--post-profile`. The `*_multiaxis` profiles declare `supports.axes` `X/Y/Z/A/B/C` and emit explicit resolved rotary coordinates; the three-axis profiles stay XYZ-only and still reject rotary geometry.
+Bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`, `fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d`, `sinumerik_840d_multiaxis` and `heidanhain_itnc530`; an external JSON path can be supplied with `--post-profile`. The `*_multiaxis` profiles declare `supports.axes` `X/Y/Z/A/B/C` and emit explicit resolved rotary coordinates; the three-axis profiles stay XYZ-only and still reject rotary geometry.
 
 Supported tilted-plane output retains G54–G59 and requires matching target offsets; other displaced-WCS indexed cases remain rejected as `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`. TCP arc subdivision distributes ABC with XYZ; G91 rotary output avoids cumulative rounding drift. With a custom G93-capable profile, subdivision preserves the original block duration and restores the source feed for later motions. Unverified compensation and ignored native geometry-changing commands return `UNSUPPORTED_UNVERIFIED_GEOMETRY_EXPANDED_EXPORT`, including the concrete execution diagnostic codes.
 
 ### What does Auto (source controller) mean?
 
 `Auto (source controller)` is not a separate capability mode. It automatically selects the post profile that matches the source controller and dialect: FANUC turning uses the Type A/B lathe profile, FANUC milling uses `fanuc_mill`, SINUMERIK ISO uses `sinumerik_iso` and native SINUMERIK uses `sinumerik_840d`. EXPANDED always re-serializes the resolved execution, so even "Auto" is a conversion; it simply does not require you to name a target.
+
+### How do I manage user postprocessors in the GUI?
+
+Open **Settings / Postprocessors** to create or edit a post. The list is on the left and the editor is embedded on the right. The buttons below the list add a copy, save, rename and delete. Built-in profiles are read-only. A new copy stays in memory until **Save** or settings **OK**; **Cancel** discards unsaved changes. Switching profiles offers Save, Discard and Cancel.
+
+The editor contains **Source**, **Output**, **Format**, **Sequencing**, **Motions**, **Home**, **Cycles**, **Commands**, **Program** and **Supports**. Format controls general number settings. In Sequencing, drag address tiles to change output order and select a tile to set its precision, sign and repetition. Custom arc split angles, including 5400 degrees, are displayed without substitution.
+
+**Save** validates the whole post through the same loader used by CLI export and atomically replaces its managed JSON. Errors leave the editor open and preserve the previous file. Profile saves take effect independently of the outer Settings dialog's OK/Cancel.
+
+In **Export Options / EXPANDED EXECUTION**, choose **Target CNC** or use **Add ready…** to import a validated JSON for the current machine type. Import copies it into the configuration directory’s `post-profiles` folder and preserves the original. Profile editing and management stay in Settings; renaming retains the path and controller `id`.
+
+The bundled `heidanhain_itnc530` is an EXPANDED output target; the application has no Heidenhain input parser. It emits `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CR`, `CC` with `C/CP`, cycles 200/201/202/203/207 and rapid XYZ machine returns with `M91`. IPA and DR use matching signs; Q239 is negative for left-hand tapping. G85 uses cycle 201 with feed retraction, while G86 uses cycle 202 with stopped-spindle rapid retraction. Arcs outside the spindle plane in TOOL CALL are linearized at the export tolerance. Numeric sequence prefixes omit `N`. Unsupported rotary/TCP operations and cycles are rejected before writing.
+
+Export passes the selected JSON path through the same writer as CLI `--post-profile`, including its output extension. Selections persist by identifier/path. Missing, damaged or incompatible profiles require choosing Auto or another valid profile explicitly. Profile selection is disabled for FULL and DXF. Cancel in Export Options discards output options and the temporary selection; separately saved profiles remain available.
 
 ### How does Modal Feed work?
 
@@ -2136,6 +2170,8 @@ For EXPANDED these options are user-owned: the target profile supplies syntax an
 ### How does a post profile control word order and mandatory addresses?
 
 The profile's `format.words` object gives every frame token an `order` and a `required` flag: `motion`, `X`, `Y`, `Z`, `A`, `B`, `C`, `I`, `J`, `K` and `R`. `required=true` emits the address whenever it has a resolved value (for example `Y0` instead of omitting zero `Y`); `required=false` allows the serializer's normal omission of an unchanged value. `motion.required=false` makes the motion code modal, so `G1` is restated only when the motion changes. Per-word `decimals`/`sign` are stored in the same object. An axis entry is only accepted when that axis is declared in `supports.axes`, and `F` is deliberately excluded because feed is controlled by Modal Feed. Address requiredness is a property of a specific post/controller, so it lives only in the profile and has no separate GUI/CLI switch.
+
+The postprocessor editor exposes this ordered list on **Sequencing**. Drag the address tiles to change the stored order; selecting a tile opens its formatting controls below the sequence.
 
 Additional arc controls live under `format`: `turnsWord`, `radiusSplitAngle`, `arcSplitAngle` and `fullCircle`. Capability declarations under `supports` include `axes`, `inverseTime`, `multiTurnArcs` and `absoluteArcCenters`. A request beyond the selected post's capabilities returns `UNSUPPORTED` instead of writing partial NC. Three-axis posts reject rotary/TWP/TCP geometry; select an appropriate multiaxis post for the supported indexed/TCP subset.
 
@@ -2710,6 +2746,8 @@ No. `tools.db` is authoritative. Legacy tool JSON in configuration is not used a
 ### Where is the log file?
 
 When logging is enabled:
+
+Enable **Logging** in Options; it is off by default. The log records NC file opening/saving, CNC export (format, post, encoding, completion, cancellation and errors), tool-list and Current Program JSON operations. Milling Stock Removal records startup bounds, Accuracy, OpenGL initialization, texture allocation, frame timings and STL export results. File contents are not recorded.
 
 ```text
 %LOCALAPPDATA%\easy-gcode-plot\main.log

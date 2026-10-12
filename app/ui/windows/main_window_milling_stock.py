@@ -7,14 +7,13 @@ from bisect import bisect_right
 from threading import Event
 from time import perf_counter
 
-from PyQt6.QtCore import QCoreApplication, QTimer
+from PyQt6.QtCore import QCoreApplication, Qt, QTimer
 from PyQt6.QtGui import QColor
-from PyQt6.QtWidgets import QFileDialog
+from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from pyqtgraph.opengl import GLLinePlotItem
 
 from app.gcode.stock import MillingStockSpec, MillingStockTimeline, auto_milling_stock, write_milling_stock_stl
 from app.gcode.stock.milling_stock_quality import MILLING_ACCURACY_PRESETS
-from app.gcode.stock.replay import finish_milling_seek
 from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.ui.dialogs.stock_stl_export_dialog import StockStlExportDialog
 from app.ui.plot.milling_stock_overlay import MillingStockOverlayItem
@@ -33,8 +32,15 @@ class MainWindowMillingStockMixin:
     def _set_milling_stock_quality(self, accuracy):
         self._milling_display_accuracy = accuracy
         self._milling_stock_item.set_quality(*MILLING_ACCURACY_PRESETS[accuracy])
+        LOGGER.info(
+            "milling_stock_accuracy level=%s surface_error=%s edge_error=%s",
+            accuracy,
+            *MILLING_ACCURACY_PRESETS[accuracy],
+        )
 
     def _request_milling_stock_quality(self):
+        if getattr(self, "_stock_export_active", False):
+            return
         accuracy = self._selected_milling_stock_accuracy()
         current = getattr(self, "_milling_pending_quality", None)
         if current is None:
@@ -191,25 +197,20 @@ class MainWindowMillingStockMixin:
             if spec is None:
                 raise ValueError("No toolpath bounds")
             self._stock_timeline = MillingStockTimeline(result.motions, spec, self.millingTools)
+            self._prepare_milling_stock_overlay()
         except ValueError as exc:
-            self.ui.statusbar.showMessage(
-                QCoreApplication.translate("MainWindow", "Stock Removal is unavailable: {0}").format(exc), 10000
-            )
             LOGGER.warning("milling_stock_unavailable reason=%s", exc)
             self._stock_timeline = None
+            self._notify_milling_stock_failure(exc)
             return False
-        if getattr(self, "_milling_stock_item", None) is None:
-            self._milling_stock_item = MillingStockOverlayItem()
-            self.ui.actionPlay.toggled.connect(self._milling_stock_item.set_playing)
-        self._milling_stock_item.set_playing(self.ui.actionPlay.isChecked())
-        self._set_milling_stock_quality(self._selected_milling_stock_accuracy())
-        self._milling_mesh_seconds = 0.05
-        self._milling_stock_item.set_colors(
-            getattr(self, "plotStockColor", "#4fa7a0"), getattr(self, "plotCutColor", "#b8a879")
-        )
-        # The initial full box must render before the first playback movement.
-        self._milling_stock_item.set_frame(self._stock_timeline)
         self._stock_animation_active = True
+        LOGGER.info(
+            "milling_stock_started bounds=%s motions=%d accuracy=%s gpu_budget_bytes=%d",
+            self._stock_timeline.bounds,
+            len(result.motions),
+            self._selected_milling_stock_accuracy(),
+            self._milling_stock_item.memory_budget,
+        )
         getattr(self.ui, "actionSaveStockStl").setEnabled(True)
         self.ui.horizontalSlider.blockSignals(True)
         self.ui.horizontalSlider.setValue(0)
@@ -228,8 +229,36 @@ class MainWindowMillingStockMixin:
             )
         return True
 
+    def _prepare_milling_stock_overlay(self):
+        if getattr(self, "_milling_stock_item", None) is None:
+            self._milling_stock_item = MillingStockOverlayItem()
+            self.ui.actionPlay.toggled.connect(self._milling_stock_item.set_playing)
+            self._milling_stock_item.renderFailed.connect(
+                self._milling_stock_render_failed, Qt.ConnectionType.QueuedConnection
+            )
+        self._milling_stock_item.set_playing(self.ui.actionPlay.isChecked())
+        self._set_milling_stock_quality(self._selected_milling_stock_accuracy())
+        self._milling_mesh_seconds = 0.05
+        self._milling_stock_item.set_colors(
+            getattr(self, "plotStockColor", "#4fa7a0"), getattr(self, "plotCutColor", "#b8a879")
+        )
+        self._milling_stock_item.set_frame(self._stock_timeline)
+
+    def _milling_stock_render_failed(self, timeline, error):
+        if timeline is not getattr(self, "_stock_timeline", None):
+            return
+        self._pause_playback()
+        self._leave_stock_animation()
+        LOGGER.warning("milling_stock_render_failed reason=%s", error)
+        self._notify_milling_stock_failure(error)
+
+    def _notify_milling_stock_failure(self, error):
+        message = QCoreApplication.translate("MainWindow", "Stock Removal is unavailable: {0}").format(error)
+        self.ui.statusbar.showMessage(message, 15000)
+        QMessageBox.warning(self, QCoreApplication.translate("MainWindow", "Stock Removal"), message)
+
     def _update_milling_stock_animation_frame(self, playback_count):
-        if getattr(self, "_milling_publishing_frame", False):
+        if getattr(self, "_stock_export_active", False) or getattr(self, "_milling_publishing_frame", False):
             return
         self._ensure_milling_seek_timer()
         if self.ui.horizontalSlider.isSliderDown():
@@ -256,10 +285,13 @@ class MainWindowMillingStockMixin:
         self._milling_pending_quality = None
         worker = getattr(self, "_milling_frame_worker", None)
         if worker is not None:
-            worker.requestInterruption()
-            worker.wait()
+            # Do not block the GUI while trajectory preparation is unwinding.
+            # Keep the QThread alive until its finished signal is delivered.
             self._milling_frame_worker = None
-            worker.deleteLater()
+            self.__dict__.setdefault("_milling_retired_workers", set()).add(worker)
+            worker.requestInterruption()
+        # Old cancelled frames may still run even after the active slot is clear.
+        return not any(item.isRunning() for item in getattr(self, "_milling_retired_workers", ()))
 
     def _flush_milling_seek(self):
         self._milling_seek_timer.stop()
@@ -269,6 +301,9 @@ class MainWindowMillingStockMixin:
             self._apply_milling_stock_frame(count)
 
     def _apply_milling_stock_frame(self, playback_count, *, replay_budget=None):
+        # Export owns the timeline until replay, GPU snapshot, and STL writing finish.
+        if getattr(self, "_stock_export_active", False):
+            return
         timeline = getattr(self, "_stock_timeline", None)
         result = getattr(self, "execution_result", None)
         if timeline is None or result is None:
@@ -277,9 +312,19 @@ class MainWindowMillingStockMixin:
         count = 0 if logical_count == 0 else self._playback_movements[logical_count - 1].motion_end
         worker = getattr(self, "_milling_frame_worker", None)
         if worker is not None:
+            # An interrupted worker cannot be reused, even if the slider has
+            # returned to its count: its finished callback must replay it.
+            if worker.count == count and self._milling_pending_quality is None and not worker.isInterruptionRequested():
+                self._milling_pending_count = None
+                return
             self._milling_pending_count = playback_count
-            if worker.count != count:
+            if not worker.isInterruptionRequested():
                 worker.requestInterruption()
+            return
+        # _cancel_milling_seek() detaches workers without waiting for them;
+        # never start a second worker against the same mutable timeline.
+        if any(item.isRunning() for item in getattr(self, "_milling_retired_workers", ())):
+            self._milling_pending_count = playback_count
             return
         self._milling_stock_item.set_colors(self.plotStockColor, self.plotCutColor)
         worker = MillingStockFrameWorker(timeline, self._milling_stock_item, count, replay_budget)
@@ -290,6 +335,19 @@ class MainWindowMillingStockMixin:
     def _finish_milling_stock_frame(self):
         worker = self.sender()
         if worker is not getattr(self, "_milling_frame_worker", None):
+            # A cancelled worker may finish after the overlay/timeline changed.
+            getattr(self, "_milling_retired_workers", set()).discard(worker)
+            worker.deleteLater()
+            # A seek issued while a retired worker was still running must be
+            # resumed after that worker relinquishes the timeline.
+            pending = getattr(self, "_milling_pending_count", None)
+            if (
+                pending is not None
+                and self._milling_frame_worker is None
+                and getattr(self, "_stock_animation_active", False)
+            ):
+                self._milling_pending_count = None
+                self._apply_milling_stock_frame(pending)
             return
         self._milling_frame_worker = None
         pending = self._milling_pending_count
@@ -300,15 +358,18 @@ class MainWindowMillingStockMixin:
             self._set_milling_stock_quality(quality)
         timeline = worker.timeline
         if worker.error is not None and not isinstance(worker.error, InterruptedError):
-            self.ui.statusbar.showMessage(str(worker.error), 10000)
-            self.ui.actionPlay.setChecked(False)
-            self.timer.stop()
-            self._leave_stock_animation()
+            self._milling_stock_render_failed(timeline, worker.error)
         elif pending is not None:
             self._apply_milling_stock_frame(pending)
         elif worker.tiles is not None and timeline is getattr(self, "_stock_timeline", None):
             self._milling_stock_item.apply_frame(timeline, worker.tiles, worker.revision)
             self._milling_mesh_seconds = worker.mesh_seconds
+            LOGGER.debug(
+                "milling_stock_frame motion_count=%d revision=%s duration_ms=%.3f",
+                timeline.motion_count,
+                worker.revision,
+                worker.mesh_seconds * 1000,
+            )
             if worker.replay_budget is not None:
                 logical_count = bisect_right(
                     self._playback_movements, timeline.motion_count, key=lambda m: m.motion_end
@@ -354,7 +415,12 @@ class MainWindowMillingStockMixin:
 
     def saveMillingStockStl(self):
         timeline = getattr(self, "_stock_timeline", None)
-        if not getattr(self, "_stock_animation_active", False) or self.latheMode or timeline is None:
+        if (
+            not getattr(self, "_stock_animation_active", False)
+            or self.latheMode
+            or timeline is None
+            or getattr(self, "_stock_export_active", False)
+        ):
             return
         self._pause_playback()
         options = StockStlExportDialog.get_options(self)
@@ -371,49 +437,90 @@ class MainWindowMillingStockMixin:
         timeline = self._stock_timeline
         if timeline is None or getattr(self, "_stock_export_active", False):
             return
-        self._cancel_milling_seek()
+        if not self._cancel_milling_seek():
+            # An in-flight worker still owns and mutates this timeline. Do not
+            # race the export replay against it; the user can retry on finish.
+            self.ui.statusbar.showMessage(
+                QCoreApplication.translate("MainWindow", "Wait for stock frame cancellation before exporting."),
+                5000,
+            )
+            return
         cancel = Event()
         self._stock_export_active = True
         self._stock_export_cancel = cancel
         self.ui.actionSaveStockStl.setEnabled(False)
+        slider = self.ui.horizontalSlider
+        slider_was_enabled = slider.isEnabled()
+        slider.setEnabled(False)
+        playback_action = self.ui.actionStockPlayback
+        playback_was_enabled = playback_action.isEnabled()
+        playback_action.setEnabled(False)
+        frame_applied = False
+        export_report = {}
+        started = perf_counter()
+        LOGGER.info("stock_stl_export_started path=%s motion_count=%d options=%s", path, timeline.motion_count, options)
         try:
-            logical_count = self.ui.horizontalSlider.value()
-            count = 0 if logical_count == 0 else self._playback_movements[logical_count - 1].motion_end
             snapshot = run_execution(
                 self,
-                finish_milling_seek,
+                self._milling_stock_item.calculated_snapshot,
                 timeline,
-                {"count": count, "cancelled": cancel.is_set},
+                {"cancelled": cancel.is_set},
                 cancel.set,
                 title=QCoreApplication.translate("MainWindow", "Save stock as STL"),
                 show_dialog=True,
             )
-            tiles = run_execution(
-                self,
-                self._milling_stock_item.build_frame,
-                timeline,
-                {"cancelled": cancel.is_set},
-                cancel.set,
-                show_dialog=False,
-            )
-            self._milling_stock_item.apply_frame(timeline, tiles, timeline.revision)
+            # Export exactly the displayed GPU state, without advancing replay
+            # or rebuilding its trajectory/frame/material state.
+            frame_applied = True
             triangles = run_execution(
                 self,
                 write_milling_stock_stl,
                 path,
-                {"timeline": snapshot, "cancelled": cancel.is_set, "precise": True, "options": options},
+                {
+                    "timeline": snapshot,
+                    "cancelled": cancel.is_set,
+                    "precise": True,
+                    "options": options,
+                    "report": export_report,
+                },
                 cancel.set,
                 title=QCoreApplication.translate("MainWindow", "Save stock as STL"),
                 status_text=QCoreApplication.translate("MainWindow", "Writing stock STL..."),
                 cancelling_text=QCoreApplication.translate("MainWindow", "Cancelling stock STL export..."),
             )
         except (OSError, ValueError, InterruptedError) as exc:
+            LOGGER.warning(
+                "stock_stl_export_failed path=%s reason=%s duration_ms=%.3f",
+                path,
+                exc,
+                (perf_counter() - started) * 1000,
+            )
             self.ui.statusbar.showMessage(str(exc), 10000)
         else:
-            self.ui.statusbar.showMessage(
-                QCoreApplication.translate("MainWindow", "STL: {0} triangles").format(f"{triangles:,}"), 7000
+            LOGGER.info(
+                "stock_stl_export_completed path=%s triangles=%d duration_ms=%.3f",
+                path,
+                triangles,
+                (perf_counter() - started) * 1000,
             )
+            message = QCoreApplication.translate("MainWindow", "STL: {0} triangles").format(f"{triangles:,}")
+            if export_report.get("simplified"):
+                message += " ? " + QCoreApplication.translate("MainWindow", "STL quality reduced to limit file size.")
+            self.ui.statusbar.showMessage(message, 15000 if export_report.get("simplified") else 7000)
+
         finally:
             self._stock_export_active = False
             self._stock_export_cancel = None
+            slider.setEnabled(slider_was_enabled)
+            playback_action.setEnabled(playback_was_enabled)
             self.ui.actionSaveStockStl.setEnabled(self._stock_animation_active and not self.latheMode)
+            self._restore_milling_export_frame(timeline, frame_applied)
+
+    def _restore_milling_export_frame(self, timeline, frame_applied):
+        # A failed preparation or a programmatic slider update must not leave
+        # an old frame displayed merely because replay has reached its target.
+        if self._stock_animation_active and timeline is self._stock_timeline:
+            current = self.ui.horizontalSlider.value()
+            target = 0 if current == 0 else self._playback_movements[current - 1].motion_end
+            if not frame_applied or target != timeline.motion_count:
+                self._apply_milling_stock_frame(current)

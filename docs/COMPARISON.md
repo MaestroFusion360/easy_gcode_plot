@@ -1,12 +1,19 @@
-# CIMCO Edit 8 vs Easy G-Code Plot 1.9.8
+# CIMCO Edit 8 vs Easy G-Code Plot 2.1.0
 
 Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [Русская версия](COMPARISON_RU.md).
 
-**Scope:** CIMCO Edit **8 Backplot**, not CIMCO Edit 2022–2026 or the separate CIMCO Machine Simulation product. Easy G-Code Plot describes the 1.9.8 working tree and its regression fixtures. This is a capability comparison, not a measured accuracy or performance ranking.
+**Scope:** CIMCO Edit **8 Backplot**, not CIMCO Edit 2022–2026 or the separate CIMCO Machine Simulation product. Easy G-Code Plot describes the 2.1.0 working tree and its regression fixtures. This is a capability comparison, not a measured accuracy or performance ranking.
 
 **Legend:** ✅ supported within the stated scope; ⚠️ partial or restricted; ❌ explicitly unsupported; **?** not established for CIMCO Edit 8. **Unknown does not mean unsupported.** ≈ means comparable only within the stated scope. A command in a filter is not evidence of correct geometry. Statements marked [U] are the author's supplied observations, not vendor certification.
 
-## What's changed in 1.9.8
+## What's changed in 2.1.0
+
+- The 2.0 release adds 3D Stock Removal for three-axis FANUC and native SINUMERIK milling, alongside existing 2D turning stock removal. The current comparison includes the 2.1.0 fixes.
+- Milling removal runs on the GPU using configured cutter geometry and a sampled height field. It supports box stock, vertical cutters, playback/rewind, five Accuracy levels and STL export of the current machining stage. OpenGL 4.3 is required; rotary/TCP removal, undercuts and subtraction from imported STL solids are outside this model.
+- Milling and turning use the same Stock Removal button and Stock dialog, with settings for the active machining mode. Imported STL models remain visual references.
+- Language and controller-command support is unchanged. The existing command comparisons below are retained; stock removal is distinct from full machine collision simulation.
+
+## Language updates retained from 1.9.8
 
 - FANUC milling adds G74 left tapping, G76 fine boring, G87 back boring and G89 dwell/feed-return boring. G74/G84 Q now produces synchronized tapping pecks. Q shift direction and tapping retract behavior are configurable machine assumptions.
 - Native SINUMERIK adds CYCLE85/86/87/89 and extends CYCLE84 to metric right/left and deep tapping, including VARI=1/2, DAM/VRT and balanced final pecks. CYCLE88 remains unsupported.
@@ -17,7 +24,7 @@ Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [�
 
 ## 1. FANUC milling
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 1.9.8 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.1.0 | Assessment |
 |---|---|---|---|
 | G0/G1, modal XYZ | ✅ Backplot [C1] | ✅ execution and motion trace | ≈ |
 | G2/G3, IJK, R | ✅ configurable arcs [C1, C2] | ✅ absolute/incremental IJK and R | ≈; variants not compared |
@@ -47,8 +54,8 @@ Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [�
 | Continuous 4-axis X/C | ✅ 4/5-axis class [C2]; X/C semantics unknown | ✅ tested 4ax_table_c subset | Not established |
 | Continuous 5-axis AC/BC | ✅ 5-axis Backplot [C2]; TCP scope unknown | ✅ AC/BC TCP and tool orientation | Not ranked |
 | Full machine simulation | ? not established for this Backplot | ❌ | No verified equivalence |
-| Finished-part STL overlay | ? V8 overlay scope | ✅ STL overlay, no milling subtraction | Not established |
-| Volumetric milling stock removal | ✅ Solid Animation [C2] | ❌ | CIMCO for this feature |
+| Finished-part STL overlay | ? V8 overlay scope | ✅ visual STL overlay; removal uses separate box stock | Not established |
+| 3D milling stock removal | ✅ Solid Animation [C2] | ✅ GPU three-axis box stock; height-field model, OpenGL 4.3 [E] | ≈ feature present; scope and accuracy not compared |
 | G73 high-speed peck | ? exact semantics | ✅ restricted peck cycle | Not established |
 | G74 left tapping | ? | ✅ feed withdrawal; Q pecks | Not established |
 | G76 fine boring | ? | ✅ oriented Q clearance shift; configurable XY direction | Not established |
@@ -75,7 +82,7 @@ Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [�
 
 ## 2. FANUC turning
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 1.9.8 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.1.0 | Assessment |
 |---|---|---|---|
 | G0/G1 | ✅ turning Backplot [C5] | ✅ X/Z trace | ≈ |
 | G2/G3 I/K, R | ✅ turning examples [C5] | ✅ G18, absolute/incremental I/K and R | ≈ basic arcs |
@@ -118,7 +125,7 @@ Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [�
 
 SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applies to documented parameter subsets, not every technology option on a Siemens controller.
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 1.9.8 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.1.0 | Assessment |
 |---|---|---|---|
 | G0/G1, modal XYZ | ✅ [U] | ✅ | ≈ |
 | ANG= | ✅ [U] | ❌ unmodeled geometry stops execution | CIMCO in supplied observations |
@@ -155,6 +162,7 @@ SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applie
 | CYCLE800 3+2 / reset | ❌ in author's tested setup [U]; other V8 builds untested | ✅ static AC/BC, 14–16 arguments; pure rapid rotary indexing retains frame | Easy in that test only |
 | TRAORI / TRAFOOF | ? exact V8 TCP contract | ✅ supported AC/BC TCP subset | Not established |
 | 4/5-axis Backplot / rotary | ✅ setup [C2] | ✅ AC/BC profiles and tool orientation | ≈ class; geometry untested |
+| 3D milling stock removal | ✅ Solid Animation [C2]; native SINUMERIK scope unverified | ✅ three-axis native milling, GPU box stock and STL export [E] | ≈ feature present; dialect scope not compared |
 | Full machine simulation | ? not established for Backplot | ❌ | No verified equivalence |
 | CYCLE81 | ✅ [U] | ✅ supported drilling parameters | ≈ subset |
 | CYCLE801 | ✅ [U] | ❌ | CIMCO in observations |
@@ -184,8 +192,8 @@ SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applie
 
 ## Sources and verification limits
 
-- **[U]** The author's supplied `sinumerik_cimco_1.9.7(1).md` observations and production MPF files. Historical observations were retained; no new CIMCO binary comparison was performed for 1.9.8.
-- **[E]** Current 1.9.8 source: [FAQ](../FAQ.md), [kernel](../app/gcode/kernel/), [export](../app/gcode/export/), [full Fusion regressions](../tests/dialects/test_fusion_benchmark.py), [native cycle regressions](../tests/dialects/test_sinumerik_cam_cycles.py) and [export regressions](../tests/export/test_drilling_operations.py).
+- **[U]** The author's supplied `sinumerik_cimco_1.9.7(1).md` observations and production MPF files. Historical observations were retained; no new CIMCO binary comparison was performed for 2.1.0.
+- **[E]** Current 2.1.0 source: [FAQ](../FAQ.md), [kernel](../app/gcode/kernel/), [export](../app/gcode/export/), [GPU stock removal](../app/ui/plot/milling_stock_gpu.py), [stock replay and STL export](../app/gcode/stock/milling_stock.py), [GPU stock regressions](../tests/stock/test_milling_stock_gpu.py), [full Fusion regressions](../tests/dialects/test_fusion_benchmark.py), [native cycle regressions](../tests/dialects/test_sinumerik_cam_cycles.py) and [export regressions](../tests/export/test_drilling_operations.py).
 - **[C1]** [CIMCO Edit V8: FANUC G/M codes](https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesMillingFanucGMCodes.html).
 - **[C2]** [CIMCO Edit V8: Backplot setup](https://www.cimco.com/documentation/online/cimco_edit/v8/en/SetupBackplot.html).
 - **[C3]** [CIMCO Edit 8 release notes](https://www.cimco.com/download/releases/?p=edit&v=8.00.30).

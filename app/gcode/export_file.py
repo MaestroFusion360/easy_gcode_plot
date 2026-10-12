@@ -184,9 +184,10 @@ def _options(request: ExportRequest, arc_type: str | None, *, units_explicit: bo
 def _arc_type(result, request):
     if request.format != "nc" or request.mode != "expanded":
         return None
+    profile = load_post_profile(_target_post(result, request))
     if request.arc_type != "auto":
         return request.arc_type
-    arc = load_post_profile(_target_post(result, request))["format"]
+    arc = profile["format"]
     return (
         "linearized"
         if not arc["outputArcs"]

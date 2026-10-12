@@ -72,8 +72,8 @@ class MainWindowStockMixin(MainWindowMillingStockMixin):
         self.turnStockFrontZ = spec.front_z
         self.stockEnabled = bool(values.get("enabled", True))
         self.stockConfigured = True
-        self._stock_manual_override = True
-        self._stock_outline_use_configured = True
+        self._stock_manual_override = bool(values.get("manual", True))
+        self._stock_outline_use_configured = self._stock_manual_override
         if getattr(self, "_stock_animation_active", False):
             self.ui.actionPlay.setChecked(False)
             self.timer.stop()

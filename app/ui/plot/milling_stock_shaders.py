@@ -199,8 +199,25 @@ vec2 heightMaterial(vec2 xy) {
 void shadeHit(vec3 position, vec3 normal, vec4 tint) {
     vec4 clip=mvp*vec4(position+origin,1);
     gl_FragDepth=(clip.z/clip.w)*0.5+0.5;
-    float light=0.35+0.65*max(0.0,dot(normal,normalize(vec3(-0.4,-0.6,1.0))));
+    // A broad fill keeps walls facing away from the key light readable.
+    float light=0.45+0.40*max(0.0,dot(normal,normalize(vec3(-0.4,-0.6,1.0))))
+                    +0.15*max(0.0,dot(normal,normalize(vec3(0.6,0.4,0.5))));
     color=vec4(tint.rgb*light,tint.a);
+}
+vec3 wallShadingNormal(vec2 xy, vec3 geometricNormal) {
+    // A steep bilinear patch spans a sampled wall. Its analytic gradient
+    // alternates with grid ownership, producing dark stripes on straight cuts.
+    // Filter only the lighting gradient across neighbouring samples; the ray
+    // intersection, depth, material, shallow surfaces and stock box stay exact.
+    float slope=length(geometricNormal.xy)/max(geometricNormal.z,1e-20);
+    if(slope<=2.0) return geometricNormal;
+    vec2 step=2.0*pitch;
+    vec2 gradient=vec2(
+        heightMaterial(xy+vec2(step.x,0)).r-heightMaterial(xy-vec2(step.x,0)).r,
+        heightMaterial(xy+vec2(0,step.y)).r-heightMaterial(xy-vec2(0,step.y)).r
+    )/(2.0*step);
+    vec3 filtered=normalize(vec3(-gradient,1));
+    return normalize(mix(geometricNormal,filtered,smoothstep(2.0,4.0,slope)));
 }
 bool intersectHeightPatch(vec3 o, vec3 d, ivec2 cell, float start, float finish,
            inout vec3 normal, out float distance, out vec2 material) {
@@ -210,16 +227,18 @@ bool intersectHeightPatch(vec3 o, vec3 d, ivec2 cell, float start, float finish,
     float hxy=h11.r-h10.r-h01.r+h00.r;
     vec3 p=o+start*d;
     vec2 uv=clamp(p.xy/pitch-vec2(cell),vec2(0),vec2(1));
-    vec2 speed=d.xy/pitch;
+    float span=max(0.0,finish-start);
+    vec3 rayStep=d*span;
+    vec2 speed=rayStep.xy/pitch;
     // Intersect z(t) with the bilinear height patch. Substitution produces
     // a quadratic, solved directly rather than by a ray-march step size.
     float A=-hxy*speed.x*speed.y;
-    float B=d.z-hx*speed.x-hy*speed.y-hxy*(uv.x*speed.y+uv.y*speed.x);
+    float B=rayStep.z-hx*speed.x-hy*speed.y-hxy*(uv.x*speed.y+uv.y*speed.x);
     float C=p.z-h00.r-hx*uv.x-hy*uv.y-hxy*uv.x*uv.y;
     float s=3.402823e38;
     bool boundary=C<=0.0;
     if(boundary) s=0.0;
-    else if(A==0.0) {
+    else if(abs(A)<=1e-6*abs(B)) {
         if(B<0.0) s=-C/B;
     } else {
         float discriminant=B*B-4.0*A*C;
@@ -231,18 +250,18 @@ bool intersectHeightPatch(vec3 o, vec3 d, ivec2 cell, float start, float finish,
             if(r1>=0.0 && B+2.0*A*r1<=0.0) s=min(s,r1);
         }
     }
-    if(s>finish-start) return false;
-    distance=start+s;
+    if(s>1.0 || isnan(s) || isinf(s)) return false;
+    distance=start+s*span;
     uv=clamp(uv+s*speed,vec2(0),vec2(1));
     material=mix(mix(h00,h10,uv.x),mix(h01,h11,uv.x),uv.y);
     material.r=h00.r+hx*uv.x+hy*uv.y+hxy*uv.x*uv.y;
     normal=normalize(vec3(-(hx+hxy*uv.y)/pitch.x,-(hy+hxy*uv.x)/pitch.y,1));
-    return true;
+    return material.r>0.0;
 }
 void main() {
     vec2 ndc=(gl_FragCoord.xy-viewport.xy)/viewport.zw*2.0-1.0;
-    vec4 a=inverseMvp*vec4(ndc,-1,1), b=inverseMvp*vec4(ndc,1,1);
-    vec3 o=a.xyz/a.w-origin, d=b.xyz/b.w-origin-o;
+    vec4 a=inverseMvp*vec4(ndc,-1,1), b=inverseMvp*vec4(ndc,0,1);
+    vec3 o=a.xyz/a.w-origin, d=normalize(b.xyz/b.w-a.xyz/a.w);
     float entry, exit; vec3 normal;
     if(!box(o,d,vec3(0),extent,entry,exit,normal)) discard;
     // The stock boundary has its own exact plane normal. Do not infer a box
@@ -256,17 +275,23 @@ void main() {
             return;
         }
     }
-    float t=max(0.0,entry);
-    // No step-count cap: traverse conservative height bounds until the first
-    // solid dexel or the exact stock-box exit. No fixed ray-march step size.
-    while(t<=exit) {
-        vec3 p=o+t*d;
-        ivec2 cell=clamp(ivec2(floor(p.xy/pitch)),ivec2(0),cells-1);
-        // At a shared boundary select the cell in the ray's direction.
-        for(int axis=0;axis<2;axis++) {
-            if(d[axis]<0.0 && p[axis]<=float(cell[axis])*pitch[axis]) cell[axis]=max(0,cell[axis]-1);
-        }
+    // Work near the stock rather than subtracting distant clipping-plane
+    // coordinates at every patch. Virtual GPU float arithmetic can otherwise
+    // lose the cell boundary and discard a correctly calculated pocket.
+    o=clamp(o+max(0.0,entry)*d,vec3(0),extent);
+    exit-=max(0.0,entry);
+    float t=0.0;
+    ivec2 cell=clamp(ivec2(floor(o.xy/pitch)),ivec2(0),cells-1);
+    // Choose initial shared-boundary ownership once. Reconstructing it on
+    // every iteration can undo the integer crossing at float precision.
+    for(int axis=0;axis<2;axis++)
+        if(d[axis]<0.0 && o[axis]<=float(cell[axis])*pitch[axis]) cell[axis]=max(0,cell[axis]-1);
+    // A ray crosses at most cells.x+cells.y patch boundaries. This exact grid
+    // bound prevents a driver watchdog reset even if arithmetic stops advancing.
+    // It is independent of zoom and does not reduce simulation Accuracy.
+    for(int remaining=cells.x+cells.y+1;remaining>0 && t<=exit;remaining--) {
         float next=exit;
+        ivec2 nextCell=cell;
         bool advanced=false;
         for(int level=maxLevel;level>=0;level--) {
             ivec2 node=cell>>level;
@@ -287,24 +312,40 @@ void main() {
                 if(hit) {
                     vec3 position=o+distance*d;
                     vec4 tint=material.g>0.5?rapidColor:(material.r<extent.z?cutColor:stockColor);
-                    shadeHit(position,n,tint);
+                    shadeHit(position,wallShadingNormal(position.xy,n),tint);
                     return;
                 }
             }
             if(!hit) {
                 // Leave the XY node, even when its Z slab is missed.
                 next=exit;
+                vec2 crossing=vec2(3.402823e38);
                 for(int axis=0;axis<2;axis++) if(d[axis]!=0.0) {
                     float edge=d[axis]>0.0?hi[axis]:lo[axis];
-                    next=min(next,(edge-o[axis])/d[axis]);
+                    crossing[axis]=(edge-o[axis])/d[axis];
+                    next=min(next,crossing[axis]);
+                }
+                nextCell=clamp(ivec2(floor((o+next*d).xy/pitch)),ivec2(0),cells-1);
+                for(int axis=0;axis<2;axis++) if(crossing[axis]<=next) {
+                    // Select the next node by integer ownership, not a one-ULP
+                    // change in t that may leave the reconstructed point fixed.
+                    nextCell[axis]=d[axis]>0.0?((node[axis]+1)<<level):(node[axis]<<level)-1;
+                }
+                // Rounded positions on another axis must never move backwards
+                // across an already visited patch at a shared corner.
+                for(int axis=0;axis<2;axis++) {
+                    if(d[axis]>0.0) nextCell[axis]=max(nextCell[axis],cell[axis]);
+                    else if(d[axis]<0.0) nextCell[axis]=min(nextCell[axis],cell[axis]);
+                    else nextCell[axis]=cell[axis];
                 }
                 advanced=true;
                 break;
             }
         }
         if(!advanced || next>=exit) break;
-        // Advance by one representable positive float, not a physical step.
-        t=uintBitsToFloat(floatBitsToUint(max(t,next))+1u);
+        if(any(lessThan(nextCell,ivec2(0))) || any(greaterThanEqual(nextCell,cells))) break;
+        t=max(t,next);
+        cell=nextCell;
     }
     discard;
 }

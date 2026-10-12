@@ -100,6 +100,24 @@ class Ui_ToolLibraryDialog(object):
 
         self.millingProgramButtonsLayout.addWidget(self.millingSaveButton)
 
+        self.millingImportProgramButton = QPushButton(self.millingProgramGroup)
+        self.millingImportProgramButton.setObjectName(u"millingImportProgramButton")
+        icon3 = QIcon()
+        icon3.addFile(u":/resource/icons/open.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.millingImportProgramButton.setIcon(icon3)
+        self.millingImportProgramButton.setIconSize(QSize(16, 16))
+
+        self.millingProgramButtonsLayout.addWidget(self.millingImportProgramButton)
+
+        self.millingExportProgramButton = QPushButton(self.millingProgramGroup)
+        self.millingExportProgramButton.setObjectName(u"millingExportProgramButton")
+        icon4 = QIcon()
+        icon4.addFile(u":/resource/icons/export.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.millingExportProgramButton.setIcon(icon4)
+        self.millingExportProgramButton.setIconSize(QSize(16, 16))
+
+        self.millingProgramButtonsLayout.addWidget(self.millingExportProgramButton)
+
         self.millingProgramSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.millingProgramButtonsLayout.addItem(self.millingProgramSpacer)
@@ -138,9 +156,9 @@ class Ui_ToolLibraryDialog(object):
         self.millingLibraryButtonsLayout.setObjectName(u"millingLibraryButtonsLayout")
         self.millingAddLibraryButton = QPushButton(self.millingLibraryGroup)
         self.millingAddLibraryButton.setObjectName(u"millingAddLibraryButton")
-        icon3 = QIcon()
-        icon3.addFile(u":/resource/icons/add.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.millingAddLibraryButton.setIcon(icon3)
+        icon5 = QIcon()
+        icon5.addFile(u":/resource/icons/add.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.millingAddLibraryButton.setIcon(icon5)
         self.millingAddLibraryButton.setIconSize(QSize(16, 16))
 
         self.millingLibraryButtonsLayout.addWidget(self.millingAddLibraryButton)
@@ -154,27 +172,25 @@ class Ui_ToolLibraryDialog(object):
 
         self.millingDuplicateLibraryButton = QPushButton(self.millingLibraryGroup)
         self.millingDuplicateLibraryButton.setObjectName(u"millingDuplicateLibraryButton")
-        icon4 = QIcon()
-        icon4.addFile(u":/resource/icons/copy.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.millingDuplicateLibraryButton.setIcon(icon4)
+        icon6 = QIcon()
+        icon6.addFile(u":/resource/icons/copy.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.millingDuplicateLibraryButton.setIcon(icon6)
         self.millingDuplicateLibraryButton.setIconSize(QSize(16, 16))
 
         self.millingLibraryButtonsLayout.addWidget(self.millingDuplicateLibraryButton)
 
         self.millingExportLibraryButton = QPushButton(self.millingLibraryGroup)
         self.millingExportLibraryButton.setObjectName(u"millingExportLibraryButton")
-        icon5 = QIcon()
-        icon5.addFile(u":/resource/icons/export.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.millingExportLibraryButton.setIcon(icon5)
+        self.millingExportLibraryButton.setIcon(icon4)
         self.millingExportLibraryButton.setIconSize(QSize(16, 16))
 
         self.millingLibraryButtonsLayout.addWidget(self.millingExportLibraryButton)
 
         self.millingRemoveLibraryButton = QPushButton(self.millingLibraryGroup)
         self.millingRemoveLibraryButton.setObjectName(u"millingRemoveLibraryButton")
-        icon6 = QIcon()
-        icon6.addFile(u":/resource/icons/trash.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
-        self.millingRemoveLibraryButton.setIcon(icon6)
+        icon7 = QIcon()
+        icon7.addFile(u":/resource/icons/trash.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.millingRemoveLibraryButton.setIcon(icon7)
         self.millingRemoveLibraryButton.setIconSize(QSize(16, 16))
 
         self.millingLibraryButtonsLayout.addWidget(self.millingRemoveLibraryButton)
@@ -257,6 +273,20 @@ class Ui_ToolLibraryDialog(object):
 
         self.turningProgramButtonsLayout.addWidget(self.turningSaveButton)
 
+        self.turningImportProgramButton = QPushButton(self.turningProgramGroup)
+        self.turningImportProgramButton.setObjectName(u"turningImportProgramButton")
+        self.turningImportProgramButton.setIcon(icon3)
+        self.turningImportProgramButton.setIconSize(QSize(16, 16))
+
+        self.turningProgramButtonsLayout.addWidget(self.turningImportProgramButton)
+
+        self.turningExportProgramButton = QPushButton(self.turningProgramGroup)
+        self.turningExportProgramButton.setObjectName(u"turningExportProgramButton")
+        self.turningExportProgramButton.setIcon(icon4)
+        self.turningExportProgramButton.setIconSize(QSize(16, 16))
+
+        self.turningProgramButtonsLayout.addWidget(self.turningExportProgramButton)
+
         self.turningProgramSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.turningProgramButtonsLayout.addItem(self.turningProgramSpacer)
@@ -295,7 +325,7 @@ class Ui_ToolLibraryDialog(object):
         self.turningLibraryButtonsLayout.setObjectName(u"turningLibraryButtonsLayout")
         self.turningAddLibraryButton = QPushButton(self.turningLibraryGroup)
         self.turningAddLibraryButton.setObjectName(u"turningAddLibraryButton")
-        self.turningAddLibraryButton.setIcon(icon3)
+        self.turningAddLibraryButton.setIcon(icon5)
         self.turningAddLibraryButton.setIconSize(QSize(16, 16))
 
         self.turningLibraryButtonsLayout.addWidget(self.turningAddLibraryButton)
@@ -309,21 +339,21 @@ class Ui_ToolLibraryDialog(object):
 
         self.turningDuplicateLibraryButton = QPushButton(self.turningLibraryGroup)
         self.turningDuplicateLibraryButton.setObjectName(u"turningDuplicateLibraryButton")
-        self.turningDuplicateLibraryButton.setIcon(icon4)
+        self.turningDuplicateLibraryButton.setIcon(icon6)
         self.turningDuplicateLibraryButton.setIconSize(QSize(16, 16))
 
         self.turningLibraryButtonsLayout.addWidget(self.turningDuplicateLibraryButton)
 
         self.turningExportLibraryButton = QPushButton(self.turningLibraryGroup)
         self.turningExportLibraryButton.setObjectName(u"turningExportLibraryButton")
-        self.turningExportLibraryButton.setIcon(icon5)
+        self.turningExportLibraryButton.setIcon(icon4)
         self.turningExportLibraryButton.setIconSize(QSize(16, 16))
 
         self.turningLibraryButtonsLayout.addWidget(self.turningExportLibraryButton)
 
         self.turningRemoveLibraryButton = QPushButton(self.turningLibraryGroup)
         self.turningRemoveLibraryButton.setObjectName(u"turningRemoveLibraryButton")
-        self.turningRemoveLibraryButton.setIcon(icon6)
+        self.turningRemoveLibraryButton.setIcon(icon7)
         self.turningRemoveLibraryButton.setIconSize(QSize(16, 16))
 
         self.turningLibraryButtonsLayout.addWidget(self.turningRemoveLibraryButton)
@@ -384,6 +414,14 @@ class Ui_ToolLibraryDialog(object):
 #if QT_CONFIG(tooltip)
         self.millingSaveButton.setToolTip(QCoreApplication.translate("ToolLibraryDialog", u"Save to Library", None))
 #endif // QT_CONFIG(tooltip)
+        self.millingImportProgramButton.setText(QCoreApplication.translate("ToolLibraryDialog", u"Import", None))
+#if QT_CONFIG(tooltip)
+        self.millingImportProgramButton.setToolTip(QCoreApplication.translate("ToolLibraryDialog", u"Import current program tools (JSON)", None))
+#endif // QT_CONFIG(tooltip)
+        self.millingExportProgramButton.setText(QCoreApplication.translate("ToolLibraryDialog", u"Export", None))
+#if QT_CONFIG(tooltip)
+        self.millingExportProgramButton.setToolTip(QCoreApplication.translate("ToolLibraryDialog", u"Export current program tools (JSON)", None))
+#endif // QT_CONFIG(tooltip)
         self.millingLibraryGroup.setTitle(QCoreApplication.translate("ToolLibraryDialog", u"Saved Library", None))
         ___qtablewidgetitem4 = self.millingLibraryTable.horizontalHeaderItem(0)
         ___qtablewidgetitem4.setText(QCoreApplication.translate("ToolLibraryDialog", u"Library ID", None))
@@ -434,6 +472,14 @@ class Ui_ToolLibraryDialog(object):
         self.turningSaveButton.setText(QCoreApplication.translate("ToolLibraryDialog", u"Save to Library", None))
 #if QT_CONFIG(tooltip)
         self.turningSaveButton.setToolTip(QCoreApplication.translate("ToolLibraryDialog", u"Save to Library", None))
+#endif // QT_CONFIG(tooltip)
+        self.turningImportProgramButton.setText(QCoreApplication.translate("ToolLibraryDialog", u"Import", None))
+#if QT_CONFIG(tooltip)
+        self.turningImportProgramButton.setToolTip(QCoreApplication.translate("ToolLibraryDialog", u"Import current program tools (JSON)", None))
+#endif // QT_CONFIG(tooltip)
+        self.turningExportProgramButton.setText(QCoreApplication.translate("ToolLibraryDialog", u"Export", None))
+#if QT_CONFIG(tooltip)
+        self.turningExportProgramButton.setToolTip(QCoreApplication.translate("ToolLibraryDialog", u"Export current program tools (JSON)", None))
 #endif // QT_CONFIG(tooltip)
         self.turningLibraryGroup.setTitle(QCoreApplication.translate("ToolLibraryDialog", u"Saved Library", None))
         ___qtablewidgetitem12 = self.turningLibraryTable.horizontalHeaderItem(0)

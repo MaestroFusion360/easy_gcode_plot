@@ -193,6 +193,7 @@ _GENERAL_SETTINGS = (
 )
 
 _EXPORT_SETTINGS = (
+    _SettingSpec("POST_PROFILE", "exportPostProfile", "", str),
     _SettingSpec("TARGET_CNC", "exportTargetCnc", 0, int, lambda value: value if value in {0, 1, 2, 3, 4, 5} else 0),
     _SettingSpec("INCREMENTAL_MODE", "incrMode", False, bool),
     _SettingSpec("START_PROGRAM", "startPgmExp", "O0001", str),
@@ -570,7 +571,7 @@ class MainWindowSettingsMixin:
         self.speedTimer = playback_interval_ms(self.playbackSpeed)
         self.ui.playbackSpeedSlider.setValue(self.playbackSpeed)
 
-    def setPlaybackSpeed(self, level):
+    def setPlaybackSpeed(self, level, *, refresh_stock=True):
         """Apply the shared playback speed from the toolbar or Options."""
         self._milling_play_clock = None
         self.playbackSpeed = max(1, min(5, int(level)))
@@ -582,7 +583,7 @@ class MainWindowSettingsMixin:
             self.timer.start(self.speedTimer, self)
         self.settings.setValue("PLOT/PLAYBACK_SPEED", self.playbackSpeed)
         self.settings.setValue("PLOT/TIMER_SPEED", self.speedTimer)
-        if getattr(self, "_stock_animation_active", False) and not self.latheMode:
+        if refresh_stock and getattr(self, "_stock_animation_active", False) and not self.latheMode:
             self._request_milling_stock_quality()
 
     def _load_hotkeys(self):

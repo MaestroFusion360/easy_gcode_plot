@@ -2,11 +2,11 @@
 
 ## Current direction
 
-Current development baseline: **2.0.0**, **not released**. Three-axis milling stock removal is now implemented. The current phase focuses on testing, performance tuning and fixing the new simulation alongside the existing turning, execution and export workflows.
+Current development baseline: **2.1.0**, **not released**. Three-axis milling stock removal is now implemented. The current phase focuses on testing, performance tuning and fixing the new simulation alongside the existing turning, execution and export workflows.
 
 The 1.9.x stabilization phase is complete; its delivered changes are recorded under versions 1.9.5–1.9.8 in [CHANGELOG](CHANGELOG.md). This roadmap tracks current validation and future work rather than repeating completed stabilization tasks.
 
-## 2.0.0 — Validation before release
+## 2.1.0 — Validation before release
 
 - Verify milling stock removal on real CAM programs, including large files and ball-mill finishing.
 - Check all playback speeds, rapid slider seeks, rewind, tool changes and cancellation, keeping the stock and tool position synchronized.
@@ -17,55 +17,51 @@ The 1.9.x stabilization phase is complete; its delivered changes are recorded un
 
 ---
 
-# After 2.0.0 — Product workflow expansion
+# After 2.1.0 — Product workflow expansion
 
 The next stage is focused on features that reduce the need to leave Easy G-Code Plot for CIMCO, Vericut, or external helper tools.
 
-## Priority A — User-facing configuration workflows
+## Priority A — Universal 2D Ruler + Insert Mesh into Plot View
 
-### Tool Library import/export
+**First priority for the next user-facing feature.** Provide a common way to measure NC toolpaths and STL geometry directly in the existing Plot View, including the machined stock obtained from three-axis simulation.
 
-Add GUI actions for importing and exporting configured tools from the **current program tool set**, not only tools already stored in the library.
+### Universal 2D Ruler
 
-Goals:
+Extend the **existing Shift + Click 2D picker** instead of implementing an unrelated selection system.
 
-- move selected current tools into Tool Library;
-- export selected/current tools;
-- import saved tool sets;
-- preserve geometry, offsets, type and metadata deterministically.
+- Support **Top, Front, Left, and Lathe** views.
+- Select two geometry points and show their positions, the in-plane coordinate differences, and the straight-line distance in the current view.
+- Use actual model/toolpath coordinates and the selected view's coordinate system, **not screen-pixel distances**.
+- Work with CNC toolpath geometry and STL Objects in the Plot View.
+- Support point selection on the **facets of transparent STL objects** and on **visible STL cross-section/clip contours**, respecting the current visibility and clipping state.
+- Reuse existing picking where possible and provide appropriate geometry-based selection for mesh triangles and section edges.
+- Show a clear visual ruler: first point, second point, connecting segment, and numerical result with units. Allow measurement reset/replacement without disturbing normal navigation.
+- In Lathe mode, preserve the application's existing X radius/diameter presentation rules; do not silently mix radial and diametral values.
+- Measurement interactions must not change the NC editor's caret, selection, or scroll position.
 
-### Postprocessor management in GUI
+**Initial scope:** two-point linear measurements and coordinate differences only. Radius fitting, diameter detection, surface fitting, advanced dimensional inspection, and a separate measurement editor are **not** part of this first feature.
 
-Allow users to manage post profiles without editing project files manually.
+### Insert Mesh into Plot View
 
-Needed workflow:
+Add **Insert Mesh into Plot View** to the **3D Stock Removal context menu**.
 
-- add existing JSON post profile;
-- duplicate profile;
-- rename profile;
-- remove profile;
-- reload profile list;
-- validate profile before activation.
+- Capture the **current** machined-stock state at the active playback/TrackBar position.
+- Reuse the existing GPU stock readback and STL mesh-construction path to build a mesh **in memory**.
+- Insert the result directly into the existing **Plot View / STL Objects** workflow; do not require exporting and re-importing an STL file, and do not create temporary STL files.
+- Preserve coordinates, units, orientation, and the current stock geometry so the inserted mesh aligns with the NC toolpath.
+- Insert a **snapshot**, not a live link: subsequent playback or seeking must not silently alter the inserted object.
+- Treat the result as an ordinary STL Object, so existing visibility, transparency, clipping/cross-section, object inspection, and the Universal 2D Ruler work the same as for imported STL files.
+- Generate the mesh **on demand**, not during each simulation frame. Keep the GPU stock-removal playback path independent of mesh extraction.
+- Respect the geometric resolution of the current simulated stock; do not claim finer dimensional accuracy than the source heightfield supports.
 
-### Postprocessor editor
+### Acceptance criteria
 
-Add a simple dedicated dialog for editing and saving JSON post profiles.
-
-The editor should expose the supported post contract rather than arbitrary free-form JSON wherever practical:
-
-- machine type;
-- axes;
-- motion syntax;
-- arc syntax;
-- word order;
-- required/modal words;
-- formatting;
-- program wrappers;
-- safety line;
-- TCP on/off;
-- reference movements.
-
-Raw JSON view may remain available for advanced editing.
+- A two-point ruler works on toolpaths in Top, Front, Left, and Lathe views.
+- The same ruler works on imported STL objects, transparent meshes, and displayed section contours.
+- **Insert Mesh into Plot View** transfers the stock at the selected simulation position without writing an STL file.
+- The inserted mesh can be inspected and measured through the existing STL Objects workflow.
+- Measurement coordinates and units are correct; ruler interactions do not disrupt CNC text editing, camera/navigation, or other Plot View tools.
+- Existing GPU stock removal, turning behavior, and rendering performance remain unaffected.
 
 ### Rotary kinematics editor
 
@@ -186,28 +182,25 @@ Three-axis milling stock removal is part of the 2.0.0 development baseline. Cont
 
 ---
 
-# Priority order after 2.0.0
+# Priority order after 2.1.0
 
 Recommended sequence:
 
-1. Tool Library import/export workflow.
-2. Postprocessor management GUI.
-3. Postprocessor editor.
-4. Structured rotary kinematics editor extending the existing JSON workflow.
-5. Embedded console panel.
-6. Report templates.
-7. Post-aware generators and additional NC templates.
-8. Initial snippet presets.
-9. Contour editor / DXF contour workflow.
-10. Further stock shapes, collision checks and verified stock-simulation extensions.
+1. Structured rotary kinematics editor extending the existing JSON workflow.
+2. Embedded console panel.
+3. Report templates.
+4. Post-aware generators and additional NC templates.
+5. Initial snippet presets.
+6. Contour editor / DXF contour workflow.
+7. Further stock shapes, collision checks and verified stock-simulation extensions.
 
-The first eight items mostly expose or extend capabilities already present in the architecture. Contour authoring and broader stock-simulation geometry remain larger follow-up tasks; the initial three-axis milling simulation is already implemented in 2.0.0.
+The first five items mostly expose or extend capabilities already present in the architecture. Contour authoring and broader stock-simulation geometry remain larger follow-up tasks; the initial three-axis milling simulation is already implemented in 2.0.0.
 
 ---
 
 # Development rule
 
-For every new post-2.0 feature:
+For every new post-2.1 feature:
 
 ```text
 existing kernel/service first
@@ -220,4 +213,4 @@ existing kernel/service first
 
 Avoid creating GUI-only implementations of logic that already belongs in the execution, export, tool, report, or generator layers.
 
-The main objective after 2.0.0 is not feature count by itself. It is to make Easy G-Code Plot capable of covering a larger part of the real NC editing, analysis, conversion and preparation workflow without forcing the user back into another application for routine operations.
+The main objective after 2.1.0 is not feature count by itself. It is to make Easy G-Code Plot capable of covering a larger part of the real NC editing, analysis, conversion and preparation workflow without forcing the user back into another application for routine operations.

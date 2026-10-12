@@ -50,7 +50,47 @@
                                         </widget>
                                     </item>
                                     <item row="1" column="1">
-                                        <widget class="QComboBox" name="targetCncCombo"/>
+                                        <layout class="QHBoxLayout" name="postProfileLayout">
+                                            <item>
+                                                <widget class="QComboBox" name="targetCncCombo">
+                                                    <property name="sizeAdjustPolicy">
+                                                        <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                                    </property>
+                                                    <property name="minimumContentsLength">
+                                                        <number>22</number>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QPushButton" name="postProfileButton">
+                                                    <property name="text">
+                                                        <string/>
+                                                    </property>
+                                                    <property name="accessibleName">
+                                                        <string>Add ready…</string>
+                                                    </property>
+                                                    <property name="icon">
+                                                        <iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/add.png</normaloff></iconset>
+                                                    </property>
+                                                    <property name="iconSize">
+                                                        <size><width>16</width><height>16</height></size>
+                                                    </property>
+                                                    <property name="toolTip">
+                                                        <string>Import a ready postprocessor from a JSON file</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                        </layout>
+                                    </item>
+                                    <item row="3" column="0" colspan="2">
+                                        <widget class="QLabel" name="postProfileWarning">
+                                            <property name="text">
+                                                <string/>
+                                            </property>
+                                            <property name="wordWrap">
+                                                <bool>true</bool>
+                                            </property>
+                                        </widget>
                                     </item>
                                     <item row="2" column="0">
                                         <widget class="QLabel" name="arcOutputLabel">
@@ -436,7 +476,7 @@
         <tabstop>delimCmbBox</tabstop>
         <tabstop>leadingZeroCmbBox</tabstop>
     </tabstops>
-    <resources/>
+    <resources><include location="../../../resources/files_res.qrc"/></resources>
     <connections>
         <connection>
             <sender>buttonBox</sender>

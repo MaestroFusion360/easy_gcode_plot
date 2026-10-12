@@ -581,7 +581,7 @@ def test_plot_options_use_two_columns_with_playback_last(qt_app):
     ):
         assert form.getWidgetPosition(left)[0] == form.getWidgetPosition(right)[0]
     assert form.getWidgetPosition(dialog.ui.playbackSpeedLabel)[0] == form.rowCount() - 1
-    assert dialog.height() <= 470
+    assert dialog.height() >= 700
     window.deleteLater()
 
 

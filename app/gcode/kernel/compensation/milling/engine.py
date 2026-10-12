@@ -81,7 +81,10 @@ class _CompensationRun:
         self.align_entry = True
 
     def exit(self, current, owner):
-        self.append(_solve_exit(current, self.output[-1]) if self.output else current, owner)
+        self.append(
+            _solve_exit(current, self.output[-1], self.geometry_tolerance) if self.output else current,
+            owner,
+        )
         self.reset_steady()
         self.align_entry = False
         self.radius = 0.0

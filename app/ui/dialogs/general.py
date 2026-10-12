@@ -1,7 +1,7 @@
 """General application dialogs unrelated to tool-library editing."""
 
 from PyQt6.QtCore import QCoreApplication, Qt
-from PyQt6.QtWidgets import QDialog
+from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from app import get_version
 from app.gcode.export import (
@@ -10,6 +10,8 @@ from app.gcode.export import (
     MILL_FULL_PROGRAM_MODE,
     TURN_FULL_PROGRAM_MODE,
 )
+from app.gcode.post_profiles import target_post_for_index
+from app.ui.dialogs.post_profile_manager import PostProfileManagementMixin
 from app.ui.generated.dialogs.about import Ui_AboutDlg
 from app.ui.generated.dialogs.block_num import Ui_BlockNumberDlg
 from app.ui.generated.dialogs.export import Ui_ExportOptDlg
@@ -96,7 +98,7 @@ class BlockNum(QDialog):
             self.parent().seqNumSpacing = True
 
 
-class Export(QDialog):
+class Export(PostProfileManagementMixin, QDialog):
     """Dialog for configuring export type and output representation."""
 
     _MODE_LABELS = (
@@ -105,11 +107,16 @@ class Export(QDialog):
         "EXPANDED EXECUTION",
         "DXF",
     )
-    _ARC_LABELS = (
-        "IJK RELATIVE",
-        "IJK ABSOLUTE",
-        "R RADIUS",
-        "LINEARIZED",
+    _ISO_ARC_OPTIONS = (
+        (0, "IJK (RELATIVE CENTER)"),
+        (1, "IJK (ABSOLUTE CENTER)"),
+        (2, "R (RADIUS)"),
+        (3, "LINEARIZED"),
+    )
+    _HEIDENHAIN_ARC_OPTIONS = (
+        (0, "CC + C/CP"),
+        (2, "R"),
+        (3, "LINEARIZED"),
     )
 
     def __init__(self, parent=None):
@@ -129,6 +136,7 @@ class Export(QDialog):
         self.forceDecimalCombo = self.ui.forceDecimalCombo
         self.plusSignLabel = self.ui.plusSignLabel
         self.plusSignCombo = self.ui.plusSignCombo
+        self._init_post_profiles()
         self._configure_export_mode_ui()
         self.loadSettings()
         self.connectActions()
@@ -140,8 +148,7 @@ class Export(QDialog):
         self.ui.langCmbBox.addItems(self._MODE_LABELS)
         self.ui.incrCmbBox.clear()
         self.ui.incrCmbBox.addItems(("G90 Absolute", "G91 Incremental"))
-        self.ui.arcOutputCmbBox.clear()
-        self.ui.arcOutputCmbBox.addItems(self._ARC_LABELS)
+        self._sync_arc_output_choices()
         translate = QCoreApplication.translate
         self.targetCncCombo.clear()
         self.targetCncCombo.addItems(
@@ -189,6 +196,56 @@ class Export(QDialog):
         )
         self.ui.endLineEdit.setToolTip(translate("ExportOptDlg", "Replaces the post profile's program end text."))
 
+    def _is_heidenhain_target(self):
+        """Return whether the selected EXPANDED target uses native Heidenhain arcs."""
+        target = self.targetCncCombo.currentData()
+        if not target or target == "auto":
+            return False
+        try:
+            return self.postLibrary.load(target).get("id") == "heidanhain_itnc530"
+        except (OSError, ValueError):
+            return False
+
+    def _sync_arc_output_choices(self, preferred_mode=None):
+        """Show arc syntax belonging to the selected target without changing mode IDs."""
+        combo = self.ui.arcOutputCmbBox
+        selected_mode = combo.currentData() if preferred_mode is None else preferred_mode
+        if selected_mode is None:
+            selected_mode = int(getattr(self.parent(), "exportArcMode", 0))
+        heidenhain = self._is_heidenhain_target()
+        options = self._HEIDENHAIN_ARC_OPTIONS if heidenhain else self._ISO_ARC_OPTIONS
+        if heidenhain and selected_mode == 1:
+            selected_mode = 0
+        combo.blockSignals(True)
+        combo.clear()
+        for mode, label in options:
+            combo.addItem(self._arc_option_label(label), mode)
+        index = combo.findData(selected_mode)
+        combo.setCurrentIndex(index if index >= 0 else 0)
+        combo.blockSignals(False)
+        combo.setToolTip(
+            QCoreApplication.translate(
+                "ExportOptDlg",
+                "Planar arcs use CR. Full circles and helical arcs use CC with C/CP.",
+            )
+            if heidenhain
+            else QCoreApplication.translate(
+                "ExportOptDlg",
+                "Choose relative or absolute IJK centers, radius output, or linearized arcs.",
+            )
+        )
+
+    @staticmethod
+    def _arc_option_label(label):
+        return {
+            "IJK (RELATIVE CENTER)": QCoreApplication.translate("ExportOptDlg", "IJK (RELATIVE CENTER)"),
+            "IJK (ABSOLUTE CENTER)": QCoreApplication.translate("ExportOptDlg", "IJK (ABSOLUTE CENTER)"),
+            "R (RADIUS)": QCoreApplication.translate("ExportOptDlg", "R (RADIUS)"),
+            "CC + C/CP": QCoreApplication.translate("ExportOptDlg", "CC + C/CP"),
+            "R": QCoreApplication.translate("ExportOptDlg", "R"),
+            "LINEARIZED": QCoreApplication.translate("ExportOptDlg", "LINEARIZED"),
+        }[label]
+
     def _set_parent_bool(self, combo, attr_name, true_index=1):
         """Update a boolean attribute on the parent using combo index."""
         setattr(self.parent(), attr_name, combo.currentIndex() == true_index)
@@ -200,8 +257,8 @@ class Export(QDialog):
     def loadSettings(self):
         """Populate UI fields with current export preferences."""
         self.ui.langCmbBox.setCurrentIndex(self.parent().exportMode)
-        self.targetCncCombo.setCurrentIndex(self.parent().exportTargetCnc)
-        self.ui.arcOutputCmbBox.setCurrentIndex(self.parent().exportArcMode)
+        self.reload_post_profiles(self._saved_post_selection())
+        self._sync_arc_output_choices(self.parent().exportArcMode)
         self._set_combo_from_bool(self.ui.incrCmbBox, self.parent().incrMode)
         self.ui.startLineEdit.setText(self.parent().startPgmExp)
         self.ui.endLineEdit.setText(self.parent().endPgmExp)
@@ -222,7 +279,7 @@ class Export(QDialog):
         """Keep edits local until OK; Cancel leaves application settings unchanged."""
         self.accepted.connect(self._apply_and_export)
         self.ui.langCmbBox.currentIndexChanged.connect(lambda _index: self._sync_output_option_availability())
-        self.targetCncCombo.currentIndexChanged.connect(lambda _index: self._sync_target_cnc_choices())
+        self.targetCncCombo.currentIndexChanged.connect(lambda _index: self._sync_arc_output_choices())
 
     def showEvent(self, event):
         self.loadSettings()
@@ -231,9 +288,7 @@ class Export(QDialog):
 
     def _apply_and_export(self):
         self.exportMode()
-        self.parent().exportTargetCnc = (
-            self.targetCncCombo.currentIndex() if self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE else 0
-        )
+        self._apply_post_selection()
         self.arcMode()
         self.incrMode(self.ui.incrCmbBox.currentIndex())
         self.startPgmText()
@@ -246,6 +301,27 @@ class Export(QDialog):
         self.ledingZero(self.ui.leadingZeroCmbBox.currentIndex())
         self.apply_output_fields()
         self.parent().export()
+
+    def accept(self):
+        if self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE:
+            try:
+                self._validate_selected_post()
+            except (OSError, ValueError) as exc:
+                QMessageBox.warning(self, self.tr("Postprocessors"), str(exc))
+                return
+        super().accept()
+
+    def _apply_post_selection(self):
+        selection = self.targetCncCombo.currentData() or "auto"
+        self.parent().exportPostProfile = selection
+        self.parent().exportTargetCnc = next(
+            (
+                index
+                for index in range(1, 6)
+                if target_post_for_index(index, turning=self.parent().latheMode) == selection
+            ),
+            0,
+        )
 
     def apply_output_fields(self):
         """Persist the four EXPANDED output fields on the parent window."""
@@ -261,7 +337,7 @@ class Export(QDialog):
 
     def arcMode(self):
         """Store the arc representation used by expanded execution output."""
-        self.parent().exportArcMode = self.ui.arcOutputCmbBox.currentIndex()
+        self.parent().exportArcMode = self.ui.arcOutputCmbBox.currentData()
 
     def _sync_output_option_availability(self):
         """Enable options by export mode only; the target controller never disables formatting."""
@@ -299,15 +375,10 @@ class Export(QDialog):
             control.setEnabled(expanded)
 
     def _sync_target_cnc_choices(self):
-        expanded = self.ui.langCmbBox.currentIndex() == EXPANDED_EXECUTION_MODE
-        turning = bool(self.parent().latheMode)
-        labels = ("FANUC lathe A", "FANUC lathe B") if turning else ("FANUC milling", "SINUMERIK 840D ISO-M (G291)")
-        for index, label in enumerate(labels, 1):
-            self.targetCncCombo.setItemText(index, label)
-        for index in range(1, self.targetCncCombo.count()):
-            self.targetCncCombo.model().item(index).setEnabled(expanded and not (turning and index >= 3))
-        if not expanded or (turning and self.targetCncCombo.currentIndex() >= 3):
-            self.targetCncCombo.setCurrentIndex(0)
+        if self._post_machine != self._machine_type():
+            self.reload_post_profiles("auto")
+        self._update_post_actions()
+        self._sync_arc_output_choices()
 
     def sync_mode_availability(self, turning: bool):
         """Enable exactly the full-program mode matching the active machine profile."""
@@ -462,6 +533,7 @@ class Wcs(QDialog):
 
     def applyValues(self):
         """Store XYZ WCS and G28 values on the main window and refresh the trace."""
+        previous = self._runtime_values()
         x_ui_scale = 2.0 if bool(getattr(self.parent(), "latheMode", False)) else 1.0
         self.parent().wcsOffsets = {
             code: (
@@ -475,4 +547,10 @@ class Wcs(QDialog):
             scale = x_ui_scale if axis == "X" else 1.0
             setattr(self.parent(), attr, metric_value(getattr(self.ui, f"home{axis}")) / scale)
         self.parent().homeConfigured = self.ui.homeConfiguredCheck.isChecked()
-        self.parent().updateData()
+        if previous != self._runtime_values():
+            self.parent().updateData()
+
+    def _runtime_values(self):
+        window = self.parent()
+        offsets = tuple(tuple(window.wcsOffsets.get(code, (0.0, 0.0, 0.0))) for code in range(54, 60))
+        return offsets, window.xPosMach, window.yPosMach, window.zPosMach, window.homeConfigured

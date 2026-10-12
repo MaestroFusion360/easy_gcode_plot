@@ -33,6 +33,12 @@ def test_tool_library_buttons_have_short_labels_tooltips_and_icons(qt_app):
             assert button.iconSize().width() == 16
             assert not button.icon().isNull()
         preview = getattr(ui, f"{prefix}PreviewPane")
+        for action in ("Import", "Export"):
+            button = getattr(ui, f"{prefix}{action}ProgramButton")
+            assert button.text() == action
+            assert button.toolTip() == f"{action} current program tools (JSON)"
+            assert button.iconSize().width() == 16
+            assert not button.icon().isNull()
         for name, label in (
             ("zoomOutButton", "Zoom out"),
             ("fitButton", "Fit preview"),

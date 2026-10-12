@@ -1,14 +1,18 @@
 <section id="milling-stock" class="section">
   <div class="section-heading">
-    <h2>Симуляция удаления материала при фрезеровании</h2>
+    <div>
+      <p class="eyebrow">ОТ ЗАГОТОВКИ К ДЕТАЛИ</p>
+      <h2>Снятие материала при фрезеровании и точении</h2>
+    </div>
     <p class="section-intro">
-      Моделирование съёма материала по рассчитанной траектории с учётом
-      геометрии инструмента.
+      Одна кнопка Stock Removal и общий диалог заготовки для фрезерования и
+      точения. Проверяйте оставшийся материал по исполненной траектории с учётом
+      геометрии инструмента и параметров выбранного режима обработки.
     </p>
   </div>
   <article class="story">
     <div class="story-copy">
-      <h3>Заготовка и воспроизведение</h3>
+      <h3>3D-симуляция снятия материала при фрезеровании</h3>
       <p>
         Настраиваются границы заготовки X/Y/Z, припуск и один из пяти уровней
         Accuracy. Съём учитывает профиль фрезы: плоский, торцевой, шаровой, с
@@ -43,10 +47,72 @@
       </figure>
     </div>
   </article>
+  <article class="story story-reverse">
+    <div class="story-copy">
+      <h3>Снятие материала при точении</h3>
+      <p>
+        Проверяйте наружное, внутреннее и торцевое точение, канавки и профиль
+        резьбы. Снятие материала рассчитывается по геометрии инструмента и
+        исполненной траектории. Возвращайтесь к любому шагу воспроизведения.
+      </p>
+    </div>
+    <div class="story-media">
+      <figure class="screenshot-card">
+        <a
+          href="../assets-optimized/stock_removal.webp"
+          data-gallery="milling-stock"
+          aria-label="Снятие материала при точении"
+          ><img
+            src="../assets-optimized/stock_removal.webp"
+            width="1280"
+            height="720"
+            alt="Снятие материала при точении"
+            loading="lazy"
+            decoding="async"
+        /></a>
+        <figcaption>Снятие материала при точении</figcaption>
+      </figure>
+      <details class="reference-panel">
+        <summary>Примеры токарной траектории и заготовки</summary>
+        <div class="media-pair reference-body">
+          <figure class="screenshot-card">
+            <a
+              href="../assets-optimized/img4.webp"
+              data-gallery="milling-stock"
+              aria-label="Траектории токарных циклов"
+              ><img
+                src="../assets-optimized/img4.webp"
+                width="1200"
+                height="606"
+                alt="Траектории токарных циклов"
+                loading="lazy"
+                decoding="async"
+            /></a>
+            <figcaption>Траектории токарных циклов</figcaption>
+          </figure>
+          <figure class="screenshot-card">
+            <a
+              href="../assets-optimized/img5.webp"
+              data-gallery="milling-stock"
+              aria-label="Профиль токарной заготовки"
+              ><img
+                src="../assets-optimized/img5.webp"
+                width="1200"
+                height="606"
+                alt="Профиль токарной заготовки"
+                loading="lazy"
+                decoding="async"
+            /></a>
+            <figcaption>Профиль токарной заготовки</figcaption>
+          </figure>
+        </div>
+      </details>
+    </div>
+  </article>
   <p class="note">
-    Съём и отображение поверхности выполняются на GPU; требуется OpenGL 4.3.
-    Поддерживаются прямоугольная заготовка и вертикальная фреза.
-    Поворотные/TCP-движения, поднутрения и вычитание из импортированной
-    STL-сетки не поддерживаются.
+    При трёхосевом фрезеровании съём и отображение поверхности выполняются на
+    GPU; требуется OpenGL 4.3. Фрезерная модель поддерживает прямоугольную
+    заготовку и вертикальную фрезу. Поворотные/TCP-движения, поднутрения и
+    вычитание из импортированной STL-сетки не поддерживаются.
   </p>
 </section>

@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import (
 
 from app import theme
 from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, comment_markers, normalize_comment_style
-from app.gcode.kernel.milling.kinematics import load_catalog, profile_document, save_profile_override
+from app.gcode.kernel.milling.kinematics import load_catalog, parse_catalog, profile_document, save_profile_override
 from app.settings import (
     ARC_SAMPLING_PRESET_DEFAULT,
     ARC_SAMPLING_PRESETS,
@@ -39,6 +39,7 @@ from app.settings import (
     TOOLBAR_ICON_SIZES,
     configure_logging,
 )
+from app.ui.dialogs.post_profile_settings import PostProfileSettings
 from app.ui.generated.dialogs.options import Ui_OptionsDlg
 from app.ui.support.hotkey_editor import HotkeyEditor
 from app.ui.windows.main_window_execution import playback_interval_ms
@@ -163,21 +164,23 @@ def _arc_sampling_snapshot(window):
     )
 
 
-def _refresh_after_option_changes(window, *, execution_changed, sampling_changed, correction_preview_applied):
+def _refresh_after_option_changes(window, *, execution_changed, sampling_changed):
     if execution_changed and getattr(window, "execution_result", None) is not None:
         window.updateData()
     elif sampling_changed and getattr(window, "execution_result", None) is not None:
         window.rerenderCurrentResult()
-    elif not correction_preview_applied:
+    else:
         window.refreshPlotView()
 
 
 class RotaryKinematicsJsonDialog(QDialog):
     """Edit one profile from the current rotary catalog as JSON."""
 
-    def __init__(self, profile_id: str, parent=None):
+    def __init__(self, profile_id: str, parent=None, *, defer_save=False, document=None):
         super().__init__(parent)
         self.profile_id = profile_id
+        self.defer_save = defer_save
+        self.document = document
         self.setWindowTitle(QCoreApplication.translate("OptionsDlg", "Rotary kinematics JSON") + f" — {profile_id}")
         self.resize(640, 520)
 
@@ -195,7 +198,7 @@ class RotaryKinematicsJsonDialog(QDialog):
         self._load_profile()
 
     def _load_profile(self):
-        profile = profile_document(self.profile_id)
+        profile = self.document if self.document is not None else profile_document(self.profile_id)
         self.editor.setPlainText(json.dumps(profile, ensure_ascii=False, indent=2))
 
     def accept(self):
@@ -206,7 +209,10 @@ class RotaryKinematicsJsonDialog(QDialog):
             if edited.get("id") != self.profile_id:
                 raise ValueError("Profile id cannot be changed in this editor")
 
-            save_profile_override(self.profile_id, edited)
+            parse_catalog({"schema_version": 1, "profiles": [edited]})
+            if not self.defer_save:
+                save_profile_override(self.profile_id, edited)
+            self.document = edited
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             QMessageBox.warning(
                 self,
@@ -222,6 +228,7 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_OptionsDlg()
         self.ui.setupUi(self)
+        self.postProfileSettings = PostProfileSettings(self)
         self.ui.latheGcodeSystemCombo = QComboBox(self)
         self.ui.latheGcodeSystemCombo.setObjectName("latheGcodeSystemCombo")
         self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type A", "A")
@@ -259,14 +266,9 @@ class OptionsDialog(QDialog):
         self.ui.buttonBox.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
         self.ui.playbackSpeedSlider.valueChanged.connect(self._update_playback_speed_label)
         self.ui.arcSamplingPresetCombo.currentIndexChanged.connect(self._apply_arc_sampling_preset)
-        self.ui.correctionCheck.toggled.connect(self._preview_correction)
-        self.ui.showStockCheck.toggled.connect(self._preview_show_stock)
         self.ui.showRapidCheck.toggled.connect(self.ui.dashedRapidCheck.setEnabled)
         self._loading_values = False
-        self._correction_before_show = None
-        self._correction_preview_applied = False
-        self._show_stock_before_show = None
-        self._rotary_before_show = None
+        self._pending_rotary_profiles = {}
 
     def _configure_caret_line_color(self):
         self.ui.caretLineColorButton, self.ui.caretLineColorEdit = self._editor_color_row(
@@ -348,7 +350,7 @@ class OptionsDialog(QDialog):
         row.addWidget(self.ui.rotaryKinematicsEditButton)
         self.ui.plotForm.insertRow(0, self.ui.rotaryKinematicsLabel, row)
 
-        self.ui.rotaryKinematicsCombo.currentIndexChanged.connect(self._preview_rotary_kinematics)
+        self.ui.rotaryKinematicsCombo.currentIndexChanged.connect(self._rotary_selection_changed)
         self.ui.rotaryKinematicsEditButton.clicked.connect(self._edit_rotary_kinematics)
         self._reload_rotary_kinematics_combo(None)
 
@@ -387,10 +389,8 @@ class OptionsDialog(QDialog):
         button.setStyleSheet(f"background-color: {color.name()}; border: 1px solid #666;" if color.isValid() else "")
 
     def showEvent(self, event):
-        self._correction_before_show = getattr(self.parent(), "correctionEnabled", True)
-        self._correction_preview_applied = False
-        self._show_stock_before_show = getattr(self.parent(), "showStock", True)
-        self._rotary_before_show = getattr(self.parent(), "rotaryKinematics", None)
+        self.postProfileSettings.reload()
+        self._pending_rotary_profiles.clear()
         self.load_values()
         LOGGER.debug("options_opened values=%s", _option_snapshot(self.parent()))
         super().showEvent(event)
@@ -581,7 +581,8 @@ class OptionsDialog(QDialog):
         window.plotShowRapid = self.ui.showRapidCheck.isChecked()
         window.plotDashedRapid = self.ui.dashedRapidCheck.isChecked()
         window.plotColorByTool = self.ui.colorByToolCheck.isChecked()
-        window.setPlaybackSpeed(self.ui.playbackSpeedSlider.value())
+        if self.ui.playbackSpeedSlider.value() != window.playbackSpeed:
+            window.setPlaybackSpeed(self.ui.playbackSpeedSlider.value(), refresh_stock=False)
 
     def accept(self):
         window = self.parent()
@@ -589,11 +590,8 @@ class OptionsDialog(QDialog):
         previous_units = getattr(window, "defaultUnits", "mm")
         previous_language = getattr(window, "uiLanguage", "en")
         previous_theme = getattr(window, "uiTheme", "light")
-        previous_correction = (
-            getattr(window, "correctionEnabled", True)
-            if self._correction_before_show is None
-            else self._correction_before_show
-        )
+        previous_correction = getattr(window, "correctionEnabled", True)
+        selected_rotary = self.ui.rotaryKinematicsCombo.currentData()
         previous_tolerance = getattr(window, "arcTolerance", ARC_TOLERANCE_DEFAULT)
         previous_sampling = _arc_sampling_snapshot(window)
         previous_autodetect_arc_type = getattr(window, "autodetectArcType", True)
@@ -601,9 +599,7 @@ class OptionsDialog(QDialog):
         previous_sinumerik_840d_sl = getattr(window, "sinumerik840dSl", True)
         previous_ignore_block_skip = getattr(window, "ignoreBlockSkip", False)
         previous_generated_motions = getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT)
-        previous_show_stock = (
-            getattr(window, "showStock", True) if self._show_stock_before_show is None else self._show_stock_before_show
-        )
+        previous_show_stock = getattr(window, "showStock", True)
         previous_stl_appearance = (
             getattr(window, "stlColor", "#b0b0b0"),
             getattr(window, "stlWireframe", False),
@@ -617,9 +613,7 @@ class OptionsDialog(QDialog):
             self.ui.backgroundColorEdit,
             self.ui.stlColorEdit,
         )
-        if not self._valid_colors(tuple(edit for _, edit in self._color_controls)):
-            return
-        if not self._apply_hotkeys(window):
+        if not self._validate_pending_options(window):
             return
         selected_encoding = "cp1251" if self.ui.encodingCombo.currentIndex() else "utf-8"
         if selected_encoding != getattr(window, "fileEncoding", "utf-8") and getattr(window, "curFile", ""):
@@ -667,9 +661,7 @@ class OptionsDialog(QDialog):
             window.timer.start(window.speedTimer, window)
         if previous_stl_appearance != (window.stlColor, window.stlWireframe):
             window.refreshStlAppearance()
-        correction_needs_update = (
-            previous_correction != window.correctionEnabled and not self._correction_preview_applied
-        )
+        correction_needs_update = previous_correction != window.correctionEnabled
         execution_changed = _execution_semantics_changed(
             window,
             previous_units=previous_units,
@@ -681,78 +673,93 @@ class OptionsDialog(QDialog):
             previous_lathe_gcode_system=previous_lathe_gcode_system,
             previous_sinumerik_840d_sl=previous_sinumerik_840d_sl,
         )
-        _refresh_after_option_changes(
+        self._commit_refresh(
             window,
-            execution_changed=execution_changed,
-            sampling_changed=previous_sampling != _arc_sampling_snapshot(window),
-            correction_preview_applied=self._correction_preview_applied,
+            previous_options,
+            selected_rotary,
+            execution_changed,
+            previous_sampling != _arc_sampling_snapshot(window),
         )
-        self._correction_before_show = None
-        self._correction_preview_applied = False
-        self._show_stock_before_show = None
-        self._rotary_before_show = None
         super().accept()
 
-    def reject(self):
-        window = self.parent()
-        previous_correction = self._correction_before_show
-        if previous_correction is not None and window.correctionEnabled != previous_correction:
-            window.correctionEnabled = previous_correction
-            if getattr(window, "execution_result", None) is not None:
-                window.updateData()
-        previous_show_stock = self._show_stock_before_show
-        if previous_show_stock is not None and window.showStock != previous_show_stock:
-            window.showStockChecked(previous_show_stock)
-        previous_rotary = self._rotary_before_show
-        if previous_rotary != getattr(window, "rotaryKinematics", None):
-            window._select_rotary_kinematics(previous_rotary)
-        LOGGER.info(
-            "options_cancelled correction_restored=%s show_stock_restored=%s rotary_restored=%s",
-            previous_correction,
-            previous_show_stock,
-            previous_rotary,
+    def _validate_pending_options(self, window):
+        return (
+            self._valid_colors(tuple(edit for _, edit in self._color_controls))
+            and self._apply_hotkeys(window)
+            and self.postProfileSettings.apply()
+            and self._save_pending_rotary_profiles()
         )
-        self._correction_before_show = None
-        self._correction_preview_applied = False
-        self._show_stock_before_show = None
-        self._rotary_before_show = None
+
+    def _commit_refresh(self, window, previous_options, selected_rotary, execution_changed, sampling_changed):
+        profiles_changed = bool(self._pending_rotary_profiles)
+        if profiles_changed:
+            window._refresh_rotary_kinematics_menu()
+        rotary_changed = selected_rotary != getattr(window, "rotaryKinematics", None)
+        if rotary_changed or selected_rotary in self._pending_rotary_profiles:
+            window._select_rotary_kinematics(selected_rotary, force_refresh=True)
+        elif execution_changed or sampling_changed or self._plot_options_changed(window, previous_options):
+            _refresh_after_option_changes(
+                window, execution_changed=execution_changed, sampling_changed=sampling_changed
+            )
+        elif (
+            previous_options["playback_speed"] != window.playbackSpeed
+            and getattr(window, "_stock_animation_active", False)
+            and not window.latheMode
+        ):
+            window._request_milling_stock_quality()
+        self._pending_rotary_profiles.clear()
+
+    @staticmethod
+    def _plot_options_changed(window, previous):
+        current = _option_snapshot(window)
+        keys = (
+            "show_stock",
+            "show_rapid",
+            "dashed_rapid",
+            "color_by_tool",
+            "plot_grid",
+            "plot_axes",
+            "grid_step",
+            "line_width",
+            "gradient",
+            "rapid_color",
+            "linear_color",
+            "arc_color",
+            "current_color",
+            "tool_color",
+            "background_color",
+            "stock_color",
+            "cut_color",
+        )
+        return any(previous[key] != current[key] for key in keys)
+
+    def _save_pending_rotary_profiles(self):
+        try:
+            for profile_id, document in self._pending_rotary_profiles.items():
+                save_profile_override(profile_id, document)
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, QCoreApplication.translate("OptionsDlg", "Rotary kinematics JSON"), str(exc))
+            return False
+        return True
+
+    def reject(self):
+        self.postProfileSettings.discard()
+        self._pending_rotary_profiles.clear()
+        LOGGER.info("options_cancelled")
         super().reject()
 
-    def _preview_correction(self, enabled):
-        """Rebuild the current milling trace when G41/G42 correction is toggled."""
-        if self._loading_values:
-            return
-        window = self.parent()
-        if self._correction_before_show is None:
-            self._correction_before_show = getattr(window, "correctionEnabled", True)
-        if window.correctionEnabled == enabled:
-            return
-        window.correctionEnabled = enabled
-        LOGGER.debug("option_preview correction=%s", enabled)
-        if getattr(window, "execution_result", None) is not None:
-            self._correction_preview_applied = bool(window.updateData())
-
-    def _preview_show_stock(self, enabled):
-        """Update the lathe stock outline while the Options dialog is open."""
-        if self._loading_values:
-            return
-        LOGGER.debug("option_preview show_stock=%s", enabled)
-        self.parent().showStockChecked(enabled)
-
-    def _preview_rotary_kinematics(self, _index):
-        """Apply the selected milling orientation immediately to the current plot."""
-        if self._loading_values:
-            return
+    def _rotary_selection_changed(self, _index):
         profile_id = self.ui.rotaryKinematicsCombo.currentData()
         self.ui.rotaryKinematicsEditButton.setEnabled(profile_id is not None)
-        self.parent()._select_rotary_kinematics(profile_id)
 
     def _edit_rotary_kinematics(self):
         profile_id = self.ui.rotaryKinematicsCombo.currentData()
         if profile_id is None:
             return
         try:
-            dialog = RotaryKinematicsJsonDialog(profile_id, self)
+            dialog = RotaryKinematicsJsonDialog(
+                profile_id, self, defer_save=True, document=self._pending_rotary_profiles.get(profile_id)
+            )
         except (OSError, ValueError, json.JSONDecodeError) as exc:
             QMessageBox.warning(
                 self,
@@ -762,9 +769,7 @@ class OptionsDialog(QDialog):
             return
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
-        self.parent()._refresh_rotary_kinematics_menu()
-        self._reload_rotary_kinematics_combo(profile_id)
-        self.parent()._select_rotary_kinematics(self.ui.rotaryKinematicsCombo.currentData(), force_refresh=True)
+        self._pending_rotary_profiles[profile_id] = dialog.document
 
     def pick_color(self, target):
         color = QColorDialog.getColor(QColor(target.text()), self, "Select color")

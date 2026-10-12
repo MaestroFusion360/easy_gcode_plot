@@ -6,8 +6,8 @@
             <rect>
                 <x>0</x>
                 <y>0</y>
-                <width>660</width>
-                <height>470</height>
+                <width>1060</width>
+                <height>720</height>
             </rect>
         </property>
         <property name="windowTitle">
@@ -794,6 +794,146 @@
                             </item>
                         </layout>
                     </widget>
+                    <widget class="QWidget" name="postprocessorsTab">
+                        <attribute name="title">
+                            <string>Postprocessors</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="postprocessorsLayout" stretch="0,1,0">
+                            <item>
+                                <widget class="QLabel" name="postprocessorsHelp">
+                                    <property name="text">
+                                        <string>Select a profile to view or edit. Built-in profiles are read-only; add a copy to customize it.</string>
+                                    </property>
+                                    <property name="wordWrap">
+                                        <bool>true</bool>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QSplitter" name="postProfileSplitter">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Horizontal</enum>
+                                    </property>
+                                    <widget class="QWidget" name="postProfileSidebar">
+                                        <layout class="QVBoxLayout" name="postProfileSidebarLayout">
+                                            <item>
+                                                <widget class="QListWidget" name="postProfileList" />
+                                            </item>
+                                            <item>
+                                                <layout class="QHBoxLayout" name="postProfileActions">
+                                                    <item>
+                                                        <widget class="QPushButton" name="newPostProfileButton">
+                                                            <property name="toolTip">
+                                                                <string>Add</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Add</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/add.png</normaloff>:/resource/icons/add.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item>
+                                                        <widget class="QPushButton" name="savePostProfileButton">
+                                                            <property name="toolTip">
+                                                                <string>Save</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Save</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/save.png</normaloff>:/resource/icons/save.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item>
+                                                        <widget class="QPushButton" name="renamePostProfileButton">
+                                                            <property name="toolTip">
+                                                                <string>Rename</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Rename</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/rename.png</normaloff>:/resource/icons/rename.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item>
+                                                        <widget class="QPushButton" name="removePostProfileButton">
+                                                            <property name="toolTip">
+                                                                <string>Delete</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Delete</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/trash.png</normaloff>:/resource/icons/trash.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                </layout>
+                                            </item>
+                                        </layout>
+                                    </widget>
+                                    <widget class="QWidget" name="postProfileEditorHost">
+                                        <layout class="QVBoxLayout" name="postProfileEditorLayout" />
+                                    </widget>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QLabel" name="postProfileErrorLabel">
+                                    <property name="text">
+                                        <string />
+                                    </property>
+                                    <property name="wordWrap">
+                                        <bool>true</bool>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
                     <widget class="QWidget" name="hotkeysTab">
                         <attribute name="title"><string>Hotkeys</string></attribute>
                         <layout class="QVBoxLayout" name="hotkeysLayout">
@@ -825,7 +965,7 @@
             </item>
         </layout>
     </widget>
-    <resources/>
+    <resources><include location="../../../resources/files_res.qrc"/></resources>
     <connections>
         <connection>
             <sender>buttonBox</sender>

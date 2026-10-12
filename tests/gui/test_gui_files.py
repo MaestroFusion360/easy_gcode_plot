@@ -471,7 +471,9 @@ def test_full_program_normalization_validates_with_the_gui_wcs_offsets(tmp_path)
     ]
 
 
-@pytest.mark.parametrize(("target", "mode"), [(2, "G291"), (3, "G290"), (5, "G290")])
+@pytest.mark.parametrize(
+    ("target", "mode"), [("sinumerik_iso", "G291"), ("sinumerik_840d", "G290"), ("sinumerik_840d_multiaxis", "G290")]
+)
 def test_export_dialog_accept_keeps_sinumerik_mode_first_with_custom_wrappers(
     qt_app, tmp_path, monkeypatch, target, mode
 ):
@@ -500,7 +502,7 @@ def test_export_dialog_accept_keeps_sinumerik_mode_first_with_custom_wrappers(
         dialog.show()
         qt_app.processEvents()
         dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
-        dialog.targetCncCombo.setCurrentIndex(target)
+        dialog.targetCncCombo.setCurrentIndex(dialog.targetCncCombo.findData(target))
         dialog.ui.arcOutputCmbBox.setCurrentIndex(1)
         dialog.ui.startLineEdit.setText("123")
         dialog.ui.endLineEdit.setText("1234")
@@ -516,7 +518,7 @@ def test_export_dialog_accept_keeps_sinumerik_mode_first_with_custom_wrappers(
         assert lines[1] == "N1123"
         assert lines[-1].endswith("1234")
         assert any(line.startswith("N1") for line in lines)
-        assert window.exportTargetCnc == target
+        assert window.exportPostProfile == target
     finally:
         window.deleteLater()
 
@@ -874,8 +876,22 @@ M30
         assert any(m.arc is not None for m in window.execution_result.motions)
         assert {e.kind for e in window.execution_result.events} >= {"TILTED_WORK_PLANE_ON", "TCP_CONTROL_ON"}
         other = "5ax_table_bc_angled" if axis == "A" else "5ax_table_ac_angled"
+        previous_result = window.execution_result
+        window.optionsDlg.show()
         combo.setCurrentIndex(combo.findData(other))
+        assert window.rotaryKinematics == profile
+        assert window.execution_result is previous_result
+        window.optionsDlg.reject()
+        assert window.rotaryKinematics == profile
+        assert window.execution_result is previous_result
+        window.optionsDlg.show()
+        assert combo.currentData() == profile
+        combo.setCurrentIndex(combo.findData(other))
+        assert window.rotaryKinematics == profile
+        assert window.execution_result is previous_result
+        window.optionsDlg.accept()
         assert window.rotaryKinematics == other
+        assert window.execution_result is not previous_result
         assert not window.execution_result.ok
         assert window.execution_result.diagnostics[-1].code == "UNCONFIGURED_ROTARY_AXIS"
         # Opening a different native file must retain the user's selected profile.

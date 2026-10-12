@@ -1,0 +1,142 @@
+{
+  "id": "heidanhain_itnc530",
+  "name": "Heidenhain iTNC 530",
+  "machine": "mill",
+  "extension": "h",
+  "options": {
+    "incrementalMode": false,
+    "delimiter": true,
+    "leadingZero": false,
+    "decimalPlaces": 3,
+    "forceDecimal": false,
+    "plusOutput": true,
+    "units": "mm"
+  },
+  "format": {
+    "outputArcs": true,
+    "arcMode": "IJK",
+    "arcCenter": "absolute",
+    "absoluteCenterSyntax": "words",
+    "radiusAddress": "CR=",
+    "multiTurnArcs": false,
+    "arcSplitAngle": 5400,
+    "radiusSplitAngle": 180,
+    "fullCircle": "two_half",
+    "words": {
+      "motion": {
+        "order": 10,
+        "required": true
+      },
+      "X": {
+        "order": 20,
+        "required": false,
+        "sign": "always"
+      },
+      "Y": {
+        "order": 30,
+        "required": false,
+        "sign": "always"
+      },
+      "Z": {
+        "order": 40,
+        "required": false,
+        "sign": "always"
+      }
+    }
+  },
+  "motion": {
+    "rapidMove": "L FMAX",
+    "linearMove": "L",
+    "circularMoveCW": "DR-",
+    "circularMoveCCW": "DR+",
+    "planeXY": "",
+    "planeXZ": "",
+    "planeYZ": "",
+    "threadMove": ""
+  },
+  "positioning": {
+    "absolute": "",
+    "incremental": "",
+    "incrementalAxes": {}
+  },
+  "native": {
+    "linear": "L",
+    "circleCenter": "CC",
+    "circle": "C",
+    "polarCircle": "CP",
+    "radiusCircle": "R",
+    "clockwise": "DR-",
+    "counterclockwise": "DR+",
+    "rapidFeed": "FMAX",
+    "compensationOff": "R0",
+    "machineCoordinates": "M91",
+    "cycleCall": "CYCL CALL",
+    "dwellDefinition": "CYCL DEF 9.0 DWELL TIME"
+  },
+  "home": {
+    "G28": {},
+    "G53": {}
+  },
+  "cycles": {
+    "syntax": "native",
+    "cancel": "CYCL DEF 0",
+    "drill": "CYCL DEF 200 DRILLING",
+    "drillDwell": "CYCL DEF 200 DRILLING",
+    "peckDrill": "CYCL DEF 203 UNIVERSAL DRILLING",
+    "tap": "CYCL DEF 207 RIGID TAPPING NEW",
+    "boreFeed": "CYCL DEF 201 REAMING",
+    "boreStop": "CYCL DEF 202 BORING"
+  },
+  "tool": {
+    "toolChange": "TOOL CALL {tool} Z {code}"
+  },
+  "spindle": {
+    "cw": "M3",
+    "ccw": "M4",
+    "stop": "M5",
+    "cssOn": "",
+    "cssOff": "",
+    "maxSpeed": ""
+  },
+  "coolant": {
+    "mist": "M7",
+    "flood": "M8",
+    "off": "M9"
+  },
+  "feed": {
+    "perMinute": "",
+    "perRev": "",
+    "inverseTime": ""
+  },
+  "units": {
+    "inch": "INCH",
+    "metric": "MM"
+  },
+  "dwell": {
+    "command": "CYCL DEF 9.1 DWELL {dwell}",
+    "address": "F",
+    "scale": 1
+  },
+  "program": {
+    "start": "BEGIN PGM {programName} {units}",
+    "preamble": [],
+    "safety": [],
+    "stop": "STOP",
+    "optionalStop": "M1",
+    "end": "END PGM {programName} {units}"
+  },
+  "supports": {
+    "axes": [
+      "X",
+      "Y",
+      "Z"
+    ],
+    "inverseTime": false,
+    "multiTurnArcs": false,
+    "absoluteArcCenters": true,
+    "tcp": false
+  },
+  "comment": {
+    "template": "; {text}"
+  }
+}

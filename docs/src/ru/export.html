@@ -17,6 +17,11 @@
         программы. GUI, CLI и пакетный экспорт используют одинаковый расчёт и
         правила вывода.
       </p>
+      <p>
+        В EXPANDED EXECUTION выберите встроенный или сохранённый
+        пользовательский пост в Target CNC. Кнопка + импортирует готовый
+        JSON-профиль для текущего типа станка, не меняя исходный файл.
+      </p>
       <a class="text-link" href="#dialect-conversion"
         >Подробнее о конвертации стоек →</a
       >
@@ -26,15 +31,64 @@
         href="../assets-optimized/export.webp"
         data-gallery="export"
         aria-label="Настройки экспорта"
-        ><img
+      >
+        <img
           src="../assets-optimized/export.webp"
-          width="622"
+          width="649"
           height="462"
           alt="Настройки экспорта"
           loading="lazy"
           decoding="async"
-      /></a>
+        />
+      </a>
       <figcaption>Настройки экспорта</figcaption>
+    </figure>
+  </article>
+  <article class="story story-reverse">
+    <div class="story-copy">
+      <h3>Постпроцессоры для вашей стойки</h3>
+      <p>Доступны восемь встроенных постов экспорта:</p>
+      <ul>
+        <li>
+          Фрезерование: FANUC, SINUMERIK 840D ISO-M (G291), SINUMERIK 840D
+          native и Heidenhain iTNC 530.
+        </li>
+        <li>Многоосевое фрезерование: FANUC и SINUMERIK 840D native.</li>
+        <li>Токарная обработка: FANUC lathe A и FANUC lathe B.</li>
+      </ul>
+      <p>
+        Пост Heidenhain выводит BEGIN/END PGM, TOOL CALL, L/FMAX, CC с C/CP, CR
+        и циклы сверления в EXPANDED.
+      </p>
+      <p>
+        Настраивайте посты в «Настройки / Постпроцессоры». Слева выбирается
+        профиль, справа редактируются его параметры. Кнопки под списком создают
+        копию, сохраняют, переименовывают и удаляют пользовательские профили;
+        встроенные посты доступны только для чтения.
+      </p>
+      <p>
+        Сохраните новую копию кнопкой «Сохранить» или OK. Перед сохранением
+        профиль проверяется; «Отмена» отбрасывает несохранённые правки.
+        Пользовательские профили появляются в экспорте рядом со встроенными
+        постами.
+      </p>
+    </div>
+    <figure class="screenshot-card">
+      <a
+        href="../assets-optimized/posts.webp"
+        data-gallery="export"
+        aria-label="Библиотека постпроцессоров и встроенный редактор"
+      >
+        <img
+          src="../assets-optimized/posts.webp"
+          width="992"
+          height="652"
+          alt="Библиотека постпроцессоров и встроенный редактор"
+          loading="lazy"
+          decoding="async"
+        />
+      </a>
+      <figcaption>Библиотека постпроцессоров и встроенный редактор</figcaption>
     </figure>
   </article>
   <p class="note">

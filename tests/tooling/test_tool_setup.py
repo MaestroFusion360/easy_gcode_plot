@@ -17,6 +17,7 @@ from app.main_window import MainWindow
 from app.tools import discovery
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.milling_geometry import milling_geometry_key
+from app.tools.program_io import read_program_tools, write_program_tools
 from app.tools.setup import refresh_setup
 from app.ui.dialogs import tool_dialogs, tool_library_dialog
 
@@ -86,8 +87,10 @@ def test_current_program_edit_rebuilds_active_stock_without_changing_saved_libra
     assert window._stock_animation_active
     window.ui.horizontalSlider.setValue(window.ui.horizontalSlider.maximum())
     previous = window._stock_timeline
-    window.millingTools["T2"] = {**assigned, "diameter": 6}
-    window.toolLibraryDlg._program_tool_changed()
+    window.toolLibraryDlg._editable_program_tools("milling")["T2"] = {**assigned, "diameter": 6}
+    assert window._stock_timeline is previous
+    assert window.millingTools["T2"]["diameter"] == 4
+    window.toolLibraryDlg.accept()
     assert window._stock_animation_active
     assert window._stock_timeline is not previous
     assert window._stock_timeline.tools["T2"]["diameter"] == 6
@@ -209,6 +212,8 @@ def test_library_assignment_copies_geometry_into_selected_program_number(window,
     monkeypatch.setattr(window, "updateData", lambda: True)
     dialog.refresh("milling", selected_program="T7", selected_library="T1")
     dialog.assign_from_library("milling")
+    assert dialog._program_tools("milling")["T7"] == original
+    dialog.accept()
     assert set(window.millingTools) == {"T7"}
     assert window.millingTools["T7"] == original
     window.millingTools["T7"]["diameter"] = 22
@@ -446,6 +451,145 @@ def test_tool_library_export_uses_complete_saved_kind_not_current_selection(wind
 
 
 @pytest.mark.parametrize(
+    "kind,attribute,base,keys",
+    [
+        ("milling", "millingTools", DEFAULT_MILLING_TOOL, ("T1", "T7")),
+        ("turning", "tools", DEFAULT_TURNING_TOOL, ("T0101", "T0202")),
+    ],
+)
+def test_program_json_buttons_roundtrip_without_changing_library(
+    window, tmp_path, monkeypatch, kind, attribute, base, keys, caplog
+):
+    caplog.set_level("INFO", logger=tool_library_dialog.__name__)
+    dialog = window.toolLibraryDlg
+    tools = {key: {**base, "description": key, "offsets": {"wear": -0.02}} for key in keys}
+    setattr(window, attribute, deepcopy(tools))
+    dialog.refresh(kind, selected_program=keys[0])
+    saved = deepcopy(dialog.library_tools(kind))
+    database = settings.get_tool_library().list_tools()
+    path = tmp_path / "program_tools.json"
+    monkeypatch.setattr(tool_library_dialog.QFileDialog, "getSaveFileName", lambda *a: (str(path), ""))
+    getattr(dialog.ui, f"{kind}ExportProgramButton").click()
+    assert read_program_tools(path, kind) == tools
+    getattr(window, attribute)[keys[0]]["description"] = "Edited"
+    monkeypatch.setattr(tool_library_dialog.QFileDialog, "getOpenFileName", lambda *a: (str(path), ""))
+    calls = []
+    monkeypatch.setattr(dialog, "_program_tool_changed", lambda: calls.append(True))
+    getattr(dialog.ui, f"{kind}ImportProgramButton").click()
+    assert calls == []
+    assert getattr(window, attribute)[keys[0]]["description"] == "Edited"
+    assert dialog._program_tools(kind) == tools
+    dialog.accept()
+    assert getattr(window, attribute) == tools
+    assert calls == [True]
+    assert dialog.library_tools(kind) == saved
+    assert settings.get_tool_library().list_tools() == database
+    assert "program_tools_exported" in caplog.text
+    assert "program_tools_imported" in caplog.text
+    assert f"kind={kind}" in caplog.text
+
+
+def test_program_import_updates_matching_slots_and_preserves_other_tools(window, tmp_path, monkeypatch):
+    dialog = window.toolLibraryDlg
+    window.millingTools = {"T1": dict(DEFAULT_MILLING_TOOL), "T2": dict(DEFAULT_MILLING_TOOL)}
+    source = tmp_path / "program.json"
+    spec = {**DEFAULT_MILLING_TOOL, "diameter": 6.0, "metadata": {"label": "Test"}}
+    write_program_tools(source, "milling", {"T1": spec, "T7": spec})
+    monkeypatch.setattr(dialog, "_program_tool_changed", lambda: None)
+    skipped = []
+    monkeypatch.setattr(QMessageBox, "information", lambda *args: skipped.append(args[-1]))
+    assert dialog.import_program_tools("milling", str(source))
+    assert window.millingTools["T1"] == DEFAULT_MILLING_TOOL
+    dialog.accept()
+    assert window.millingTools == {"T1": spec, "T2": DEFAULT_MILLING_TOOL}
+    assert "T7" in skipped[0]
+
+
+@pytest.mark.parametrize("failure", ["invalid", "wrong_kind", "unmatched", "missing"])
+def test_invalid_program_import_keeps_all_assignments(window, tmp_path, monkeypatch, failure):
+    dialog = window.toolLibraryDlg
+    window.millingTools = {"T1": dict(DEFAULT_MILLING_TOOL)}
+    before = deepcopy(window.millingTools)
+    source = tmp_path / "program.json"
+    if failure == "invalid":
+        source.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "kind": "milling",
+                    "tools": {"T1": {**DEFAULT_MILLING_TOOL, "diameter": 7}, "T2": {"type": "oops"}},
+                }
+            )
+        )
+    elif failure == "wrong_kind":
+        write_program_tools(source, "turning", {"T0101": DEFAULT_TURNING_TOOL})
+    elif failure == "unmatched":
+        write_program_tools(source, "milling", {"T7": DEFAULT_MILLING_TOOL})
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    assert not dialog.import_program_tools("milling", str(source))
+    assert window.millingTools == before
+    assert warnings
+
+
+def test_program_file_picker_cancellation_has_no_effect(window, monkeypatch):
+    dialog = window.toolLibraryDlg
+    monkeypatch.setattr(tool_library_dialog.QFileDialog, "getOpenFileName", lambda *a: ("", ""))
+    monkeypatch.setattr(tool_library_dialog.QFileDialog, "getSaveFileName", lambda *a: ("", ""))
+    assert not dialog.import_program_tools("milling")
+    assert not dialog.export_program_tools("milling")
+
+
+def test_program_export_reports_io_failure(window, monkeypatch):
+    dialog = window.toolLibraryDlg
+
+    def fail(*_args):
+        raise OSError("Disk unavailable")
+
+    monkeypatch.setattr(tool_library_dialog, "write_program_tools", fail)
+    warnings = []
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    assert not dialog.export_program_tools("milling", "unused.json")
+    assert warnings == ["Disk unavailable"]
+
+
+@pytest.mark.parametrize("filename", ["program.nc", "program.mpf", "program.txt", "program"])
+def test_program_export_picker_preserves_non_json_files(window, tmp_path, monkeypatch, filename, caplog):
+    destination = tmp_path / filename
+    original = b"G21\r\nT1 M6\r\nM30\r\n"
+    destination.write_bytes(original)
+    window.millingTools = {"T1": dict(DEFAULT_MILLING_TOOL)}
+    warnings = []
+    monkeypatch.setattr(tool_library_dialog.QFileDialog, "getSaveFileName", lambda *_: (str(destination), ""))
+    monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args[-1]))
+    assert not window.toolLibraryDlg.export_program_tools("milling")
+    assert destination.read_bytes() == original
+    assert len(warnings) == 1 and ".json" in warnings[0]
+    assert "program_tools_export_failed" in caplog.text
+
+
+def test_imported_program_tools_survive_real_document_discovery(window, tmp_path, monkeypatch):
+    window.ui.actionLatheMode.setChecked(False)
+    source = "T1 M6\nG1 X10 F100\nM30"
+    window.ui.editor.setText(source)
+    window.discover_program_tools(source)
+    path = tmp_path / "program.json"
+    spec = {**DEFAULT_MILLING_TOOL, "diameter": 7.0, "offsets": {"wear": -0.02}, "metadata": {"custom": True}}
+    write_program_tools(path, "milling", {"T1": spec})
+
+    def update():
+        window.discover_program_tools(source)
+        return True
+
+    monkeypatch.setattr(window, "updateData", update)
+    assert window.toolLibraryDlg.import_program_tools("milling", str(path))
+    window.toolLibraryDlg.accept()
+    assert window.millingTools["T1"] == spec
+    window.discover_program_tools(source)
+    assert window.millingTools["T1"] == spec
+
+
+@pytest.mark.parametrize(
     ("turning", "key", "alias", "source", "spec"),
     [
         (False, "T2", "T02", "T2 M6\nG83 Z-10 R2 F100\n", {"type": "drill", "diameter": 7.0, "length": 42.0}),
@@ -589,7 +733,8 @@ def test_named_program_tool_geometry_can_be_edited_and_saved_to_numeric_library(
 
     monkeypatch.setattr(tool_library_dialog._MillingToolEditor, "exec", accept_geometry)
     dialog.edit_program_tool("milling")
-    assert window.millingTools[key]["diameter"] == 8
+    assert window.millingTools[key]["diameter"] == DEFAULT_MILLING_TOOL["diameter"]
+    assert dialog._program_tools("milling")[key]["diameter"] == 8
 
     def accept_library(editor):
         assert editor.toolCode.isEnabled()

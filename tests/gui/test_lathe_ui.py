@@ -210,9 +210,14 @@ def test_show_stock_toggles_the_outline_without_changing_lathe_mode(qt_app):
     qt_app.processEvents()
     window.optionsDlg.ui.showStockCheck.setChecked(False)
     assert window.latheMode is True
+    assert _stock_outline_is_visible(window)
+    window.optionsDlg.accept()
     assert not _stock_outline_is_visible(window)
 
+    window.optionsDlg.show()
     window.optionsDlg.ui.showStockCheck.setChecked(True)
+    assert not _stock_outline_is_visible(window)
+    window.optionsDlg.accept()
     assert _stock_outline_is_visible(window)
     window.optionsDlg.reject()
     window.deleteLater()

@@ -10,6 +10,7 @@ from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import MILLING_TARGETS, convert_resolved_program, load_post_profile
 from app.gcode.export_file import ExportRequest, export_file, validate_export_request
 from app.gcode.kernel import execute
+from app.gcode.post_profiles import POST_TARGETS
 from app.gcode.post_profiles import load_post_profile as dedicated_load_post_profile
 from app.gcode.trace_tools import motion_length
 
@@ -29,6 +30,13 @@ def test_native_drilling_is_postprocessed_from_resolved_operation(cycle, target)
     result = execute(source, language="fanuc_mill", source_dialect="sinumerik")
     assert result.ok and result.complete, result.diagnostics
     output = convert_resolved_program(result, target, ExportOptions(delimiter=True))
+    if target == "heidanhain_itnc530":
+        definition = {"CYCLE81": 200, "CYCLE82": 200, "CYCLE83": 203, "CYCLE84": 207}[cycle.split("(")[0]]
+        assert f"CYCL DEF {definition}" in output
+        assert "CYCL CALL" in output
+        assert "Q201=-9" in output or "Q201=-6" in output
+        assert "MCALL" not in output
+        return
     if target == "sinumerik_840d":
         assert "MCALL CYCLE" in output
     else:
@@ -77,7 +85,7 @@ def test_post_profile_loader_has_dedicated_module():
 
 
 def test_post_profiles_are_packaged():
-    assert len(list(Path(expanded.__file__).with_name("posts").glob("*.json"))) == 7
+    assert {path.stem for path in Path(expanded.__file__).with_name("posts").glob("*.json")} == set(POST_TARGETS)
 
 
 def test_external_motion_templates_and_numeric_policy_replay(tmp_path):

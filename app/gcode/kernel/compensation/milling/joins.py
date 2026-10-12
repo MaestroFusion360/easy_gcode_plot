@@ -22,7 +22,10 @@ def _line_line_intersection(a: _ProjectedMotion, b: _ProjectedMotion) -> list[_P
     avx, avy = a.end[0] - a.start[0], a.end[1] - a.start[1]
     bvx, bvy = b.end[0] - b.start[0], b.end[1] - b.start[1]
     det = avx * bvy - avy * bvx
-    if abs(det) <= EPS:
+    # det is proportional to both segment lengths. Compare the sine of
+    # the angle instead, otherwise the decision depends on NC unit scale.
+    lengths = math.hypot(avx, avy) * math.hypot(bvx, bvy)
+    if lengths <= EPS * EPS or abs(det) <= EPS * lengths:
         return []
     dx, dy = b.start[0] - a.start[0], b.start[1] - a.start[1]
     t = (dx * bvy - dy * bvx) / det

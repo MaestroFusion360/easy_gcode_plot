@@ -64,12 +64,14 @@ def _solve_entry(
     )
 
 
-def _solve_exit(exit_motion: TraceMotion, previous_compensated: TraceMotion) -> TraceMotion:
+def _solve_exit(
+    exit_motion: TraceMotion, previous_compensated: TraceMotion, tolerance: float = _GEOMETRY_TOLERANCE
+) -> TraceMotion:
     projected_exit = _project_motion(exit_motion) if exit_motion.move in (1, 2, 3) else None
     projected_previous = _project_motion(previous_compensated)
     if projected_exit is not None and projected_previous is not None:
         retargeted = _retarget_start(projected_exit, projected_previous.end, projected_previous.end_w)
-        if retargeted.is_arc and _get_progress(retargeted, retargeted.start, _GEOMETRY_TOLERANCE) is None:
+        if retargeted.is_arc and _get_progress(retargeted, retargeted.start, tolerance) is None:
             return replace(
                 exit_motion,
                 start_x=previous_compensated.end_x,

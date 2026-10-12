@@ -17,8 +17,10 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PyQt6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog,
     QDialogButtonBox, QFrame, QGridLayout, QHBoxLayout,
-    QLabel, QLineEdit, QSizePolicy, QSpacerItem,
-    QSpinBox, QVBoxLayout, QWidget)
+    QLabel, QLineEdit, QPushButton, QSizePolicy,
+    QSpacerItem, QSpinBox, QVBoxLayout, QWidget)
+
+import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
 
 class Ui_ExportOptDlg(object):
     def setupUi(self, ExportOptDlg):
@@ -50,10 +52,32 @@ class Ui_ExportOptDlg(object):
 
         self.gridLeftMode.addWidget(self.label_TargetCnc, 1, 0, 1, 1)
 
+        self.postProfileLayout = QHBoxLayout()
+        self.postProfileLayout.setObjectName(u"postProfileLayout")
         self.targetCncCombo = QComboBox(ExportOptDlg)
         self.targetCncCombo.setObjectName(u"targetCncCombo")
+        self.targetCncCombo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.targetCncCombo.setMinimumContentsLength(22)
 
-        self.gridLeftMode.addWidget(self.targetCncCombo, 1, 1, 1, 1)
+        self.postProfileLayout.addWidget(self.targetCncCombo)
+
+        self.postProfileButton = QPushButton(ExportOptDlg)
+        self.postProfileButton.setObjectName(u"postProfileButton")
+        icon = QIcon()
+        icon.addFile(u":/resource/icons/add.png", QSize(), QIcon.Mode.Normal, QIcon.State.Off)
+        self.postProfileButton.setIcon(icon)
+        self.postProfileButton.setIconSize(QSize(16, 16))
+
+        self.postProfileLayout.addWidget(self.postProfileButton)
+
+
+        self.gridLeftMode.addLayout(self.postProfileLayout, 1, 1, 1, 1)
+
+        self.postProfileWarning = QLabel(ExportOptDlg)
+        self.postProfileWarning.setObjectName(u"postProfileWarning")
+        self.postProfileWarning.setWordWrap(True)
+
+        self.gridLeftMode.addWidget(self.postProfileWarning, 3, 0, 1, 2)
 
         self.arcOutputLabel = QLabel(ExportOptDlg)
         self.arcOutputLabel.setObjectName(u"arcOutputLabel")
@@ -315,6 +339,14 @@ class Ui_ExportOptDlg(object):
         ExportOptDlg.setWindowTitle(QCoreApplication.translate("ExportOptDlg", u"Export Options", None))
         self.label_Lang.setText(QCoreApplication.translate("ExportOptDlg", u"Export Type", None))
         self.label_TargetCnc.setText(QCoreApplication.translate("ExportOptDlg", u"Target CNC", None))
+        self.postProfileButton.setText("")
+#if QT_CONFIG(accessibility)
+        self.postProfileButton.setAccessibleName(QCoreApplication.translate("ExportOptDlg", u"Add ready\u2026", None))
+#endif // QT_CONFIG(accessibility)
+#if QT_CONFIG(tooltip)
+        self.postProfileButton.setToolTip(QCoreApplication.translate("ExportOptDlg", u"Import a ready postprocessor from a JSON file", None))
+#endif // QT_CONFIG(tooltip)
+        self.postProfileWarning.setText("")
         self.arcOutputLabel.setText(QCoreApplication.translate("ExportOptDlg", u"Arc Output", None))
         self.arcOutputCmbBox.setItemText(0, QCoreApplication.translate("ExportOptDlg", u"IJK RELATIVE", None))
         self.arcOutputCmbBox.setItemText(1, QCoreApplication.translate("ExportOptDlg", u"IJK ABSOLUTE", None))

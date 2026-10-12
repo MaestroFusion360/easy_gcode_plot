@@ -42,6 +42,171 @@
     </figure>
   </div>
   <details class="reference-panel">
+    <summary>Milling tool types — 9 options</summary>
+    <div class="reference-body">
+      <p>
+        On the milling tab, add a tool to the library, then choose its type and
+        dimensions. The names below match the editor list. All types have a
+        diameter, flute length and body length; length to holder is the sum of
+        the two lengths. Enter dimensions in millimetres or inches.
+      </p>
+      <div
+        class="table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="Milling tool types"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Editor type</th>
+              <th scope="col">Shape</th>
+              <th scope="col">Specific settings</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Flat Mill</td>
+              <td>Flat-ended end mill</td>
+              <td>Diameter and lengths</td>
+            </tr>
+            <tr>
+              <td>Bull Mill</td>
+              <td>Corner-radius end mill</td>
+              <td>Corner radius, at most half the diameter</td>
+            </tr>
+            <tr>
+              <td>Ball Mill</td>
+              <td>Ball-ended mill</td>
+              <td>Ball radius automatically equals half the diameter</td>
+            </tr>
+            <tr>
+              <td>Taper Ball Mill</td>
+              <td>Tapered mill with a spherical tip</td>
+              <td>Ball-tip diameter and taper angle</td>
+            </tr>
+            <tr>
+              <td>Face Mill</td>
+              <td>Face mill</td>
+              <td>Shank diameter smaller than head diameter</td>
+            </tr>
+            <tr>
+              <td>Slot Mill</td>
+              <td>Mushroom cutter</td>
+              <td>Shank diameter and flute length</td>
+            </tr>
+            <tr>
+              <td>Chamfer Mill</td>
+              <td>Chamfer cutter</td>
+              <td>Flat-tip diameter and chamfer angle</td>
+            </tr>
+            <tr>
+              <td>Drill</td>
+              <td>Drill</td>
+              <td>Point angle</td>
+            </tr>
+            <tr>
+              <td>Tap</td>
+              <td>Tap</td>
+              <td>Diameter and lengths</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        For face and mushroom cutters, flute length defines the head height.
+        Older records with a single total length retain a separate
+        cutting-height field until the split lengths are edited.
+      </p>
+    </div>
+  </details>
+  <details class="reference-panel">
+    <summary>Turning tool types — 9 options</summary>
+    <div class="reference-body">
+      <p>
+        In the turning editor, choose a category, machining direction and
+        available type. OD means external machining, ID means internal
+        machining, and Face means face machining. Available types and P tip
+        orientations depend on the selected direction.
+      </p>
+      <div
+        class="table-wrap"
+        tabindex="0"
+        role="region"
+        aria-label="Turning tool types"
+      >
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Editor type</th>
+              <th scope="col">Shape</th>
+              <th scope="col">Settings</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Diamond 80</td>
+              <td>80° diamond insert</td>
+              <td>Nose radius, insert size and P orientation</td>
+            </tr>
+            <tr>
+              <td>Diamond 35</td>
+              <td>35° diamond insert</td>
+              <td>Nose radius, insert size and P orientation</td>
+            </tr>
+            <tr>
+              <td>Square</td>
+              <td>Square insert</td>
+              <td>Nose radius, insert size and P orientation</td>
+            </tr>
+            <tr>
+              <td>Round</td>
+              <td>Round insert</td>
+              <td>Insert diameter, nose radius and P orientation</td>
+            </tr>
+            <tr>
+              <td>Triangle</td>
+              <td>Triangular insert</td>
+              <td>Nose radius, insert size and P orientation</td>
+            </tr>
+            <tr>
+              <td>Groove</td>
+              <td>Grooving tool</td>
+              <td>
+                Width, nose radius and P orientation; radial or face groove
+                geometry
+              </td>
+            </tr>
+            <tr>
+              <td>Thread</td>
+              <td>Threading tool</td>
+              <td>
+                Insert size, profile angle, tip width EX, corner radius RC and P
+                orientation
+              </td>
+            </tr>
+            <tr>
+              <td>Drill</td>
+              <td>Drill</td>
+              <td>Diameter, length and point angle</td>
+            </tr>
+            <tr>
+              <td>Tap</td>
+              <td>Tap</td>
+              <td>Diameter, length and point angle</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p>
+        The saved library and current-program tools are separate lists. Assign a
+        library entry to a program tool to use its geometry; save an edited
+        program tool to the library for later work. Use the preview to check
+        shape and orientation before saving.
+      </p>
+    </div>
+  </details>
+  <details class="reference-panel">
     <summary>Editor snippets and settings</summary>
     <div class="media-pair reference-body">
       <figure class="screenshot-card">

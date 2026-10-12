@@ -21,7 +21,7 @@ from app.gcode.export.common import (
 from app.gcode.export_file import ExportRequest, write_export
 from app.gcode.file_io import protect_source
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
-from app.gcode.post_profiles import export_file_suffix, target_post_for_index
+from app.gcode.post_profiles import POST_TARGETS, export_file_suffix, target_post_for_index
 from app.gcode.source_mode import (
     SINUMERIK_MODE_SIEMENS,
     SOURCE_DIALECT_FANUC,
@@ -30,6 +30,7 @@ from app.gcode.source_mode import (
     source_dialect_for_path,
 )
 from app.gcode.trace_tools import format_tool_list, trace_statistics
+from app.post_profile_library import PostProfileLibrary
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
 from app.ui.dialogs.export_tool_numbers import select_tool_numbers
@@ -180,14 +181,26 @@ def _export_file_defaults(owner, dxf_export):
 def _export_target(owner):
     dxf_export = int(owner.exportMode) == DXF_MODE
     file_filter = "DXF (*.dxf)" if dxf_export else SAVE_FILE_FILTER
-    suggested, initial_filter, suffix = _export_file_defaults(owner, dxf_export)
+    try:
+        suggested, initial_filter, suffix = _export_file_defaults(owner, dxf_export)
+    except (OSError, ValueError) as exc:
+        _show_export_error(owner, exc, getattr(owner, "execution_result", None))
+        return None
+    if suffix not in {".nc", ".mpf", ".spf", ".dxf"}:
+        initial_filter = f"Postprocessor output (*{suffix})"
+        file_filter = initial_filter + ";;" + file_filter
     path, selected_filter = QFileDialog.getSaveFileName(owner, "Export", suggested, file_filter, initial_filter)
     if not path:
         return None
     if dxf_export and Path(path).suffix.casefold() != ".dxf":
         path = str(Path(path).with_suffix(".dxf"))
     elif not dxf_export and not Path(path).suffix:
-        path += {NC_PROGRAM_FILTER: ".nc", SINUMERIK_FILE_FILTER: ".mpf"}.get(selected_filter, suffix)
+        custom = getattr(owner, "exportPostProfile", "") not in {"", "auto", *POST_TARGETS}
+        path += (
+            suffix
+            if custom and owner.exportMode == EXPANDED_EXECUTION_MODE
+            else {NC_PROGRAM_FILTER: ".nc", SINUMERIK_FILE_FILTER: ".mpf"}.get(selected_filter, suffix)
+        )
     try:
         protect_source(path, getattr(owner, "curFile", None))
     except (OSError, ValueError) as exc:
@@ -224,6 +237,15 @@ _ARC_TYPES = ("ijk-relative", "ijk-absolute", "radius", "linearized")
 
 def _target_dialect(owner) -> str | None:
     """Resolve the target post profile name for the EXPANDED target combo."""
+    selection = getattr(owner, "exportPostProfile", "")
+    if selection == "auto":
+        return None
+    if selection:
+        profile = PostProfileLibrary.load(selection)
+        machine = "lathe" if getattr(owner, "latheMode", False) else "mill"
+        if profile["machine"] != machine:
+            raise ValueError("Selected postprocessor does not match the machine. Select Auto or a valid profile.")
+        return selection
     return target_post_for_index(
         int(getattr(owner, "exportTargetCnc", 0)), turning=bool(getattr(owner, "latheMode", False))
     )
@@ -240,7 +262,7 @@ def _export_request(owner) -> tuple[ExportRequest, str, str]:
     mode = int(getattr(owner, "exportMode", EXPANDED_EXECUTION_MODE))
     format_name = "dxf" if mode == DXF_MODE else "nc"
     nc_mode = "full" if mode in (TURN_FULL_PROGRAM_MODE, MILL_FULL_PROGRAM_MODE) else "expanded"
-    target_dialect = None if nc_mode == "full" else _target_dialect(owner)
+    target_dialect = _target_dialect(owner) if mode == EXPANDED_EXECUTION_MODE else None
     request = ExportRequest(
         language="fanuc_turn" if bool(getattr(owner, "latheMode", False)) else "fanuc_mill",
         target_dialect=target_dialect,
@@ -298,6 +320,24 @@ def _write_export(owner, *, path, result, request, source, render_points, cancel
         messages = "; ".join(diagnostic.message for diagnostic in exported.execution.diagnostics)
         raise OSError(messages or "Export failed")
     return True
+
+
+def _export_inputs(owner, result):
+    """Revalidate the selected post if files changed after the save dialog."""
+    try:
+        request, source, _encoding = _export_request(owner)
+        if request.mode == "expanded" and request.format == "nc":
+            numbers = select_tool_numbers(
+                owner, result, request.target_dialect, getattr(owner, "exportToolNumbers", {})
+            )
+            if numbers is None:
+                return None
+            owner.exportToolNumbers = numbers
+            request, source, _encoding = _export_request(owner)
+        return request, source
+    except (OSError, ValueError) as exc:
+        _show_export_error(owner, exc, result)
+        return None
 
 
 class MainWindowFileMixin:
@@ -762,12 +802,14 @@ class MainWindowFileMixin:
             protect_source(target, source_path)
             _atomic_write(target, report + "\n", encoding="utf-8-sig")
         except (OSError, ValueError) as exc:
+            LOGGER.exception("tool_list_export_failed path=%s", target)
             QMessageBox.critical(
                 self,
                 QCoreApplication.translate("MainWindow", "Tool List"),
                 QCoreApplication.translate("MainWindow", "Cannot write tool list %s:\n%s.") % (target, exc),
             )
             return False
+        LOGGER.info("tool_list_export_completed path=%s tools=%d", target, len(tools))
         self.statusBar().showMessage(
             QCoreApplication.translate("MainWindow", "Tool list exported to %s") % target,
             5000,
@@ -795,15 +837,18 @@ class MainWindowFileMixin:
                 )
             return
         result = self.execution_result
-        request, source, _encoding = _export_request(self)
-        if request.mode == "expanded" and request.format == "nc":
-            tool_numbers = select_tool_numbers(
-                self, result, request.target_dialect, getattr(self, "exportToolNumbers", {})
-            )
-            if tool_numbers is None:
-                return
-            self.exportToolNumbers = tool_numbers
-            request, source, _encoding = _export_request(self)
+        inputs = _export_inputs(self, result)
+        if inputs is None:
+            return
+        request, source = inputs
+        LOGGER.info(
+            "export_started path=%s format=%s mode=%s target_post=%s encoding=%s",
+            path,
+            request.format,
+            request.mode,
+            request.target_dialect,
+            request.encoding,
+        )
         cancellation = Event()
         try:
             written = run_execution(
@@ -826,6 +871,7 @@ class MainWindowFileMixin:
             if written is False:
                 raise InterruptedError
         except InterruptedError:
+            LOGGER.info("export_cancelled path=%s", path)
             self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "Export cancelled."), 5000)
             QMessageBox.information(
                 self,

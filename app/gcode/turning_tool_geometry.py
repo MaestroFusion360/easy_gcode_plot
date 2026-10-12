@@ -528,6 +528,10 @@ def display_tool_geometry(spec: dict[str, object], stock_diameter: float, applic
     if tool_type in {"drill", "tap"}:
         diameter = positive_float(spec, "diameter", max(2.0, stock_diameter * 0.1))
         length = positive_float(spec, "length", max(12.0, diameter * 4.0))
+        if tool_type == "tap":
+            radius = diameter * 0.5
+            points = ((-radius, 0.0), (-radius, length), (radius, length), (radius, 0.0))
+            return points, max(1.0, diameter * 0.35), (tool_type, diameter, length)
         angle = min(179.0, max(1.0, positive_float(spec, "tipAngle", 60.0 if tool_type == "tap" else 118.0)))
         cone = (diameter * 0.5) / math.tan(math.radians(angle * 0.5))
         points = (

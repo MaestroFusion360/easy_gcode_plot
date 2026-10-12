@@ -14,13 +14,13 @@ def _tool_radius(tool: dict[str, object] | None) -> float | None:
     if not isinstance(tool, dict):
         return None
     tool_type = str(tool.get("type", "")).lower()
-    if tool_type not in {"mill_flat", "mill_bull", "mill_ball"}:
+    if tool_type not in {"mill_flat", "mill_bull", "mill_ball", "face_mill", "slot_mill", "chamfer_mill"}:
         return None
     try:
         diameter = float(tool.get("diameter", 0.0))
     except (TypeError, ValueError):
         return None
-    return diameter * 0.5 if diameter > 0.0 else None
+    return diameter * 0.5 if math.isfinite(diameter) and diameter > 0.0 else None
 
 
 def _offset_line(projected: _ProjectedMotion, distance: float) -> _ProjectedMotion | None:

@@ -17,6 +17,11 @@
         and program wrappers. The desktop, CLI and batch export use the same
         calculation and output rules.
       </p>
+      <p>
+        In EXPANDED EXECUTION, select a built-in or saved user post under Target
+        CNC. The + button imports a ready JSON profile for the current machine
+        type, keeping the original file unchanged.
+      </p>
       <a class="text-link" href="#dialect-conversion"
         >Controller conversion details →</a
       >
@@ -26,15 +31,62 @@
         href="assets-optimized/export.webp"
         data-gallery="export"
         aria-label="Export settings"
-        ><img
+      >
+        <img
           src="assets-optimized/export.webp"
-          width="622"
+          width="649"
           height="462"
           alt="Export settings"
           loading="lazy"
           decoding="async"
-      /></a>
+        />
+      </a>
       <figcaption>Export settings</figcaption>
+    </figure>
+  </article>
+  <article class="story story-reverse">
+    <div class="story-copy">
+      <h3>Postprocessors for your controller</h3>
+      <p>Eight built-in export posts are available:</p>
+      <ul>
+        <li>
+          Milling: FANUC, SINUMERIK 840D ISO-M (G291), SINUMERIK 840D native,
+          and Heidenhain iTNC 530.
+        </li>
+        <li>Multi-axis milling: FANUC and SINUMERIK 840D native.</li>
+        <li>Turning: FANUC lathe A and FANUC lathe B.</li>
+      </ul>
+      <p>
+        The Heidenhain post outputs BEGIN/END PGM, TOOL CALL, L/FMAX, CC with
+        C/CP, CR and drilling cycles in EXPANDED.
+      </p>
+      <p>
+        Customize posts in Settings / Postprocessors. Select a profile on the
+        left and edit it on the right. The buttons below the list add a copy,
+        save, rename and delete user profiles; built-in posts remain read-only.
+      </p>
+      <p>
+        Save a new copy with Save or OK. The profile is checked before saving;
+        Cancel discards unsaved changes. User profiles appear alongside the
+        built-in posts in Export.
+      </p>
+    </div>
+    <figure class="screenshot-card">
+      <a
+        href="assets-optimized/posts.webp"
+        data-gallery="export"
+        aria-label="Postprocessor library and embedded editor"
+      >
+        <img
+          src="assets-optimized/posts.webp"
+          width="992"
+          height="652"
+          alt="Postprocessor library and embedded editor"
+          loading="lazy"
+          decoding="async"
+        />
+      </a>
+      <figcaption>Postprocessor library and embedded editor</figcaption>
     </figure>
   </article>
   <p class="note">

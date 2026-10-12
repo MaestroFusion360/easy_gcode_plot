@@ -1,5 +1,7 @@
 """Serializer-side subdivision of resolved arcs; source trace stays intact."""
 
+# pylint: disable=import-outside-toplevel  # Deferred to avoid a circular import.
+
 import math
 from dataclasses import replace
 
@@ -7,6 +9,35 @@ from dataclasses import replace
 def split_arc(motion, maximum_sweep=math.pi):
     arc = motion.arc
     count = max(1, math.ceil(arc.sweep / maximum_sweep))
+    if arc.normal is not None:
+        # Spatial arcs and helices must be subdivided in their actual plane,
+        # not in the nominal G17/G18/G19 plane after a 3D transformation.
+        from .spatial_arc import axial_travel, point_at
+
+        previous = (motion.start_x * motion.x_scale, motion.start_y, motion.start_z)
+        travel = axial_travel(motion)
+        for index in range(1, count + 1):
+            fraction = index / count
+            current = (
+                (motion.end_x * motion.x_scale, motion.end_y, motion.end_z)
+                if index == count
+                else point_at(motion, arc.sweep * fraction)
+            )
+            previous_fraction = (index - 1) / count
+            center = tuple(arc.center[axis] + arc.normal[axis] * travel * previous_fraction for axis in range(3))
+            yield replace(
+                motion,
+                start_x=previous[0] / motion.x_scale,
+                start_y=previous[1],
+                start_z=previous[2],
+                end_x=current[0] / motion.x_scale,
+                end_y=current[1],
+                end_z=current[2],
+                additional_turns=0,
+                arc=replace(arc, center=center, sweep=arc.sweep / count, full_circle=False),
+            )
+            previous = current
+        return
     axes = {17: (0, 1, 2), 18: (0, 2, 1), 19: (1, 2, 0)}
     a, b, other = axes[motion.plane]
     start = (motion.start_x * motion.x_scale, motion.start_y, motion.start_z)
