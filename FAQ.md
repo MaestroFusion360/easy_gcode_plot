@@ -2045,7 +2045,9 @@ Only the insert diameter scales this silhouette. The reference contour is D12; e
 
 ### Does Stock Removal detect machine collisions?
 
-No. It does not model chuck, turret, fixtures, acceleration or full machine geometry.
+Turning CPU Stock Removal detects intersections of the existing tool silhouette with remaining stock throughout G0 movements. The intersected material is marked red without being removed. Marks persist after the tool leaves, disappear where later G1/G2/G3 machining removes the affected material, and follow playback/TrackBar history. Already removed material, bores and gaps remain clear; boundary-only contact is ignored. A new simulation starts with no marks.
+
+This check covers the configured cutting tool and the sampled turning stock section. It does not model holders, chuck, turret, fixtures, acceleration or full machine geometry. Milling GPU Stock Removal is unchanged.
 
 ---
 
@@ -2946,9 +2948,12 @@ The project builds native extensions for:
 
 - frontend parsing;
 - selected milling execution paths;
-- tool discovery.
+- tool discovery;
+- turning stock polygon clipping and swept-profile intersections.
 
-The Python contract remains authoritative. Native and Python paths are regression-tested for parity where applicable. `app.native` caches parser, discovery and executor availability and import reasons. Source checkouts support fallback; frozen releases require all three extensions and fail explicitly if one is absent or its DLL cannot load. No runtime build or dependency installation is performed.
+The Python contract remains authoritative. Native and Python paths are regression-tested for parity where applicable. `app.native` caches parser, discovery, executor and turning-collision availability and import reasons. Source checkouts support fallback; frozen releases require all four extensions and fail explicitly if one is absent or its DLL cannot load. No runtime build or dependency installation is performed.
+
+Turning G0 collision detection clips only newly swept geometry; existing marks are clipped again when the affected material changes. Derived stock sections are cached by material intervals and profile boundaries. Cython accelerates convex clipping and the existing horizontal-span algorithm without changing removal semantics. The real `basic_turning_cycles.NC` fixture covers Python/native parity, rewind and a relative performance guard.
 
 `parser_statistics()` exposes total/native/fallback blocks for the most recent successful parse in the current context, counting actual fallback callbacks. Uncommon source line separators and oversized literal words use the Python reference parser to preserve parity; ordinary LF/CRLF numeric programs keep the native scanner.
 

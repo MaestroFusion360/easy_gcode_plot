@@ -76,6 +76,7 @@ arguments=(
     --collect-submodules app.gcode.export
     --hidden-import app.gcode.kernel.frontend._native_parser
     --hidden-import app.tools._native_discovery
+    --hidden-import app.gcode.stock._native_turning_collision
     --hidden-import app.gcode.kernel.milling._native_executor
     --add-data "$project_root/pyproject.toml:."
     --add-data "$project_root/app/gcode/kernel/milling/rotary_profiles.json:app/gcode/kernel/milling"

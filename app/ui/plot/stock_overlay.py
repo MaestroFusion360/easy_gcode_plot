@@ -11,10 +11,12 @@ from pyqtgraph.opengl import GLMeshItem, MeshData
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
 from app.gcode.stock import TurningStockTimeline, profile_interval_mesh_spans
+from app.gcode.stock.turning_stock import material_interval_mesh_spans
 from app.gcode.turning_tool_geometry import display_tool_geometry
 
 STOCK_COLOR = "#4fa7a0"
 TOOL_COLOR = "#ffd23f"
+COLLISION_COLOR = "#ff2020"
 _BREAK_EPSILON = 1e-9
 STOCK_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: True,
@@ -70,34 +72,6 @@ def _interval_breaks(breaks: tuple[float, ...], z0: float, z1: float) -> tuple[f
     return breaks[start:end]
 
 
-def material_interval_mesh_spans(first, second, *, start_break: bool = False, end_break: bool = False):
-    """Match radial material intervals without cross-connecting separate rings."""
-    if len(first) == len(second) and all(
-        min(outer0, outer1) > max(inner0, inner1)
-        for (inner0, outer0), (inner1, outer1) in zip(first, second, strict=True)
-    ):
-        return tuple((*interval0, *interval1) for interval0, interval1 in zip(first, second, strict=True))
-
-    # At a topology change, split the common material into independent bands.
-    # Connecting one whole interval to multiple rings produces overlapping
-    # triangles that visually fill a groove and gives the mesh non-manifold
-    # crossings. Constant overlap bands create a clean vertical transition.
-    spans = []
-    for inner0, outer0 in first:
-        for inner1, outer1 in second:
-            inner = max(inner0, inner1)
-            outer = min(outer0, outer1)
-            if outer > inner:
-                spans.append((inner, outer, inner, outer))
-    if spans:
-        return tuple(spans)
-    if end_break and first and not second:
-        return tuple((*interval, *interval) for interval in first)
-    if start_break and second and not first:
-        return tuple((*interval, *interval) for interval in second)
-    return ()
-
-
 class TurningStockOverlayItem(GLGraphicsItem):
     """Dynamic stock section plus a 3D active turning tool."""
 
@@ -129,7 +103,21 @@ class TurningStockOverlayItem(GLGraphicsItem):
             glOptions=STOCK_GL_OPTIONS,
         )
         self._tool_mesh.setDepthValue(20)
+        self._collision_mesh = GLMeshItem(
+            parentItem=self,
+            meshdata=_mesh_data([], []),
+            color=QColor(COLLISION_COLOR),
+            smooth=False,
+            drawFaces=True,
+            drawEdges=False,
+            shader=None,
+            # Draw the clipped section after stock, before the tool. Turning's
+            # distant camera cannot reliably depth-resolve two coplanar surfaces.
+            glOptions={**STOCK_GL_OPTIONS, GL.GL_DEPTH_TEST: False, "glDepthMask": (False,)},
+        )
+        self._collision_mesh.setDepthValue(0)
         self._stock_revision = None
+        self._stock_timeline = None
         self._tool_geometry_key = None
         self.last_stock_vertex_count = 0
         self.last_stock_face_count = 0
@@ -138,7 +126,9 @@ class TurningStockOverlayItem(GLGraphicsItem):
     def clear(self) -> None:
         self.setVisible(False)
         self._tool_mesh.setVisible(False)
+        self._collision_mesh.setVisible(False)
         self._stock_revision = None
+        self._stock_timeline = None
 
     def set_frame(
         self,
@@ -148,12 +138,25 @@ class TurningStockOverlayItem(GLGraphicsItem):
         *,
         update_stock: bool = True,
     ) -> None:
-        if update_stock and self._stock_revision != timeline.revision:
+        if update_stock and (self._stock_timeline is not timeline or self._stock_revision != timeline.revision):
             self._set_stock_mesh(timeline)
+            self._set_collision_mesh(timeline)
             self._stock_revision = timeline.revision
+            self._stock_timeline = timeline
         self._set_tool(timeline.spec.outer_diameter, tool_position, tool_spec or {})
         self.setVisible(True)
         self.update()
+
+    def _set_collision_mesh(self, timeline):
+        vertices, faces = [], []
+        for regions in timeline.collision_regions.values():
+            for polygon in regions:
+                for sign in (1, -1):
+                    base = len(vertices)
+                    vertices.extend((sign * x, 0.0, z) for x, z in polygon)
+                    faces.extend((base, base + i, base + i + 1) for i in range(1, len(polygon) - 1))
+        self._collision_mesh.setMeshData(meshdata=_mesh_data(vertices, faces))
+        self._collision_mesh.setVisible(bool(faces))
 
     def _set_stock_mesh(self, timeline: TurningStockTimeline) -> None:
         if any(len(intervals) != 1 for intervals in timeline.material_intervals):

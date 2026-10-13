@@ -23,9 +23,14 @@ def _check(project):
     )
 
 
-@pytest.mark.parametrize("module", ["frontend/_native_parser", "milling/_native_executor", "discovery"])
+@pytest.mark.parametrize(
+    "module", ["frontend/_native_parser", "milling/_native_executor", "discovery", "turning_collision"]
+)
 def test_native_build_reports_locked_extension_and_succeeds_after_release(tmp_path, module):
-    relative = {"discovery": "app/tools/_native_discovery.pyd"}.get(module, f"app/gcode/kernel/{module}.pyd")
+    relative = {
+        "discovery": "app/tools/_native_discovery.pyd",
+        "turning_collision": "app/gcode/stock/_native_turning_collision.pyd",
+    }.get(module, f"app/gcode/kernel/{module}.pyd")
     extension = tmp_path / relative
     extension.parent.mkdir(parents=True)
     extension.write_bytes(b"native build lock fixture")

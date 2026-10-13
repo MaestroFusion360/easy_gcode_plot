@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.2 - 2026-10-13
+
+- Compile turning collision clipping and the existing swept-profile intersection loop in Cython. Avoid reclipping unchanged marks on G0, cache derived material sections by their actual state, and cover the real basic-turning-cycle fixture with Python/native parity and performance checks. Include the extension in Windows/Linux builds, packaging and locked-DLL checks.
+- Detect tool intersections with remaining material throughout turning G0 sweeps without removing stock. Paint only the intersected stock section red; retain damage after departure and clip it when subsequent cutting removes the marked material.
+- Restore turning collision marks through reversible playback/TrackBar seeks, and clear them for a new simulation. Reuse existing insert/drill/tap geometry and material intervals, including bores and disconnected bands; exclude boundary-only contact. Milling GPU removal, cutting algorithms and G-code interpretation are unchanged.
+
 ## 2.2.1 - 2026-10-13
 
 - Simplify oversized stock snapshots for Plot View insertion with an OK/Cancel quality notification; preserve simulation accuracy and leave the scene unchanged on Cancel.

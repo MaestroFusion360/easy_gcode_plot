@@ -3,16 +3,26 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from bisect import bisect_left, bisect_right
+from dataclasses import dataclass, replace
 
 from app.gcode.kernel import TraceMotion
+from app.gcode.stock.turning_collision import update_regions
 from app.gcode.trace.sampling import sample_motion
-from app.gcode.turning_tool_geometry import EPS, canonical_turning_tool_type, positive_float, turning_tool_polygon
+from app.gcode.turning_tool_geometry import (
+    EPS,
+    canonical_turning_tool_type,
+    display_tool_geometry,
+    positive_float,
+    turning_tool_polygon,
+)
+from app.native import native_symbol
 from app.tools.definitions import DEFAULT_TURNING_TOOL
 
 _EPS = EPS
 MAX_TURN_PROFILE_POINTS = 20_000
 MAX_MOTION_SAMPLES = 20_000
+_native_swept_profile_spans = native_symbol("turning_collision", "swept_profile_spans")
 
 
 @dataclass(frozen=True)
@@ -57,6 +67,7 @@ class TurningDelta:
         ...,
     ]
     breaks: tuple[float, ...] = ()
+    collisions: tuple = ()
 
 
 def _positive_float(spec: dict[str, object], key: str, default: float = 0.0) -> float:
@@ -175,6 +186,34 @@ def profile_interval_mesh_spans(
     return ((z0, z1, start_inner, start_outer, end_inner, end_outer),)
 
 
+def material_interval_mesh_spans(first, second, *, start_break: bool = False, end_break: bool = False):
+    """Match radial material intervals without cross-connecting separate rings."""
+    if len(first) == len(second) and all(
+        min(outer0, outer1) > max(inner0, inner1)
+        for (inner0, outer0), (inner1, outer1) in zip(first, second, strict=True)
+    ):
+        return tuple((*interval0, *interval1) for interval0, interval1 in zip(first, second, strict=True))
+
+    # At a topology change, split the common material into independent bands.
+    # Connecting one whole interval to multiple rings produces overlapping
+    # triangles that visually fill a groove and gives the mesh non-manifold
+    # crossings. Constant overlap bands create a clean vertical transition.
+    spans = []
+    for inner0, outer0 in first:
+        for inner1, outer1 in second:
+            inner = max(inner0, inner1)
+            outer = min(outer0, outer1)
+            if outer > inner:
+                spans.append((inner, outer, inner, outer))
+    if spans:
+        return tuple(spans)
+    if end_break and first and not second:
+        return tuple((*interval, *interval) for interval in first)
+    if start_break and second and not first:
+        return tuple((*interval, *interval) for interval in second)
+    return ()
+
+
 def _convex_hull(points: list[tuple[float, float]]) -> tuple[tuple[float, float], ...]:
     """Return the convex hull of 2D points in counter-clockwise order."""
     unique = sorted(set(points))
@@ -237,6 +276,8 @@ class TurningStockTimeline:
         initial_interval = ((spec.inner_diameter * 0.5, spec.outer_diameter * 0.5),)
         self.initial_material_intervals = [initial_interval] * len(self.z)
         self.material_intervals = self.initial_material_intervals.copy()
+        self.collision_regions: dict[int, tuple] = {}
+        self._material_section_cache: dict[int, tuple] = {}
         self.deltas: list[TurningDelta | None] = [None] * len(self.motions)
         self.motion_count = 0
         self.revision = 0
@@ -308,6 +349,17 @@ class TurningStockTimeline:
         self.outer[index] = new_outer
         changes[index] = (old_inner, new_inner, old_outer, new_outer, original_intervals, new_intervals)
 
+    @staticmethod
+    def _swept_polygon(start, end, footprint):
+        start_x, start_z = start
+        end_x, end_z = end
+        return _convex_hull(
+            [
+                *((float(start_x) + x, float(start_z) + z) for x, z in footprint),
+                *((float(end_x) + x, float(end_z) + z) for x, z in footprint),
+            ]
+        )
+
     def _apply_swept_footprint(
         self,
         changes,
@@ -316,22 +368,18 @@ class TurningStockTimeline:
         footprint: tuple[tuple[float, float], ...],
     ) -> None:
         """Subtract only material intersected by the bounded swept cutter polygon."""
-        start_x, start_z = start
-        end_x, end_z = end
-        swept = _convex_hull(
-            [
-                *((float(start_x) + x, float(start_z) + z) for x, z in footprint),
-                *((float(end_x) + x, float(end_z) + z) for x, z in footprint),
-            ]
-        )
+        swept = self._swept_polygon(start, end, footprint)
         if len(swept) < 3:
             return
         minimum_z = min(point[1] for point in swept)
         maximum_z = max(point[1] for point in swept)
         first = max(0, int(math.floor((minimum_z - self.z[0]) / self.step)))
         last = min(len(self.z) - 1, int(math.ceil((maximum_z - self.z[0]) / self.step)))
-        for index in range(first, last + 1):
-            span = _horizontal_span(swept, self.z[index])
+        if _native_swept_profile_spans is not None:
+            spans = _native_swept_profile_spans(swept, self.z, first, last)
+        else:
+            spans = ((index, _horizontal_span(swept, self.z[index])) for index in range(first, last + 1))
+        for index, span in spans:
             if span is not None:
                 self._subtract_local_interval(changes, index, *_radialized_span(*span))
 
@@ -454,6 +502,98 @@ class TurningStockTimeline:
             self._active_break_counts[value] = self._active_break_counts.get(value, 0) + 1
         self._profile_breaks_dirty = True
 
+    def material_section(self, index, *, breaks, disconnected):
+        """Return positive-radius material polygons matching the stock renderer."""
+        z0, z1 = self.z[index : index + 2]
+        cell_breaks = breaks[bisect_left(breaks, z0 - _EPS) : bisect_right(breaks, z1 + _EPS)]
+        first, second = self.material_intervals[index : index + 2]
+        key = (first, second, cell_breaks, disconnected)
+        cached = self._material_section_cache.get(index)
+        if cached is not None and cached[0] == key:
+            return cached[1]
+        if disconnected:
+            bands = material_interval_mesh_spans(
+                first,
+                second,
+                start_break=any(abs(value - z0) <= _EPS for value in cell_breaks),
+                end_break=any(abs(value - z1) <= _EPS for value in cell_breaks),
+            )
+        else:
+            bands = ((*first[0], *second[0]),)
+        section = tuple(
+            ((ia, za), (oa, za), (ob, zb), (ib, zb))
+            for i0, o0, i1, o1 in bands
+            for za, zb, ia, oa, ib, ob in profile_interval_mesh_spans(z0, z1, i0, o0, i1, o1, cell_breaks)
+            if oa > ia + _EPS or ob > ib + _EPS
+        )
+        self._material_section_cache[index] = (key, section)
+        return section
+
+    def _rapid_sweeps(self, motion):
+        spec = self.tools.get(motion.tool, DEFAULT_TURNING_TOOL)
+        if not isinstance(spec, dict):
+            return ()
+        footprint = turning_tool_polygon(spec, self.spec.outer_diameter)
+        if canonical_turning_tool_type(spec.get("type")) in {"drill", "tap"}:
+            footprint = display_tool_geometry(spec, self.spec.outer_diameter)[0]
+        if not footprint:
+            return ()
+        pieces = (footprint,)
+        if canonical_turning_tool_type(spec.get("type")) == "thread":
+            # Match the displayed star-shaped insert, including its recessed shoulders.
+            center = tuple(sum(point[axis] for point in footprint) / len(footprint) for axis in (0, 1))
+            pieces = tuple((center, a, b) for a, b in zip(footprint, (*footprint[1:], footprint[0])))
+        start, end = (motion.start_x * 0.5, motion.start_z), (motion.end_x * 0.5, motion.end_z)
+        radius = self.spec.outer_diameter * 0.5
+        sweeps = (self._swept_polygon(start, end, piece) for piece in pieces)
+        return tuple(
+            swept
+            for swept in sweeps
+            if min(x for x, _z in swept) < radius - _EPS and max(x for x, _z in swept) > -radius + _EPS
+        )
+
+    def _collision_delta(self, motion, delta):
+        sweeps = self._rapid_sweeps(motion) if motion.move == 0 else ()
+        if not sweeps and not self.collision_regions:
+            return ()
+        cells = set()
+        if sweeps:
+            low = min(z for polygon in sweeps for _x, z in polygon)
+            high = max(z for polygon in sweeps for _x, z in polygon)
+            cells.update(range(max(0, bisect_right(self.z, low) - 1), min(len(self.z) - 1, bisect_left(self.z, high))))
+        # Only cells adjacent to modified samples/walls can lose existing damage.
+        for index, *_rest in delta.changes:
+            cells.update((index - 1, index))
+        for wall in delta.breaks:
+            index = bisect_left(self.z, wall)
+            cells.update((index - 1, index))
+        if not cells:
+            return ()
+        breaks = self.profile_breaks
+        disconnected = any(len(intervals) != 1 for intervals in self.material_intervals)
+        changes = []
+        mirrored = tuple(tuple((-x, z) for x, z in polygon) for polygon in sweeps)
+        for index in sorted(cells):
+            if not 0 <= index < len(self.z) - 1:
+                continue
+            old = self.collision_regions.get(index, ())
+            if not old and not sweeps:
+                continue
+            bands = self.material_section(index, breaks=breaks, disconnected=disconnected)
+            new = update_regions(old, (*sweeps, *mirrored), bands)
+            if new != old:
+                changes.append((index, old, new))
+        self._restore_collisions(changes, forward=True)
+        return tuple(changes)
+
+    def _restore_collisions(self, changes, *, forward):
+        for index, old, new in changes:
+            regions = new if forward else old
+            if regions:
+                self.collision_regions[index] = regions
+            else:
+                self.collision_regions.pop(index, None)
+
     def _deactivate_breaks(self, breaks: tuple[float, ...]) -> None:
         if not breaks:
             return
@@ -473,6 +613,8 @@ class TurningStockTimeline:
                 delta = self.deltas[index]
                 if delta is None:
                     delta = self._compute_delta(self.motions[index])
+                    self._activate_breaks(delta.breaks)
+                    delta = replace(delta, collisions=self._collision_delta(self.motions[index], delta))
                     self.deltas[index] = delta
                 else:
                     for (
@@ -487,8 +629,9 @@ class TurningStockTimeline:
                         self.inner[profile_index] = new_inner
                         self.outer[profile_index] = new_outer
                         self.material_intervals[profile_index] = new_intervals
-                self._activate_breaks(delta.breaks)
-                changed = changed or bool(delta.changes or delta.breaks)
+                    self._activate_breaks(delta.breaks)
+                    self._restore_collisions(delta.collisions, forward=True)
+                changed = changed or bool(delta.changes or delta.breaks or delta.collisions)
         elif target < self.motion_count:
             for index in range(self.motion_count - 1, target - 1, -1):
                 delta = self.deltas[index]
@@ -507,7 +650,8 @@ class TurningStockTimeline:
                     self.outer[profile_index] = old_outer
                     self.material_intervals[profile_index] = old_intervals
                 self._deactivate_breaks(delta.breaks)
-                changed = changed or bool(delta.changes or delta.breaks)
+                self._restore_collisions(delta.collisions, forward=False)
+                changed = changed or bool(delta.changes or delta.breaks or delta.collisions)
         self.motion_count = target
         if changed:
             self.revision += 1

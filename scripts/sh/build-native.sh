@@ -41,6 +41,7 @@ native_inputs=(
     "$project_root/app/gcode/kernel/frontend/_native_parser.pyx"
     "$project_root/app/gcode/kernel/milling/_native_executor.pyx"
     "$project_root/app/tools/_native_discovery.pyx"
+    "$project_root/app/gcode/stock/_native_turning_collision.pyx"
 )
 
 hash_file() {
@@ -157,10 +158,12 @@ fi
 import app.gcode.kernel.frontend._native_parser as parser
 import app.gcode.kernel.milling._native_executor as executor
 import app.tools._native_discovery as discovery
+import app.gcode.stock._native_turning_collision as turning_collision
 
 print("Native parser:   " + parser.__file__)
 print("Native executor: " + executor.__file__)
 print("Native discovery: " + discovery.__file__)
+print("Native turning collisions: " + turning_collision.__file__)
 print("Native acceleration is ready.")
 PY
 

@@ -16,6 +16,7 @@ MODULES = {
     "parser": "app.gcode.kernel.frontend._native_parser",
     "discovery": "app.tools._native_discovery",
     "executor": "app.gcode.kernel.milling._native_executor",
+    "turning_collision": "app.gcode.stock._native_turning_collision",
 }
 
 

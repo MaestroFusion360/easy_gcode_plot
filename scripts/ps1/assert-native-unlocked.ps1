@@ -8,7 +8,8 @@ $ErrorActionPreference = 'Stop'
 $nativeModules = @(
     @{ Directory = 'app\gcode\kernel\frontend'; Name = '_native_parser' },
     @{ Directory = 'app\gcode\kernel\milling'; Name = '_native_executor' },
-    @{ Directory = 'app\tools'; Name = '_native_discovery' }
+    @{ Directory = 'app\tools'; Name = '_native_discovery' },
+    @{ Directory = 'app\gcode\stock'; Name = '_native_turning_collision' }
 )
 
 foreach ($nativeModule in $nativeModules) {

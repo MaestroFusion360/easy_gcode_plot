@@ -30,6 +30,9 @@ app/gcode/kernel/milling/_native_executor*.so
 app/gcode/**/_native_stock.c
 app/gcode/**/_native_stock*.pyd
 app/gcode/**/_native_stock*.so
+app/gcode/stock/_native_turning_collision.c
+app/gcode/stock/_native_turning_collision*.pyd
+app/gcode/stock/_native_turning_collision*.so
 app/tools/_native_discovery.c
 app/tools/_native_discovery*.pyd
 app/tools/_native_discovery*.so
