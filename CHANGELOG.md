@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.1.1 - 2026-10-13
+
+- Fix lost line-circle tangencies and duplicate tangent candidates in milling and turning compensation. Use a shared distance-based intersection calculation with coordinate-scale roundoff tolerance while preserving distinct secant intersections.
+- Make turning line-line intersection checks independent of segment lengths, preserving intersections between short perpendicular segments.
+- Add Tool Discovery to Options with separate Milling/Turning modes, editable tool-name aliases and parameter labels, regular expressions and comment testing. Keep one recognition configuration, preserve raw expressions when switching editing modes, and apply changes on OK while discarding drafts on Cancel.
+
 ## 2.1.0 - 2026-10-12
 
 - Bound stock STL export to 500,000 triangles (about 24 MiB), simplifying the detached mesh when necessary without changing simulation. Report reduced quality and test Auto/maximum-quality exports through the STL importer. Fix the rotary JSON error message translation context in both CI workflows.

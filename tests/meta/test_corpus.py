@@ -93,7 +93,8 @@ def _normalized(text: str) -> str:
 
 
 def test_fixture_corpus_is_explicit_unique_and_uses_supported_program_files_only():
-    files = sorted(path for path in FIXTURES.rglob("*") if path.is_file())
+    # The root inventory is documentation; all other files must be registered programs.
+    files = sorted(path for path in FIXTURES.rglob("*") if path.is_file() and path != FIXTURES / "README.md")
     actual = {path.relative_to(FIXTURES).as_posix() for path in files}
     assert actual == EXPECTED_FIXTURES
     assert {path.suffix.lower() for path in files} == {".nc", ".ptp", ".mpf"}

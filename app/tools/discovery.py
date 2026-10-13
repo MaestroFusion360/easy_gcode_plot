@@ -7,6 +7,7 @@ execute expressions. Dimensions follow the units active at the T word.
 import math
 import re
 from copy import deepcopy
+from functools import lru_cache, partial
 from io import StringIO
 
 from app.gcode.kernel.frontend.lang import lex_words, strip_comments
@@ -17,10 +18,13 @@ from app.tools.definitions import (
     DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION,
     DEFAULT_MILLING_TOOL,
     DEFAULT_TURNING_TOOL,
+    MILLING_TOOL_TYPES,
+    TURNING_TOOL_TYPES,
 )
 from app.tools.discovery_patterns import hint_text as _hint_text
 from app.tools.discovery_patterns import is_tool_comment as _is_tool_comment
 from app.tools.discovery_patterns import type_hint as _type_hint
+from app.tools.discovery_rules import DEFAULT_DIMENSIONS, default_profile, validate_profile
 from app.tools.validation import normalized_program_milling_tools, normalized_tools
 
 _native_scan_source = native_symbol("discovery", "scan_source")
@@ -50,11 +54,14 @@ def _comments(line):
     return [" ".join((match[1] if match[1] is not None else match[2]).split()) for match in _COMMENTS.finditer(line)]
 
 
-def _dimension(description, names, default, scale, *, allow_zero=False):
-    match = re.search(
-        rf"(?<![A-Z0-9_])(?:{names})\s*[=:]?\s*({_NUMBER})(?=$|[^\w.]|MM\b|IN\b|DEG\b)",
-        description.upper(),
-    )
+@lru_cache(maxsize=128)
+def _dimension_pattern(names):
+    return re.compile(rf"(?<![A-Z0-9_])(?:{names})\s*[=:]?\s*({_NUMBER})(?=$|[^\w.]|MM\b|IN\b|DEG\b)")
+
+
+def _dimension(description, names, default, scale, *, allow_zero=False, dimensions=None):
+    aliases = (dimensions or DEFAULT_DIMENSIONS)[names]
+    match = _dimension_pattern(aliases).search(description.upper())
     if match is None:
         return default
     value = float(match[1].replace(",", ".")) * scale
@@ -63,73 +70,79 @@ def _dimension(description, names, default, scale, *, allow_zero=False):
     return value
 
 
-def _turning_spec(description, scale, operation_kind=None):
+def _turning_spec(description, scale, operation_kind=None, rules=None):
+    dimension = partial(_dimension, dimensions=rules["dimensions"])
     spec = deepcopy(DEFAULT_TURNING_TOOL)
-    kind = operation_kind or _type_hint(description)
-    if kind in {"groove", "thread", "drill", "tap"}:
+    kind = operation_kind or _type_hint(description, tuple(tuple(entry) for entry in rules["types"]))
+    if kind in TURNING_TOOL_TYPES:
         spec["type"] = kind
     application = "id" if re.search(r"\bID\b", _hint_text(description)) else "od"
     if kind == "groove" and re.search(r"\bFACE\b", _hint_text(description)):
         application = "face"
     spec["applications"] = [application]
     spec["tipOrientation"] = DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION.get(spec["type"], {}).get(application, 3)
-    spec["noseRadius"] = _dimension(description, "R|NR", 0.4, scale)
+    spec["noseRadius"] = dimension(description, "nose_radius", 0.4, scale)
     if kind == "groove":
-        spec["width"] = _dimension(description, "H|W|WIDTH", 3.0, scale)
-        spec["noseRadius"] = _dimension(description, "R|NR", 0.0, scale, allow_zero=True)
+        spec["width"] = dimension(description, "groove_width", 3.0, scale)
+        spec["noseRadius"] = dimension(description, "nose_radius", 0.0, scale, allow_zero=True)
     if kind in {"drill", "tap"}:
-        spec.update(diameter=_dimension(description, "D|DIA|DIAMETER", 10.0, scale), length=50.0, tipAngle=118.0)
+        spec.update(diameter=dimension(description, "turning_diameter", 10.0, scale), length=50.0, tipAngle=118.0)
     return spec
 
 
-def _milling_spec(description, scale, operation_kind=None):
+def _milling_spec(description, scale, operation_kind=None, rules=None):
+    dimension = partial(_dimension, dimensions=rules["dimensions"])
     spec = deepcopy(DEFAULT_MILLING_TOOL)
-    kind = operation_kind if operation_kind in {"drill", "tap"} else _type_hint(description) or operation_kind
-    if kind not in {None, "thread", "groove"}:
+    kind = (
+        operation_kind
+        if operation_kind in {"drill", "tap"}
+        else _type_hint(description, tuple(tuple(entry) for entry in rules["types"])) or operation_kind
+    )
+    if kind in MILLING_TOOL_TYPES:
         spec["type"] = kind
-    spec["diameter"] = _dimension(description, r"D|DIA\.?|DIAM\.?|DIAMETER|Ø|⌀", 10.0, scale)
-    radius = _dimension(description, r"CR|RE|CORNER[\s_]+RADIUS", 0.0, scale, allow_zero=True)
+    spec["diameter"] = dimension(description, "milling_diameter", 10.0, scale)
+    radius = dimension(description, "corner_radius", 0.0, scale, allow_zero=True)
     if 0 < radius <= spec["diameter"] / 2 and spec["type"] in {"mill_flat", "mill_bull"}:
         spec.update(type="mill_bull", cornerRadius=radius)
-    lengths = _milling_comment_lengths(description, scale)
+    lengths = _milling_comment_lengths(description, scale, dimension)
     spec.update(lengths)
     if "fluteLength" not in lengths:
         spec.pop("fluteLength", None)
         spec.pop("bodyLength", None)
-    spec.update(_milling_shape_fields(description, scale, spec["type"]))
+    spec.update(_milling_shape_fields(description, scale, spec["type"], dimension))
     return spec
 
 
-def _milling_shape_fields(description, scale, kind):
+def _milling_shape_fields(description, scale, kind, dimension):
     fields = {}
     angle = {
-        "taper_ball_mill": ("taperAngle", r"TAPER[\s_]*ANGLE|TAPER|ANGLE|B", 6.0),
-        "drill": ("tipAngle", r"TIP[\s_]*ANGLE|POINT[\s_]*ANGLE|TAPER|ANGLE", 118.0),
-        "chamfer_mill": ("chamferAngle", r"CHAMFER[\s_]*ANGLE|TAPER|ANGLE", 90.0),
+        "taper_ball_mill": ("taperAngle", "taper_angle", 6.0),
+        "drill": ("tipAngle", "tip_angle", 118.0),
+        "chamfer_mill": ("chamferAngle", "chamfer_angle", 90.0),
     }.get(kind)
     if angle is not None:
         field, names, default = angle
-        fields[field] = _dimension(description, names, default, 1.0)
+        fields[field] = dimension(description, names, default, 1.0)
     if kind == "chamfer_mill":
-        tip = _dimension(description, r"TIP[\s_]*(?:DIAMETER|DIA|D)|TD", None, scale, allow_zero=True)
+        tip = dimension(description, "tip_diameter", None, scale, allow_zero=True)
         if tip is not None:
             fields["tipDiameter"] = tip
     if kind in {"face_mill", "slot_mill"}:
-        shank = _dimension(description, r"SHANK[\s_]*(?:DIAMETER|DIA|D)|SD", None, scale)
+        shank = dimension(description, "shank_diameter", None, scale)
         if shank is not None:
             fields["shankDiameter"] = shank
     return fields
 
 
-def _milling_comment_lengths(description, scale):
+def _milling_comment_lengths(description, scale, dimension):
     """Use explicit FL/BL pairs; a total alone retains the unsplit legacy shape."""
-    flute_names = r"FL|FLUTELENGTH|FLUTE\s+LENGTH"
-    body_names = r"BL|BODYLENGTH|BODY\s+LENGTH"
-    flute = _dimension(description, flute_names, None, scale)
-    body = _dimension(description, body_names, None, scale, allow_zero=True)
+    flute_names = "flute_length"
+    body_names = "body_length"
+    flute = dimension(description, flute_names, None, scale)
+    body = dimension(description, body_names, None, scale, allow_zero=True)
     if flute is not None and body is not None:
         return {"fluteLength": flute, "bodyLength": body, "length": flute + body}
-    total = _dimension(description, "L|LENGTH", None, scale)
+    total = dimension(description, "total_length", None, scale)
     if total is not None or flute is not None or body is not None:
         return {"length": total if total is not None else 50.0}
     return {key: DEFAULT_MILLING_TOOL[key] for key in ("fluteLength", "bodyLength", "length")}
@@ -148,17 +161,17 @@ def _remember_tool_headers(headers, comments, turning):
                 headers.setdefault(key, comment)
 
 
-def _next_nearby_comment(previous, previous_line, index, words, comments, inline):
+def _next_nearby_comment(previous, previous_line, index, words, comments, inline, comment_test):
     if any(word.letter == "T" for word in words):
         return "", previous_line
-    if comments and not _COMMENT_TOOL.search(inline) and (not words or _is_tool_comment(inline)):
+    if comments and not _COMMENT_TOOL.search(inline) and (not words or comment_test(inline)):
         return inline, index
     if any(word.letter in {"X", "Y", "Z"} for word in words):
         return "", previous_line
     return previous, previous_line
 
 
-def _scan_source_python(source, turning, default_unit_scale, cancelled=None):
+def _scan_source_python(source, turning, default_unit_scale, cancelled=None, comment_test=_is_tool_comment):
     """Collect tool headers, selections, and operation hints in one source pass."""
     headers = {}
     occurrences = []
@@ -197,15 +210,21 @@ def _scan_source_python(source, turning, default_unit_scale, cancelled=None):
             occurrences.append((key, inline, nearby, scale))
 
         context_words = tuple(word for word in words if word.letter == "G") if g65_call else words
-        previous, previous_line = _next_nearby_comment(previous, previous_line, index, context_words, comments, inline)
+        previous, previous_line = _next_nearby_comment(
+            previous, previous_line, index, context_words, comments, inline, comment_test
+        )
 
     return headers, occurrences, operations
 
 
-def _scan_source(source, turning, default_unit_scale, cancelled=None):
-    if _native_scan_source is not None:
-        return _native_scan_source(source, turning, default_unit_scale, cancelled)
-    return _scan_source_python(source, turning, default_unit_scale, cancelled)
+def _scan_source(source, turning, default_unit_scale, cancelled=None, comment_test=None):
+    if comment_test is None:
+        if _native_scan_source is not None:
+            return _native_scan_source(source, turning, default_unit_scale, cancelled)
+        return _scan_source_python(source, turning, default_unit_scale, cancelled)
+    if _native_scan_source is not None and getattr(extension("discovery").module, "COMMENT_HINTS_VERSION", 0) >= 3:
+        return _native_scan_source(source, turning, default_unit_scale, cancelled, comment_test)
+    return _scan_source_python(source, turning, default_unit_scale, cancelled, comment_test)
 
 
 def _is_g65_call(words) -> bool:
@@ -302,7 +321,7 @@ def _program_operation_hints(program, turning, cancelled):
     return operations
 
 
-def _milling_tool_occurrences(program, default_unit_scale, cancelled):
+def _milling_tool_occurrences(program, default_unit_scale, cancelled, comment_test=_is_tool_comment):
     """Commit a numeric or named selection only when M6 installs it."""
     scale = default_unit_scale
     previous = ""
@@ -328,7 +347,7 @@ def _milling_tool_occurrences(program, default_unit_scale, cancelled):
             nearby = previous if node.block_index - previous_block <= 8 else ""
             pending = (key, inline, nearby, scale) if key is not None else None
             previous = ""
-        elif inline and (not node.words or _is_tool_comment(inline)):
+        elif inline and (not node.words or comment_test(inline)):
             previous, previous_block = inline, node.block_index
         elif any(word.letter in {"T", "X", "Y", "Z"} for word in node.words):
             previous = ""
@@ -337,9 +356,16 @@ def _milling_tool_occurrences(program, default_unit_scale, cancelled):
             yield key, selected_inline or inline, nearby, selected_scale
 
 
-def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None, source_dialect="fanuc", program=None):
+def discover_tools(
+    source, *, turning, default_unit_scale=1.0, cancelled=None, source_dialect="fanuc", program=None, rules=None
+):
     """Return source tool candidates and operation-based fallback geometry."""
-    headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled)
+    rules = default_profile() if rules is None else validate_profile(rules)
+    comment_test = partial(_is_tool_comment, hints=tuple(tuple(entry) for entry in rules["types"]))
+    if rules == default_profile():
+        headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled)
+    else:
+        headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled, comment_test)
     if program is None:
         program = (
             parse_sinumerik_program(source) if not turning and source_dialect == "sinumerik" else parse_program(source)
@@ -347,7 +373,7 @@ def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None, s
     if program is not None:
         operations = _program_operation_hints(program, turning, cancelled)
         if not turning:
-            occurrences = _milling_tool_occurrences(program, default_unit_scale, cancelled)
+            occurrences = _milling_tool_occurrences(program, default_unit_scale, cancelled, comment_test)
     descriptions = {}
     for key, inline, nearby, scale in occurrences:
         description = inline or headers.get(key, "") or nearby
@@ -357,9 +383,9 @@ def discover_tools(source, *, turning, default_unit_scale=1.0, cancelled=None, s
     for key, (description, scale) in descriptions.items():
         operation_kind = operations.get(key)
         spec = (
-            _turning_spec(description, scale, operation_kind)
+            _turning_spec(description, scale, operation_kind, rules)
             if turning
-            else _milling_spec(description, scale, operation_kind)
+            else _milling_spec(description, scale, operation_kind, rules)
         )
         if description:
             spec["description"] = description

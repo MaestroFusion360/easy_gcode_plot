@@ -364,6 +364,7 @@ def _execute_impl(
     kinematics=None,
     source_dialect: str = "fanuc",
     tool_resolver=None,
+    parsed_program=None,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
@@ -415,6 +416,7 @@ def _execute_impl(
                 source_dialect=source_dialect,
                 sinumerik_840d_sl=sinumerik_840d_sl,
                 tool_resolver=tool_resolver,
+                parsed_program=parsed_program,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
             extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
@@ -427,7 +429,7 @@ def _execute_impl(
     turn_offsets = _turn_wcs_offsets(wcs_offsets)
     turn_offsets.update(_turn_extended_wcs_offsets(extended_wcs_offsets))
     try:
-        program = parse_program(source)
+        program = parsed_program if parsed_program is not None else parse_program(source)
         tools = resolve_program_tools(program, tools, tool_resolver)
         rough, finish = [], []
         native_motions, trace_steps = _build_source_motion_trace_with_steps(

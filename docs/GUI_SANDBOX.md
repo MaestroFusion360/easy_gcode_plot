@@ -1,114 +1,73 @@
-# GUI sandbox
+# GUI Sandbox
 
-One pytest scenario drives the existing MainWindow through four programs. It
-uses isolated QSettings and tool-library storage from `tests/conftest.py`;
-exports go to pytest's temporary directory. Existing CNC and STL fixtures are
-read in place. No network or user configuration is required.
-
-Automated run, from the repository root:
+The existing pytest scenario `tests/gui/test_daily_workflow_smoke.py` drives
+MainWindow through four unchanged representative programs. QSettings, the tool
+library, logs, HTML and NC exports use pytest temporary storage. No fixture is
+rewritten and the user library is never opened or changed.
 
 ```powershell
-scripts\ps1\start-sandbox.ps1 -Automated
+# Visible simulation demonstration
+.\scripts\ps1\start-sandbox.ps1
+# Offscreen regression, without GPU rendering claims
+.\scripts\ps1\start-sandbox.ps1 -Automated
 ```
-
-Visual run on Windows, with the same assertions:
-
-```powershell
-scripts\ps1\start-sandbox.ps1
-```
-
-On Linux/macOS:
 
 ```bash
 bash scripts/sh/start-sandbox.sh
-# Offscreen regression run:
 bash scripts/sh/start-sandbox.sh --automated
 ```
 
-The Bash launcher selects `xcb` on Linux or `cocoa` on macOS when no visible
-Qt platform is configured; an existing visible platform such as `wayland` is
-retained. Both launchers enable demo mode by default and preserve pytest's exit
-status. PowerShell restores the original environment; Bash applies overrides
-only to the child process.
+Use `-DelayMs 1500` or `--delay-ms 1500` to change presentation pauses. The
+launchers preserve pytest exit status; PowerShell restores its environment and
+Bash confines overrides to the child process. Visible mode requires a visible Qt
+platform; automated mode selects offscreen and disables presentation pauses.
 
-Use `-DelayMs 1500` (PowerShell) or `--delay-ms 1500` (Bash) to adjust pacing.
-The default is 1000 ms: major stages/dialogs pause for twice that interval;
-the final summary remains visible for at least 3 seconds (4 seconds by default).
-Pauses are for presentation; execution/import waits use Qt events and bounded
-state conditions. Automated mode forces offscreen and disables presentation
-pauses. Demo mode rejects offscreen/minimal platforms.
+## Presentation and regression
 
-| Stage | Existing inputs | Assertions |
+Both modes run the same configuration, export, statistics, tool-library and STL
+assertions. Visible mode keeps setup dialogs off the screen and removes pauses
+between individual configuration checks. Time is spent on tool motion, playback,
+stock changes and completed scenes. Configuration widgets are still real widgets;
+`WA_DontShowOnScreen` suppresses their presentation, not their behavior.
+
+| Stage | Input | Demonstration and assertions |
 | --- | --- | --- |
-| FANUC milling | `tests/fixtures/milling/fanuc/flange_plate_benchmark.nc` | Successful complete execution through M30 without diagnostics, motions/render points/scene item, no STL. Explicit T2 end-mill geometry and T4 drilling selection resolve cutter compensation. |
-| Options / Export | Same milling program | Real Options dialog switches to dark, grid step 20 and cyan/orange toolpath colors. Line width stays unchanged; a fresh MainWindow restores settings. Export dialog writes expanded FANUC; kernel replay completes without diagnostics and preserves motion count. |
-| FANUC turning / Stock Removal | `tests/fixtures/turning/lathe_cycles_example.nc` | Complete execution, generated G71/G76 motions; T0303 uses the saved P2 boring tool from the isolated test library. Real Stock dialog and Play action build a timeline and mesh. Material changes; rewind/replay returns to the same final material intervals. |
-| SINUMERIK 3+2 | `tests/fixtures/milling/sinumerik/5ax_test.mpf`, `stl/test6.stl` | AC angled-table profile selected through Options; complete execution, varying resolved tool orientations, STL scene item and rotary playback. |
-| SINUMERIK impeller | `tests/fixtures/milling/sinumerik/impeller.mpf`, `stl/test7.stl` | BC angled-table profile; complete execution through M30. Show a brief Play, then slider positions in 10% steps through completion. The fixture selects T60/D1 using a fixed saved-library geometry snapshot in the sandbox. TRANS metadata warnings remain explicit. |
+| FANUC milling | `milling/fanuc/flange_plate_benchmark.nc` | Complete M30 execution, installed T2/T4 geometry, render scene and full logical playback. Options persistence, HTML statistics and expanded export/reimport remain regression checks. |
+| 3-axis GPU Stock Removal | Same flange | Only with an actual visible OpenGL 4.3+ widget. Real GPU playback and readback must show a lower remaining material height, allocated GPU buffers and complete replay. The machined stock remains visible before the next stage. |
+| FANUC turning | `turning/lathe_cycles_example.nc` | Saved T0101-T0606 specifications, G71/G76 execution and full Stock Removal playback. The bore grows during internal threading while the outside stock contour stays intact. Rewind/replay restores identical final material intervals. |
+| SINUMERIK 3+2 | `milling/sinumerik/5ax_test.mpf`, `stl/test6.stl` | Angled AC table, changing tool orientations, toolpath/playback and positioned STL. Origin/translation assertions remain. |
+| SINUMERIK impeller | `milling/sinumerik/impeller.mpf`, `stl/test7.stl` | Angled BC table, saved T60 taper-ball geometry, playback in 10% sections and final scene. Rotation/section/undo assertions remain; TRANS warnings are reported. |
 
-The turning Stock dialog uses an outside diameter of 130 mm, no bore,
-length 55 mm, front Z=1 mm and accuracy 0.1 mm. The scenario checks these
-applied values before playback.
+All NC paths above are relative to `tests/fixtures`. Large multi-axis examples
+use brief real playback and slider sections to keep the demonstration bounded.
+The flange and turning stock visit every logical motion. Visible full playback
+uses an 8 ms precise timer; regression mode uses a zero timer interval. Waits
+process Qt events and have explicit deadlines. The final summary remains visible
+for at least three seconds. Unexpected warnings or modal dialogs fail the stage.
 
-Before opening each program, the scenario triggers **File → New** and checks
-that the editor, toolpath, STL objects and stock mesh are cleared.
-Select 3D/ISO view immediately after New.
-Only then does it select turning/milling mode, the rotary profile and WCS Home
-before opening the next fixture. G54–G59 offsets are zero. Configured G28 Home
-is X=150, Y=0, Z=10 for turning (X is the displayed diameter), X=0, Y=0, Z=100
-for the first milling program and test6, and X=0, Y=0, Z=300 for test7.
+## GPU availability
 
-After opening the first program, set **Options → Default file type → ISO G-code**.
-Check that highlighting remains enabled after later Options dialogs and Open.
-Start real Play for milling, turning Stock Removal and test6, verify that the
-timer advances a motion, then show intermediate positions and completion.
-The flange and turning Stock Removal play every logical motion
-to the end without slider jumps. Speed 5 is selected; the sandbox uses a 2 ms
-precise timer for faster visible playback and a zero interval in offscreen tests.
-The wait yields to Qt between updates. Test6 retains the short playback/seek demonstration.
-Test7 plays briefly (two seconds at default demo pacing), pauses, then visits
-10%, 20%, through 90% on the slider and resumes the final motion to reach 100%.
+The GPU stage checks the **actual graphics widget** context and its OpenGL version
+before enabling removal. Offscreen/minimal platforms, missing/invalid contexts
+and OpenGL versions below 4.3 produce an explicit `SKIPPED (...)` stage in stdout
+and the summary. The rest of Sandbox continues. An offscreen PASS confirms model
+and workflow assertions only; it does not validate visible GPU rendering.
+Once an adequate context is available, a rendering/removal failure fails the test
+instead of being converted into a skip. There is no CPU material-removal fallback.
 
-The STL stages demonstrate different operations through the existing STL
-Objects panel. For test6 select Base Point **Origin**, then Position **Z=-100**
-(X/Y=0) and **Move Here**; check the pivot and translated Z bounds. For test7
-first use **Transform → Rotate Z +90°**, then select **Section Y**, apply at Y=0,
-then **Undo**; check that Undo removes only the section and preserves the rotation and that
-the object placement is unchanged. Only after Undo, enable **STL edges only**
-through Options; test6 and the test7 section demonstration use solid STL.
-The sandbox window opens centered in the screen's available area.
-They do not repeat the same transformations
-or compare screenshots.
+## Isolated setup
 
-The milling stage also opens Statistics, shows the complete report and a
-single-tool selection, then exports HTML with its tool selector and SVG
-trajectory to the temporary directory.
+File > New clears the editor, toolpath, STL and stock before every input. G54-G59
+offsets are zero. Configured Home is X=150, Y=0, Z=10 for turning (diameter display),
+X=0, Y=0, Z=100 for flange/test6, and X=0, Y=0, Z=300 for the impeller. Milling GPU
+stock uses automatic bounds, 2 mm resolution and accuracy preset 1.
 
-The isolated test library contains fixed T0101–T0606 geometry matching the
-reference turning setup, including the T0303 P2 boring insert, T0505 P2 ID groove
-and T0606 P6 internal threading insert. After the turning fixture opens,
-assertions require all six saved specifications in Current Program and verify
-that execution did not modify the saved boring record. Threading must enlarge
-the bore without changing the outside stock contour. Production
-selection already gives matching library numbers priority over discovered
-geometry; explicit Current Program overrides retain their established priority.
-The demo never loads or writes the user's configured SQLite library.
+Turning stock is diameter 130 mm, no initial bore, length 55 mm, front Z=1 mm,
+resolution 0.1 mm. The isolated saved boring tool T0303 uses tip orientation 2;
+T0505 is the ID groove and T0606 the internal thread tool. The impeller library
+snapshot is T60/D1: diameter 4 mm, taper 6 degrees, flute/body 25 mm each and total
+length 50 mm. Exact library resolution and unchanged fixture source are asserted.
 
-The impeller uses the selected BC profile for the DMG frame-only CYCLE800 call.
-The impeller fixture selects T60 with D1. Its isolated library contains the user's
-taper-ball-mill snapshot: diameter 4 mm, taper angle 6 degrees, flute/body length
-25 mm each and overall length 50 mm. The sandbox opens the fixture without source
-rewrites and verifies library resolution. The user's SQLite is unchanged.
-
-File pickers receive predetermined fixture/output paths. Options, Export,
-Stock and STL controls remain actual application widgets. Unexpected warning,
-critical or modal message boxes are recorded and rejected so they cannot hang
-the run; the stage fails. Demo mode ends with a timed summary message box.
-Both modes print a stage summary to stdout; failures include the stage and
-re-raise the original exception for pytest.
-
-The sandbox exposed and fixes one GUI issue: manual Update discarded the
-kernel result when an error occurred before the first motion. It now retains
-that result while clearing stale plot/playback state. Kernel regressions also
-cover the supported native impeller header; the flange fixture contains explicit
-tool information so its compensation resolves without warnings.
+STL checks preserve test6 origin and Z=-100 placement; test7 rotates Z by 90 degrees,
+sections at Y=0 and undoes only the section, then displays edges. Both temporary
+export files and HTML reports are re-read and checked before the scenario ends.

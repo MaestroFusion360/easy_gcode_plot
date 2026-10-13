@@ -5,7 +5,7 @@ import re
 
 from app.tools.discovery_patterns import is_tool_comment
 
-COMMENT_HINTS_VERSION = 2
+COMMENT_HINTS_VERSION = 3
 
 from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_FromStringAndSize, PyBytes_GET_SIZE
 from libc.stdlib cimport free, malloc, realloc
@@ -155,8 +155,10 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
     return selected, operation, has_words, has_t, has_xyz, scale, tool_change, header
 
 
-def scan_source(str source, bint turning, double default_unit_scale=1.0, cancelled=None):
+def scan_source(str source, bint turning, double default_unit_scale=1.0, cancelled=None, comment_test=None):
     """Return the same minimal discovery structures as the Python scanner."""
+    if comment_test is None:
+        comment_test = is_tool_comment
     cdef bytes encoded = source.encode("utf-8")
     cdef const unsigned char* data = <const unsigned char*>PyBytes_AS_STRING(encoded)
     cdef Py_ssize_t size = PyBytes_GET_SIZE(encoded)
@@ -268,7 +270,7 @@ def scan_source(str source, bint turning, double default_unit_scale=1.0, cancell
 
             if has_t:
                 previous = ""
-            elif comments and _COMMENT_TOOL.search(inline) is None and (not has_words or is_tool_comment(inline)):
+            elif comments and _COMMENT_TOOL.search(inline) is None and (not has_words or comment_test(inline)):
                 previous = inline
                 previous_line = index
             elif has_xyz:

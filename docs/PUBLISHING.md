@@ -9,6 +9,12 @@ Both pages share `styles.css`, `site.js`, `downloads.js` and the media in `asset
 Python assembles the HTML locally; there is no JavaScript framework dependency,
 browser-side fragment loading or Jekyll configuration. `.nojekyll` disables Jekyll.
 
+The displayed version, Open Graph title and video cache keys use `{{APP_VERSION}}`
+in the HTML fragments. `docs/build.py` replaces it with `[project].version` from
+the repository's `pyproject.toml`; regenerate both pages after a version change.
+Version-specific comparison notes and historical reports retain their original
+versions. Building requires Python 3.11+ (standard-library `tomllib`).
+
 The landing page is a compact technical overview of Easy G-Code Plot. It
 is intentionally not a replacement for [FAQ.md](../FAQ.md) / [FAQ_RU.md](../FAQ_RU.md): exact command
 semantics, diagnostics, controller limits, CLI options and export contracts

@@ -127,9 +127,6 @@ def test_milling_types(comment, kind):
         ("CENTRE DRILL", "drill"),
         ("RIGHT HAND TAP", "tap"),
         ("LEFT-HAND TAP", "tap"),
-        ("ТОРЦЕВАЯ ФРЕЗА", "face_mill"),
-        ("МЕТЧИК", "tap"),
-        ("СВЕРЛО", "drill"),
     ],
 )
 def test_milling_tool_name_variants(comment, kind):

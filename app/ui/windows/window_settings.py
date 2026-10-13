@@ -1,5 +1,6 @@
 """Persistence and editor/plot preference handling for the main window."""
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -52,6 +53,7 @@ from app.settings import (
 from app.settings import (
     normalized_recent_files as _normalized_recent_files,
 )
+from app.tools.discovery_rules import SETTINGS_KEY, load_settings
 from app.ui.support.hotkeys import LEGACY_KEYS, is_reserved_shortcut, menu_commands, portable_shortcut
 from app.ui.support.lexer import GcodeLexer
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
@@ -255,6 +257,7 @@ class MainWindowSettingsMixin:
         # logging.basicConfig(level=logging.DEBUG, filename="main.log")
 
         self.settings = get_settings()
+        self.toolDiscovery = load_settings(self.settings)
         self._load_hotkeys()
         recent = self.settings.value("FILE/RECENT_FILES", [])
         if isinstance(recent, str):
@@ -639,6 +642,7 @@ class MainWindowSettingsMixin:
     def saveSettings(self):
         """Persist current settings to the ini file."""
         self._save_hotkeys()
+        self.settings.setValue(SETTINGS_KEY, json.dumps(self.toolDiscovery, ensure_ascii=False))
         self.settings.beginGroup("PLOT")
         self.settings.setValue("TIMER_SPEED", self.speedTimer)
         self.settings.setValue("PLAYBACK_SPEED", self.playbackSpeed)

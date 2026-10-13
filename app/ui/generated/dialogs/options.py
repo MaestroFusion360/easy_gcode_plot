@@ -17,11 +17,12 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PyQt6.QtWidgets import (QAbstractButton, QAbstractItemView, QApplication, QCheckBox,
     QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFontComboBox, QFormLayout, QGroupBox, QHBoxLayout,
-    QHeaderView, QLabel, QLineEdit, QListWidget,
-    QListWidgetItem, QPushButton, QSizePolicy, QSlider,
-    QSpinBox, QSplitter, QTabWidget, QTableWidget,
-    QTableWidgetItem, QVBoxLayout, QWidget)
+    QFontComboBox, QFormLayout, QFrame, QGroupBox,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+    QListWidget, QListWidgetItem, QPlainTextEdit, QPushButton,
+    QSizePolicy, QSlider, QSpacerItem, QSpinBox,
+    QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
+    QVBoxLayout, QWidget)
 
 import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
 
@@ -671,6 +672,150 @@ class Ui_OptionsDlg(object):
         self.hotkeysLayout.addWidget(self.editHotkeyButton)
 
         self.tabs.addTab(self.hotkeysTab, "")
+        self.toolDiscoveryTab = QWidget()
+        self.toolDiscoveryTab.setObjectName(u"toolDiscoveryTab")
+        self.discoveryLayout = QVBoxLayout(self.toolDiscoveryTab)
+        self.discoveryLayout.setObjectName(u"discoveryLayout")
+        self.discoveryModeLayout = QHBoxLayout()
+        self.discoveryModeLayout.setObjectName(u"discoveryModeLayout")
+        self.discoveryModeLabel = QLabel(self.toolDiscoveryTab)
+        self.discoveryModeLabel.setObjectName(u"discoveryModeLabel")
+
+        self.discoveryModeLayout.addWidget(self.discoveryModeLabel)
+
+        self.discoveryModeCombo = QComboBox(self.toolDiscoveryTab)
+        self.discoveryModeCombo.addItem("")
+        self.discoveryModeCombo.addItem("")
+        self.discoveryModeCombo.setObjectName(u"discoveryModeCombo")
+        self.discoveryModeCombo.setMaximumSize(QSize(160, 16777215))
+
+        self.discoveryModeLayout.addWidget(self.discoveryModeCombo)
+
+        self.discoveryRegexCheck = QCheckBox(self.toolDiscoveryTab)
+        self.discoveryRegexCheck.setObjectName(u"discoveryRegexCheck")
+
+        self.discoveryModeLayout.addWidget(self.discoveryRegexCheck)
+
+        self.discoveryModeSpacer = QSpacerItem(20, 0, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.discoveryModeLayout.addItem(self.discoveryModeSpacer)
+
+
+        self.discoveryLayout.addLayout(self.discoveryModeLayout)
+
+        self.discoverySplitter = QSplitter(self.toolDiscoveryTab)
+        self.discoverySplitter.setObjectName(u"discoverySplitter")
+        self.discoverySplitter.setOrientation(Qt.Orientation.Horizontal)
+        self.discoveryTypesPane = QWidget(self.discoverySplitter)
+        self.discoveryTypesPane.setObjectName(u"discoveryTypesPane")
+        self.discoveryTypesLayout = QVBoxLayout(self.discoveryTypesPane)
+        self.discoveryTypesLayout.setObjectName(u"discoveryTypesLayout")
+        self.discoveryTypesLayout.setContentsMargins(0, 0, 0, 0)
+        self.discoveryTypesLabel = QLabel(self.discoveryTypesPane)
+        self.discoveryTypesLabel.setObjectName(u"discoveryTypesLabel")
+
+        self.discoveryTypesLayout.addWidget(self.discoveryTypesLabel)
+
+        self.discoveryTypesList = QListWidget(self.discoveryTypesPane)
+        self.discoveryTypesList.setObjectName(u"discoveryTypesList")
+        self.discoveryTypesList.setSpacing(3)
+        self.discoveryTypesList.setFrameShape(QFrame.Shape.NoFrame)
+
+        self.discoveryTypesLayout.addWidget(self.discoveryTypesList)
+
+        self.discoverySplitter.addWidget(self.discoveryTypesPane)
+        self.discoveryEditorPane = QWidget(self.discoverySplitter)
+        self.discoveryEditorPane.setObjectName(u"discoveryEditorPane")
+        self.discoveryEditorLayout = QVBoxLayout(self.discoveryEditorPane)
+        self.discoveryEditorLayout.setObjectName(u"discoveryEditorLayout")
+        self.discoveryEditorLayout.setContentsMargins(0, 0, 0, 0)
+        self.discoveryNamesLabel = QLabel(self.discoveryEditorPane)
+        self.discoveryNamesLabel.setObjectName(u"discoveryNamesLabel")
+
+        self.discoveryEditorLayout.addWidget(self.discoveryNamesLabel)
+
+        self.discoveryFormatLabel = QLabel(self.discoveryEditorPane)
+        self.discoveryFormatLabel.setObjectName(u"discoveryFormatLabel")
+        self.discoveryFormatLabel.setWordWrap(True)
+
+        self.discoveryEditorLayout.addWidget(self.discoveryFormatLabel)
+
+        self.discoveryNamesEdit = QPlainTextEdit(self.discoveryEditorPane)
+        self.discoveryNamesEdit.setObjectName(u"discoveryNamesEdit")
+        self.discoveryNamesEdit.setTabChangesFocus(True)
+
+        self.discoveryEditorLayout.addWidget(self.discoveryNamesEdit)
+
+        self.discoveryParametersLabel = QLabel(self.discoveryEditorPane)
+        self.discoveryParametersLabel.setObjectName(u"discoveryParametersLabel")
+
+        self.discoveryEditorLayout.addWidget(self.discoveryParametersLabel)
+
+        self.discoveryParameterTable = QTableWidget(self.discoveryEditorPane)
+        if (self.discoveryParameterTable.columnCount() < 2):
+            self.discoveryParameterTable.setColumnCount(2)
+        __qtablewidgetitem3 = QTableWidgetItem()
+        self.discoveryParameterTable.setHorizontalHeaderItem(0, __qtablewidgetitem3)
+        __qtablewidgetitem4 = QTableWidgetItem()
+        self.discoveryParameterTable.setHorizontalHeaderItem(1, __qtablewidgetitem4)
+        self.discoveryParameterTable.setObjectName(u"discoveryParameterTable")
+        self.discoveryParameterTable.setAlternatingRowColors(True)
+        self.discoveryParameterTable.setShowGrid(False)
+        self.discoveryParameterTable.setFrameShape(QFrame.Shape.NoFrame)
+        self.discoveryParameterTable.setEditTriggers(QAbstractItemView.EditTrigger.DoubleClicked|QAbstractItemView.EditTrigger.SelectedClicked|QAbstractItemView.EditTrigger.EditKeyPressed)
+
+        self.discoveryEditorLayout.addWidget(self.discoveryParameterTable)
+
+        self.discoveryEditorLayout.setStretch(2, 2)
+        self.discoveryEditorLayout.setStretch(4, 3)
+        self.discoverySplitter.addWidget(self.discoveryEditorPane)
+
+        self.discoveryLayout.addWidget(self.discoverySplitter)
+
+        self.discoveryTestLabel = QLabel(self.toolDiscoveryTab)
+        self.discoveryTestLabel.setObjectName(u"discoveryTestLabel")
+
+        self.discoveryLayout.addWidget(self.discoveryTestLabel)
+
+        self.discoveryCommentLayout = QHBoxLayout()
+        self.discoveryCommentLayout.setObjectName(u"discoveryCommentLayout")
+        self.discoveryCommentLabel = QLabel(self.toolDiscoveryTab)
+        self.discoveryCommentLabel.setObjectName(u"discoveryCommentLabel")
+
+        self.discoveryCommentLayout.addWidget(self.discoveryCommentLabel)
+
+        self.discoveryCommentEdit = QLineEdit(self.toolDiscoveryTab)
+        self.discoveryCommentEdit.setObjectName(u"discoveryCommentEdit")
+
+        self.discoveryCommentLayout.addWidget(self.discoveryCommentEdit)
+
+        self.discoveryTestButton = QPushButton(self.toolDiscoveryTab)
+        self.discoveryTestButton.setObjectName(u"discoveryTestButton")
+        self.discoveryTestButton.setMaximumSize(QSize(70, 16777215))
+
+        self.discoveryCommentLayout.addWidget(self.discoveryTestButton)
+
+
+        self.discoveryLayout.addLayout(self.discoveryCommentLayout)
+
+        self.discoveryResultLabel = QLabel(self.toolDiscoveryTab)
+        self.discoveryResultLabel.setObjectName(u"discoveryResultLabel")
+        self.discoveryResultLabel.setWordWrap(True)
+        self.discoveryResultLabel.setMinimumSize(QSize(0, 24))
+        self.discoveryResultLabel.setTextFormat(Qt.TextFormat.RichText)
+        self.discoveryResultLabel.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+
+        self.discoveryLayout.addWidget(self.discoveryResultLabel)
+
+        self.discoveryErrorLabel = QLabel(self.toolDiscoveryTab)
+        self.discoveryErrorLabel.setObjectName(u"discoveryErrorLabel")
+        self.discoveryErrorLabel.setWordWrap(True)
+        self.discoveryErrorLabel.setMinimumSize(QSize(0, 24))
+
+        self.discoveryLayout.addWidget(self.discoveryErrorLabel)
+
+        self.discoveryLayout.setStretch(1, 1)
+        self.tabs.addTab(self.toolDiscoveryTab, "")
 
         self.verticalLayout.addWidget(self.tabs)
 
@@ -827,4 +972,24 @@ class Ui_OptionsDlg(object):
         ___qtablewidgetitem2.setText(QCoreApplication.translate("OptionsDlg", u"Category", None))
         self.editHotkeyButton.setText(QCoreApplication.translate("OptionsDlg", u"Edit shortcut", None))
         self.tabs.setTabText(self.tabs.indexOf(self.hotkeysTab), QCoreApplication.translate("OptionsDlg", u"Hotkeys", None))
+        self.discoveryModeLabel.setText(QCoreApplication.translate("OptionsDlg", u"Mode", None))
+        self.discoveryModeCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Milling", None))
+        self.discoveryModeCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"Turning", None))
+
+        self.discoveryRegexCheck.setText(QCoreApplication.translate("OptionsDlg", u"Regular expressions", None))
+        self.discoveryTypesLabel.setText(QCoreApplication.translate("OptionsDlg", u"Tool types", None))
+        self.discoveryNamesLabel.setText(QCoreApplication.translate("OptionsDlg", u"Tool names / Aliases", None))
+        self.discoveryFormatLabel.setText("")
+        self.discoveryParametersLabel.setText(QCoreApplication.translate("OptionsDlg", u"Parameters", None))
+        ___qtablewidgetitem3 = self.discoveryParameterTable.horizontalHeaderItem(0)
+        ___qtablewidgetitem3.setText(QCoreApplication.translate("OptionsDlg", u"Parameter", None))
+        ___qtablewidgetitem4 = self.discoveryParameterTable.horizontalHeaderItem(1)
+        ___qtablewidgetitem4.setText(QCoreApplication.translate("OptionsDlg", u"Recognition labels", None))
+        self.discoveryTestLabel.setText(QCoreApplication.translate("OptionsDlg", u"Test Recognition", None))
+        self.discoveryCommentLabel.setText(QCoreApplication.translate("OptionsDlg", u"Sample Comment", None))
+        self.discoveryCommentEdit.setPlaceholderText(QCoreApplication.translate("OptionsDlg", u"END MILL D10 FL30", None))
+        self.discoveryTestButton.setText(QCoreApplication.translate("OptionsDlg", u"Test", None))
+        self.discoveryResultLabel.setText("")
+        self.discoveryErrorLabel.setText("")
+        self.tabs.setTabText(self.tabs.indexOf(self.toolDiscoveryTab), QCoreApplication.translate("OptionsDlg", u"Tool Discovery", None))
     # retranslateUi

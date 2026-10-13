@@ -136,6 +136,39 @@
     </message>
 </context>
 <context>
+    <name>DiscoverySettings</name>
+    <message>
+        <location filename="../app/ui/dialogs/discovery_settings.py" line="131"/>
+        <source>Tool names / Regular expression</source>
+        <translation>Имена / Регулярное выражение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/discovery_settings.py" line="131"/>
+        <source>Tool names / Aliases</source>
+        <translation>Имена / Поисковые названия</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/discovery_settings.py" line="136"/>
+        <source>Edit the regular expression. Complex rules remain expressions in either mode.</source>
+        <translation>Редактируйте regex. Сложные правила сохраняют этот формат в обоих режимах.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/discovery_settings.py" line="138"/>
+        <source>Enter one name per line. An empty list disables name recognition for this type.</source>
+        <translation>Одно имя на строку. Пустой список отключает распознавание имён этого типа.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/discovery_settings.py" line="181"/>
+        <source>Regular expression</source>
+        <translation>Регулярное выражение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/discovery_settings.py" line="181"/>
+        <source>Edit labels separated by semicolons.</source>
+        <translation>Метки разделяются точкой с запятой.</translation>
+    </message>
+</context>
+<context>
     <name>ExecutionDialog</name>
     <message>
         <location filename="../app/ui/generated/dialogs/execution_dialog.ui" line="6"/>
@@ -693,7 +726,7 @@ Select Auto or another valid profile.</source>
         <translation>Перемещение %1 / %2</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="602"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="608"/>
         <source>Trajectory exceeds the Auto Update limit of %1 points; press Update.</source>
         <translation>Траектория превышает предел автообновления в %1 точек; нажмите «Обновить».</translation>
     </message>
@@ -1334,39 +1367,39 @@ Select Auto or another valid profile.</source>
 &apos;%s&apos;</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="321"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="322"/>
         <source>Cancelling CNC execution...</source>
         <translation>Отмена выполнения ЧПУ...</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="482"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="670"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="485"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="676"/>
         <source>CNC execution</source>
         <translation>Выполнение ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="484"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="487"/>
         <source>Executing CNC program…</source>
         <translation>Выполнение программы ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="485"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="488"/>
         <source>Cancelling CNC execution…</source>
         <translation>Отмена выполнения ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="672"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="678"/>
         <source>Building toolpath…</source>
         <translation>Построение траектории…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="483"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="671"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="486"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="677"/>
         <source>Updating plot…</source>
         <translation>Обновление графика…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="673"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="679"/>
         <source>Cancelling toolpath calculation…</source>
         <translation>Отмена расчёта траектории…</translation>
     </message>
@@ -1971,9 +2004,9 @@ Do you want to reload it from disk?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
-        <location filename="../app/ui/dialogs/options.py" line="518"/>
-        <location filename="../app/ui/dialogs/options.py" line="530"/>
-        <location filename="../app/ui/dialogs/options.py" line="541"/>
+        <location filename="../app/ui/dialogs/options.py" line="523"/>
+        <location filename="../app/ui/dialogs/options.py" line="535"/>
+        <location filename="../app/ui/dialogs/options.py" line="546"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -2158,12 +2191,82 @@ Do you want to reload it from disk?</source>
         <translation>Удалить</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="275"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="959"/>
+        <source>Tool Discovery</source>
+        <translation>Распознавание инструментов</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="967"/>
+        <source>Mode</source>
+        <translation>Режим</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="981"/>
+        <source>Milling</source>
+        <translation>Фрезерование</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="986"/>
+        <source>Turning</source>
+        <translation>Точение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1111"/>
+        <source>Recognition labels</source>
+        <translation>Метки распознавания</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1123"/>
+        <source>Test Recognition</source>
+        <translation>Проверка распознавания</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1132"/>
+        <source>Sample Comment</source>
+        <translation>Пример комментария</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="994"/>
+        <source>Regular expressions</source>
+        <translation>Регулярные выражения</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1032"/>
+        <source>Tool types</source>
+        <translation>Типы инструментов</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1062"/>
+        <source>Tool names / Aliases</source>
+        <translation>Имена / Поисковые названия</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1086"/>
+        <source>Parameters</source>
+        <translation>Параметры</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1106"/>
+        <source>Parameter</source>
+        <translation>Параметр</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1139"/>
+        <source>END MILL D10 FL30</source>
+        <translation>END MILL D10 FL30</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1146"/>
+        <source>Test</source>
+        <translation>Тест</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="279"/>
         <source>Current line (light theme)</source>
         <translation>Текущая строка (светлая тема)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="278"/>
+        <location filename="../app/ui/dialogs/options.py" line="282"/>
         <source>Current line (dark theme)</source>
         <translation>Текущая строка (тёмная тема)</translation>
     </message>
@@ -2408,60 +2511,60 @@ Do you want to reload it from disk?</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="184"/>
-        <location filename="../app/ui/dialogs/options.py" line="219"/>
-        <location filename="../app/ui/dialogs/options.py" line="741"/>
-        <location filename="../app/ui/dialogs/options.py" line="766"/>
+        <location filename="../app/ui/dialogs/options.py" line="187"/>
+        <location filename="../app/ui/dialogs/options.py" line="222"/>
+        <location filename="../app/ui/dialogs/options.py" line="749"/>
+        <location filename="../app/ui/dialogs/options.py" line="774"/>
         <source>Rotary kinematics JSON</source>
         <translation>JSON поворотной кинематики</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="337"/>
+        <location filename="../app/ui/dialogs/options.py" line="341"/>
         <source>Rotary kinematics</source>
         <translation>Поворотная кинематика</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="343"/>
+        <location filename="../app/ui/dialogs/options.py" line="347"/>
         <source>Edit</source>
         <translation>Редак-ть</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="362"/>
+        <location filename="../app/ui/dialogs/options.py" line="366"/>
         <source>None</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="322"/>
+        <location filename="../app/ui/dialogs/options.py" line="326"/>
         <source>840D Extended cycles</source>
         <translation>840D Расширенные циклы</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="326"/>
+        <location filename="../app/ui/dialogs/options.py" line="330"/>
         <source>Checked: 840D Extended cycles interface (Siemens 03/2009). Unchecked: classic cycle interface (Siemens 01/2008). Applies to native source cycles and native SINUMERIK export.</source>
         <translation>Включено: интерфейс расширенных циклов 840D (Siemens 03/2009). Выключено: классический интерфейс циклов (Siemens 01/2008). Применяется к native-циклам исходной программы и native-экспорту SINUMERIK.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="519"/>
+        <location filename="../app/ui/dialogs/options.py" line="524"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="531"/>
+        <location filename="../app/ui/dialogs/options.py" line="536"/>
         <source>Hotkeys must be unique.</source>
         <translation>Горячие клавиши не должны повторяться.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="542"/>
+        <location filename="../app/ui/dialogs/options.py" line="547"/>
         <source>Colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета должны быть корректными именами цветов Qt, например #008000.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="302"/>
+        <location filename="../app/ui/dialogs/options.py" line="306"/>
         <source>Stock material</source>
         <translation>Заготовка</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="305"/>
+        <location filename="../app/ui/dialogs/options.py" line="309"/>
         <source>Removed material</source>
         <translation>Обработанная поверхность</translation>
     </message>
@@ -3714,7 +3817,7 @@ Do you want to reload it from disk?</source>
         <translation>Инструмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="957"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="963"/>
         <source>No Data Available</source>
         <translation>Нет данных</translation>
     </message>
@@ -3904,7 +4007,7 @@ Do you want to reload it from disk?</source>
 <context>
     <name>StockStlExportDialog</name>
     <message>
-        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="25"/>
+        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="24"/>
         <source>Large STL meshes are simplified automatically.</source>
         <translation>Большие сетки STL автоматически упрощаются.</translation>
     </message>
@@ -3914,7 +4017,7 @@ Do you want to reload it from disk?</source>
         <translation>Рассчитанная заготовка без уточнения сетки</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="37"/>
+        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="35"/>
         <source>Stock calculation has no separate angular tolerance.</source>
         <translation>У расчёта заготовки нет отдельного углового допуска.</translation>
     </message>
@@ -3939,17 +4042,17 @@ Do you want to reload it from disk?</source>
         <translation>Единицы измерения</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="33"/>
+        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="31"/>
         <source>Maximum linear deviation</source>
         <translation>Максимальное линейное отклонение</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="34"/>
+        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="32"/>
         <source>Maximum angular deviation</source>
         <translation>Максимальное угловое отклонение</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="35"/>
+        <location filename="../app/ui/dialogs/stock_stl_export_dialog.py" line="33"/>
         <source>Maximum edge length</source>
         <translation>Максимальная длина ребра</translation>
     </message>

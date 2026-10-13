@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 
 import pytest
+from export_signatures import motion_traces_match
 
 from app.cli import main
 from app.gcode import batch
@@ -55,6 +56,10 @@ def test_cli_compares_generated_native_cycle_nc_with_reference(tmp_path, capsys,
         repeated = capsys.readouterr().out
         assert repeated[repeated.index("--- ") :] == diff
     assert reference.read_bytes() == baseline.replace("\n", "\r\n").encode("utf-8")
+    original = execute(source.read_text(encoding="utf-8"), language="fanuc_mill")
+    replay = execute(expected, language="fanuc_mill", source_dialect="sinumerik")
+    assert original.ok and replay.ok
+    assert motion_traces_match(original, replay)
 
 
 def test_cli_comparison_detects_missing_final_newline(tmp_path, capsys):

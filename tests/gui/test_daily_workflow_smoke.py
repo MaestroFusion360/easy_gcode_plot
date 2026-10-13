@@ -46,6 +46,18 @@ def _settle(app, label, factor=1):
         QTest.qWait(DELAY_MS * factor)
 
 
+def _check_step(app, label, _factor=1):
+    """Keep configuration assertions without pausing the visual presentation."""
+    app.processEvents()
+    print(f"[sandbox] {label}", flush=True)
+
+
+def _quiet_configuration_dialogs(window):
+    if DEMO:
+        for name in ("optionsDlg", "wcsDlg", "exportDlg", "statisticsDlg", "stockDlg"):
+            getattr(window, name).setAttribute(Qt.WidgetAttribute.WA_DontShowOnScreen, True)
+
+
 def _wait(app, condition, label, timeout=60):
     deadline = monotonic() + timeout
     while not condition():
@@ -139,7 +151,7 @@ def _new_program(window, app, *, turning=False, profile=None, home=(0, 100)):
     dialog.ui.homeY.setValue(0)
     dialog.ui.homeZ.setValue(home[1])
     dialog.ui.homeConfiguredCheck.setChecked(True)
-    _settle(app, f"WCS: Home X={home[0]} Z={home[1]}", 2)
+    _check_step(app, f"WCS: Home X={home[0]} Z={home[1]}")
     dialog.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
     assert window.homeConfigured
     assert window.xPosMach == home[0] / (2 if turning else 1)
@@ -191,7 +203,7 @@ def _playback(window, app, *, full=False, step_percent=25):
 def _complete_playback(window, app):
     """Visit every logical motion via timer events, without seeking the slider."""
     maximum = window.ui.horizontalSlider.maximum()
-    window.timer.start(2 if DEMO else 0, Qt.TimerType.PreciseTimer, window)
+    window.timer.start(8 if DEMO else 0, Qt.TimerType.PreciseTimer, window)
     deadline = monotonic() + max(60, maximum * 0.03 + 30)
     while window.ui.actionPlay.isChecked():
         QTest.qWait(5 if DEMO else 1)
@@ -215,34 +227,34 @@ def _options(window, app, *, profile=None, appearance=False, stl_edges=None):
     window.ui.actionOptions.trigger()
     dialog = window.optionsDlg
     assert dialog.isVisible()
-    _settle(app, "Options", 2)
+    _check_step(app, "Options", 2)
     ui = dialog.ui
     original_width = window.plotLineWidth
     if appearance:
         ui.tabs.setCurrentWidget(ui.generalTab)
         ui.fileTypeCombo.setCurrentIndex(1)
-        _settle(app, "Default syntax: ISO G-Code", 2)
+        _check_step(app, "Default syntax: ISO G-Code", 2)
         ui.themeCombo.setCurrentIndex(1)
         ui.tabs.setCurrentWidget(ui.plotTab)
         ui.gridCheck.setChecked(True)
         ui.gridStepSpin.setValue(20)
-        _settle(app, "Plot settings")
+        _check_step(app, "Plot settings")
         ui.tabs.setCurrentWidget(ui.colorsTab)
         ui.linearColorEdit.setText("#36d9ff")
         ui.arcColorEdit.setText("#ffb347")
-        _settle(app, "Toolpath colors")
+        _check_step(app, "Toolpath colors")
     if profile:
         ui.tabs.setCurrentWidget(ui.plotTab)
         index = ui.rotaryKinematicsCombo.findData(profile)
         assert index >= 0, profile
         ui.rotaryKinematicsCombo.setCurrentIndex(index)
-        _settle(app, profile)
+        _check_step(app, profile)
     if stl_edges is not None:
         ui.tabs.setCurrentWidget(ui.plotTab)
         ui.stlWireframeCheck.setChecked(stl_edges)
-        _settle(app, "STL edges only")
+        _check_step(app, "STL edges only")
     ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
-    _settle(app, "Options applied")
+    _check_step(app, "Options applied")
     if profile:
         assert window.rotaryKinematics == profile
     if stl_edges is not None:
@@ -271,7 +283,7 @@ def _export(window, app, exported):
     assert dialog.isVisible()
     dialog.ui.langCmbBox.setCurrentIndex(EXPANDED_EXECUTION_MODE)
     dialog.targetCncCombo.setCurrentIndex(0)
-    _settle(app, "Export expanded FANUC", 2)
+    _check_step(app, "Export expanded FANUC", 2)
     dialog.accept()
     _wait(app, exported.exists, "export output")
     result = execute(
@@ -293,18 +305,18 @@ def _statistics(window, app, report):
     all_tools = dialog.reportText.toPlainText()
     assert all_tools.strip() and dialog.toolSelect.count() > 1
     assert dialog.exportHtmlButton.isEnabled()
-    _settle(app, "Statistics: all tools", 2)
+    _check_step(app, "Statistics: all tools", 2)
     dialog.toolSelect.setCurrentIndex(1)
     assert dialog.toolSelect.currentData() is not None
     assert dialog.reportText.toPlainText() != all_tools
-    _settle(app, "Statistics: selected tool", 2)
+    _check_step(app, "Statistics: selected tool", 2)
     dialog.toolSelect.setCurrentIndex(0)
     dialog.exportHtmlButton.click()
     assert report.is_file()
     html = report.read_text(encoding="utf-8")
     assert "<svg" in html and "<select" in html
     assert Path(window.curFile).name in html
-    _settle(app, "Statistics: HTML exported")
+    _check_step(app, "Statistics: HTML exported")
     dialog.close()
 
 
@@ -318,7 +330,7 @@ def _stock(window, app):
     dialog.length.setValue(55)
     dialog.front_z.setValue(1)
     dialog.accuracy.setValue(dialog.accuracy.maximum())
-    _settle(app, "Stock configuration", 2)
+    _check_step(app, "Stock configuration")
     dialog.ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
     assert window.stockEnabled
     assert window.turnStockDiameter == 130
@@ -357,6 +369,41 @@ def _stock(window, app):
     window.ui.actionStop.trigger()
 
 
+def _milling_gpu_stock(window, app, results):
+    """Exercise material removal only on the actual visible OpenGL widget."""
+    view = window.ui.graphicsView
+    context = view.context()
+    if app.platformName() in {"offscreen", "minimal"} or context is None or not context.isValid():
+        reason = "SKIPPED (visible OpenGL context unavailable)"
+    elif (context.format().majorVersion(), context.format().minorVersion()) < (4, 3):
+        reason = "SKIPPED (OpenGL 4.3 required)"
+    else:
+        reason = None
+    if reason:
+        results.append(("3-axis GPU Stock Removal", reason))
+        print(f"[sandbox] 3-axis GPU Stock Removal: {reason}", flush=True)
+        return
+    window.millingStockResolution = 2.0
+    window.millingStockAccuracy = 1
+    window.ui.actionStockPlayback.setChecked(True)
+    _wait(app, lambda: window._stock_animation_active, "milling stock starts")
+    timeline = window._stock_timeline
+    overlay = window._milling_stock_item
+    _wait(app, lambda: overlay.buffer_bytes > 0, "GPU stock rendered")
+    initial = overlay.calculated_snapshot(timeline).height.copy()
+    window.ui.playbackSpeedSlider.setValue(4)
+    window.ui.actionPlay.setChecked(True)
+    _complete_playback(window, app)
+    _wait(app, lambda: window._milling_frame_worker is None, "GPU stock replay finishes")
+    final = overlay.calculated_snapshot(timeline)
+    assert np.any(final.height < initial), "GPU playback did not remove material"
+    assert overlay in view.items and overlay.buffer_bytes > 0
+    assert timeline.motion_count == len(timeline.motions)
+    _settle(app, "3-axis GPU Stock Removal: machined stock", 3)
+    results.append(("3-axis GPU Stock Removal", "PASS"))
+    window.ui.actionStop.trigger()
+
+
 def _stl(window, app, paths, name):
     window.ui.actionClearSTL.trigger()
     paths["Import STL"] = ROOT / "stl" / name
@@ -383,15 +430,15 @@ def _position_test6(window, panel, app):
     panel.operationCombo.setCurrentIndex(0)
     panel.pivotMode.setCurrentIndex(panel.pivotMode.findData("origin"))
     panel.pivotApplyButton.click()
-    _settle(app, "Base Point: Origin")
+    _check_step(app, "Base Point: Origin")
     assert window._stl_entries[0].obj.pivot_mode == "origin"
     panel.operationCombo.setCurrentIndex(1)
     panel.positionX.setValue(0)
     panel.positionY.setValue(0)
     panel.positionZ.setValue(-100)
-    _settle(app, "Position Z=-100")
+    _check_step(app, "Position Z=-100")
     panel.moveButton.click()
-    _settle(app, "Move Here")
+    _check_step(app, "Move Here")
     assert window._stl_entries[0].obj.world_pivot() == pytest.approx((0, 0, -100))
     assert window._stl_entries[0].overlay.bounds[2] == pytest.approx((-100, 0))
 
@@ -410,31 +457,35 @@ def _use_impeller_library_tool(window, app):
 def _section_test7(window, panel, app):
     original_triangles = window._stl_entries[0].obj.world_triangles().copy()
     original_pivot = tuple(window._stl_entries[0].obj.world_pivot())
+    angle = 60.0
     panel.operationCombo.setCurrentIndex(2)
     panel.rotateAxis.setCurrentText("Z")
-    panel.rotateAngle.setValue(90)
-    _settle(app, "Transform: rotate Z +90 degrees")
+    panel.rotateAngle.setValue(angle)
+    _check_step(app, "Transform: rotate Z +60 degrees")
     panel.rotateButton.click()
     rotated = window._stl_entries[0].obj
-    expected = original_triangles.copy()
-    expected[..., 0] = original_pivot[0] - (original_triangles[..., 1] - original_pivot[1])
-    expected[..., 1] = original_pivot[1] + (original_triangles[..., 0] - original_pivot[0])
+    expected = original_triangles.astype(np.float64)
+    dx = expected[..., 0] - original_pivot[0]
+    dy = expected[..., 1] - original_pivot[1]
+    cosine, sine = np.cos(np.deg2rad(angle)), np.sin(np.deg2rad(angle))
+    expected[..., 0] = original_pivot[0] + cosine * dx - sine * dy
+    expected[..., 1] = original_pivot[1] + sine * dx + cosine * dy
     assert not np.allclose(rotated.world_triangles(), original_triangles)
     np.testing.assert_allclose(rotated.world_triangles(), expected, atol=1e-5)
     assert window._stl_entries[0].overlay.object is rotated
-    _settle(app, "Rotate applied", 2)
+    _check_step(app, "Rotate applied", 2)
     panel.operationCombo.setCurrentIndex(5)
     panel.sectionAxis.setCurrentText("Y")
     panel.sectionOffset.setValue(0)
     panel.sectionKeepSide.setCurrentIndex(0)
-    _settle(app, "Section Y=0")
+    _check_step(app, "Section Y=0")
     panel.sectionButton.click()
-    _settle(app, "Section Apply")
+    _check_step(app, "Section Apply")
     assert window._stl_section_spec == (0, "Y", 0, True)
     assert window._stl_entries[0].section_overlay is not None
     assert panel.undoButton.isEnabled()
     panel.undoButton.click()
-    _settle(app, "Section Undo")
+    _check_step(app, "Section Undo")
     assert window._stl_section_spec is None
     assert window._stl_entries[0].section_overlay is None
     assert window._stl_entries[0].obj.world_pivot() == pytest.approx(original_pivot)
@@ -515,6 +566,7 @@ def test_daily_gui_workflow_stays_inside_sandbox(qt_app, monkeypatch, tmp_path):
     library.save_tool("milling", "T60", IMPELLER_TOOL)
     window = MainWindow()
     window.autoUpdateEnabled = False
+    _quiet_configuration_dialogs(window)
     results = []
     stage = "FANUC Mill"
     guard = QTimer(window)
@@ -552,6 +604,8 @@ def test_daily_gui_workflow_stays_inside_sandbox(qt_app, monkeypatch, tmp_path):
         _export(window, qt_app, exported)
         _playback(window, qt_app, full=True)
         _record(results, stage, errors)
+        stage = "3-axis GPU Stock Removal"
+        _milling_gpu_stock(window, qt_app, results)
         stage = "FANUC Turn"
         _new_program(window, qt_app, turning=True, home=(150, 10))
         _open_fixture(window, qt_app, paths, FIXTURES / "turning/lathe_cycles_example.nc")

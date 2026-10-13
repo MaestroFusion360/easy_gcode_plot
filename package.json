@@ -23,7 +23,6 @@
     "postcss-value-parser": "4.2.0",
     "prettier": "3.9.9",
     "stylelint": "17.16.0",
-    "stylelint-config-recommended": "18.0.0",
-    "@types/postprocessor": "1.0.0"
+    "stylelint-config-recommended": "18.0.0"
   }
 }

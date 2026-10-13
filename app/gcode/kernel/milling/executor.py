@@ -966,10 +966,13 @@ def execute_milling(
     source_dialect: str = "fanuc",
     sinumerik_840d_sl: bool = True,
     tool_resolver=None,
+    parsed_program=None,
 ):
 
     definition, fingerprint = kinematics_snapshot(kinematics)
-    program = parse_sinumerik_program(source) if source_dialect == "sinumerik" else parse_program(source)
+    program = parsed_program
+    if program is None:
+        program = parse_sinumerik_program(source) if source_dialect == "sinumerik" else parse_program(source)
     resolve_program_tools(program, None, tool_resolver)
     program_start_block, program_number = main_program_location(program)
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)

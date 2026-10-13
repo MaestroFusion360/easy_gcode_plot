@@ -14,6 +14,7 @@ from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.program_execution import execute_program
 from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
 from app.settings import AUTO_UPDATE_SEGMENTS_MAX, GENERATED_MOTIONS_DEFAULT
+from app.tools.discovery_rules import default_settings
 from app.tools.setup import refresh_setup
 from app.ui.plot.playback import (
     PLAYBACK_ARC_MIN_FRAMES,
@@ -409,11 +410,9 @@ class MainWindowExecutionMixin:
             wcs_offsets = {code: (values[0] * 2.0, *values[1:]) for code, values in wcs_offsets.items()}
 
         attribute = "tools" if turning else "millingTools"
-        turning_tools = deepcopy(getattr(self, "tools", {}) or {})
-        milling_tools = deepcopy(getattr(self, "millingTools", {}) or {})
-        current_tools = turning_tools if turning else milling_tools
+        current_tools = deepcopy(getattr(self, attribute, {}) or {})
         inference = deepcopy(getattr(self, "program_tool_inference", {}) or {})
-        previous_inference = deepcopy(inference.get(attribute, {}))
+        previous_inference = inference.get(attribute, {})
         correction_enabled = bool(getattr(self, "correctionEnabled", True))
         arc_tolerance = float(getattr(self, "arcTolerance", 0.01))
         maximum_circular_radius = float(getattr(self, "maximumCircularRadius", 1000.0))
@@ -430,9 +429,8 @@ class MainWindowExecutionMixin:
         options = deepcopy(
             {
                 "language": language,
-                "library_tools": deepcopy(
-                    getattr(self, "turningToolLibrary" if turning else "millingToolLibrary", {}) or {}
-                ),
+                "discovery_rules": getattr(self, "toolDiscovery", default_settings()),
+                "library_tools": getattr(self, "turningToolLibrary" if turning else "millingToolLibrary", {}) or {},
                 "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
                 "sinumerik_840d_sl": getattr(self, "sinumerik840dSl", True),
                 "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
@@ -455,6 +453,11 @@ class MainWindowExecutionMixin:
                 ),
             }
         )
+
+        cache_key = (source, options["source_dialect"], turning)
+        cached = getattr(self, "_parsed_program_cache", None)
+        if cached is not None and cached[0] == cache_key:
+            options["parsed_program"] = cached[1]
 
         calculate = partial(
             _calculate_source,
@@ -494,6 +497,8 @@ class MainWindowExecutionMixin:
             return None, None, False
 
         setattr(self, attribute, updated_tools)
+        if getattr(result, "program", None) is not None:
+            self._parsed_program_cache = (cache_key, result.program)
         inference[attribute] = inferred
         self.program_tool_inference = inference
         self._last_execution_ms = execution_ms
@@ -532,6 +537,7 @@ class MainWindowExecutionMixin:
             library_tools=getattr(self, "turningToolLibrary" if self.latheMode else "millingToolLibrary", {}),
             source_dialect=getattr(self, "_document_source_dialect", "fanuc"),
             default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
+            rules=getattr(self, "toolDiscovery", default_settings()),
         )
         self.program_tool_inference = inference
 

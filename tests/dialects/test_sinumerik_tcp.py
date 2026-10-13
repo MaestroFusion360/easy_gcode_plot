@@ -178,16 +178,27 @@ def test_native_tcp_reaches_cli_batch_and_export_stays_closed(tmp_path):
         assert not output.exists()
 
 
-def test_native_compact_fixture_and_cut3dc_negative_fixture(fixture_text):
+def test_native_compact_tcp_fixture(fixture_text):
     result = native(fixture_text("milling/sinumerik/sinumerik_traori_ac.mpf"), kinematics="5ax_table_ac_angled")
     assert result.ok and result.complete, result.diagnostics
     assert any(m.arc is not None for m in result.motions)
-    failed = native(
-        fixture_text("milling/sinumerik/sinumerik_cut3dc_unsupported.mpf"), kinematics="5ax_table_ac_angled"
-    )
+
+
+def test_cut3dc_warning_retains_tcp_geometry_and_feed_golden():
+    failed = native("TRAORI\nCUT3DC\nG1 X10 F300\nM30\n", kinematics="5ax_table_ac_angled")
     assert failed.ok and failed.complete
-    assert failed.motions
-    assert any(d.raw == "CUT3DC" and d.severity == "warning" for d in failed.diagnostics)
+    assert [(motion.move, motion.end_x, motion.end_y, motion.end_z, motion.feed) for motion in failed.motions] == [
+        (1, 10, 0, 0, 300)
+    ]
+    assert [(d.code, d.raw, d.severity, d.line) for d in failed.diagnostics] == [
+        ("UNMODELED_SINUMERIK_NATIVE", "CUT3DC", "warning", 2)
+    ]
+    assert [(event.kind, event.code) for event in failed.events] == [
+        ("program_start", None),
+        ("SINUMERIK_NATIVE_OPERATION", "TRAORI"),
+        ("TCP_CONTROL_ON", "TRAORI"),
+        ("program_end", "M30"),
+    ]
 
 
 @pytest.mark.parametrize(

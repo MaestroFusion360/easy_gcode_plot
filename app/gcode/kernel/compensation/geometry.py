@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-# Geometric candidate iteration deliberately uses a set to remove duplicates.
-# pylint: disable=use-sequence-for-iteration
 import math
 from dataclasses import dataclass
 
 from ..frontend.model import Motion
+from ..geometry.intersections import line_circle_points
 from .common import EPS
 
 
@@ -29,7 +28,8 @@ def line_intersection(a: TurningPrimitive, b: TurningPrimitive) -> list[Vec2]:
     avx, avy = a.end.x - a.start.x, a.end.y - a.start.y
     bvx, bvy = b.end.x - b.start.x, b.end.y - b.start.y
     determinant = avx * bvy - avy * bvx
-    if abs(determinant) <= EPS:
+    lengths = math.hypot(avx, avy) * math.hypot(bvx, bvy)
+    if lengths <= EPS * EPS or abs(determinant) <= EPS * lengths:
         if math.hypot(a.end.x - b.start.x, a.end.y - b.start.y) <= 1e-7:
             return [a.end]
         return []
@@ -40,21 +40,12 @@ def line_intersection(a: TurningPrimitive, b: TurningPrimitive) -> list[Vec2]:
 
 def line_circle_intersections(line: TurningPrimitive, arc: TurningPrimitive) -> list[Vec2]:
     assert arc.center is not None
-    vx, vy = line.end.x - line.start.x, line.end.y - line.start.y
-    ox, oy = line.start.x - arc.center.x, line.start.y - arc.center.y
-    aa = vx * vx + vy * vy
-    if aa <= EPS:
-        return []
     radius = math.hypot(arc.start.x - arc.center.x, arc.start.y - arc.center.y)
-    bb = 2.0 * (vx * ox + vy * oy)
-    cc = ox * ox + oy * oy - radius * radius
-    discriminant = bb * bb - 4.0 * aa * cc
-    if discriminant < -EPS:
-        return []
-    root = math.sqrt(max(0.0, discriminant))
     return [
-        Vec2(line.start.x + t * vx, line.start.y + t * vy)
-        for t in {(-bb - root) / (2.0 * aa), (-bb + root) / (2.0 * aa)}
+        Vec2(*point)
+        for point in line_circle_points(
+            (line.start.x, line.start.y), (line.end.x, line.end.y), (arc.center.x, arc.center.y), radius
+        )
     ]
 
 

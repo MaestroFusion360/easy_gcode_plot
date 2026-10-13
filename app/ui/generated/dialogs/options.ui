@@ -954,6 +954,247 @@
                             </item>
                         </layout>
                     </widget>
+                    <widget class="QWidget" name="toolDiscoveryTab">
+                        <attribute name="title">
+                            <string>Tool Discovery</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="discoveryLayout" stretch="0,1,0,0,0,0">
+                            <item>
+                                <layout class="QHBoxLayout" name="discoveryModeLayout">
+                                    <item>
+                                        <widget class="QLabel" name="discoveryModeLabel">
+                                            <property name="text">
+                                                <string>Mode</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QComboBox" name="discoveryModeCombo">
+                                            <property name="maximumSize">
+                                                <size>
+                                                    <width>160</width>
+                                                    <height>16777215</height>
+                                                </size>
+                                            </property>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Milling</string>
+                                                </property>
+                                            </item>
+                                            <item>
+                                                <property name="text">
+                                                    <string>Turning</string>
+                                                </property>
+                                            </item>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QCheckBox" name="discoveryRegexCheck">
+                                            <property name="text">
+                                                <string>Regular expressions</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <spacer name="discoveryModeSpacer">
+                                            <property name="orientation">
+                                                <enum>Qt::Orientation::Horizontal</enum>
+                                            </property>
+                                            <property name="sizeHint">
+                                                <size>
+                                                    <width>20</width>
+                                                    <height>0</height>
+                                                </size>
+                                            </property>
+                                        </spacer>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item>
+                                <widget class="QSplitter" name="discoverySplitter">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Horizontal</enum>
+                                    </property>
+                                    <widget class="QWidget" name="discoveryTypesPane">
+                                        <layout class="QVBoxLayout" name="discoveryTypesLayout">
+                                            <property name="leftMargin">
+                                                <number>0</number>
+                                            </property>
+                                            <property name="topMargin">
+                                                <number>0</number>
+                                            </property>
+                                            <property name="bottomMargin">
+                                                <number>0</number>
+                                            </property>
+                                            <item>
+                                                <widget class="QLabel" name="discoveryTypesLabel">
+                                                    <property name="text">
+                                                        <string>Tool types</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QListWidget" name="discoveryTypesList">
+                                                    <property name="spacing">
+                                                        <number>3</number>
+                                                    </property>
+                                                    <property name="frameShape">
+                                                        <enum>QFrame::Shape::NoFrame</enum>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                        </layout>
+                                    </widget>
+                                    <widget class="QWidget" name="discoveryEditorPane">
+                                        <layout class="QVBoxLayout" name="discoveryEditorLayout" stretch="0,0,2,0,3">
+                                            <property name="rightMargin">
+                                                <number>0</number>
+                                            </property>
+                                            <property name="topMargin">
+                                                <number>0</number>
+                                            </property>
+                                            <property name="bottomMargin">
+                                                <number>0</number>
+                                            </property>
+                                            <item>
+                                                <widget class="QLabel" name="discoveryNamesLabel">
+                                                    <property name="text">
+                                                        <string>Tool names / Aliases</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QLabel" name="discoveryFormatLabel">
+                                                    <property name="text">
+                                                        <string />
+                                                    </property>
+                                                    <property name="wordWrap">
+                                                        <bool>true</bool>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QPlainTextEdit" name="discoveryNamesEdit">
+                                                    <property name="tabChangesFocus">
+                                                        <bool>true</bool>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QLabel" name="discoveryParametersLabel">
+                                                    <property name="text">
+                                                        <string>Parameters</string>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QTableWidget" name="discoveryParameterTable">
+                                                    <property name="alternatingRowColors">
+                                                        <bool>true</bool>
+                                                    </property>
+                                                    <property name="showGrid">
+                                                        <bool>false</bool>
+                                                    </property>
+                                                    <property name="frameShape">
+                                                        <enum>QFrame::Shape::NoFrame</enum>
+                                                    </property>
+                                                    <property name="editTriggers">
+                                                        <set>QAbstractItemView::EditTrigger::DoubleClicked|QAbstractItemView::EditTrigger::SelectedClicked|QAbstractItemView::EditTrigger::EditKeyPressed</set>
+                                                    </property>
+                                                    <column>
+                                                        <property name="text">
+                                                            <string>Parameter</string>
+                                                        </property>
+                                                    </column>
+                                                    <column>
+                                                        <property name="text">
+                                                            <string>Recognition labels</string>
+                                                        </property>
+                                                    </column>
+                                                </widget>
+                                            </item>
+                                        </layout>
+                                    </widget>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QLabel" name="discoveryTestLabel">
+                                    <property name="text">
+                                        <string>Test Recognition</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <layout class="QHBoxLayout" name="discoveryCommentLayout">
+                                    <item>
+                                        <widget class="QLabel" name="discoveryCommentLabel">
+                                            <property name="text">
+                                                <string>Sample Comment</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QLineEdit" name="discoveryCommentEdit">
+                                            <property name="placeholderText">
+                                                <string>END MILL D10 FL30</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QPushButton" name="discoveryTestButton">
+                                            <property name="text">
+                                                <string>Test</string>
+                                            </property>
+                                            <property name="maximumSize">
+                                                <size>
+                                                    <width>70</width>
+                                                    <height>16777215</height>
+                                                </size>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item>
+                                <widget class="QLabel" name="discoveryResultLabel">
+                                    <property name="text">
+                                        <string />
+                                    </property>
+                                    <property name="wordWrap">
+                                        <bool>true</bool>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>0</width>
+                                            <height>24</height>
+                                        </size>
+                                    </property>
+                                    <property name="textFormat">
+                                        <enum>Qt::TextFormat::RichText</enum>
+                                    </property>
+                                    <property name="textInteractionFlags">
+                                        <set>Qt::TextInteractionFlag::TextSelectableByMouse</set>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QLabel" name="discoveryErrorLabel">
+                                    <property name="text">
+                                        <string />
+                                    </property>
+                                    <property name="wordWrap">
+                                        <bool>true</bool>
+                                    </property>
+                                    <property name="minimumSize">
+                                        <size>
+                                            <width>0</width>
+                                            <height>24</height>
+                                        </size>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
                 </widget>
             </item>
             <item>

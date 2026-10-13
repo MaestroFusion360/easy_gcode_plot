@@ -6,6 +6,7 @@ import math
 from dataclasses import replace
 
 from ...api.types import TraceMotion
+from ...geometry.intersections import line_circle_points
 from ..common import EPS
 from .projection import (
     _dist2,
@@ -34,23 +35,7 @@ def _line_line_intersection(a: _ProjectedMotion, b: _ProjectedMotion) -> list[_P
 
 def _line_arc_intersections(line: _ProjectedMotion, arc: _ProjectedMotion) -> list[_Point2]:
     assert arc.center is not None and arc.radius is not None
-    vx, vy = line.end[0] - line.start[0], line.end[1] - line.start[1]
-    aa = vx * vx + vy * vy
-    if aa <= EPS:
-        return []
-    ox, oy = line.start[0] - arc.center[0], line.start[1] - arc.center[1]
-    bb = 2.0 * (vx * ox + vy * oy)
-    cc = ox * ox + oy * oy - arc.radius * arc.radius
-    disc = bb * bb - 4.0 * aa * cc
-    if disc < -EPS:
-        return []
-    root = math.sqrt(max(0.0, disc))
-    t1 = (-bb - root) / (2.0 * aa)
-    t2 = (-bb + root) / (2.0 * aa)
-    out = [(line.start[0] + t1 * vx, line.start[1] + t1 * vy)]
-    if abs(t2 - t1) > 1e-10:
-        out.append((line.start[0] + t2 * vx, line.start[1] + t2 * vy))
-    return out
+    return line_circle_points(line.start, line.end, arc.center, arc.radius)
 
 
 def _arc_arc_intersections(a: _ProjectedMotion, b: _ProjectedMotion) -> list[_Point2]:

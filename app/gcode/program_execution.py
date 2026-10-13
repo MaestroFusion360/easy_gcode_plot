@@ -17,6 +17,7 @@ def execute_program(
     correction_enabled=True,
     default_unit_scale=1.0,
     cancelled=None,
+    discovery_rules=None,
     **kernel_options,
 ):
     """Resolve temporary tools from the kernel's single parsed Program, then execute."""
@@ -37,6 +38,7 @@ def execute_program(
                 library_tools=library_tools,
                 source_dialect=kernel_options.get("source_dialect", "fanuc"),
                 program=program,
+                rules=discovery_rules,
             )
         except InterruptedError as exc:
             raise SemanticError("EXECUTION_CANCELLED", "Tool discovery cancelled", "resource_limit") from exc

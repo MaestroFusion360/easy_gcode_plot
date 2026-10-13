@@ -39,6 +39,8 @@ from app.settings import (
     TOOLBAR_ICON_SIZES,
     configure_logging,
 )
+from app.tools.discovery_rules import default_settings
+from app.ui.dialogs.discovery_settings import DiscoverySettings
 from app.ui.dialogs.post_profile_settings import PostProfileSettings
 from app.ui.generated.dialogs.options import Ui_OptionsDlg
 from app.ui.support.hotkey_editor import HotkeyEditor
@@ -101,6 +103,7 @@ def _option_snapshot(window):
         "rotary_kinematics": getattr(window, "rotaryKinematics", None),
         "playback_speed": getattr(window, "playbackSpeed", 3),
         "toolbar_icon_size": getattr(window, "toolbarIconSize", DEFAULT_TOOLBAR_ICON_SIZE),
+        "tool_discovery": getattr(window, "toolDiscovery", default_settings()),
     }
 
 
@@ -228,6 +231,7 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_OptionsDlg()
         self.ui.setupUi(self)
+        self.discoverySettings = DiscoverySettings(self)
         self.postProfileSettings = PostProfileSettings(self)
         self.ui.latheGcodeSystemCombo = QComboBox(self)
         self.ui.latheGcodeSystemCombo.setObjectName("latheGcodeSystemCombo")
@@ -397,6 +401,7 @@ class OptionsDialog(QDialog):
 
     def load_values(self):
         window = self.parent()
+        self.discoverySettings.load(getattr(window, "toolDiscovery", default_settings()))
         self.hotkeyEditor.load(window)
         self.ui.encodingCombo.setCurrentIndex(1 if getattr(window, "fileEncoding", "utf-8") == "cp1251" else 0)
         self.ui.fileTypeCombo.setCurrentIndex(
@@ -629,6 +634,7 @@ class OptionsDialog(QDialog):
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
         window.maxGeneratedMotions = self.ui.maxGeneratedMotionsSpin.value()
         _apply_cnc_options(window, self.ui)
+        window.toolDiscovery = self.discoverySettings.document
         window.latheGcodeSystem = self.ui.latheGcodeSystemCombo.currentData()
         window.sinumerik840dSl = self.ui.sinumerik840dSlCheck.isChecked()
         window.fontFamily = self.ui.fontCombo.currentFont().family()
@@ -684,13 +690,15 @@ class OptionsDialog(QDialog):
 
     def _validate_pending_options(self, window):
         return (
-            self._valid_colors(tuple(edit for _, edit in self._color_controls))
+            self.discoverySettings.validate()
+            and self._valid_colors(tuple(edit for _, edit in self._color_controls))
             and self._apply_hotkeys(window)
             and self.postProfileSettings.apply()
             and self._save_pending_rotary_profiles()
         )
 
     def _commit_refresh(self, window, previous_options, selected_rotary, execution_changed, sampling_changed):
+        execution_changed |= previous_options["tool_discovery"] != window.toolDiscovery
         profiles_changed = bool(self._pending_rotary_profiles)
         if profiles_changed:
             window._refresh_rotary_kinematics_menu()
@@ -783,6 +791,7 @@ class OptionsDialog(QDialog):
         window._apply_editor_theme()
 
     def restore_defaults(self):
+        self.discoverySettings.restore_defaults()
         LOGGER.debug("options_restore_defaults_requested")
         self.ui.sinumerik840dSlCheck.setChecked(True)
         self.hotkeyEditor.reset_defaults()

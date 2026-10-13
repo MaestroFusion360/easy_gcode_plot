@@ -17,6 +17,7 @@ def refresh_setup(
     library_tools=None,
     source_dialect="fanuc",
     program=None,
+    rules=None,
 ):
     """Refresh inferred geometry while retaining manual assignments in this document."""
     inferred = discover_tools(
@@ -26,6 +27,7 @@ def refresh_setup(
         cancelled=cancelled,
         source_dialect=source_dialect,
         program=program,
+        rules=rules,
     )
     normalize = normalized_tools if turning else normalized_milling_tools
     library = normalize(library_tools or {})
@@ -43,6 +45,7 @@ def reset_program_setup(window):
     window.tools = {}
     window.millingTools = {}
     window.program_tool_inference = {}
+    setattr(window, "_parsed_program_cache", None)
     window.exportToolNumbers = {}
     for name in ("toolLibraryDlg",):
         dialog = getattr(window, name, None)
