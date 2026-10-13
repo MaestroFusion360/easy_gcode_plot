@@ -414,6 +414,10 @@ p {
 .story .screenshot-card img {
   height: auto;
 }
+.measure-preview {
+  width: 66.667%;
+  justify-self: center;
+}
 .story-reverse {
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
 }

@@ -103,8 +103,11 @@ def test_cnc_toolbar_places_existing_commands_before_calculators(qt_app):
     assert positions == list(range(positions[0], positions[0] + len(expected)))
     assert actions[positions[-1] + 1] is window.ui.actionStatistics
     assert actions[positions[-1] + 2] is window.ui.actionExportToolList
-    assert actions[positions[-1] + 3].isSeparator()
-    assert actions[positions[-1] + 4] is getattr(window.ui, "actionHoleCalculator")
+    assert actions[positions[-1] + 3] is window.ui.actionMeasure
+    assert window.ui.actionMeasure in window.ui.menuCNC_Functions.actions()
+    assert not window.ui.actionMeasure.icon().isNull()
+    assert actions[positions[-1] + 4].isSeparator()
+    assert actions[positions[-1] + 5] is getattr(window.ui, "actionHoleCalculator")
     assert [toolbar.objectName() for toolbar in window.findChildren(QToolBar)[:4]] == [
         "fileToolBar",
         "editToolBar",

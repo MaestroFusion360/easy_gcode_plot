@@ -356,6 +356,7 @@ class MainWindowStockMixin(MainWindowMillingStockMixin):
                 self.ui.graphicsView.addItem(
                     overlay.item_for(getattr(self, "stlColor", "#b0b0b0"), getattr(self, "stlWireframe", False))
                 )
+            self._restore_measure_overlay()
             return
         self.ui.graphicsView.clear()
         self.ui.graphicsView.setBackgroundGradient(
@@ -365,6 +366,7 @@ class MainWindowStockMixin(MainWindowMillingStockMixin):
         item = getattr(self, "_stock_item", None)
         if item is not None and item not in self.ui.graphicsView.items:
             self.ui.graphicsView.addItem(item)
+        self._restore_measure_overlay()
 
     def _update_stock_animation_frame(self, playback_count: int) -> None:
         if not self.latheMode:

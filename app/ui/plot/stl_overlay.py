@@ -46,6 +46,14 @@ class StlOverlay:
         self.item = None
         self._rebuild_geometry()
 
+    def pick_geometry(self):
+        """Expose the displayed facets and feature/section edges in world coordinates."""
+        if self._feature_edges is None:
+            self._feature_edges = stl_feature_edges(self.mesh)
+        if self._wire_positions is None:
+            self._wire_positions = np.ascontiguousarray(self._vertices[self._feature_edges].reshape((-1, 2, 3)))
+        return self._render_mesh.triangles, self._wire_positions.reshape((-1, 2, 3))
+
     def _rebuild_geometry(self):
         triangles = self.object.world_triangles()
         normals = transform_normals(self.mesh.normals, self.object.matrix)
@@ -77,7 +85,7 @@ class StlOverlay:
             self._wire_positions = np.ascontiguousarray(self._vertices[self._feature_edges].reshape((-1, 3)))
         edge_color = QColor("#606060" if base.lightnessF() < 0.35 else "#383838")
         item = GLLinePlotItem(
-            pos=self._wire_positions,
+            pos=self._wire_positions.reshape((-1, 3)),
             color=edge_color,
             width=1.0,
             antialias=False,

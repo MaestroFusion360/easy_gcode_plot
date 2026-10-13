@@ -39,6 +39,7 @@ from app.ui.dialogs.tokens import TokensDialog
 from app.ui.dialogs.tool_library_dialog import ToolLibraryDialog
 from app.ui.generated.main.main_ui import Ui_MainWindow
 from app.ui.plot.plot_navigation import PlotNavigation
+from app.ui.plot.ruler import PlotRuler
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.windows.main_window_execution import (
     AUTO_REFRESH_DELAY_MS,
@@ -62,6 +63,7 @@ from app.ui.windows.main_window_plot import (
 )
 from app.ui.windows.main_window_stock import MainWindowStockMixin
 from app.ui.windows.plot_printing import paint_plot_page, project_toolpath
+from app.ui.windows.stock_mesh_insert import insert_stock_mesh
 from app.ui.windows.window_settings import MainWindowSettingsMixin
 
 # Backward-compatible helper names used by existing GUI tests and callers.
@@ -110,6 +112,8 @@ class MainWindow(
         self.createLabelStatBar()
         self.clearPlot()
         self.changeLathe()
+        self._ruler = PlotRuler(self)
+        self._plot_navigation.measure = self._ruler
 
     def _configure_rotary_kinematics_menu(self):
         """Expose indexed milling kinematics at the top of the Settings menu."""
@@ -209,7 +213,7 @@ class MainWindow(
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
         self.ui.actionStock = QAction(
-            QIcon(":/resource/icons/stock.png"), QCoreApplication.translate("MainWindow", "Stock"), self
+            QIcon(":/resource/icons/stock_menu.png"), QCoreApplication.translate("MainWindow", "Stock"), self
         )
         self.ui.actionStock.setObjectName("actionStock")
         self.ui.actionStock.setToolTip(QCoreApplication.translate("MainWindow", "Configure Stock Removal"))
@@ -226,6 +230,15 @@ class MainWindow(
         self.ui.actionSaveStockStl = QAction(QCoreApplication.translate("MainWindow", "Save stock as STL"), self)
         self.ui.actionSaveStockStl.setObjectName("actionSaveStockStl")
         self.ui.actionSaveStockStl.setEnabled(False)
+        self.ui.actionInsertStockMesh = QAction(
+            QCoreApplication.translate("MainWindow", "Insert Mesh into Plot View"), self
+        )
+        self.ui.actionInsertStockMesh.setObjectName("actionInsertStockMesh")
+        self.ui.actionInsertStockMesh.setEnabled(False)
+        self.ui.actionSaveStockStl.changed.connect(
+            lambda: self.ui.actionInsertStockMesh.setEnabled(self.ui.actionSaveStockStl.isEnabled())
+        )
+        self.ui.actionInsertStockMesh.triggered.connect(lambda: insert_stock_mesh(self))
         self.ui.menuCNC_Functions.addSeparator()
         self.ui.cncToolBar.addSeparator()
         self.viewActionGroup = QActionGroup(self)
@@ -585,6 +598,9 @@ class MainWindow(
         turning = bool(self.latheMode)
         self.ui.actionStock.setEnabled(True)
         self.ui.actionSaveStockStl.setEnabled(not turning and bool(getattr(self, "_stock_animation_active", False)))
+        self.ui.actionInsertStockMesh.setEnabled(self.ui.actionSaveStockStl.isEnabled())
+        if hasattr(self, "_ruler"):
+            self._ruler.sync_view()
         self.ui.actionToolLibrary.setEnabled(not self._tool_library_load_error)
         milling_assistants_enabled = not turning
         getattr(self.ui, "actionHoleCalculator").setEnabled(milling_assistants_enabled)

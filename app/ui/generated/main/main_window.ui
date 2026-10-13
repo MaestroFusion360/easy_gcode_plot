@@ -288,6 +288,8 @@
     <addaction name="actionRemoveEmptyLines"/>
     <addaction name="actionStatistics"/>
     <addaction name="actionExportToolList"/>
+    <addaction name="separator"/>
+    <addaction name="actionMeasure"/>
    </widget>
    <addaction name="menu_File"/>
    <addaction name="menu_Edit"/>
@@ -380,6 +382,7 @@
    <addaction name="actionRemoveEmptyLines"/>
    <addaction name="actionStatistics"/>
    <addaction name="actionExportToolList"/>
+   <addaction name="actionMeasure"/>
   </widget>
   <widget class="QToolBar" name="playbackToolBar">
    <property name="windowTitle"><string>Playback</string></property>
@@ -795,6 +798,12 @@
    <property name="menuRole">
     <enum>QAction::MenuRole::NoRole</enum>
    </property>
+  </action>
+  <action name="actionMeasure">
+   <property name="checkable"><bool>true</bool></property>
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/ruler.png</normaloff>:/resource/icons/ruler.png</iconset></property>
+   <property name="text"><string>Measure</string></property>
+   <property name="toolTip"><string>Measure between two points in a fixed 2D view</string></property>
   </action>
   <action name="actionLatheMode">
    <property name="checkable">

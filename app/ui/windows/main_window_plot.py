@@ -26,6 +26,7 @@ from pyqtgraph.opengl import GLGridItem, GLLinePlotItem, GLScatterPlotItem
 from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.ui.panels.stl_objects_panel import StlObjectsPanel
 from app.ui.plot.axis_triad import AxisTriadItem
+from app.ui.plot.geometry_picking import view_projection
 from app.ui.plot.milling_tool_preview import MillingToolPreviewItem
 from app.ui.plot.plot_grid import adaptive_grid_geometry
 from app.ui.plot.plot_navigation import point_segment_distance as _point_segment_distance
@@ -889,6 +890,8 @@ class MainWindowPlotMixin:
         """Restrict the Grid command and rendered grid to supported views."""
         available = self._grid_available_in_current_view()
         self.ui.actionGrid.setEnabled(available)
+        if hasattr(self, "_ruler"):
+            self._ruler.sync_view()
         grid = getattr(self, "_milling_grid_item", None)
         if grid is not None:
             grid.setVisible(available and self.plotGrid)
@@ -909,6 +912,7 @@ class MainWindowPlotMixin:
         menu.addAction(self.ui.actionGrid)
         menu.addSeparator()
         menu.addAction(self.ui.actionSaveStockStl)
+        menu.addAction(self.ui.actionInsertStockMesh)
         menu.exec(self.ui.graphicsView.mapToGlobal(point))
 
     def _cached_toolpath_bounds(self):
@@ -1123,12 +1127,8 @@ class MainWindowPlotMixin:
     def _project_world_to_screen(self, x, y, z):
         """Project one world point to GLViewWidget pixel coordinates."""
         view = self.ui.graphicsView
-        viewport = view.getViewport()
-        try:
-            projection = view.projectionMatrix(viewport, viewport)
-        except TypeError:  # pyqtgraph < 0.14 compatibility
-            projection = view.projectionMatrix(viewport)  # pylint: disable=no-value-for-parameter
-        clip = projection * view.viewMatrix() * QVector4D(float(x), float(y), float(z), 1.0)
+        matrix, viewport = view_projection(view)
+        clip = matrix * QVector4D(float(x), float(y), float(z), 1.0)
         w = clip.w()
         if abs(w) < 1e-12:
             return None
@@ -1206,6 +1206,8 @@ class MainWindowPlotMixin:
 
     def clearPlot(self):
         """Reset authoritative execution and render/playback state."""
+        if hasattr(self, "_ruler"):
+            self._ruler.reset()
         if hasattr(self, "_clear_stock_animation"):
             self._clear_stock_animation()
         if hasattr(self, "_clear_stock_outline"):
@@ -1377,6 +1379,7 @@ class MainWindowPlotMixin:
         started = perf_counter()
         if getattr(self, "_stock_animation_active", False):
             self._load_stock_animation_plot()
+            self._restore_measure_overlay()
             LOGGER.debug("plot_scene_loaded stock_animation=true duration_ms=%.3f", (perf_counter() - started) * 1000.0)
             return
         self.ui.graphicsView.clear()
@@ -1417,6 +1420,7 @@ class MainWindowPlotMixin:
             if active_overlay.item is not None:
                 self.ui.graphicsView.addItem(active_overlay.item)
         self._restore_selected_stl_overlays(stl_entries)
+        self._restore_measure_overlay()
         if hasattr(self, "_update_stock_outline"):
             self._update_stock_outline()
         LOGGER.debug(
@@ -1428,6 +1432,14 @@ class MainWindowPlotMixin:
             len(stl_entries),
             len(self.ui.graphicsView.items),
         )
+
+    def _restore_measure_overlay(self):
+        ruler = getattr(self, "_ruler", None)
+        if ruler is not None:
+            if ruler.first is not None:
+                ruler.update_result()
+            else:
+                ruler.restore_overlay()
 
     def _restore_selected_stl_overlays(self, stl_entries):
         if not hasattr(self, "stlObjectsDock"):

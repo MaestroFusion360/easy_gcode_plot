@@ -1701,6 +1701,20 @@ This matters for G41/G42 verification: inferred tool dimensions should be review
 
 ## Interface, editor and playback
 
+### How do I measure geometry in the plot?
+
+Choose **Top (XY)**, **Front (XZ)**, **Left (YZ)** or **Lathe View**, then enable **CNC Functions → Measure**. Click a toolpath point, STL edge or STL facet to set the first point. Move the mouse to preview the blue ruler; click a second geometry point to fix the result. The next click starts a new measurement. **Reset** or **Esc** in the plot clears the measurement; closing the nonmodal Measure dialog turns the ruler off. Free 3D views do not support Measure.
+
+The dialog shows From/To XYZ coordinates, signed coordinate differences, the distance projected onto the current view plane, and the full 3D distance. Rows are **From**, **To** and **Difference**, with **X/Y/Z** columns. Double-click a From or To cell to enter coordinates; Difference is calculated automatically. **Inches** converts coordinates and distances without moving the physical points or changing application units. In Lathe View, **X (D)** coordinates and X differences are diametral; both distances use physical radius coordinates. With **Grid** enabled, the ruler also snaps to visible grid crossings near the cursor, using the currently drawn adaptive or manual spacing. Geometry picks take precedence; hidden grids do not snap. Ruler clicks do not move the editor caret or playback slider. Ctrl+drag still pans; zoom remains available.
+
+STL picking uses the currently displayed transformed facets, including transparent objects and active clipped sections. Hidden objects are excluded. Toolpath measurements follow the sampled geometry displayed in the plot; stock-mesh measurements retain the resolution of the simulated surface.
+
+### How do I insert the calculated stock into STL Objects?
+
+Pause three-axis **Stock Removal** at the required playback/TrackBar position. Right-click the plot and choose **Insert Mesh into Plot View**. Wait for the selected stock frame to finish displaying before inserting. The application reads that calculated GPU state and builds an independent mesh in memory, without exporting or reading an STL file.
+
+The new **Stock snapshot** appears in **STL Objects**, aligned with the program in physical coordinates. Subsequent playback does not change it. Use the normal object transforms, sections and Measure tool; leaving Stock Removal keeps the inserted object in the plot. Mesh construction is cancellable, does not refine or coarsen the simulated surface, and rejects meshes over the plot's two-million-triangle limit.
+
 ### What are the two main GUI panels?
 
 The left side is a QScintilla editor with syntax highlighting, line numbers, search/replace and cleanup functions. The right side is an OpenGL trajectory view with axes, grid, camera controls, trajectory picking and playback.

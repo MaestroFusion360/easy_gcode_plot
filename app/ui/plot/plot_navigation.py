@@ -27,6 +27,7 @@ class PlotNavigation(QObject):
         self.on_pick = on_pick or (lambda _pos: None)
         self._drag_pos = None
         self._orbit_pivot = None
+        self.measure = None
 
     def _pivot_at(self, position):
         """Intersect the cursor ray with the view plane through the current center."""
@@ -54,11 +55,18 @@ class PlotNavigation(QObject):
     def eventFilter(self, watched, event):
         if watched is not self.view:
             return False
+        if self.measure is not None and self.measure.handle_event(event):
+            self._drag_pos = None
+            return True
 
         handled = False
         event_type = event.type()
         if event_type == QEvent.Type.MouseButtonPress:
-            if event.button() == Qt.MouseButton.LeftButton and event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
+            if (
+                event.button() == Qt.MouseButton.LeftButton
+                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+                and not (self.measure is not None and self.measure.active)
+            ):
                 self._drag_pos = None
                 self.on_pick(event.position())
                 handled = True

@@ -86,7 +86,10 @@ def check_translations(output: Path) -> list[str]:
                 errors.append(f"{source}: missing translation for {message.findtext('source')!r}")
                 continue
             original = sorted(PLACEHOLDER.findall(message.findtext("source") or ""))
-            translated = sorted(PLACEHOLDER.findall("".join(translation.itertext())))
+            translated_text = "".join(translation.itertext())
+            if "\ufffd" in translated_text or re.search(r"\?{2,}", translated_text):
+                errors.append(f"{source}: corrupted translation for {message.findtext('source')!r}")
+            translated = sorted(PLACEHOLDER.findall(translated_text))
             if original != translated:
                 errors.append(f"{source}: placeholder mismatch for {message.findtext('source')!r}")
         result = subprocess.run(

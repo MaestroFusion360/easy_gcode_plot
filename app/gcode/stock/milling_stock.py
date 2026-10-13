@@ -235,6 +235,24 @@ def milling_stock_triangles(timeline):
         yield from triangles
 
 
+def milling_stock_mesh_triangles(snapshot, *, cancelled=None, max_triangles=2_000_000):
+    """Build an in-memory snapshot mesh without resampling the simulated surface."""
+    batches = []
+    count = 0
+    for triangles, _normal, _cut, _rapid in compact_triangle_batches(snapshot, cancelled):
+        if cancelled is not None and cancelled():
+            raise InterruptedError("Stock mesh insertion cancelled")
+        count += len(triangles)
+        if count > max_triangles:
+            raise ValueError("Stock mesh exceeds the plot's two-million-triangle limit")
+        batches.append(triangles.copy())
+    if cancelled is not None and cancelled():
+        raise InterruptedError("Stock mesh insertion cancelled")
+    if not batches:
+        raise ValueError("The current stock contains no remaining material")
+    return np.concatenate(batches)
+
+
 def write_milling_stock_stl(path: str | Path, timeline, *, cancelled=None, precise=True, options=None, report=None):
     """Vectorized binary STL from a detached playback snapshot, atomically saved."""
 

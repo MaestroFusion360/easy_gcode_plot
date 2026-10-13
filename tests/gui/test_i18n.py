@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 import pytest
@@ -39,6 +41,19 @@ def test_language_codes_are_normalized():
 
 def test_compiled_translation_resource_is_packaged():
     assert QFile(":/resource/translations/app_ru.qm").exists()
+
+
+def test_russian_catalog_contains_no_lost_text(qt_app, translator):
+    assert i18n.install_translator(qt_app, "ru") is True
+    catalog = Path(__file__).resolve().parents[2] / "translations/app_ru.ts"
+    for context in ET.parse(catalog).getroot().findall("context"):
+        for message in context.findall("message"):
+            source = message.findtext("source")
+            translation = "".join(message.find("translation").itertext())
+            assert "\ufffd" not in translation and not re.search(r"\?{2,}", translation), (
+                f"{catalog}: corrupted translation in {context.findtext('name')}: {source!r} -> {translation!r}"
+            )
+            assert QCoreApplication.translate(context.findtext("name"), source) == translation, source
 
 
 def test_russian_translator_translates_form_strings(qt_app, translator):

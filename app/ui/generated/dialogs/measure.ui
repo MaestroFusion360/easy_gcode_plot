@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+    <class>MeasureDialog</class>
+    <widget class="QDialog" name="MeasureDialog">
+        <property name="windowTitle">
+            <string>Measure</string>
+        </property>
+        <layout class="QVBoxLayout" name="measureLayout">
+            <item>
+                <widget class="QTableWidget" name="coordinatesTable">
+                    <property name="editTriggers">
+                        <set>QAbstractItemView::EditTrigger::DoubleClicked</set>
+                    </property>
+                    <property name="selectionMode">
+                        <enum>QAbstractItemView::SelectionMode::SingleSelection</enum>
+                    </property>
+                    <property name="rowCount">
+                        <number>3</number>
+                    </property>
+                    <row>
+                        <property name="text">
+                            <string>From</string>
+                        </property>
+                    </row>
+                    <row>
+                        <property name="text">
+                            <string>To</string>
+                        </property>
+                    </row>
+                    <row>
+                        <property name="text">
+                            <string>Difference</string>
+                        </property>
+                    </row>
+                    <column>
+                        <property name="text">
+                            <string>X</string>
+                        </property>
+                    </column>
+                    <column>
+                        <property name="text">
+                            <string>Y</string>
+                        </property>
+                    </column>
+                    <column>
+                        <property name="text">
+                            <string>Z</string>
+                        </property>
+                    </column>
+                </widget>
+            </item>
+            <item>
+                <widget class="QLabel" name="statusLabel">
+                    <property name="text">
+                        <string />
+                    </property>
+                    <property name="wordWrap">
+                        <bool>true</bool>
+                    </property>
+                    <property name="alignment">
+                        <set>Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignTop</set>
+                    </property>
+                    <property name="sizePolicy">
+                        <sizepolicy hsizetype="Ignored" vsizetype="Fixed">
+                            <horstretch>0</horstretch>
+                            <verstretch>0</verstretch>
+                        </sizepolicy>
+                    </property>
+                </widget>
+            </item>
+            <item>
+                <layout class="QHBoxLayout" name="footerLayout" stretch="0,1,0">
+                    <item>
+                        <widget class="QCheckBox" name="inchesCheck">
+                            <property name="text">
+                                <string>Inches</string>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
+                        <spacer name="footerSpacer">
+                            <property name="orientation">
+                                <enum>Qt::Orientation::Horizontal</enum>
+                            </property>
+                            <property name="sizeHint">
+                                <size>
+                                    <width>20</width>
+                                    <height>0</height>
+                                </size>
+                            </property>
+                        </spacer>
+                    </item>
+                    <item>
+                        <widget class="QDialogButtonBox" name="buttonBox">
+                            <property name="standardButtons">
+                                <set>QDialogButtonBox::StandardButton::Close|QDialogButtonBox::StandardButton::Reset</set>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                    </item>
+                </layout>
+            </item>
+        </layout>
+    </widget>
+    <resources />
+    <connections />
+</ui>

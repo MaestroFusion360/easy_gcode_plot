@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.2.0 - 2026-10-13
+
+- Add Measure to CNC Functions for Top (XY), Front (XZ), Left (YZ) and Lathe views. Pick two toolpath or STL geometry points, preview the ruler while moving the mouse, fix the result with a second click and start another measurement with the next click. Show coordinates, differences and distances in a nonmodal dialog; preserve editor position and distinguish lathe X diameters from physical distances.
+- Add Insert Mesh into Plot View to the milling Stock Removal context menu. Capture the currently calculated stock as an independent, in-memory STL Object without temporary files or replaying the program; retain the simulated surface resolution and physical coordinates.
+- Restore corrupted Russian translations in postprocessor settings, export controls, calculators and STL messages, and reject replacement characters or lost text during translation checks.
+
 ## 2.1.1 - 2026-10-13
 
 - Fix lost line-circle tangencies and duplicate tangent candidates in milling and turning compensation. Use a shared distance-based intersection calculation with coordinate-scale roundoff tolerance while preserving distinct secant intersections.
