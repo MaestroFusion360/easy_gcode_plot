@@ -7,10 +7,10 @@ import json
 import pytest
 
 from app.cli import main
-from app.gcode.batch_export import export_directory
+from app.gcode.batch.export import export_directory
 from app.gcode.export.common import ExportLimitation, ExportOptions, is_export_limitation
 from app.gcode.export.expanded import convert_resolved_program, load_post_profile
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
 
 

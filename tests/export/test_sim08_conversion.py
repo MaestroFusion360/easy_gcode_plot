@@ -6,14 +6,14 @@ from pathlib import Path
 
 import pytest
 
+from app.gcode.execution.program import execute_program
 from app.gcode.export.common import ExportLimitation, ExportOptions
 from app.gcode.export.expanded import convert_resolved_program
+from app.gcode.export.service import ExportRequest, write_export
 from app.gcode.export.tool_numbers import target_tool_numbers
-from app.gcode.export_file import ExportRequest, write_export
 from app.gcode.kernel import execute
 from app.gcode.kernel.geometry.spatial_arc import axial_travel, point_at
 from app.gcode.post_profiles import load_post_profile
-from app.gcode.program_execution import execute_program
 from app.tools.definitions import DEFAULT_MILLING_TOOL
 
 ROOT = Path(__file__).resolve().parents[2]

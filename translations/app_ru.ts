@@ -2635,33 +2635,33 @@ Do you want to reload it from disk?</source>
         <translation>Выберите первую точку геометрии.</translation>
     </message>
     <message>
-        <location filename="../app/ui/plot/ruler.py" line="171"/>
+        <location filename="../app/ui/plot/ruler.py" line="186"/>
         <source>No geometry at this point.</source>
         <translation>В этой точке нет геометрии.</translation>
     </message>
     <message>
-        <location filename="../app/ui/plot/ruler.py" line="175"/>
-        <location filename="../app/ui/plot/ruler.py" line="258"/>
+        <location filename="../app/ui/plot/ruler.py" line="190"/>
+        <location filename="../app/ui/plot/ruler.py" line="273"/>
         <source>Select the second geometry point.</source>
         <translation>Выберите вторую точку геометрии.</translation>
     </message>
     <message>
-        <location filename="../app/ui/plot/ruler.py" line="203"/>
+        <location filename="../app/ui/plot/ruler.py" line="218"/>
         <source>Measurement fixed. Click to start another.</source>
         <translation>Измерение зафиксировано. Щёлкните для нового измерения.</translation>
     </message>
     <message>
-        <location filename="../app/ui/plot/ruler.py" line="247"/>
+        <location filename="../app/ui/plot/ruler.py" line="262"/>
         <source>Enter a finite numeric coordinate.</source>
         <translation>Введите конечное числовое значение координаты.</translation>
     </message>
     <message>
-        <location filename="../app/ui/plot/ruler.py" line="200"/>
+        <location filename="../app/ui/plot/ruler.py" line="215"/>
         <source>Distance in plane: {0} {1}</source>
         <translation>Расстояние в плоскости: {0} {1}</translation>
     </message>
     <message>
-        <location filename="../app/ui/plot/ruler.py" line="201"/>
+        <location filename="../app/ui/plot/ruler.py" line="216"/>
         <source>3D distance: {0} {1}</source>
         <translation>Пространственное расстояние: {0} {1}</translation>
     </message>
@@ -4104,43 +4104,55 @@ Do you want to reload it from disk?</source>
 <context>
     <name>StockMeshInsert</name>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="59"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="51"/>
+        <source>The stock mesh exceeds the Plot View triangle limit. Quality has been reduced to {0} triangles for insertion. Simulation accuracy is unchanged.
+
+Insert the simplified mesh?</source>
+        <translation>Сетка заготовки превышает лимит треугольников графического окна. Для вставки качество снижено до {0} треугольников. Точность симуляции не изменена.
+
+Вставить упрощённую сетку?</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="83"/>
         <source>Wait for the selected stock frame to finish displaying.</source>
         <translation>Дождитесь отображения выбранного кадра заготовки.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="63"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="87"/>
         <source>Insert Mesh into Plot View</source>
         <translation>Вставить mesh в графическое окно</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="73"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="97"/>
         <source>Reading calculated stock</source>
         <translation>Чтение рассчитанной заготовки</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="74"/>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="85"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="98"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="109"/>
         <source>Cancelling mesh insertion</source>
         <translation>Отмена вставки mesh</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="84"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="108"/>
         <source>Building stock mesh</source>
         <translation>Построение mesh заготовки</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="89"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="113"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="115"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="117"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="123"/>
         <source>Stock mesh insertion cancelled</source>
         <translation>Вставка mesh заготовки отменена</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="91"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="119"/>
         <source>Stock snapshot {0}</source>
         <translation>Снимок заготовки {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/stock_mesh_insert.py" line="99"/>
+        <location filename="../app/ui/windows/stock_mesh_insert.py" line="132"/>
         <source>Stock mesh inserted: {0} triangles</source>
         <translation>Mesh заготовки вставлен: {0} треугольников</translation>
     </message>

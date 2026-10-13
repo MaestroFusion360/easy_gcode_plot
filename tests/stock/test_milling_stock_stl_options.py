@@ -87,7 +87,7 @@ def test_dialog_units_preserve_metric_thresholds_and_values(export_qt_app):
 
 def test_linear_deviation_refines_gpu_bilinear_surface(tmp_path):
     """Deviation must follow the rendered heightfield, not split flat facets."""
-    from app.gcode.stock.milling_stock import MillingStockSnapshot
+    from app.gcode.stock.milling_stock_types import MillingStockSnapshot
 
     spec = MillingStockSpec(0, 1, 0, 1, -1, 1)
     stock = MillingStockSnapshot(
@@ -106,7 +106,7 @@ def test_linear_deviation_refines_gpu_bilinear_surface(tmp_path):
 
 def test_angular_deviation_refines_gpu_bilinear_surface(tmp_path):
     """Angular deviation must influence the STL, independently of edge length."""
-    from app.gcode.stock.milling_stock import MillingStockSnapshot
+    from app.gcode.stock.milling_stock_types import MillingStockSnapshot
 
     spec = MillingStockSpec(0, 1, 0, 1, -1, 1)
     stock = MillingStockSnapshot(

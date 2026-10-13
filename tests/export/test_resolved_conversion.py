@@ -4,12 +4,12 @@ import math
 
 import pytest
 
-from app.gcode.batch_export import export_directory
+from app.gcode.batch.export import export_directory
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import motion_length
+from app.gcode.trace import motion_length
 
 SOURCES = (
     ("fanuc", "#1=10\nT1 M6\nS500 M3\nG17 G0 X#1\nG3 X0 Y10 I-10 J0 F100\nG99 G84 X2 Y3 Z-9 R2 F625\nG80\nM9 M5 M30"),

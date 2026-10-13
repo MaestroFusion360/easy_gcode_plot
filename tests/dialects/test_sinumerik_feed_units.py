@@ -5,7 +5,7 @@ import pytest
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import trace_statistics
+from app.gcode.trace import trace_statistics
 
 
 def native(source):

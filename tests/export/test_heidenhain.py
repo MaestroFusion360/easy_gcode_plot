@@ -5,10 +5,10 @@ import re
 
 import pytest
 
-from app.gcode.batch_export import export_directory
+from app.gcode.batch.export import export_directory
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
 from app.gcode.post_profiles import load_post_profile
 from app.post_profile_library import PostProfileLibrary

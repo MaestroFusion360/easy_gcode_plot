@@ -2,8 +2,8 @@
 
 from html import escape
 
-from app.gcode.plot_page import fit_plot_bounds, print_line_style
-from app.gcode.trace_tools import sample_motion
+from app.gcode.reports.page import fit_plot_bounds, print_line_style
+from app.gcode.trace.sampling import sample_motion
 
 
 def _trace_segments(result):

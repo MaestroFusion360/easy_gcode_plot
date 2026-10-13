@@ -8,7 +8,7 @@ import pytest
 
 from app.gcode.export import full
 from app.gcode.export.full import format_full_program_source
-from app.gcode.export_file import ExportRequest, write_export
+from app.gcode.export.service import ExportRequest, write_export
 from app.gcode.exporter import ExportOptions
 from app.gcode.kernel import execute
 

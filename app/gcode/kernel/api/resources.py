@@ -8,11 +8,19 @@ from typing import TypeVar
 T = TypeVar("T")
 
 
-class SemanticError(ValueError):
-    def __init__(self, code: str, message: str, status: str = "malformed"):
+class ExecutionError(ValueError):
+    """Internal diagnostic evidence independent of the displayed message."""
+
+    def __init__(self, code, message, status="malformed", *, line=None, raw=None):
         super().__init__(message)
         self.code = code
         self.status = status
+        self.line = line
+        self.raw = raw
+
+
+class SemanticError(ExecutionError):
+    """A modeled semantic failure; retains the historical constructor contract."""
 
 
 @dataclass(frozen=True)

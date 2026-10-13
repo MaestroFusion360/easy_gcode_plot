@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.gcode.source_mode import sinumerik_initial_mode, source_dialect_for_path
+from app.gcode.execution.source import sinumerik_initial_mode, source_dialect_for_path
 
 
 @pytest.mark.parametrize(

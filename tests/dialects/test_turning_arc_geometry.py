@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import sample_motion
+from app.gcode.trace import sample_motion
 
 
 @pytest.mark.parametrize("move", [2, 3])

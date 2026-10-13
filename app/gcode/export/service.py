@@ -6,29 +6,24 @@ from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from time import perf_counter
 
+from app.gcode.comments import DEFAULT_COMMENT_STYLE, normalize_comment_style
+from app.gcode.execution.program import execute_program
+from app.gcode.execution.source import language_for_path, source_dialect_for_path
+from app.gcode.export.common import MM_PER_INCH, ExportLimitation, ExportOptions
+from app.gcode.export.expanded import convert_resolved_program, default_target_post
+from app.gcode.export.full import normalize_full_program
 from app.gcode.file_io import atomic_export as _atomic_export
 from app.gcode.file_io import protect_source
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
-from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import language_for_path, source_dialect_for_path
-
-from .comments import DEFAULT_COMMENT_STYLE, normalize_comment_style
-from .export.common import (
-    MM_PER_INCH,
-    ExportLimitation,
-    ExportOptions,
-)
-from .export.expanded import convert_resolved_program, default_target_post
-from .export.full import normalize_full_program
-from .post_profiles import load_post_profile
+from app.gcode.post_profiles import load_post_profile
 
 ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
 
 
 def _dxf_backend():
     try:
-        from .export.dxf import export_dxf  # pylint: disable=import-outside-toplevel
+        from app.gcode.export.dxf import export_dxf  # pylint: disable=import-outside-toplevel
     except ImportError as error:
         raise ValueError(f"DXF export backend is unavailable: {error}") from error
     return export_dxf

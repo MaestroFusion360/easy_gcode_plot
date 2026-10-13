@@ -9,7 +9,7 @@ import pytest
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program, load_post_profile
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import motion_length
+from app.gcode.trace import motion_length
 
 TARGETS = ("fanuc_mill", "fanuc_mill_multiaxis", "sinumerik_iso", "sinumerik_840d", "sinumerik_840d_multiaxis")
 

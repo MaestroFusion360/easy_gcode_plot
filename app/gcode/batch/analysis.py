@@ -13,13 +13,13 @@ from pathlib import Path
 from time import perf_counter
 from typing import Callable, Iterable
 
+from app.gcode.execution.program import execute_program
+from app.gcode.execution.source import language_for_path, source_dialect_for_path
 from app.gcode.file_io import atomic_write_text
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
-from app.gcode.kinematics_report import kinematics_report_fields
-from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import language_for_path, source_dialect_for_path
-from app.gcode.statistics_report import export_execution_statistics
+from app.gcode.reports.html import export_execution_statistics
+from app.gcode.reports.kinematics import kinematics_report_fields
 
 BATCH_REPORT_SCHEMA_VERSION = 2
 DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".mpf", ".spf", ".tap", ".txt")

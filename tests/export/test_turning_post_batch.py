@@ -8,8 +8,8 @@ from pathlib import Path
 import pytest
 
 from app.cli import main
+from app.gcode.execution.program import execute_program
 from app.gcode.kernel import execute
-from app.gcode.program_execution import execute_program
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "turning"
 

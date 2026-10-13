@@ -318,7 +318,7 @@ def test_new_program_tool_reaches_kernel_before_execution_and_removes_stock(monk
         options["tool_resolver"] = checked_resolver
         return execute(text, **options)
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", checked_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", checked_execute)
     window = SimpleNamespace(
         ui=SimpleNamespace(editor=SimpleNamespace(text=lambda: source)),
         latheMode=True,

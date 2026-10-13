@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 
-from ..api.resources import SemanticError
+from ..api.resources import ExecutionError
 from ..api.types import Diagnostic
 from ..frontend.lang import UndefinedMacroVariableError
 from ..frontend.model import Program
@@ -61,34 +61,38 @@ def _runtime_error_code(message: str, undefined_macro: bool) -> str:
     return next((code for fragments, code in rules if any(item in message for item in fragments)), "EXECUTION_ERROR")
 
 
-def diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagnostic:
-    """Translate an internal exception chain into a source-aware diagnostic."""
-    message = str(exc)
-    lowered = message.lower()
-    current: BaseException | None = exc
-    seen: set[int] = set()
-    undefined_macro = False
-    while current is not None and id(current) not in seen:
-        seen.add(id(current))
-        if isinstance(current, UndefinedMacroVariableError):
-            undefined_macro = True
-            break
-        current = current.__cause__ or current.__context__
-    code = _runtime_error_code(lowered, undefined_macro)
+def _exception_chain(exc, *, include_context=False):
+    seen = set()
+    while exc is not None and id(exc) not in seen:
+        seen.add(id(exc))
+        yield exc
+        exc = (exc.__cause__ or exc.__context__) if include_context else exc.__cause__
 
-    line = None
-    match = _LINE_RE.search(message)
-    if match is not None:
-        line = int(match.group(1))
-    raw = None
-    if program is not None and line is not None and 1 <= line <= len(program.blocks):
+
+def _exception_location(exc, program):
+    located = next((item for item in _exception_chain(exc) if isinstance(item, ExecutionError)), None)
+    line = located.line if located is not None else None
+    if line is None:
+        match = _LINE_RE.search(str(exc))
+        if match is not None:
+            line = int(match.group(1))
+    raw = located.raw if located is not None else None
+    if raw is None and program is not None and line is not None and 1 <= line <= len(program.blocks):
         raw = program.blocks[line - 1].raw
+    return line, raw
 
-    current = exc
-    while current is not None:
-        if isinstance(current, SemanticError):
+
+def diagnostic_from_exception(exc: Exception, program: Program | None) -> Diagnostic:
+    """Prefer structured evidence; retain text fallback for external exceptions."""
+    message = str(exc)
+    line, raw = _exception_location(exc, program)
+    for current in _exception_chain(exc):
+        if isinstance(current, ExecutionError) and current.code is not None:
             return Diagnostic(current.code, message, status=current.status, line=line, raw=raw)
-        current = current.__cause__
+    undefined_macro = any(
+        isinstance(item, UndefinedMacroVariableError) for item in _exception_chain(exc, include_context=True)
+    )
+    code = _runtime_error_code(message.lower(), undefined_macro)
     return Diagnostic(code=code, message=message, status="malformed", line=line, raw=raw)
 
 

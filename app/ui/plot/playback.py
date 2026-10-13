@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from app.gcode.trace_tools import sample_motion
+from app.gcode.trace.sampling import sample_motion
 
 
 @dataclass(frozen=True)

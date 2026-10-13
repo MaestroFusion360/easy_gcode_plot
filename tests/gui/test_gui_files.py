@@ -12,11 +12,11 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
 
 from app import main_window
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.execution.source import SOURCE_DIALECT_FANUC, SOURCE_DIALECT_SINUMERIK
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.exporter import DXF_MODE, EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
 from app.gcode.kernel import execute
-from app.gcode.source_mode import SOURCE_DIALECT_FANUC, SOURCE_DIALECT_SINUMERIK
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace import render_trace
 from app.ui.windows import main_window_file_ops
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.windows.main_window_file_ops import MainWindowFileMixin

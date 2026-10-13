@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current development baseline: **2.2.0**, **not released**. Three-axis milling stock removal is now implemented. Validation continues alongside the in-memory stock-mesh insertion workflow.
+Current development baseline: **2.2.1**, **not released**. Three-axis milling stock removal is now implemented. Validation continues alongside the in-memory stock-mesh insertion workflow. Version 2.2.1 refactors execution, export, trace consumers and stock output without changing the supported user workflows.
 
 The 1.9.x stabilization phase is complete; its delivered changes are recorded under versions 1.9.5–1.9.8 in [CHANGELOG](CHANGELOG.md). This roadmap tracks current validation and future work rather than repeating completed stabilization tasks.
 

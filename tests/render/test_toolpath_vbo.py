@@ -7,7 +7,7 @@ from PyQt6.QtGui import QMatrix4x4
 from pyqtgraph.opengl.items.GLLinePlotItem import DirtyFlag
 
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace import render_trace
 from app.ui.plot import toolpath_vbo
 from app.ui.plot.toolpath_vbo import (
     ToolpathSegment,

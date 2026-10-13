@@ -10,9 +10,10 @@ import math
 import re
 from dataclasses import replace
 
+from app.gcode.trace.sampling import sample_motion
+
 from ..kernel.geometry.arc_segments import split_arc
 from ..kernel.runtime.events import PROGRAM_START, SUBPROGRAM_START, TOOL_CHANGE
-from ..trace_tools import sample_motion
 from .common import ExportLimitation, _check_cancelled, _execution_slices, _word, scale_motion
 from .tool_numbers import target_tool_numbers, tool_mapping_lines
 
@@ -22,7 +23,7 @@ def _unsupported(message):
 
 
 def _check_scope(result, profile, options):
-    from .expanded import _require_valid_trace_export  # pylint: disable=import-outside-toplevel
+    from .preflight import _require_valid_trace_export  # pylint: disable=import-outside-toplevel
 
     if profile["machine"] != "mill" or result.language == "fanuc_turn":
         _unsupported("Heidenhain block schemes require milling geometry")
@@ -389,7 +390,7 @@ def _operation_lines(operations, references, motions, options, profile, spindle_
 
 def export_heidenhain(result, profile, options=None, *, cancelled=None):
     """Emit native blocks from trace geometry and semantic execution steps."""
-    from .expanded import _post_options, _source_comment_lines  # pylint: disable=import-outside-toplevel
+    from .post_options import _post_options, _source_comment_lines  # pylint: disable=import-outside-toplevel
 
     options = _post_options(options, profile)
     options = replace(options, delimiter=True, multi_turn_arcs=False)

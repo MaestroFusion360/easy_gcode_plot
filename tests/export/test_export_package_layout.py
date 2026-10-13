@@ -40,7 +40,7 @@ def test_legacy_package_attribute_access_matches_submodule_import():
     assert dxf_exporter.export_dxf is export_pkg.export_dxf
 
 
-def test_export_package_contains_only_three_paths_and_shared_helpers():
+def test_export_package_groups_public_paths_and_serialization_stages():
     from pathlib import Path
 
     from app.gcode.export import common, expanded, full
@@ -53,6 +53,13 @@ def test_export_package_contains_only_three_paths_and_shared_helpers():
         "expanded.py",
         "heidenhain.py",
         "tool_numbers.py",
+        "preflight.py",
+        "post_options.py",
+        "multiaxis.py",
+        "motions.py",
+        "operations.py",
+        "drilling.py",
+        "service.py",
         "dxf.py",
     }
     assert {path.stem for path in (folder / "posts").glob("*.json")} == {

@@ -10,7 +10,7 @@ import pytest
 from export_signatures import motion_traces_match
 
 from app.cli import main
-from app.gcode import batch
+from app.gcode.batch import analysis as batch
 from app.gcode.kernel import execute
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
@@ -417,7 +417,7 @@ def test_cli_batch_does_not_disguise_analyzer_failure_as_file_error(tmp_path, mo
     def fail_execute(*_args, **_kwargs):
         raise RuntimeError("analyzer failed")
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fail_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fail_execute)
     with pytest.raises(RuntimeError, match="analyzer failed"):
         main(["batch", str(corpus), "-o", str(tmp_path / "report")])
 

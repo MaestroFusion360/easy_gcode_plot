@@ -5,10 +5,10 @@ from dataclasses import replace
 import pytest
 
 from app.cli import main
-from app.gcode.batch import analyze_directory
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.batch.analysis import analyze_directory
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import motion_length, render_trace, sample_motion, trace_statistics
+from app.gcode.trace import motion_length, render_trace, sample_motion, trace_statistics
 from app.ui.plot.playback import build_playback_movements
 from app.ui.plot.toolpath_vbo import segments_from_render_points
 

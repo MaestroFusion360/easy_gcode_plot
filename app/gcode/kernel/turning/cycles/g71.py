@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ...api.resources import SemanticError, checkpoint
+from ...api.resources import SemanticError
 from ...frontend.model import Motion, Point2, ProfileSegment
 from ...geometry import (
     clip_polyline_max_x,
@@ -12,6 +12,7 @@ from ...geometry import (
     try_get_arc_geometry,
 )
 from .common import _append_profile_trace, add_feed_orthogonal, add_motion, add_motion_with_meta, ensure_cycle_return
+from .passes import roughing_passes
 
 
 def _follow_type_ii_profile(motions, profile, seg_idx, entry_pt, pass_x, next_pass_x, boring_mode, feed):
@@ -124,17 +125,12 @@ def build_g71_roughing(
     pass_x = min(cutting_stock + step_dia, limit_x) if boring_mode else max(cutting_stock - step_dia, limit_x)
     tool = Point2(stock_x, stock_z)
 
-    guard = 0
-    while (pass_x <= max_x + 1e-4) if boring_mode else (pass_x >= min_x - 1e-4):
-        checkpoint("cycle_iterations")
-        guard += 1
-        if guard > 10000:
-            raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
+    signed_step = step_dia if boring_mode else -step_dia
+    for pass_x in roughing_passes(pass_x, signed_step, limit_x, tolerance=1e-4):
         entry = try_find_entry_on_profile(profile, pass_x)
         if entry is None:
             if abs(pass_x - limit_x) <= 1e-9:
                 break
-            pass_x = min(pass_x + step_dia, limit_x) if boring_mode else max(pass_x - step_dia, limit_x)
             continue
 
         seg_idx, entry_pt = entry
@@ -159,7 +155,6 @@ def build_g71_roughing(
             add_motion(motions, 0, retreat, tool)
             if abs(pass_x - limit_x) <= 1e-9:
                 break
-            pass_x = min(pass_x + step_dia, limit_x) if boring_mode else max(pass_x - step_dia, limit_x)
             continue
 
         # Type II permits pockets/non-monotonic contours.  Follow the clipped
@@ -174,7 +169,6 @@ def build_g71_roughing(
         add_motion(motions, 0, retreat, tool)
         if abs(pass_x - limit_x) <= 1e-9:
             break
-        pass_x = min(pass_x + step_dia, limit_x) if boring_mode else max(pass_x - step_dia, limit_x)
 
     # Type I ends with one complete pass along the roughing profile.  The
     # incoming profile already includes the signed U/W finish allowances, so

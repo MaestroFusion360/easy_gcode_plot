@@ -10,7 +10,7 @@ import pytest
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.export import DXF_MODE, EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
-from app.gcode.export_file import validate_export_request
+from app.gcode.export.service import validate_export_request
 from app.gcode.kernel import execute
 from app.gcode.post_profiles import load_post_profile
 from app.main_window import MainWindow
@@ -314,7 +314,7 @@ def test_heidenhain_emits_resolved_machine_return(tmp_path):
 
 
 def test_heidenhain_shared_writer_outputs_radius_and_preserves_file_on_failure(tmp_path):
-    from app.gcode.export_file import ExportRequest, write_export
+    from app.gcode.export.service import ExportRequest, write_export
 
     library = PostProfileLibrary(tmp_path / "posts")
     profile = load_post_profile("heidanhain_itnc530")

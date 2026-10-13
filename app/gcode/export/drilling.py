@@ -3,8 +3,8 @@
 import math
 from dataclasses import replace
 
-from .export.common import _compact_post_line, _expanded_word, _word
-from .post_profiles import _render
+from app.gcode.export.common import _compact_post_line, _expanded_word, _word
+from app.gcode.post_profiles import _render
 
 
 def emit_drilling_operation(lines, step, motions, options, profile, *, direction=3, cycle_state=None):

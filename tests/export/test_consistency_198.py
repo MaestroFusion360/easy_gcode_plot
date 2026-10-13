@@ -8,7 +8,7 @@ import pytest
 
 from app.cli import main
 from app.gcode.export.expanded import export_result
-from app.gcode.export_file import ExportRequest, export_file, write_export
+from app.gcode.export.service import ExportRequest, export_file, write_export
 from app.gcode.kernel import execute
 from app.gcode.kernel.api.resources import ExecutionLimits
 from app.settings import GENERATED_MOTIONS_DEFAULT

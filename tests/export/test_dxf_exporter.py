@@ -11,7 +11,7 @@ from ezdxf import units
 from app.gcode.dxf_exporter import CUT_LAYER, RAPID_LAYER, build_dxf_document, export_dxf
 from app.gcode.export.common import scale_motion
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import render_trace, sample_motion
+from app.gcode.trace import render_trace, sample_motion
 
 
 def _document(source: str, language: str = "fanuc_mill"):

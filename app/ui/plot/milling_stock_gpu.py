@@ -8,8 +8,8 @@ import numpy as np
 from OpenGL import GL
 from OpenGL.GL.shaders import compileProgram, compileShader
 
-from app.gcode.stock.milling_stock import MillingStockSnapshot
 from app.gcode.stock.milling_stock_sweep import CutterSweep, compact_profile
+from app.gcode.stock.milling_stock_types import MillingStockSnapshot
 from app.tools.milling_geometry import milling_geometry
 from app.ui.plot import milling_stock_shaders as shaders
 

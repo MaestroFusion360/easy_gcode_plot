@@ -11,8 +11,8 @@ from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QLabel, QMessageBox
 
 from app import settings
+from app.gcode.execution.program import execute_program
 from app.gcode.kernel import execute
-from app.gcode.program_execution import execute_program
 from app.main_window import MainWindow
 from app.tools import discovery
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
@@ -145,7 +145,7 @@ def test_shared_execution_preserves_gui_tool_override(monkeypatch):
         options["tool_resolver"] = checked_resolver
         return execute(_source, **options)
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     _result, updated, inferred = execute_program(
         source,
         language="fanuc_mill",
@@ -652,7 +652,7 @@ def test_shared_execution_passes_saved_geometry_to_kernel(monkeypatch):
         options["tool_resolver"] = checked_resolver
         return execute(source, **options)
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", checked_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", checked_execute)
     library = {"T2": {"type": "drill", "diameter": 7, "length": 42}}
     _result, updated, _inferred = execute_program(
         "T2 M6\nMCALL CYCLE83(5,0,1,-10)\n",
@@ -667,7 +667,13 @@ def test_shared_execution_passes_saved_geometry_to_kernel(monkeypatch):
 @pytest.mark.parametrize(
     ("language", "dialect", "source", "parser_module", "parser_name"),
     [
-        ("fanuc_turn", "fanuc", "T0202\nG32 X20 Z-10 F1\nM30", "app.gcode.kernel.api.engine", "parse_program"),
+        (
+            "fanuc_turn",
+            "fanuc",
+            "T0202\nG32 X20 Z-10 F1\nM30",
+            "app.gcode.kernel.api.execution_request",
+            "parse_program",
+        ),
         ("fanuc_mill", "fanuc", "T2 M6\nG81 Z-10 R2 F100\nM30", "app.gcode.kernel.milling.executor", "parse_program"),
         (
             "fanuc_mill",

@@ -8,7 +8,7 @@ import pytest
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.full import normalize_full_program
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import motion_length
+from app.gcode.trace import motion_length
 
 
 @pytest.mark.parametrize(

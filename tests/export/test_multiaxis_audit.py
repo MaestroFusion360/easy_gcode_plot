@@ -6,12 +6,12 @@ import pytest
 from export_signatures import motion_traces_match
 
 from app.cli import main
+from app.gcode.execution.program import execute_program
 from app.gcode.export.common import ExportLimitation, ExportOptions
 from app.gcode.export.expanded import convert_resolved_program, load_post_profile
 from app.gcode.export.full import normalize_full_program
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
-from app.gcode.program_execution import execute_program
 
 TARGETS = ("fanuc_mill_multiaxis", "sinumerik_840d_multiaxis")
 

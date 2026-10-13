@@ -13,11 +13,11 @@ import pytest
 from export_signatures import _motion_trace_signature
 
 from app.gcode.comments import strip_comments
+from app.gcode.execution.program import execute_program
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import export_result
 from app.gcode.export.full import export_full_mill_program
 from app.gcode.kernel import execute
-from app.gcode.program_execution import execute_program
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures/milling"
 

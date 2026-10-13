@@ -9,8 +9,8 @@ import numpy as np
 import pytest
 
 from app.gcode.stock import MillingStockSpec, write_milling_stock_stl
-from app.gcode.stock.milling_stock import MillingStockSnapshot
 from app.gcode.stock.milling_stock_stl import StockStlOptions
+from app.gcode.stock.milling_stock_types import MillingStockSnapshot
 from app.ui.plot import milling_stock_overlay as overlay
 from app.ui.plot.milling_stock_gpu import GpuStock
 

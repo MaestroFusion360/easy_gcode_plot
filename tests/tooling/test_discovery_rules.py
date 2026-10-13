@@ -5,7 +5,7 @@ from dataclasses import replace
 
 import pytest
 
-from app.gcode.program_execution import execute_program
+from app.gcode.execution.program import execute_program
 from app.settings import get_settings
 from app.tools import discovery
 from app.tools.definitions import MILLING_TOOL_TYPES, TURNING_TOOL_TYPES
@@ -122,7 +122,11 @@ def test_reusing_program_preserves_entire_execution_result(monkeypatch, turning,
     def unexpected_parse(*_args):
         pytest.fail("Cached Program must not be parsed again")
 
-    for module in ("app.gcode.kernel.api.engine", "app.gcode.kernel.milling.executor", "app.tools.discovery"):
+    for module in (
+        "app.gcode.kernel.api.execution_request",
+        "app.gcode.kernel.milling.executor",
+        "app.tools.discovery",
+    ):
         monkeypatch.setattr(f"{module}.parse_program", unexpected_parse)
     monkeypatch.setattr("app.gcode.kernel.milling.executor.parse_sinumerik_program", unexpected_parse)
     repeated, repeated_tools, repeated_inferred = execute_program(source, parsed_program=original.program, **options)

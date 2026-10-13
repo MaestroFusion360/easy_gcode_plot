@@ -18,7 +18,7 @@ from app.gcode.kernel.milling.kinematics import (
     transform_vector,
 )
 from app.gcode.kernel.milling.twp import euler_zxz
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace import render_trace
 from app.ui.plot.toolpath_vbo import segments_from_render_points
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc" / "g68_2_cube.nc"

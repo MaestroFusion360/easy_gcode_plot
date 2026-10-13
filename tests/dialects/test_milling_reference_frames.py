@@ -7,7 +7,7 @@ import pytest
 
 from app.gcode.kernel import execute
 from app.gcode.kernel.milling.kinematics import load_catalog, point_orientation
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace import render_trace
 from app.ui.plot.toolpath_vbo import segments_from_render_points
 
 

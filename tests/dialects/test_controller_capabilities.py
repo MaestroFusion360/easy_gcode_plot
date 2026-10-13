@@ -2,12 +2,12 @@
 
 from dataclasses import replace
 
+from app.gcode.execution.source import source_dialect_for_path
 from app.gcode.kernel.api.engine import execute
 from app.gcode.kernel.frontend.program import parse_program
 from app.gcode.kernel.milling.state import MillState
 from app.gcode.kernel.runtime.capabilities import controller_capability_gate
 from app.gcode.kernel.runtime.execution import ProgramRuntime
-from app.gcode.source_mode import source_dialect_for_path
 
 
 def _sinumerik(source):

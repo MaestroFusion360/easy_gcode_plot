@@ -9,7 +9,7 @@ from export_signatures import motion_traces_match
 
 from app.gcode.export.common import ExportLimitation, ExportOptions
 from app.gcode.export.expanded import convert_resolved_program, load_post_profile
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
 
 MULTIAXIS_TARGETS = ("fanuc_mill_multiaxis", "sinumerik_840d_multiaxis")

@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from .comments import strip_comments
+from app.gcode.comments import strip_comments
 
 SOURCE_DIALECT_FANUC = "fanuc"
 SOURCE_DIALECT_SINUMERIK = "sinumerik"

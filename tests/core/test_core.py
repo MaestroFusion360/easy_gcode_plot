@@ -2,13 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.gcode.core import (
-    calculate_scene_geometry,
-    calculate_toolpath_metrics,
-    format_gcode_number,
-    has_motion,
-    last_index,
-)
+from app.gcode.core import format_gcode_number
 from app.gcode.kernel.program import eval_words, parse_program
 
 
@@ -25,40 +19,6 @@ from app.gcode.kernel.program import eval_words, parse_program
 )
 def test_gcode_number_formatting(value, expected):
     assert format_gcode_number(value) == expected
-
-
-def test_list_and_motion_helpers_have_exact_semantics():
-    assert last_index([10, 20, 10, 30], 10) == 2
-    assert last_index([1, 2, 3], 4) is None
-    assert has_motion([0, 0, 3], [0, 0, 4], [0, 0, 0]) is True
-    assert has_motion([2, 2, 2], [3, 3, 3], [4, 4, 4]) is False
-
-
-def test_toolpath_metrics_use_destination_feed_and_zero_feed_is_zero_time():
-    lengths, times, has_points = calculate_toolpath_metrics([0, 3], [0, 4], [0, 0], [100, 5])
-    assert lengths == pytest.approx([5.0])
-    assert times == pytest.approx([1.0])
-    assert has_points is True
-
-    lengths, times, has_points = calculate_toolpath_metrics([0, 3], [0, 4], [0, 0], [100, 0])
-    assert lengths == pytest.approx([5.0])
-    assert times == [0]
-    assert has_points is True
-
-    assert calculate_toolpath_metrics([], [], [], []) == ([], [], False)
-
-
-def test_scene_geometry_has_exact_center_and_distance():
-    center, distance = calculate_scene_geometry([-2, 2], [-3, 3], [10, 20])
-    assert center == pytest.approx((0, 0, 15))
-    assert distance == pytest.approx(1.5 * 152**0.5)
-
-
-@pytest.mark.parametrize("extent", [0.1, 10.0])
-def test_scene_geometry_includes_z_only_motion(extent):
-    center, distance = calculate_scene_geometry([0, 0], [0, 0], [0, extent])
-    assert center == pytest.approx((0, 0, extent / 2))
-    assert distance == pytest.approx(extent * 1.5)
 
 
 def test_parser_preserves_repeated_g_words_and_eval_words_keeps_all_values():

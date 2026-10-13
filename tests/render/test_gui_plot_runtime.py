@@ -65,7 +65,7 @@ def test_correction_toggle_controls_tools_passed_to_kernel(qt_app, monkeypatch):
         )
         return expected
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     window.correctionEnabled = False
     window.analyzeEditorSource()
     assert captured[-1]["tools"] == {} and captured[-1]["milling_tools"] == {}
@@ -88,7 +88,7 @@ def test_ignore_block_skip_is_passed_to_kernel(qt_app, monkeypatch, enabled):
         captured.append(kwargs)
         return expected
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     window.ignoreBlockSkip = enabled
     window.analyzeEditorSource()
 

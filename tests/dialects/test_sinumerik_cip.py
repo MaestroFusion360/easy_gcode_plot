@@ -9,7 +9,7 @@ from app.gcode.export.expanded import export_result
 from app.gcode.export.full import export_full_mill_program
 from app.gcode.kernel import execute
 from app.gcode.kernel.geometry.spatial_arc import point_at
-from app.gcode.trace_tools import motion_length, sample_motion, trace_statistics
+from app.gcode.trace import motion_length, sample_motion, trace_statistics
 from app.ui.plot.playback import arc_playback_samples
 
 

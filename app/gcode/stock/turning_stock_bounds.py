@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from app.gcode.kernel import TraceMotion
-from app.gcode.trace_tools import _plot_move_for_plane, arc_geometry
+from app.gcode.trace.geometry import _plot_move_for_plane, arc_geometry
 
 _TWO_PI = 2.0 * math.pi
 _EPS = 1e-12

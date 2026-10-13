@@ -13,7 +13,7 @@ from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
 from app.gcode.kernel.geometry.transform import TransformState
 from app.gcode.kernel.milling.sinumerik_frame import apply_frame, compile_frame
 from app.gcode.kernel.milling.state import MillState
-from app.gcode.trace_tools import motion_length, sample_motion, trace_statistics
+from app.gcode.trace import motion_length, sample_motion, trace_statistics
 
 
 def native(source, **options):

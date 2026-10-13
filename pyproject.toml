@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "2.2.0"
+version = "2.2.1"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -32,17 +32,13 @@ sources = ["app/gcode/kernel/milling/_native_executor.pyx"]
 name = "app.tools._native_discovery"
 sources = ["app/tools/_native_discovery.pyx"]
 
-[[tool.setuptools.ext-modules]]
-name = "app.gcode.stock._native_stock"
-sources = ["app/gcode/stock/_native_stock.pyx"]
-
 [tool.setuptools.packages.find]
 include = ["app", "app.*"]
 namespaces = false
 
 [tool.setuptools.package-data]
 "app.gcode.export" = ["posts/*.json"]
-"app.gcode" = ["templates/*.html", "templates/*.js"]
+"app.gcode.reports" = ["templates/*.html", "templates/*.js"]
 "app.gcode.kernel.milling" = ["rotary_profiles.json"]
 "app.ui.generated" = ["*.ui"]
 "app.ui.generated.main" = ["*.ui"]

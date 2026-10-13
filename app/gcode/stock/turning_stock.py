@@ -6,16 +6,9 @@ import math
 from dataclasses import dataclass
 
 from app.gcode.kernel import TraceMotion
-from app.gcode.trace_tools import sample_motion
-from app.gcode.turning_tool_geometry import (
-    EPS,
-    canonical_turning_tool_type,
-    positive_float,
-    turning_tool_polygon,
-)
-from app.tools.definitions import (
-    DEFAULT_TURNING_TOOL,
-)
+from app.gcode.trace.sampling import sample_motion
+from app.gcode.turning_tool_geometry import EPS, canonical_turning_tool_type, positive_float, turning_tool_polygon
+from app.tools.definitions import DEFAULT_TURNING_TOOL
 
 _EPS = EPS
 MAX_TURN_PROFILE_POINTS = 20_000

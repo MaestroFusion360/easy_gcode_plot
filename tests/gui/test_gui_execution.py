@@ -174,7 +174,7 @@ def test_execution_worker_propagates_errors_and_clears_active_flag(monkeypatch):
     def fail(*args, **kwargs):
         raise ValueError("worker failed")
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fail)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fail)
     window = _gui_execution_harness("G1 X1", lathe_mode=False)
     with pytest.raises(ValueError, match="worker failed"):
         MainWindowExecutionMixin._calculate_editor_source(window)
@@ -266,7 +266,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
         captured["milling_tools"] = tools
         return expected
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 1}}
     offsets = {54: (10.0, 20.0, -2.0)}
     window = SimpleNamespace(
@@ -318,7 +318,7 @@ def test_lathe_execution_uses_selected_arc_type(monkeypatch):
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     window = _gui_execution_harness("G18 G2 X20 Z-10 I-10 K0", lathe_mode=True)
     window.arc_type = 2
 
@@ -336,7 +336,7 @@ def test_manual_lathe_arc_selection_takes_priority_over_autodetection(monkeypatc
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     window = _gui_execution_harness("G18 G3 X40 Z-10 I0 K-10", lathe_mode=True)
     window.arc_type = 2
     window.autodetectArcType = True
@@ -513,7 +513,7 @@ def test_gui_forwards_sinumerik_document_dialect_and_absolute_arc_override(monke
         captured.update(kwargs)
         return expected
 
-    monkeypatch.setattr("app.gcode.program_execution.execute", fake_execute)
+    monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     window = _gui_execution_harness("G291\nG90 G0 X10", lathe_mode=False)
     window._document_source_dialect = "sinumerik"
     window._document_arc_type = 2

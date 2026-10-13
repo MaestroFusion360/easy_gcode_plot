@@ -2,8 +2,8 @@
 
 import pytest
 
+from app.gcode.execution.program import execute_program
 from app.gcode.kernel import TraceMotion
-from app.gcode.program_execution import execute_program
 from app.gcode.stock import TurningStockSpec, TurningStockTimeline
 
 

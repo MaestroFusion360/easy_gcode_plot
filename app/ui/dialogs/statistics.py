@@ -9,7 +9,7 @@ from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
 from PyQt6.QtWidgets import QComboBox, QDialog, QFileDialog, QMessageBox, QPushButton, QTextBrowser
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources.
-from app.gcode.statistics_report import statistics_html, write_statistics_html
+from app.gcode.reports.html import statistics_html, write_statistics_html
 from app.ui.generated.dialogs.statistics import Ui_StatisticsDialog
 
 

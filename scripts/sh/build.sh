@@ -76,12 +76,11 @@ arguments=(
     --collect-submodules app.gcode.export
     --hidden-import app.gcode.kernel.frontend._native_parser
     --hidden-import app.tools._native_discovery
-    --hidden-import app.gcode.stock._native_stock
     --hidden-import app.gcode.kernel.milling._native_executor
     --add-data "$project_root/pyproject.toml:."
     --add-data "$project_root/app/gcode/kernel/milling/rotary_profiles.json:app/gcode/kernel/milling"
     --add-data "$project_root/app/gcode/export/posts:app/gcode/export/posts"
-    --add-data "$project_root/app/gcode/templates:app/gcode/templates"
+    --add-data "$project_root/app/gcode/reports/templates:app/gcode/reports/templates"
 )
 
 if [[ "$console" == true ]]; then

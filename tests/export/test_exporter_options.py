@@ -11,7 +11,7 @@ from app.gcode.exporter import (
     export_result,
 )
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import arc_geometry
+from app.gcode.trace import arc_geometry
 
 
 def test_semicolon_comment_style_is_used_by_export():

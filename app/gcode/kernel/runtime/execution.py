@@ -8,11 +8,9 @@ silently drifting on Macro B flow, subprogram dispatch, and G/M-code selection.
 
 from __future__ import annotations
 
-# Interpreter dispatch exits early for each explicit CNC control-flow opcode.
-# pylint: disable=too-many-return-statements
 from dataclasses import dataclass, field
 
-from ..api.resources import SemanticError, active_budget, checkpoint, checkpointed
+from ..api.resources import ExecutionError, SemanticError, active_budget, checkpoint, checkpointed
 from ..api.types import ExecutionEvent, SemanticInstruction
 from ..frontend.lang import MACRO_NULL, eval_condition, evaluate_expression
 from ..frontend.program import EvaluatedWords, eval_words
@@ -20,6 +18,10 @@ from ..turning.dialect import canonical_words
 from ..turning.type_a import TYPE_A_CYCLES, TYPE_A_MOTION
 from .events import g65_call_event, program_flow_events
 from .signals import signals_for_words
+
+# Interpreter dispatch exits early for each explicit CNC control-flow opcode.
+# pylint: disable=too-many-return-statements
+
 
 MOTION_CODES = frozenset(TYPE_A_MOTION)
 
@@ -284,26 +286,42 @@ class ProgramRuntime:
         line = int(getattr(block, "index", pc)) + 1
         raw = str(getattr(block, "raw", ""))
         if "P" not in words:
-            raise ValueError(f"G65 requires a P macro target at line {line}: {raw}")
+            raise ExecutionError(
+                "MACRO_CALL_ERROR", f"G65 requires a P macro target at line {line}: {raw}", line=line, raw=raw
+            )
         if not float(words["P"]).is_integer() or words["P"] <= 0:
-            raise ValueError(f"G65 P must be a positive integer at line {line}: {raw}")
+            raise ExecutionError(
+                "MACRO_CALL_ERROR", f"G65 P must be a positive integer at line {line}: {raw}", line=line, raw=raw
+            )
         repeat_value = words.get("L", 1.0)
         if not float(repeat_value).is_integer() or not 1 <= repeat_value <= 9999:
-            raise ValueError(f"G65 L must be an integer from 1 to 9999 at line {line}: {raw}")
+            raise ExecutionError(
+                "MACRO_CALL_ERROR", f"G65 L must be an integer from 1 to 9999 at line {line}: {raw}", line=line, raw=raw
+            )
 
         target_o = int(words["P"])
         target_idx = self.index.olabel_to_index.get(target_o)
         if target_idx is None:
-            raise ValueError(f"G65 targets missing O{target_o} at line {line}: {raw}")
+            raise ExecutionError(
+                "SUBPROGRAM_MISSING", f"G65 targets missing O{target_o} at line {line}: {raw}", line=line, raw=raw
+            )
 
         budget = active_budget.get()
         max_call_depth = self.max_call_depth if budget is None else budget.limits.call_depth
         if len(self.frames) >= max_call_depth:
-            raise ValueError(f"G65 call depth exceeds limit {max_call_depth} at line {line}: {raw}")
+            raise ExecutionError(
+                "CALL_DEPTH_EXCEEDED",
+                f"G65 call depth exceeds limit {max_call_depth} at line {line}: {raw}",
+                line=line,
+                raw=raw,
+            )
         macro_depth = sum(frame.locals is not None for frame in self.frames)
         if macro_depth >= self.max_macro_call_depth:
-            raise ValueError(
-                f"G65 macro nesting exceeds {self.max_macro_call_depth} local levels at line {line}: {raw}"
+            raise ExecutionError(
+                "CALL_DEPTH_EXCEEDED",
+                f"G65 macro nesting exceeds {self.max_macro_call_depth} local levels at line {line}: {raw}",
+                line=line,
+                raw=raw,
             )
 
         arguments = bind_g65_arguments(block.parsed_words, words, line=line, raw=raw)
@@ -322,18 +340,18 @@ class ProgramRuntime:
 
     def _dispatch_m98(self, words: dict[str, float], pc: int) -> SubprogramDispatch:
         if "P" not in words:
-            raise ValueError("M98 requires a P subprogram target")
+            raise ExecutionError("SUBPROGRAM_ERROR", "M98 requires a P subprogram target")
         budget = active_budget.get()
         max_depth = self.max_call_depth if budget is None else budget.limits.call_depth
         if not float(words["P"]).is_integer() or words["P"] <= 0:
-            raise ValueError("M98 P must be a positive integer")
+            raise ExecutionError("SUBPROGRAM_ERROR", "M98 P must be a positive integer")
         if not float(words.get("L", 1)).is_integer() or words.get("L", 1) <= 0:
-            raise ValueError("M98 L must be a positive integer")
+            raise ExecutionError("SUBPROGRAM_ERROR", "M98 L must be a positive integer")
         target = self.index.olabel_to_index.get(int(words["P"]))
         if target is None:
-            raise ValueError(f"M98 targets missing O{int(words['P'])}")
+            raise ExecutionError("SUBPROGRAM_MISSING", f"M98 targets missing O{int(words['P'])}")
         if len(self.frames) >= max_depth:
-            raise ValueError(f"M98 call depth exceeds limit {max_depth}")
+            raise ExecutionError("CALL_DEPTH_EXCEEDED", f"M98 call depth exceeds limit {max_depth}")
         checkpoint("subprogram_calls")
         self.frames.append(CallFrame(pc + 1, target, int(words.get("L", 1)), "M98"))
         return SubprogramDispatch(True, target, False, self.call_stack)
@@ -406,18 +424,30 @@ def _assign_macro_variable(flow, variables: dict[str, float], *, line: int, raw:
     if flow.var_expr is not None:
         index = evaluate_expression(flow.var_expr, variables)
         if not float(index).is_integer():
-            raise ValueError(f"Indirect macro assignment index must be integer at line {line}: {raw}")
+            raise ExecutionError(
+                "EXECUTION_ERROR",
+                f"Indirect macro assignment index must be integer at line {line}: {raw}",
+                line=line,
+                raw=raw,
+            )
         key = str(int(index))
     elif flow.var_key is not None:
         key = flow.var_key if flow.var_key.isdigit() else flow.var_key.upper()
     else:
         return
     if key == "0":
-        raise ValueError(f"Cannot assign to permanent vacant variable #0 at line {line}: {raw}")
+        raise ExecutionError(
+            "INVALID_MACRO_ASSIGNMENT",
+            f"Cannot assign to permanent vacant variable #0 at line {line}: {raw}",
+            line=line,
+            raw=raw,
+        )
     try:
         value = evaluate_expression(flow.value_expr, variables, null_aware=True)
     except Exception as exc:
-        raise ValueError(f"Cannot evaluate assignment at line {line}: {raw}: {exc}") from exc
+        raise ExecutionError(
+            None, f"Cannot evaluate assignment at line {line}: {raw}: {exc}", line=line, raw=raw
+        ) from exc
     if value is MACRO_NULL:
         variables.pop(key, None)
     else:
@@ -451,12 +481,19 @@ def bind_g65_arguments(
             occurrence = ijk_occurrences[letter] + 1
             ijk_occurrences[letter] = occurrence
             if occurrence > 10:
-                raise ValueError(f"G65 allows at most 10 {letter} arguments at line {line}: {raw}")
+                raise ExecutionError(
+                    "MACRO_CALL_ERROR",
+                    f"G65 allows at most 10 {letter} arguments at line {line}: {raw}",
+                    line=line,
+                    raw=raw,
+                )
             variable_number = G65_IJK_BASE[letter] + 3 * (occurrence - 1)
         else:
             variable_number = G65_ARGUMENTS_TYPE_I.get(letter)
             if variable_number is None:
-                raise ValueError(f"Unsupported G65 argument {letter} at line {line}: {raw}")
+                raise ExecutionError(
+                    "MACRO_CALL_ERROR", f"Unsupported G65 argument {letter} at line {line}: {raw}", line=line, raw=raw
+                )
         arguments[str(variable_number)] = value
 
     return arguments
@@ -632,46 +669,72 @@ def dispatch_macro_flow(
     if flow.kind == "goto":
         target = label_to_index.get(flow.target_label or -1)
         if target is None:
-            raise ValueError(f"Missing GOTO target N{flow.target_label} at line {line}: {raw}")
+            raise ExecutionError(
+                "FLOW_TARGET_MISSING",
+                f"Missing GOTO target N{flow.target_label} at line {line}: {raw}",
+                line=line,
+                raw=raw,
+            )
         return FlowDispatch(True, target)
 
     if flow.kind == "if_goto":
         try:
             take = eval_condition(flow.condition or "0", variables)
         except Exception as exc:
-            raise ValueError(f"Cannot evaluate IF at line {line}: {raw}: {exc}") from exc
+            raise ExecutionError(None, f"Cannot evaluate IF at line {line}: {raw}: {exc}", line=line, raw=raw) from exc
         if not take:
             return FlowDispatch(True, pc + 1)
         target = label_to_index.get(flow.target_label or -1)
         if target is None:
-            raise ValueError(f"Missing IF/GOTO target N{flow.target_label} at line {line}: {raw}")
+            raise ExecutionError(
+                "FLOW_TARGET_MISSING",
+                f"Missing IF/GOTO target N{flow.target_label} at line {line}: {raw}",
+                line=line,
+                raw=raw,
+            )
         return FlowDispatch(True, target)
 
     if flow.kind == "while":
         checkpoint("macro_iterations")
         if pc not in while_to_end:
-            raise ValueError(f"WHILE has no matching END at line {line}: {raw}")
+            raise ExecutionError(
+                "EXECUTION_ERROR", f"WHILE has no matching END at line {line}: {raw}", line=line, raw=raw
+            )
         try:
             take = eval_condition(flow.condition or "0", variables)
         except Exception as exc:
-            raise ValueError(f"Cannot evaluate WHILE at line {line}: {raw}: {exc}") from exc
+            raise ExecutionError(
+                None, f"Cannot evaluate WHILE at line {line}: {raw}: {exc}", line=line, raw=raw
+            ) from exc
         if take:
             return FlowDispatch(True, pc + 1)
         end_index = while_to_end.get(pc)
         if end_index is None:
-            raise ValueError(f"WHILE DO{flow.loop_id} has no matching END{flow.loop_id} at line {line}: {raw}")
+            raise ExecutionError(
+                "EXECUTION_ERROR",
+                f"WHILE DO{flow.loop_id} has no matching END{flow.loop_id} at line {line}: {raw}",
+                line=line,
+                raw=raw,
+            )
         return FlowDispatch(True, end_index + 1)
 
     if flow.kind == "end":
         checkpoint("macro_iterations")
         while_index = end_to_while.get(pc)
         if while_index is None:
-            raise ValueError(f"END{flow.loop_id} has no matching WHILE DO{flow.loop_id} at line {line}: {raw}")
+            raise ExecutionError(
+                "EXECUTION_ERROR",
+                f"END{flow.loop_id} has no matching WHILE DO{flow.loop_id} at line {line}: {raw}",
+                line=line,
+                raw=raw,
+            )
         while_flow = getattr(blocks[while_index], "flow_node", None)
         try:
             take = while_flow is not None and eval_condition(while_flow.condition or "0", variables)
         except Exception as exc:
-            raise ValueError(f"Cannot evaluate END loop at line {line}: {raw}: {exc}") from exc
+            raise ExecutionError(
+                None, f"Cannot evaluate END loop at line {line}: {raw}: {exc}", line=line, raw=raw
+            ) from exc
         return FlowDispatch(True, (while_index + 1) if take else (pc + 1))
 
     return FlowDispatch(False, pc)
@@ -690,20 +753,20 @@ def dispatch_subprogram_flow(
     stack = list(call_stack)
     if mcode == 98:
         if "P" not in words:
-            raise ValueError("M98 requires a P subprogram target")
+            raise ExecutionError("SUBPROGRAM_ERROR", "M98 requires a P subprogram target")
         budget = active_budget.get()
         if budget is not None:
             max_call_depth = budget.limits.call_depth
         if not float(words["P"]).is_integer() or words["P"] <= 0:
-            raise ValueError("M98 P must be a positive integer")
+            raise ExecutionError("SUBPROGRAM_ERROR", "M98 P must be a positive integer")
         if not float(words.get("L", 1)).is_integer() or words.get("L", 1) <= 0:
-            raise ValueError("M98 L must be a positive integer")
+            raise ExecutionError("SUBPROGRAM_ERROR", "M98 L must be a positive integer")
         target_o = int(words["P"])
         target_idx = olabel_to_index.get(target_o)
         if target_idx is None:
-            raise ValueError(f"M98 targets missing O{target_o}")
+            raise ExecutionError("SUBPROGRAM_MISSING", f"M98 targets missing O{target_o}")
         if len(stack) >= max_call_depth:
-            raise ValueError(f"M98 call depth exceeds limit {max_call_depth}")
+            raise ExecutionError("CALL_DEPTH_EXCEEDED", f"M98 call depth exceeds limit {max_call_depth}")
         repeat = max(1, int(words.get("L", 1.0)))
         checkpoint("subprogram_calls")
         stack.append((pc + 1, target_idx, repeat))

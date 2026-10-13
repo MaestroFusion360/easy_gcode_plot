@@ -6,8 +6,8 @@ import pytest
 
 from app.cli import main
 from app.gcode.kernel import execute
-from app.gcode.statistics_report import LABELS, statistics_html, write_statistics_html
-from app.gcode.trace_tools import trace_statistics
+from app.gcode.reports.html import LABELS, statistics_html, write_statistics_html
+from app.gcode.trace import trace_statistics
 
 
 def test_portable_statistics_are_escaped_and_contain_all_tool_sections():
@@ -154,7 +154,7 @@ def test_svg_uses_supplied_print_geometry_without_resampling():
 
 
 def test_batch_html_uses_single_file_api_and_detects_each_container(tmp_path, monkeypatch):
-    from app.gcode import batch  # pylint: disable=import-outside-toplevel
+    from app.gcode.batch import analysis as batch  # pylint: disable=import-outside-toplevel
 
     root = tmp_path / "programs"
     nested = root / "nested"

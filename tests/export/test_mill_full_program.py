@@ -8,7 +8,7 @@ from gcode_samples import MILLING_ARC_PLANES, MILLING_CYCLES, MILLING_HELIX_FULL
 from app.cli import main
 from app.gcode.exporter import ExportOptions, export_full_mill_program
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import arc_geometry
+from app.gcode.trace import arc_geometry
 
 
 def _assert_mill_round_trip(source: str, exported: str) -> None:

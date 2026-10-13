@@ -18,12 +18,7 @@ from app.gcode.kernel.turning.type_a import (
     TurningOperation,
     type_a_operation,
 )
-from app.gcode.trace_tools import (
-    RenderLimitExceeded,
-    format_trace_statistics,
-    render_trace,
-    trace_statistics,
-)
+from app.gcode.trace import RenderLimitExceeded, format_trace_statistics, render_trace, trace_statistics
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])

@@ -7,7 +7,7 @@ from PyQt6.QtCore import QTimerEvent
 from PyQt6.QtWidgets import QApplication
 
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace import render_trace
 from app.main_window import MainWindow
 from app.ui.plot.playback import arc_playback_samples, build_playback_movements
 from app.ui.windows.main_window_execution import playback_interval_ms

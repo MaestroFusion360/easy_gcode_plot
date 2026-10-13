@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import replace
 
-from app.gcode.source_mode import SINUMERIK_MODE_SIEMENS, sinumerik_initial_mode
+from app.gcode.execution.source import SINUMERIK_MODE_SIEMENS, sinumerik_initial_mode
 
 from ..comments import (
     DEFAULT_COMMENT_STYLE,

@@ -5,9 +5,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
+from app.gcode.trace.geometry import arc_geometry
+
 from ..comments import DEFAULT_COMMENT_STYLE, normalize_comment_style
 from ..kernel import ExecutionResult, TraceMotion
-from ..trace_tools import arc_geometry
 
 EXPORT_LIMITATION_SUFFIX = "_EXPANDED_EXPORT"
 

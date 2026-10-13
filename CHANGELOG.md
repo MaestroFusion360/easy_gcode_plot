@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.2.1 - 2026-10-13
+
+- Simplify oversized stock snapshots for Plot View insertion with an OK/Cancel quality notification; preserve simulation accuracy and leave the scene unchanged on Cancel.
+- Group trace consumers, reports/templates, execution setup, calculators and batch workflows into focused packages; update application, test and packaging imports directly.
+- Refactor EXPANDED export into shared preflight, post options, motion serialization, multiaxis controls and resolved operations. Keep controller syntax, formatting, limitations and historical entry points unchanged.
+- Separate execution request setup, source-arc policy and resolved geometry postprocessing from the public kernel facade; keep motion ownership and emitted-step counts together.
+- Separate milling block contracts and controller policy, and publish successful/partial results through one shared builder without changing the Python/Cython bulk-loop contract.
+- Carry internal error codes and source locations as structured evidence while retaining diagnostic messages and compatibility fallback for external exceptions.
+- Separate trace geometry, sampling, statistics and report formatting; avoid retaining complete coordinate lists and recomputing aggregate counts during statistics.
+- Separate milling stock snapshot contracts and mesh/STL output from trajectory replay. Preserve GPU ownership, cancellation, export refinement and output budgets.
+- Share pocket contour planning between preview and NC generation, and bounded depth progression between G71/G72 while preserving their distinct geometry and return rules.
+- Remove the unused CPU stock-preview extension from source builds and packaging. Remove unused array helpers and reuse shared atomic output for HTML reports.
+
+
 ## 2.2.0 - 2026-10-13
 
 - Add Measure to CNC Functions for Top (XY), Front (XZ), Left (YZ) and Lathe views. Pick two toolpath or STL geometry points, preview the ruler while moving the mouse, fix the result with a second click and start another measurement with the next click. Show coordinates, differences and distances in a nonmodal dialog; preserve editor position and distinguish lathe X diameters from physical distances.

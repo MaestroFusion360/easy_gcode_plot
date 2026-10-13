@@ -10,7 +10,7 @@ from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program, load_post_profile
 from app.gcode.export.full import normalize_full_program
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import motion_length
+from app.gcode.trace import motion_length
 
 
 def _assert_path_matches(reference, replay, *, tolerance=0.002):

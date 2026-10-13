@@ -5,8 +5,8 @@ import math
 import pytest
 
 from app.cli import main
-from app.gcode.batch import analyze_directory
-from app.gcode.export_file import ExportRequest, export_file
+from app.gcode.batch.analysis import analyze_directory
+from app.gcode.export.service import ExportRequest, export_file
 from app.gcode.kernel import execute
 from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
 from app.gcode.kernel.milling.kinematics import transform_vector

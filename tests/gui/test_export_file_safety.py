@@ -10,7 +10,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app.gcode.export.common import DXF_MODE, EXPANDED_EXECUTION_MODE, MILL_FULL_PROGRAM_MODE
 from app.gcode.export.expanded import load_post_profile
-from app.gcode.export_file import ExportRequest
+from app.gcode.export.service import ExportRequest
 from app.gcode.kernel import execute
 from app.main_window import MainWindow
 from app.ui.dialogs.export_tool_numbers import ExportToolNumbersDialog

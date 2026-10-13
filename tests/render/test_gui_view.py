@@ -7,7 +7,7 @@ from PyQt6.QtCore import QPoint
 from PyQt6.QtGui import QMatrix4x4, QVector3D, QVector4D
 from PyQt6.QtWidgets import QApplication
 
-from app.gcode.trace_tools import RenderPoint
+from app.gcode.trace import RenderPoint
 from app.main_window import MainWindow
 
 # These tests inspect internal camera mappings while validating fixed views.

@@ -7,9 +7,10 @@ from contextlib import contextmanager
 from threading import Event
 
 from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtWidgets import QMessageBox
 
-from app.gcode.stock.milling_stock import milling_stock_mesh_triangles
-from app.ui.plot.stl import mesh_from_triangles
+from app.gcode.stock.milling_stock_export import milling_stock_mesh_triangles
+from app.ui.plot.stl import MAX_STL_TRIANGLES, mesh_from_triangles
 from app.ui.windows.execution_worker import run_execution
 
 LOGGER = logging.getLogger(__name__)
@@ -39,7 +40,30 @@ def _capture_guard(window):
 
 
 def _prepare_mesh(snapshot, *, cancelled):
-    return mesh_from_triangles(milling_stock_mesh_triangles(snapshot, cancelled=cancelled))
+    report = {}
+    triangles = milling_stock_mesh_triangles(
+        snapshot, cancelled=cancelled, max_triangles=MAX_STL_TRIANGLES, simplify=True, report=report
+    )
+    return mesh_from_triangles(triangles), report["simplified"]
+
+
+def _confirm_simplification(window, title, mesh):
+    message = QCoreApplication.translate(
+        "StockMeshInsert",
+        "The stock mesh exceeds the Plot View triangle limit. "
+        "Quality has been reduced to {0} triangles for insertion. "
+        "Simulation accuracy is unchanged.\n\nInsert the simplified mesh?",
+    ).format(mesh.triangle_count)
+    return (
+        QMessageBox.warning(
+            window,
+            title,
+            message,
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
+            QMessageBox.StandardButton.Cancel,
+        )
+        == QMessageBox.StandardButton.Ok
+    )
 
 
 def insert_stock_mesh(window):
@@ -74,7 +98,7 @@ def insert_stock_mesh(window):
                 cancelling_text=QCoreApplication.translate("StockMeshInsert", "Cancelling mesh insertion"),
                 show_dialog=True,
             )
-            mesh = run_execution(
+            mesh, simplified = run_execution(
                 window,
                 _prepare_mesh,
                 snapshot,
@@ -87,9 +111,18 @@ def insert_stock_mesh(window):
             )
             if cancel.is_set():
                 raise InterruptedError(QCoreApplication.translate("StockMeshInsert", "Stock mesh insertion cancelled"))
+            if simplified and not _confirm_simplification(window, title, mesh):
+                raise InterruptedError(QCoreApplication.translate("StockMeshInsert", "Stock mesh insertion cancelled"))
+            if cancel.is_set():
+                raise InterruptedError(QCoreApplication.translate("StockMeshInsert", "Stock mesh insertion cancelled"))
             window._add_stl_mesh(
                 mesh, QCoreApplication.translate("StockMeshInsert", "Stock snapshot {0}").format(count)
             )
+    except InterruptedError:
+        window.ui.statusbar.showMessage(
+            QCoreApplication.translate("StockMeshInsert", "Stock mesh insertion cancelled"), 5000
+        )
+        return False
     except Exception as exc:  # A Qt action must report worker/driver errors without terminating the GUI.
         LOGGER.exception("stock_mesh_insert_failed motion_count=%d", target)
         window.ui.statusbar.showMessage(str(exc), 10000)

@@ -11,7 +11,7 @@ import app.gcode.export as export_pkg
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import motion_length, sample_motion
+from app.gcode.trace import motion_length, sample_motion
 
 GOLDEN = Path(__file__).with_name("golden") / "phase0_export_192.json"
 GOLDEN_TEXT = json.loads(GOLDEN.read_text(encoding="utf-8"))

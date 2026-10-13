@@ -3,11 +3,11 @@
 import pytest
 from export_signatures import _motion_trace_signature
 
+from app.gcode.execution.program import execute_program
 from app.gcode.export import export_program
 from app.gcode.export.common import MILL_FULL_PROGRAM_MODE, ExportOptions
 from app.gcode.export.full import format_full_program_source
-from app.gcode.export_file import ExportRequest, export_file
-from app.gcode.program_execution import execute_program
+from app.gcode.export.service import ExportRequest, export_file
 
 
 def test_gui_native_source_formatting_preserves_expressions_comments_and_crlf():

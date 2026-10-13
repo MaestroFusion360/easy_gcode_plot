@@ -13,8 +13,10 @@ import ezdxf
 from ezdxf import units
 from ezdxf.math import OCS
 
+from app.gcode.trace.geometry import RenderPoint
+from app.gcode.trace.sampling import sample_motion
+
 from ..kernel import ExecutionResult, TraceMotion
-from ..trace_tools import RenderPoint, sample_motion
 from .common import scale_motion
 
 _EPSILON = 1e-8

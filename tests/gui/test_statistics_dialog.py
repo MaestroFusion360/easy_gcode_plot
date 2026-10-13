@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app import i18n
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import format_tool_list, trace_statistics
+from app.gcode.trace import format_tool_list, trace_statistics
 from app.main_window import MainWindow
 from app.ui.dialogs.statistics import StatisticsDialog
 

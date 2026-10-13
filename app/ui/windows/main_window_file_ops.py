@@ -10,6 +10,13 @@ from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODev
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
 from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, normalize_comment_style
+from app.gcode.execution.source import (
+    SINUMERIK_MODE_SIEMENS,
+    SOURCE_DIALECT_FANUC,
+    SOURCE_DIALECT_SINUMERIK,
+    sinumerik_initial_mode,
+    source_dialect_for_path,
+)
 from app.gcode.export import DXF_MODE
 from app.gcode.export.common import (
     EXPANDED_EXECUTION_MODE,
@@ -18,18 +25,11 @@ from app.gcode.export.common import (
     ExportLimitation,
     is_export_limitation,
 )
-from app.gcode.export_file import ExportRequest, write_export
+from app.gcode.export.service import ExportRequest, write_export
 from app.gcode.file_io import protect_source
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
 from app.gcode.post_profiles import POST_TARGETS, export_file_suffix, target_post_for_index
-from app.gcode.source_mode import (
-    SINUMERIK_MODE_SIEMENS,
-    SOURCE_DIALECT_FANUC,
-    SOURCE_DIALECT_SINUMERIK,
-    sinumerik_initial_mode,
-    source_dialect_for_path,
-)
-from app.gcode.trace_tools import format_tool_list, trace_statistics
+from app.gcode.trace import format_tool_list, trace_statistics
 from app.post_profile_library import PostProfileLibrary
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup

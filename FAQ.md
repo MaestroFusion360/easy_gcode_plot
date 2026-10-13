@@ -303,9 +303,9 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [What belongs in `milling/`?](#what-belongs-in-milling)
     - [What belongs in `compensation/`?](#what-belongs-in-compensation)
     - [What belongs in `app/gcode/export/`?](#what-belongs-in-appgcodeexport)
-    - [What does `program_execution.py` do?](#what-does-program_executionpy-do)
-    - [What does `batch.py` do?](#what-does-batchpy-do)
-    - [What does `batch_export.py` do?](#what-does-batch_exportpy-do)
+    - [What does `execution/program.py` do?](#what-does-executionprogrampy-do)
+    - [What does `batch/analysis.py` do?](#what-does-batchanalysispy-do)
+    - [What does `batch/export.py` do?](#what-does-batchexportpy-do)
     - [Which native components exist?](#which-native-components-exist)
     - [How are execution results represented publicly?](#how-are-execution-results-represented-publicly)
     - [What is an `ExecutionStep`?](#what-is-an-executionstep)
@@ -2859,6 +2859,8 @@ The editor text changed after the displayed `ExecutionResult` was created. Refre
 
 ### How is the CNC kernel organized?
 
+Since 2.2.1, the public API coordinates request setup (`api/execution_request.py`), arc-source policy and geometry postprocessing (`api/trace_geometry.py`). Milling block contracts, controller policy and result publication are separate modules. Historical entry points remain available. Trace geometry, sampling and statistics live in `app/gcode/trace/`; HTML/SVG/text reports and templates live in `app/gcode/reports/`. Execution setup, generators and batch workflows have their own packages. Milling stock replay is separate from snapshot contracts and mesh/STL serialization. These changes do not alter supported CNC semantics or GUI/CLI workflows.
+
 The important packages are:
 
 ```text
@@ -2916,7 +2918,7 @@ They do not belong to the OpenGL renderer.
 
 ### What belongs in `app/gcode/export/`?
 
-The package is intentionally small:
+The public export families remain FULL, EXPANDED and DXF:
 
 - `common.py` — shared export options, motion formatting and unit scaling;
 - `full.py` — source-preserving FULL normalization using source + execution map;
@@ -2924,17 +2926,17 @@ The package is intentionally small:
 - `dxf.py` — DXF geometry output;
 - `posts/*.json` — the seven bundled controller profiles.
 
-Single-file CLI orchestration lives in `app/gcode/export_file.py`; `batch_export.py` only applies that contract to a directory tree. No export path contains a second G-code interpreter.
+Single-file CLI orchestration lives in `app/gcode/export/service.py`; `batch/export.py` only applies that contract to a directory tree. No export path contains a second G-code interpreter.
 
-### What does `program_execution.py` do?
+### What does `execution/program.py` do?
 
 It is the shared application setup path used to execute a program with the same tool-discovery and kernel configuration used by GUI/CLI workflows.
 
-### What does `batch.py` do?
+### What does `batch/analysis.py` do?
 
 It performs deterministic file discovery and repeatedly invokes authoritative execution to construct analysis reports. It does not contain a second G-code analyzer.
 
-### What does `batch_export.py` do?
+### What does `batch/export.py` do?
 
 It is directory orchestration around the same `export_file()` service used by single-file CLI export.
 

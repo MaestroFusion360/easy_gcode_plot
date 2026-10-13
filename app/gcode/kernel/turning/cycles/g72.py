@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from ...api.resources import SemanticError, checkpoint
+from ...api.resources import SemanticError
 from ...frontend.model import Motion, Point2, ProfileSegment
 from ...frontend.program import radius_to_diameter
 from .common import _append_profile_trace, add_motion, add_motion_with_meta, add_rapid_orthogonal, ensure_cycle_return
+from .passes import roughing_passes
 from .profile import _distinct_in_profile_order, _profile_intersections_at_z
 
 
@@ -127,18 +128,11 @@ def build_g72_facing(
     tool = Point2(stock_x, stock_z)
     saw_closed_span = False
 
-    guard = 0
-    while (pass_z >= limit_z - 1e-6) if pass_dir < 0.0 else (pass_z <= limit_z + 1e-6):
-        checkpoint("cycle_iterations")
-        guard += 1
-        if guard > 10000:
-            raise SemanticError("RESOURCE_LIMIT", "Cycle exceeds 10000 passes", "resource_limit")
+    for pass_z in roughing_passes(pass_z, pass_dir * step_z, limit_z, tolerance=1e-6):
         cand = _facing_candidates(profile, pass_z, pass_dir, z_min, z_max, type_ii)
         if not cand:
             if abs(pass_z - limit_z) <= 1e-9:
                 break
-            next_z = pass_z + pass_dir * step_z
-            pass_z = max(next_z, limit_z) if pass_dir < 0.0 else min(next_z, limit_z)
             continue
         span = _facing_span(cand, stock_x, boring_mode, saw_closed_span, pass_z, limit_z, type_ii)
         if span is None:
@@ -159,8 +153,6 @@ def build_g72_facing(
         )
         if abs(pass_z - limit_z) <= 1e-9:
             break
-        next_z = pass_z + pass_dir * step_z
-        pass_z = max(next_z, limit_z) if pass_dir < 0.0 else min(next_z, limit_z)
 
     if type_ii and not motions:
         raise SemanticError(

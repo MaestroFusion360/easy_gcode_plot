@@ -6,7 +6,7 @@ from PyQt6.QtCore import QPointF, QRectF, Qt
 from PyQt6.QtGui import QColor, QPagedPaintDevice, QPainter, QPen, QVector4D
 from PyQt6.QtPrintSupport import QPrinter
 
-from app.gcode.plot_page import fit_plot_bounds, print_line_style
+from app.gcode.reports.page import fit_plot_bounds, print_line_style
 from app.ui.plot.toolpath_vbo import tool_color
 
 

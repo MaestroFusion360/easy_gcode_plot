@@ -25,7 +25,7 @@ from app.gcode.kernel.milling.kinematics import (
     save_profile_override,
     user_catalog_path,
 )
-from app.gcode.trace_tools import render_trace, sample_motion, trace_statistics
+from app.gcode.trace import render_trace, sample_motion, trace_statistics
 
 _MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc"
 _FIXTURE_KINEMATICS = {

@@ -10,9 +10,9 @@ import ezdxf
 import pytest
 
 from app.cli import main
-from app.gcode.batch import DEFAULT_BATCH_EXTENSIONS, discover_nc_files
+from app.gcode.batch.analysis import DEFAULT_BATCH_EXTENSIONS, discover_nc_files
+from app.gcode.execution.program import execute_program
 from app.gcode.export.expanded import load_post_profile
-from app.gcode.program_execution import execute_program
 
 
 @pytest.mark.parametrize("mode", ["expanded", "full"])
@@ -489,7 +489,7 @@ def test_unexpected_export_bug_propagates(tmp_path, monkeypatch):
     def fail(*_args, **_kwargs):
         raise RuntimeError("internal regression")
 
-    monkeypatch.setattr("app.gcode.export_file.execute_program", fail)
+    monkeypatch.setattr("app.gcode.export.service.execute_program", fail)
     with pytest.raises(RuntimeError, match="internal regression"):
         main(["batch-export", str(root), "-o", str(tmp_path / "output")])
 
@@ -505,7 +505,7 @@ def test_batch_rejects_output_under_source(tmp_path):
 
 
 def test_batch_export_reports_use_atomic_writes(tmp_path, monkeypatch):
-    from app.gcode import batch_export  # pylint: disable=import-outside-toplevel
+    from app.gcode.batch import export as batch_export  # pylint: disable=import-outside-toplevel
 
     root = tmp_path / "source"
     root.mkdir()

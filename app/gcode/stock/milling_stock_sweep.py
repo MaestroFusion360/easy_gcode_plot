@@ -5,7 +5,8 @@ from functools import lru_cache
 
 import numpy as np
 
-from app.gcode.trace_tools import _arc_extreme_coordinates, sample_motion
+from app.gcode.trace.geometry import _arc_extreme_coordinates
+from app.gcode.trace.sampling import sample_motion
 
 CONTOUR_ERROR = 0.02
 

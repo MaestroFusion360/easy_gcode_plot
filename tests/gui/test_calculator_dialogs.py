@@ -258,3 +258,31 @@ def test_snippet_order_survives_dialog_reload(tmp_path, monkeypatch):
     reloaded = SnippetsDialog()
 
     assert [item.name for item in reloaded.snippets] == ["B", "A"]
+
+
+@pytest.mark.parametrize(
+    ("spiral", "expected"),
+    [
+        (False, ["G1 X23 Y-8.5", "G2 X22.3 Y-9.2 R0.7", "G1 X2.3 Y-9.2"]),
+        (True, ["G1 X23.8 Y-8.5", "X23.77 Y-9.109", "X23.489 Y-9.689"]),
+    ],
+)
+def test_large_corner_keeps_original_roughing_and_preview_clamping(spiral, expected):
+    params = PocketParameters(
+        circular=False,
+        spiral=spiral,
+        ccw=False,
+        pocket_width=86,
+        pocket_height=66,
+        corner_radius=40,
+        stepover=3,
+        stock_xy=0.3,
+        center_x=12.3,
+        center_y=-8.5,
+        z_start=1,
+        z_end=-3,
+        z_step=1.3,
+    )
+    assert pocket_program(params).splitlines()[3:6] == expected
+    first = pocket_preview_geometry(params).paths[0][0]
+    assert first == pytest.approx((23.8 if spiral else 23.0, -8.5))

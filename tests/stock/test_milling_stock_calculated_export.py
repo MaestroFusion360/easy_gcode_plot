@@ -7,8 +7,9 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from app.gcode.stock.milling_stock import MillingStockSnapshot, MillingStockSpec, write_milling_stock_stl
+from app.gcode.stock.milling_stock_export import write_milling_stock_stl
 from app.gcode.stock.milling_stock_stl import StockStlOptions
+from app.gcode.stock.milling_stock_types import MillingStockSnapshot, MillingStockSpec
 
 
 @pytest.fixture(scope="session")
@@ -63,7 +64,7 @@ def test_compact_export_preserves_volume_and_oriented_closed_mesh(tmp_path, patt
 
 
 def test_calculated_export_never_refines_or_replays_and_preserves_units(tmp_path, monkeypatch):
-    from app.gcode.stock import milling_stock as module
+    from app.gcode.stock import milling_stock_export as module
 
     def unexpected(*_args, **_kwargs):
         pytest.fail("Calculated export must not refine or regenerate stock")
@@ -91,7 +92,7 @@ def test_large_flat_snapshot_exports_only_boundary_faces(tmp_path):
 
 @pytest.mark.parametrize("calculated", [True, False], ids=["auto", "maximum-quality"])
 def test_export_budget_preserves_source_and_roundtrips_through_importer(tmp_path, monkeypatch, calculated):
-    from app.gcode.stock import milling_stock as module
+    from app.gcode.stock import milling_stock_export as module
     from app.ui.plot.stl import MAX_STL_TRIANGLES, read_stl
 
     monkeypatch.setattr(module, "MAX_STOCK_STL_TRIANGLES", 4096)
@@ -118,7 +119,7 @@ def test_export_budget_preserves_source_and_roundtrips_through_importer(tmp_path
 
 @pytest.mark.parametrize("calculated", [True, False], ids=["auto", "maximum-quality"])
 def test_dense_export_is_small_enough_for_gui_reimport(tmp_path, calculated, calculated_qt_app):
-    from app.gcode.stock.milling_stock import MAX_STOCK_STL_TRIANGLES
+    from app.gcode.stock.milling_stock_export import MAX_STOCK_STL_TRIANGLES
     from app.main_window import MainWindow
 
     y, x = np.mgrid[:401, :401]
@@ -142,7 +143,7 @@ def test_dense_export_is_small_enough_for_gui_reimport(tmp_path, calculated, cal
 
 
 def test_cancellation_during_budget_retry_preserves_existing_file(tmp_path, monkeypatch):
-    from app.gcode.stock import milling_stock as module
+    from app.gcode.stock import milling_stock_export as module
 
     monkeypatch.setattr(module, "MAX_STOCK_STL_TRIANGLES", 100)
     stock = MillingStockSnapshot(MillingStockSpec(0, 8, 0, 8, 0, 1), np.ones((9, 9)), np.zeros((9, 9)), 1, 1)

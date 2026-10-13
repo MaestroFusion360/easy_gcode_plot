@@ -9,7 +9,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app import main_window
 from app.gcode.kernel import execute
-from app.gcode.trace_tools import render_trace
+from app.gcode.trace import render_trace
 from app.ui.plot.stock_overlay import STOCK_COLOR, TOOL_COLOR, TurningStockOverlayItem
 from app.ui.windows import main_window_plot
 

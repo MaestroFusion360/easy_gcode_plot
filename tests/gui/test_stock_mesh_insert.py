@@ -6,9 +6,9 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 
-from app.gcode.stock.milling_stock import MillingStockSnapshot, MillingStockSpec
+from app.gcode.stock.milling_stock_types import MillingStockSnapshot, MillingStockSpec
 from app.main_window import MainWindow
 from app.ui.windows import stock_mesh_insert
 
@@ -51,8 +51,13 @@ def capture_window(qt_app, monkeypatch):
     qt_app.processEvents()
 
 
-def test_insert_stock_snapshot_is_an_independent_aligned_stl_object(capture_window, tmp_path):
+def test_insert_stock_snapshot_is_an_independent_aligned_stl_object(capture_window, tmp_path, monkeypatch):
     window, stock = capture_window
+
+    def unexpected_prompt(*_args):
+        pytest.fail("An exact stock mesh must not require simplification confirmation")
+
+    monkeypatch.setattr(stock_mesh_insert.QMessageBox, "warning", unexpected_prompt)
     assert stock_mesh_insert.insert_stock_mesh(window)
     assert len(window._stl_entries) == 1
     entry = window._stl_entries[0]
@@ -102,4 +107,36 @@ def test_failed_capture_restores_controls_and_does_not_insert(capture_window, mo
     monkeypatch.setattr(stock_mesh_insert, "run_execution", cancelled)
     assert not stock_mesh_insert.insert_stock_mesh(window)
     assert not window._stl_entries and not window._stock_export_active
+    assert window.ui.horizontalSlider.isEnabled() and window.ui.actionInsertStockMesh.isEnabled()
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_oversized_stock_requires_confirmation_before_insertion(capture_window, monkeypatch, accepted):
+    window, stock = capture_window
+    x, y = np.meshgrid(np.linspace(0, 2, 65), np.linspace(0, 2, 65))
+    height = (-2 + np.sin(x * 17) * np.sin(y * 19)).astype(np.float32)
+    stock = MillingStockSnapshot(stock.spec, height, height * 0, 2 / 64, 2 / 64)
+    window._milling_stock_item.calculated_snapshot = lambda _timeline, cancelled: stock
+    original = stock.height.copy()
+    monkeypatch.setattr(stock_mesh_insert, "MAX_STL_TRIANGLES", 4096)
+    prompts = []
+
+    def confirm(owner, _title, message, buttons, default):
+        assert owner is window and not window._stl_entries
+        assert window._stock_export_active
+        assert buttons == QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel
+        assert default == QMessageBox.StandardButton.Cancel
+        prompts.append(message)
+        return QMessageBox.StandardButton.Ok if accepted else QMessageBox.StandardButton.Cancel
+
+    monkeypatch.setattr(stock_mesh_insert.QMessageBox, "warning", confirm)
+    assert stock_mesh_insert.insert_stock_mesh(window) == accepted
+    assert len(prompts) == 1
+    assert "Quality has been reduced" in prompts[0]
+    assert len(window._stl_entries) == int(accepted)
+    if accepted:
+        assert window._stl_entries[0].obj.mesh.triangle_count <= 4096
+    np.testing.assert_array_equal(stock.height, original)
+    assert stock.nx == stock.ny == 64
+    assert not window._stock_export_active
     assert window.ui.horizontalSlider.isEnabled() and window.ui.actionInsertStockMesh.isEnabled()

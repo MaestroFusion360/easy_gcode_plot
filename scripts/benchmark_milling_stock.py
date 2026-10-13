@@ -13,7 +13,7 @@ from time import perf_counter
 import numpy as np
 
 from app.gcode.kernel import TraceMotion
-from app.gcode.program_execution import execute_program
+from app.gcode.execution.program import execute_program
 from app.gcode.stock.milling_stock import (
     MillingStockSpec,
     MillingStockTimeline,

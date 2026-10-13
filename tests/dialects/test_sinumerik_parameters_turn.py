@@ -8,7 +8,7 @@ from app.gcode.export.dxf import build_dxf_document
 from app.gcode.export.expanded import export_result
 from app.gcode.kernel import execute
 from app.gcode.kernel.frontend.ast import SinumerikAstNode, _build_program_ast_python
-from app.gcode.trace_tools import motion_length, sample_motion, trace_statistics
+from app.gcode.trace import motion_length, sample_motion, trace_statistics
 from app.ui.plot.playback import build_playback_movements
 
 

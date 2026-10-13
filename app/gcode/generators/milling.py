@@ -5,93 +5,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
-Point = tuple[float, float]
+from .formatting import _number
+from .types import PocketParameters, PocketPreviewGeometry, Point
+
 MAX_POCKET_PATH_POINTS = 20_000
-
-
-def _number(value: float, decimals: int = 3) -> str:
-    if abs(value) < 0.5 * 10**-decimals:
-        value = 0.0
-    return f"{value:.{decimals}f}".rstrip("0").rstrip(".") or "0"
-
-
-def hole_circle_points(*, diameter, start_angle, center_x, center_y, count, ccw=True) -> list[Point]:
-    radius = diameter / 2.0
-    direction = 1.0 if ccw else -1.0
-    return [
-        (
-            center_x + radius * math.cos(math.radians(start_angle) + direction * math.tau * index / count),
-            center_y + radius * math.sin(math.radians(start_angle) + direction * math.tau * index / count),
-        )
-        for index in range(count)
-    ]
-
-
-def hole_circle(*, diameter, start_angle, center_x, center_y, count, ccw=True) -> str:
-    return "\n".join(
-        f"X{_number(x_value)} Y{_number(y_value)}"
-        for x_value, y_value in hole_circle_points(
-            diameter=diameter,
-            start_angle=start_angle,
-            center_x=center_x,
-            center_y=center_y,
-            count=count,
-            ccw=ccw,
-        )
-    )
-
-
-def hole_grid_points(*, start_x, start_y, step_x, step_y, count_x, count_y) -> list[Point]:
-    points = []
-    for row in range(count_y):
-        columns = range(count_x) if row % 2 == 0 else range(count_x - 1, -1, -1)
-        for column in columns:
-            points.append((start_x + column * step_x, start_y + row * step_y))
-    return points
-
-
-def hole_grid(*, start_x, start_y, step_x, step_y, count_x, count_y) -> str:
-    return "\n".join(
-        f"X{_number(x_value)} Y{_number(y_value)}"
-        for x_value, y_value in hole_grid_points(
-            start_x=start_x,
-            start_y=start_y,
-            step_x=step_x,
-            step_y=step_y,
-            count_x=count_x,
-            count_y=count_y,
-        )
-    )
-
-
-@dataclass(frozen=True, slots=True)
-class PocketParameters:
-    tool_diameter: float = 10.0
-    pocket_diameter: float = 100.0
-    pocket_width: float = 100.0
-    pocket_height: float = 100.0
-    corner_radius: float = 0.0
-    stepover: float = 5.0
-    center_x: float = 0.0
-    center_y: float = 0.0
-    z_reference: float = 10.0
-    z_start: float = 0.0
-    z_end: float = -2.0
-    z_step: float = 1.0
-    stock_xy: float = 0.0
-    stock_z: float = 0.0
-    feed: float = 1000.0
-    circular: bool = True
-    ccw: bool = True
-    spiral: bool = False
-    correction: bool = False
-    helix: bool = False
-
-
-@dataclass(frozen=True, slots=True)
-class PocketPreviewGeometry:
-    boundary: tuple[Point, ...]
-    paths: tuple[tuple[Point, ...], ...]
 
 
 def _depths(start: float, end: float, step: float) -> list[float]:
@@ -381,73 +298,108 @@ def _finish_geometry(params: PocketParameters) -> tuple[float, float, float]:
     return _effective_pocket_geometry(replace(params, stock_xy=0.0))
 
 
+@dataclass(frozen=True, slots=True)
+class _PocketContour:
+    width: float
+    height: float
+    radius: float
+    spiral: bool = False
+    output_radius: float | None = None
+
+
+def _pocket_contours(params, width, height, radius):
+    """One ordered XY pass plan for preview and NC, independent of depth."""
+    if params.circular:
+        if params.spiral:
+            contours = [_PocketContour(width, width, width, True)]
+        else:
+            contours = [
+                _PocketContour(current, current, current)
+                for current in (
+                    min(width, index * params.stepover) for index in range(1, math.ceil(width / params.stepover) + 1)
+                )
+            ]
+    else:
+        half_w, half_h = width / 2.0, height / 2.0
+        output_radius = min(max(0.0, radius), half_w, half_h)
+        if params.spiral:
+            contours = [_PocketContour(half_w, half_h, radius, True, output_radius)]
+        else:
+            contours = [
+                _PocketContour(
+                    half_w - offset,
+                    half_h - offset,
+                    max(0.0, radius - offset),
+                    output_radius=max(0.0, output_radius - offset),
+                )
+                for offset in _rectangle_offsets(half_w, half_h, params.stepover)
+                if half_w - offset > 0 and half_h - offset > 0
+            ]
+    if params.correction:
+        finish_width, finish_height, finish_radius = _finish_geometry(params)
+        contours.append(
+            _PocketContour(finish_width, finish_width, finish_width)
+            if params.circular
+            else _PocketContour(finish_width / 2.0, finish_height / 2.0, finish_radius)
+        )
+    return tuple(contours)
+
+
+def _contour_preview(params, contour):
+    if params.circular:
+        loop = tuple(_circle_loop_points(params, contour.radius))
+        if contour.spiral:
+            return (tuple(_circle_spiral_points(params, contour.radius)), loop)
+        return (loop,)
+    loop = tuple(
+        _rounded_rectangle_points(
+            params.center_x, params.center_y, contour.width, contour.height, contour.radius, ccw=params.ccw
+        )
+    )
+    if contour.spiral:
+        return (tuple(_rectangle_spiral_points(params, contour.width, contour.height, contour.radius)), loop)
+    return (loop,)
+
+
+def _emit_pocket_contour(lines, params, contour):
+    # NC historically clamps the roughing radius before offsetting; preview
+    # clamps each displayed contour. Keep both policies in the shared plan.
+    radius = contour.radius if contour.output_radius is None else contour.output_radius
+    if params.circular:
+        _circle_passes(
+            lines,
+            replace(params, spiral=contour.spiral, stepover=params.stepover if contour.spiral else contour.radius),
+            contour.radius,
+        )
+    elif contour.spiral:
+        _rectangle(lines, params, contour.width * 2.0, contour.height * 2.0, radius)
+    else:
+        _rectangle_loop_commands(lines, params, contour.width, contour.height, radius)
+
+
 def pocket_preview_geometry(params: PocketParameters) -> PocketPreviewGeometry:
     """Return lightweight XY geometry for the calculator's live preview."""
     width, height, radius, _target_z, _depth_count = _validate_pocket(params)
 
     if params.circular:
-        pocket_radius = params.pocket_diameter / 2.0
-        boundary = tuple(_circle_loop_points(params, pocket_radius, 96))
-        if params.spiral:
-            paths = (tuple(_circle_spiral_points(params, width)), tuple(_circle_loop_points(params, width)))
-        else:
-            radii = [min(width, index * params.stepover) for index in range(1, math.ceil(width / params.stepover) + 1)]
-            paths = tuple(tuple(_circle_loop_points(params, current)) for current in radii)
-        if params.correction:
-            finish_width, _, _ = _finish_geometry(params)
-            paths += (tuple(_circle_loop_points(params, finish_width)),)
-        return PocketPreviewGeometry(boundary, paths)
-
-    boundary = tuple(
-        _rounded_rectangle_points(
-            params.center_x,
-            params.center_y,
-            params.pocket_width / 2.0,
-            params.pocket_height / 2.0,
-            min(max(0.0, params.corner_radius), params.pocket_width / 2.0, params.pocket_height / 2.0),
-            ccw=params.ccw,
-            samples=96,
-        )
-    )
-    half_w, half_h = width / 2.0, height / 2.0
-    if params.spiral:
-        paths = (
-            tuple(_rectangle_spiral_points(params, half_w, half_h, radius)),
-            tuple(
-                _rounded_rectangle_points(
-                    params.center_x, params.center_y, half_w, half_h, radius, ccw=params.ccw, samples=64
-                )
-            ),
-        )
+        boundary = tuple(_circle_loop_points(params, params.pocket_diameter / 2.0, 96))
     else:
-        paths = tuple(
-            tuple(
-                _rounded_rectangle_points(
-                    params.center_x,
-                    params.center_y,
-                    half_w - offset,
-                    half_h - offset,
-                    max(0.0, radius - offset),
-                    ccw=params.ccw,
-                )
+        boundary = tuple(
+            _rounded_rectangle_points(
+                params.center_x,
+                params.center_y,
+                params.pocket_width / 2.0,
+                params.pocket_height / 2.0,
+                min(max(0.0, params.corner_radius), params.pocket_width / 2.0, params.pocket_height / 2.0),
+                ccw=params.ccw,
+                samples=96,
             )
-            for offset in _rectangle_offsets(half_w, half_h, params.stepover)
-            if half_w - offset > 0 and half_h - offset > 0
         )
-    if params.correction:
-        finish_width, finish_height, finish_radius = _finish_geometry(params)
-        paths += (
-            tuple(
-                _rounded_rectangle_points(
-                    params.center_x,
-                    params.center_y,
-                    finish_width / 2.0,
-                    finish_height / 2.0,
-                    finish_radius,
-                    ccw=params.ccw,
-                )
-            ),
-        )
+    paths = tuple(
+        path
+        for contour in _pocket_contours(params, width, height, radius)
+        for path in _contour_preview(params, contour)
+    )
     return PocketPreviewGeometry(boundary, paths)
 
 
@@ -456,6 +408,7 @@ def pocket_program(params: PocketParameters) -> str:
     width, height, radius, target_z, _depth_count = _validate_pocket(params)
     lines = [f"G0 Z{_number(params.z_reference)} M8", f"G0 {_xy(params.center_x, params.center_y)}"]
     depths = _depths(params.z_start, target_z, params.z_step)
+    contours = _pocket_contours(params, width, height, radius)
     previous_depth = params.z_start
     for depth_index, depth in enumerate(depths):
         if params.helix:
@@ -474,16 +427,8 @@ def pocket_program(params: PocketParameters) -> str:
             )
         else:
             lines.append(f"G1 Z{_number(depth)} F{_number(params.feed)}")
-        if params.circular:
-            _circle_passes(lines, params, width)
-        else:
-            _rectangle(lines, params, width, height, radius)
-        if params.correction:
-            finish_width, finish_height, finish_radius = _finish_geometry(params)
-            if params.circular:
-                _circle_passes(lines, replace(params, spiral=False, stepover=finish_width), finish_width)
-            else:
-                _rectangle_loop_commands(lines, params, finish_width / 2.0, finish_height / 2.0, finish_radius)
+        for contour in contours:
+            _emit_pocket_contour(lines, params, contour)
         previous_depth = depth
         if depth_index < len(depths) - 1:
             lines.append(f"G0 Z{_number(params.z_reference)}")

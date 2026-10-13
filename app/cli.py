@@ -9,7 +9,7 @@ import sys
 from dataclasses import asdict
 from pathlib import Path
 
-from app.gcode.batch import (
+from app.gcode.batch.analysis import (
     DEFAULT_BATCH_EXTENSIONS,
     analysis_diagnostic_summary,
     analysis_status,
@@ -18,18 +18,18 @@ from app.gcode.batch import (
     validate_batch_output_directory,
     write_batch_reports,
 )
-from app.gcode.batch_export import export_directory, write_export_reports
+from app.gcode.batch.export import export_directory, write_export_reports
 from app.gcode.comments import COMMENT_STYLES, DEFAULT_COMMENT_STYLE
+from app.gcode.execution.program import execute_program
+from app.gcode.execution.source import language_for_path, source_dialect_for_path
 from app.gcode.export.common import is_export_limitation
-from app.gcode.export_file import ExportRequest, export_file, validate_export_request
+from app.gcode.export.service import ExportRequest, export_file, validate_export_request
 from app.gcode.file_io import atomic_write_text, same_file, validate_output_paths
 from app.gcode.kernel import ExecutionResult
 from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
-from app.gcode.kinematics_report import kinematics_report_fields
-from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import language_for_path, source_dialect_for_path
-from app.gcode.statistics_report import export_execution_statistics
-from app.gcode.trace_tools import format_trace_statistics, trace_statistics
+from app.gcode.reports.html import export_execution_statistics
+from app.gcode.reports.kinematics import kinematics_report_fields
+from app.gcode.trace import format_trace_statistics, trace_statistics
 from app.native import NativeRuntimeError, require_packaged_native
 
 

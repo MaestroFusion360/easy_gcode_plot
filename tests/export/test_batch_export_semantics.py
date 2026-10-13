@@ -23,12 +23,12 @@ from pathlib import Path
 import pytest
 from export_signatures import motion_traces_match
 
-from app.gcode.batch_export import export_directory
-from app.gcode.export_file import ExportRequest
+from app.gcode.batch.export import export_directory
+from app.gcode.execution.program import execute_program
+from app.gcode.execution.source import source_dialect_for_path
+from app.gcode.export.service import ExportRequest
 from app.gcode.kernel import execute
 from app.gcode.kernel.frontend.io import read_nc_text
-from app.gcode.program_execution import execute_program
-from app.gcode.source_mode import source_dialect_for_path
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 

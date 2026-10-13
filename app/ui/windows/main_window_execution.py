@@ -10,9 +10,9 @@ from time import perf_counter
 from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from app.gcode.comments import format_comment
+from app.gcode.execution.program import execute_program
 from app.gcode.kernel.api.resources import ExecutionLimits
-from app.gcode.program_execution import execute_program
-from app.gcode.trace_tools import RenderLimitExceeded, render_trace, trace_statistics
+from app.gcode.trace import RenderLimitExceeded, render_trace, trace_statistics
 from app.settings import AUTO_UPDATE_SEGMENTS_MAX, GENERATED_MOTIONS_DEFAULT
 from app.tools.discovery_rules import default_settings
 from app.tools.setup import refresh_setup

@@ -1,14 +1,13 @@
 """Compact HTML statistics, shared by the Qt viewer and portable export."""
 
-import os
-import tempfile
 from functools import lru_cache
 from html import escape
 from pathlib import Path
 from string import Template
 
-from app.gcode.statistics_svg import statistics_svg
-from app.gcode.trace_tools import trace_statistics
+from app.gcode.file_io import atomic_export, same_file
+from app.gcode.reports.svg import statistics_svg
+from app.gcode.trace import trace_statistics
 
 LABELS = {
     "heading": "Toolpath Statistics",
@@ -44,20 +43,9 @@ LABELS = {
 def write_statistics_html(path, html, *, source_path=None):
     """Atomically save a UTF-8 report, protecting the current NC source."""
     target = Path(path).resolve()
-    if source_path:
-        source = Path(source_path).resolve()
-        if target == source or (target.exists() and source.exists() and target.samefile(source)):
-            raise ValueError("The report cannot overwrite the source program")
-    target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = None
-    try:
-        with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=target.parent, delete=False) as stream:
-            temporary = Path(stream.name)
-            stream.write(html)
-        os.replace(temporary, target)
-    finally:
-        if temporary is not None:
-            temporary.unlink(missing_ok=True)
+    if source_path and same_file(target, source_path):
+        raise ValueError("The report cannot overwrite the source program")
+    atomic_export(target, lambda temporary: temporary.write_text(html, encoding="utf-8"))
 
 
 def export_execution_statistics(result, path, *, source_path, inches=False):
