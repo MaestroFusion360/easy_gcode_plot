@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1 - 2026-10-14
+
+- Add customizable toolbars with command search, visibility controls and saved button order.
+- Refresh command icons and organize toolbar commands and STL actions.
+- Highlight and reveal the corresponding editor line when picking a toolpath in 2D or 3D.
+
 ## 2.3.0 - 2026-10-14
 
 - Unify flat/3D picking with rendered segment geometry and playback visibility. Preserve keyboard context menus, isolate Measure from picking, cancel mouse gestures on focus loss and validate rotary drafts before applying unrelated Options changes. Update the capability comparison and record the stabilization audit.

@@ -592,6 +592,7 @@ class MainWindowSettingsMixin:
 
     def _load_hotkeys(self):
         self.hotkeyActions = {key: action for key, action, _category in menu_commands(self)}
+        self.addActions(list(self.hotkeyActions.values()))
         self.defaultHotkeys = {key: portable_shortcut(action.shortcut()) for key, action in self.hotkeyActions.items()}
         migration_key = "HOTKEYS/F3_F4_DEFAULTS_MIGRATED"
         migrate_defaults = not self.settings.value(migration_key, False, type=bool)

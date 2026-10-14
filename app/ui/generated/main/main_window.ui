@@ -394,6 +394,22 @@
    <addaction name="actionStop"/>
    <addaction name="actionStep_Forward"/>
   </widget>
+  <widget class="QToolBar" name="commandsToolBar">
+   <property name="windowTitle"><string>Settings</string></property>
+   <property name="iconSize"><size><width>24</width><height>24</height></size></property>
+   <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
+   <attribute name="toolBarBreak"><bool>false</bool></attribute>
+  </widget>
+  <widget class="QToolBar" name="helpToolBar">
+   <property name="windowTitle"><string>Help</string></property>
+   <property name="iconSize"><size><width>24</width><height>24</height></size></property>
+   <attribute name="toolBarArea"><enum>TopToolBarArea</enum></attribute>
+   <attribute name="toolBarBreak"><bool>false</bool></attribute>
+  </widget>
+  <action name="actionCustomizeToolbars">
+   <property name="text"><string>Customize Toolbars</string></property>
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/options.png</normaloff>:/resource/icons/options.png</iconset></property>
+  </action>
   <action name="actionNew">
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
@@ -640,6 +656,7 @@
    </property>
   </action>
   <action name="actionClearSTL">
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/clear_stl.png</normaloff>:/resource/icons/clear_stl.png</iconset></property>
    <property name="enabled">
     <bool>false</bool>
    </property>
@@ -713,6 +730,7 @@
    </property>
   </action>
   <action name="actionRelative_to_start">
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/arc_relative.png</normaloff>:/resource/icons/arc_relative.png</iconset></property>
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -721,6 +739,7 @@
    </property>
   </action>
   <action name="actionAbsolute">
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/arc_absolute.png</normaloff>:/resource/icons/arc_absolute.png</iconset></property>
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -729,6 +748,7 @@
    </property>
   </action>
   <action name="actionRadius_value">
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/arc_radius.png</normaloff>:/resource/icons/arc_radius.png</iconset></property>
    <property name="checkable">
     <bool>true</bool>
    </property>
@@ -936,13 +956,15 @@
    </property>
   </action>
   <action name="actionRenumber">
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/renumber.png</normaloff>:/resource/icons/renumber.png</iconset></property>
    <property name="text">
     <string>Renumber</string>
    </property>
   </action>
   <action name="actionNumbRemove">
+   <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/remove_block_numbers.png</normaloff>:/resource/icons/remove_block_numbers.png</iconset></property>
    <property name="text">
-    <string>Remove</string>
+    <string>Remove Block Numbers</string>
    </property>
   </action>
   <action name="actionRemoveEmptyLines">

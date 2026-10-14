@@ -173,6 +173,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [How does playback relate to the kernel?](#how-does-playback-relate-to-the-kernel)
     - [What do Step Backward and Step Forward do?](#what-do-step-backward-and-step-forward-do)
     - [Why can many playback motions map to one source line?](#why-can-many-playback-motions-map-to-one-source-line)
+    - [How do I customize toolbar buttons?](#how-do-i-customize-toolbar-buttons)
     - [How do I locate a plotted move in the editor?](#how-do-i-locate-a-plotted-move-in-the-editor)
     - [Does automatic refresh move the editor caret?](#does-automatic-refresh-move-the-editor-caret)
     - [What happens when Auto Update is too expensive?](#what-happens-when-auto-update-is-too-expensive)
@@ -1814,6 +1815,11 @@ One source block can emit many motions. Examples include:
 - compensated transition geometry.
 
 Playback tracks execution occurrence and source ownership separately.
+
+### How do I customize toolbar buttons?
+
+Right-click a toolbar and choose **Customize Toolbars**. Check the buttons you want on each panel; search filters the list without changing your choices. **OK** applies and saves the selection, **Cancel** discards it, and **Restore Defaults** stages the compact default button set. The toolbar context menu also lets you hide whole panels or reset their layout and buttons. Menu commands and shortcuts remain available even when a button is hidden. Static CNC Functions and Tool Library/WCS/Stock/Tokens commands are available; Recent Files and rotary-profile lists remain in menus. Source-type and playback-speed widgets are retained.
+
 
 ### How do I locate a plotted move in the editor?
 

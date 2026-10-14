@@ -41,6 +41,7 @@ from app.ui.dialogs.tool_library_dialog import ToolLibraryDialog
 from app.ui.generated.main.main_ui import Ui_MainWindow
 from app.ui.plot.plot_navigation import PlotNavigation
 from app.ui.plot.ruler import PlotRuler
+from app.ui.support.toolbar_settings import ToolbarSettings
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.windows.main_window_execution import (
     AUTO_REFRESH_DELAY_MS,
@@ -112,6 +113,8 @@ class MainWindow(
         self.loadSettings()
         self._configure_document_watcher()
         self._configure_rotary_kinematics_menu()
+        self.toolbarSettings = ToolbarSettings(self)
+        self.applyToolbarIconSize(self.toolbarIconSize)
         self.restoreToolbarState()
         self._initialize_runtime_helpers()
         self.connectActions()
@@ -248,11 +251,17 @@ class MainWindow(
             QCoreApplication.translate("MainWindow", "Toggle stock simulation (3-axis milling or turning)")
         )
         self.ui.playbackToolBar.insertAction(self.ui.actionStep_Backward, self.ui.actionStockPlayback)
-        self.ui.actionSaveStockStl = QAction(QCoreApplication.translate("MainWindow", "Save stock as STL"), self)
+        self.ui.actionSaveStockStl = QAction(
+            QIcon(":/resource/icons/save_stock_stl.png"),
+            QCoreApplication.translate("MainWindow", "Save stock as STL"),
+            self,
+        )
         self.ui.actionSaveStockStl.setObjectName("actionSaveStockStl")
         self.ui.actionSaveStockStl.setEnabled(False)
         self.ui.actionInsertStockMesh = QAction(
-            QCoreApplication.translate("MainWindow", "Insert Mesh into Plot View"), self
+            QIcon(":/resource/icons/insert_stock_mesh.png"),
+            QCoreApplication.translate("MainWindow", "Insert Mesh into Plot View"),
+            self,
         )
         self.ui.actionInsertStockMesh.setObjectName("actionInsertStockMesh")
         self.ui.actionInsertStockMesh.setEnabled(False)
@@ -260,6 +269,10 @@ class MainWindow(
             lambda: self.ui.actionInsertStockMesh.setEnabled(self.ui.actionSaveStockStl.isEnabled())
         )
         self.ui.actionInsertStockMesh.triggered.connect(lambda: insert_stock_mesh(self))
+        stl_end = self.ui.menu_File.actions().index(self.ui.actionClearSTL) + 1
+        before = self.ui.menu_File.actions()[stl_end]
+        self.ui.menu_File.insertAction(before, self.ui.actionSaveStockStl)
+        self.ui.menu_File.insertAction(before, self.ui.actionInsertStockMesh)
         self.ui.menuCNC_Functions.addSeparator()
         self.ui.cncToolBar.addSeparator()
         self.viewActionGroup = QActionGroup(self)
@@ -415,7 +428,19 @@ class MainWindow(
             self.ui.viewToolBar,
             self.ui.cncToolBar,
             self.ui.playbackToolBar,
+            self.ui.commandsToolBar,
+            self.ui.helpToolBar,
         )
+
+    def toolbars(self):
+        """Expose the canonical toolbar collection to customization."""
+        return self._toolbars()
+
+    def registerToolbarIcon(self, action):
+        """Keep original artwork for commands added to configurable panels."""
+        if action.icon().isNull():
+            action.setIcon(QIcon(":/resource/icons/options.png"))
+        self._toolbar_action_icons.setdefault(action, action.icon())
 
     def resetToolbarsToDefault(self):
         """Restore all toolbars to one visible row in canonical order."""
@@ -425,6 +450,19 @@ class MainWindow(
             self.addToolBar(Qt.ToolBarArea.TopToolBarArea, toolbar)
             toolbar.show()
         self.settings.remove("GEOMETRY/TOOLBAR_STATE")
+        if hasattr(self, "toolbarSettings"):
+            self.toolbarSettings.restore_defaults()
+
+    def createPopupMenu(self):
+        menu = super().createPopupMenu()
+        if menu is None:
+            menu = QMenu(self)
+        menu.addSeparator()
+        if hasattr(self, "toolbarSettings"):
+            menu.addAction(self.toolbarSettings.action)
+        reset = menu.addAction(QCoreApplication.translate("MainWindow", "Reset to Default"))
+        reset.triggered.connect(self.resetToolbarsToDefault)
+        return menu
 
     def contextMenuEvent(self, event):
         """Offer toolbar visibility controls and a default-layout reset."""
@@ -434,10 +472,8 @@ class MainWindow(
         if widget is None:
             return super().contextMenuEvent(event)
         menu = self.createPopupMenu()
-        menu.addSeparator()
-        reset_action = menu.addAction("Reset to Default")
-        reset_action.triggered.connect(self.resetToolbarsToDefault)
         menu.exec(event.globalPos())
+        menu.deleteLater()
         event.accept()
 
     def _initialize_runtime_helpers(self):

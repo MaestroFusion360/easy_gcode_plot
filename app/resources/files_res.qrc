@@ -86,5 +86,13 @@
     <file>icons/orientation_box/P7.png</file>
     <file>icons/orientation_box/P8.png</file>
     <file>icons/orientation_box/P9.png</file>
+    <file>icons/renumber.png</file>
+    <file>icons/remove_block_numbers.png</file>
+    <file>icons/arc_relative.png</file>
+    <file>icons/arc_absolute.png</file>
+    <file>icons/arc_radius.png</file>
+    <file>icons/save_stock_stl.png</file>
+    <file>icons/insert_stock_mesh.png</file>
+    <file>icons/clear_stl.png</file>
   </qresource>
 </RCC>

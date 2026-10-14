@@ -1184,10 +1184,9 @@ class MainWindowPlotMixin:
         motion_to_playback = getattr(self, "_motion_to_playback", tuple(range(len(result.motions))))
         target = motion_to_playback[best_motion] + 1
         current_value = self.ui.horizontalSlider.value() if hasattr(self.ui.horizontalSlider, "value") else None
-        if current_value == target:
-            self._sync_editor_to_motion(best_motion)
-        else:
+        if current_value != target:
             self.ui.horizontalSlider.setValue(target)
+        self._sync_editor_to_motion(best_motion)
         source_block = result.motions[best_motion].source_block
         if source_block is not None:
             self.ui.statusbar.showMessage(f"Trajectory source: line {source_block + 1}, motion {best_motion + 1}", 5000)
@@ -1200,12 +1199,15 @@ class MainWindowPlotMixin:
         block = result.motions[idx].source_block
         if block is None or block < 0 or block >= self.ui.editor.lines():
             return
+        self.ui.editor.ensureLineVisible(block)
         if self.ui.editor.getCursorPosition()[0] == block:
+            self.ui.editor.ensureCursorVisible()
             return
         self._syncing_cursor = True
         try:
             with QSignalBlocker(self.ui.editor):
                 self.ui.editor.setCursorPosition(block, 0)
+                self.ui.editor.ensureCursorVisible()
             if hasattr(self, "updateStatusBar"):
                 self.updateStatusBar()
         finally:

@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current development baseline: **2.3.0**, **not released**. Validation continues for stock simulation and the rotary profile workflow. Completed features are recorded in CHANGELOG; the remaining rotary geometry extensions are listed at the end of this roadmap.
+Current development baseline: **2.3.1**, **not released**. Validation continues for stock simulation and the rotary profile workflow. Completed features are recorded in CHANGELOG; the remaining rotary geometry extensions are listed at the end of this roadmap.
 
 The 1.9.x stabilization phase is complete; its delivered changes are recorded under versions 1.9.5–1.9.8 in [CHANGELOG](CHANGELOG.md). This roadmap tracks current validation and future work rather than repeating completed stabilization tasks.
 
@@ -23,7 +23,7 @@ The next stage is focused on features that reduce the need to leave Easy G-Code 
 
 ## Priority A — Heidenhain lexer and AST
 
-- Implement a lexer and AST for native Heidenhain programs, integrated with the shared execution kernel and source diagnostics.
+- Implement a native Heidenhain lexer and AST
 
 ## Priority B — Integrated workflow tools
 
@@ -132,13 +132,14 @@ Three-axis milling stock removal is part of the 2.0.0 development baseline. Cont
 
 Recommended sequence:
 
-1. Heidenhain lexer and AST.
-2. Embedded console panel.
-3. Report templates.
-4. Post-aware generators and additional NC templates.
-5. Initial snippet presets.
-6. Contour editor / DXF contour workflow.
-7. Further stock shapes, collision checks and verified stock-simulation extensions.
+Native Heidenhain lexer/AST work is deferred until after toolbar customization and stabilization.
+
+1. Embedded console panel.
+2. Report templates.
+3. Post-aware generators and additional NC templates.
+4. Initial snippet presets.
+5. Contour editor / DXF contour workflow.
+6. Further stock shapes, collision checks and verified stock-simulation extensions.
 
 The console, report and generator items mostly expose or extend capabilities already present in the architecture. Contour authoring and broader stock-simulation geometry remain larger follow-up tasks; the initial three-axis milling simulation is already implemented in 2.0.0.
 

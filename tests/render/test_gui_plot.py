@@ -12,12 +12,39 @@ from app import main_window
 from app.gcode.kernel import execute
 from app.gcode.trace import render_trace
 from app.ui.plot.stock_overlay import STOCK_COLOR, TOOL_COLOR, TurningStockOverlayItem
+from app.ui.support.widgets import Editor
 from app.ui.windows import main_window_plot
 
 
 @pytest.fixture
 def qt_app():
     return QApplication.instance() or QApplication([])
+
+
+def test_picked_source_line_is_visible_without_editor_focus(qt_app):
+    editor = Editor()
+    editor.resize(400, 120)
+    editor.setText("\n".join(f"G1 X{index}" for index in range(200)))
+    editor.setCaretLineVisible(True)
+    editor.show()
+    qt_app.processEvents()
+    owner = SimpleNamespace(
+        execution_result=SimpleNamespace(motions=[SimpleNamespace(source_block=150)]),
+        ui=SimpleNamespace(editor=editor),
+    )
+    try:
+        main_window.MainWindow._sync_editor_to_motion(owner, 0)
+        assert editor.getCursorPosition() == (150, 0)
+        assert editor.SendScintilla(editor.SCI_GETCARETLINEVISIBLEALWAYS)
+        visible_lines = editor.SendScintilla(editor.SCI_LINESONSCREEN)
+        assert editor.firstVisibleLine() <= 150 < editor.firstVisibleLine() + visible_lines
+        editor.setFirstVisibleLine(0)
+        main_window.MainWindow._sync_editor_to_motion(owner, 0)
+        assert editor.firstVisibleLine() > 0
+        assert not owner._syncing_cursor
+    finally:
+        editor.close()
+        editor.deleteLater()
 
 
 class _ToggleAction:
@@ -196,7 +223,7 @@ def test_2d_picking_selects_nearest_motion_and_source_line(monkeypatch):
 
     assert main_window.MainWindow._pick_trace_at(window, _Position()) is True
     assert selected == [1]
-    assert synced == []
+    assert synced == [0]
     assert "line 5" in messages[0][0]
 
 
@@ -309,6 +336,7 @@ def test_3d_pick_synchronizes_selected_execution_occurrence(monkeypatch):
         _view_mode="3d",
         render_points=points,
         execution_result=SimpleNamespace(motions=motions),
+        _sync_editor_to_motion=lambda index: selected.append(("source", index)),
         _motion_to_playback=(4, 9),
         ui=SimpleNamespace(
             graphicsView=None,
@@ -317,4 +345,4 @@ def test_3d_pick_synchronizes_selected_execution_occurrence(monkeypatch):
         ),
     )
     assert main_window.MainWindow._pick_trace_at(window, QPointF(50, 50))
-    assert selected == [10]
+    assert selected == [10, ("source", 1)]

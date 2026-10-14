@@ -456,14 +456,11 @@ class MainWindowFileMixin:
         self.recentStlMenu = QMenu(QCoreApplication.translate("MainWindow", "Recent STL"), self.ui.menu_File)
         actions = self.ui.menu_File.actions()
         clear_index = next((i for i, action in enumerate(actions) if action is self.ui.actionClearSTL), -1)
-        following_separator = next(
-            (action for action in actions[clear_index + 1 :] if action.isSeparator()),
-            None,
-        )
-        if following_separator is None:
+        following_action = actions[clear_index + 1] if 0 <= clear_index < len(actions) - 1 else None
+        if following_action is None:
             self.ui.menu_File.addMenu(self.recentStlMenu)
         else:
-            self.ui.menu_File.insertMenu(following_separator, self.recentStlMenu)
+            self.ui.menu_File.insertMenu(following_action, self.recentStlMenu)
         self._update_recent_stl_menu()
 
     def _update_recent_stl_menu(self):

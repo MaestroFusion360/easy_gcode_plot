@@ -1,9 +1,10 @@
-"""Discover named menu commands and their configurable shortcuts."""
+"""Discover static commands and their configurable shortcuts."""
 
 from PyQt6.QtGui import QKeySequence
 
 BLOCK_SKIP_SHORTCUT = "Ctrl+/"
 REMOVE_BLOCK_SKIP_SHORTCUT = "Ctrl+Shift+/"
+ARC_MODE_ACTIONS = frozenset({"actionRelative_to_start", "actionAbsolute", "actionRadius_value"})
 
 LEGACY_KEYS = {
     "actionRefresh": "REFRESH",
@@ -29,7 +30,7 @@ def is_reserved_shortcut(sequence: str) -> bool:
 
 
 def menu_commands(window):
-    """Yield each named command reachable from the main menu, once."""
+    """Yield each static menu, toolbar or context command once."""
     seen = set()
     for top_action in window.ui.menubar.actions():
         menu = top_action.menu()
@@ -37,6 +38,35 @@ def menu_commands(window):
             continue
         category = menu.title().replace("&", "")
         yield from _menu_commands(menu, category, seen)
+    for action, category in _additional_commands(window):
+        key = action.objectName()
+        if (
+            key.startswith("action")
+            and key not in seen
+            and key not in ARC_MODE_ACTIONS
+            and action.menu() is None
+            and not action.isSeparator()
+        ):
+            seen.add(key)
+            yield key, action, category
+
+
+def _additional_commands(window):
+    for toolbar in getattr(window, "toolbars", lambda: ())():
+        for action in toolbar.actions():
+            yield action, toolbar.windowTitle()
+    for name in (
+        "actionStockPlayback",
+        "actionSaveStockStl",
+        "actionInsertStockMesh",
+        "actionStep_Backward",
+        "actionPlay",
+        "actionStop",
+        "actionStep_Forward",
+    ):
+        action = getattr(window.ui, name, None)
+        if action is not None:
+            yield action, window.ui.playbackToolBar.windowTitle()
 
 
 def _menu_commands(menu, category, seen):
@@ -48,7 +78,7 @@ def _menu_commands(menu, category, seen):
                 yield from _menu_commands(submenu, category, seen)
             continue
         key = action.objectName()
-        if action.isSeparator() or not key.startswith("action") or key in seen:
+        if action.isSeparator() or not key.startswith("action") or key in seen or key in ARC_MODE_ACTIONS:
             continue
         seen.add(key)
         yield key, action, category

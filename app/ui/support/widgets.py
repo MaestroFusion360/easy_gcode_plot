@@ -19,6 +19,7 @@ class Editor(QsciScintilla):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAcceptDrops(False)
+        self.SendScintilla(self.SCI_SETCARETLINEVISIBLEALWAYS, True)
 
     def keyPressEvent(self, event):
         # QScintilla consumes some Ctrl+/ key events before Qt's shortcut map.

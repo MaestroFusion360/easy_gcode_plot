@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+    <class>ToolbarSettingsDlg</class>
+    <widget class="QDialog" name="ToolbarSettingsDlg">
+        <property name="geometry">
+            <rect><x>0</x><y>0</y><width>620</width><height>600</height></rect>
+        </property>
+        <property name="windowTitle"><string>Customize Toolbars</string></property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+                <widget class="QLabel" name="hintLabel">
+                    <property name="text"><string>Choose the buttons to show on each toolbar. Commands remain available in the menus.</string></property>
+                    <property name="wordWrap"><bool>true</bool></property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QLineEdit" name="searchEdit">
+                    <property name="placeholderText"><string>Find a command</string></property>
+                    <property name="clearButtonEnabled"><bool>true</bool></property>
+                </widget>
+            </item>
+            <item>
+                <widget class="QTreeWidget" name="commandTree">
+                    <property name="headerHidden"><bool>true</bool></property>
+                    <property name="uniformRowHeights"><bool>true</bool></property>
+                    <column><property name="text"><string>Command</string></property></column>
+                </widget>
+            </item>
+            <item>
+                <layout class="QHBoxLayout" name="orderLayout">
+                    <item>
+                        <widget class="QToolButton" name="upButton">
+                            <property name="toolTip"><string>Move up</string></property>
+                            <property name="icon"><iconset><normaloff>:/resource/icons/up.png</normaloff>:/resource/icons/up.png</iconset></property>
+                        </widget>
+                    </item>
+                    <item>
+                        <widget class="QToolButton" name="downButton">
+                            <property name="toolTip"><string>Move down</string></property>
+                            <property name="icon"><iconset><normaloff>:/resource/icons/down.png</normaloff>:/resource/icons/down.png</iconset></property>
+                        </widget>
+                    </item>
+                    <item><spacer name="orderSpacer"><property name="orientation"><enum>Qt::Orientation::Horizontal</enum></property><property name="sizeHint" stdset="0"><size><width>40</width><height>20</height></size></property></spacer></item>
+                </layout>
+            </item>
+            <item>
+                <widget class="QDialogButtonBox" name="buttonBox">
+                    <property name="standardButtons"><set>QDialogButtonBox::StandardButton::Cancel|QDialogButtonBox::StandardButton::Ok|QDialogButtonBox::StandardButton::RestoreDefaults</set></property>
+                </widget>
+            </item>
+        </layout>
+    </widget>
+    <resources><include location="../../../resources/files_res.qrc"/></resources>
+    <connections/>
+</ui>
