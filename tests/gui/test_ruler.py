@@ -134,7 +134,9 @@ def _screen(window, point):
 
 
 @pytest.mark.parametrize("mode, axes", [("top", (0, 1)), ("front", (0, 2)), ("left", (1, 2))])
-def test_ruler_two_clicks_live_preview_reset_and_editor_isolation(window, qt_app, mode, axes):
+@pytest.mark.parametrize("cimco", [False, True])
+def test_ruler_two_clicks_live_preview_reset_and_editor_isolation(window, qt_app, mode, axes, cimco):
+    window.cimcoLikePicking = cimco
     window.ui.editor.setText("G21 G90 G17\nT1 M6\nG0 X0 Y0 Z0\nG1 X40 Y20 F100\nG1 X55 Y30 Z20\nM30")
     assert window.updateData()
     getattr(window, {"top": "viewTop", "front": "viewFront", "left": "viewLeft"}[mode])()
@@ -157,9 +159,9 @@ def test_ruler_two_clicks_live_preview_reset_and_editor_isolation(window, qt_app
     )
     QApplication.sendEvent(window.ui.graphicsView, event)
     deadline = monotonic() + 2
-    while ruler.second is None:
+    while ruler.second is None and monotonic() < deadline:
         QTest.qWait(10)
-        assert monotonic() < deadline, "The mouse-move event did not publish a live ruler preview"
+    assert ruler.second is not None, "The mouse-move event did not publish a live ruler preview"
     assert ruler.second == pytest.approx(second) and not ruler.fixed
     QTest.mouseClick(window.ui.graphicsView, Qt.MouseButton.LeftButton, pos=_screen(window, second))
     assert ruler.fixed and ruler.second == pytest.approx(second)

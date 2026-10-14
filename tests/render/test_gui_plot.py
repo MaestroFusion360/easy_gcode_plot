@@ -4,7 +4,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtGui import QColor
+from PyQt6.QtCore import QPointF
+from PyQt6.QtGui import QColor, QMatrix4x4
 from PyQt6.QtWidgets import QApplication
 
 from app import main_window
@@ -149,7 +150,10 @@ def test_trace_cursor_is_fixed_pixel_size_and_toolpath_uses_one_vbo_item(monkeyp
     assert created_scatters[0].kwargs["color"].name() == "#111111"
 
 
-def test_2d_picking_selects_nearest_motion_and_source_line():
+def test_2d_picking_selects_nearest_motion_and_source_line(monkeypatch):
+    matrix = QMatrix4x4()
+    matrix.ortho(0, 20, 20, 0, -1, 1)
+    monkeypatch.setattr("app.ui.windows.main_window_plot.view_projection", lambda _view: (matrix, (0, 0, 20, 20)))
     selected = []
     synced = []
     messages = []
@@ -170,13 +174,19 @@ def test_2d_picking_selects_nearest_motion_and_source_line():
         SimpleNamespace(x=10.0, y=0.0, z=0.0, motion_index=0),
         SimpleNamespace(x=20.0, y=0.0, z=0.0, motion_index=1),
     ]
-    result = SimpleNamespace(motions=[SimpleNamespace(source_block=4), SimpleNamespace(source_block=5)])
+    result = SimpleNamespace(
+        motions=[
+            SimpleNamespace(source_block=4, start_x=0, start_y=0, start_z=0, tool=None, move=1),
+            SimpleNamespace(source_block=5, start_x=10, start_y=0, start_z=0, tool=None, move=1),
+        ]
+    )
     window = SimpleNamespace(
         latheMode=False,
         _view_mode="top",
         render_points=points,
         execution_result=result,
         ui=SimpleNamespace(
+            graphicsView=None,
             horizontalSlider=_Slider(),
             statusbar=SimpleNamespace(showMessage=lambda message, timeout: messages.append((message, timeout))),
         ),
@@ -190,7 +200,7 @@ def test_2d_picking_selects_nearest_motion_and_source_line():
     assert "line 5" in messages[0][0]
 
 
-def test_picking_is_disabled_in_3d_view():
+def test_picking_without_an_execution_result_is_ignored_in_3d_view():
     window = SimpleNamespace(latheMode=False, _view_mode="3d", render_points=[object()])
     position = SimpleNamespace(x=lambda: 0.0, y=lambda: 0.0)
     assert main_window.MainWindow._pick_trace_at(window, position) is False
@@ -282,3 +292,29 @@ def test_turning_stock_removal_uses_stock_toggle_play_stop_and_rebuilds_after_up
     assert window.ui.actionPlay.isChecked()
     window.stop()
     window.deleteLater()
+
+
+def test_3d_pick_synchronizes_selected_execution_occurrence(monkeypatch):
+    matrix, viewport = QMatrix4x4(), (0, 0, 100, 100)
+    monkeypatch.setattr("app.ui.windows.main_window_plot.view_projection", lambda _view: (matrix, viewport))
+    motions = [
+        SimpleNamespace(start_x=-0.8, start_y=0, start_z=z, move=1, tool=None, source_block=12) for z in (0.5, -0.5)
+    ]
+    points = [
+        SimpleNamespace(x=x, y=0, z=z, motion_index=index) for index, z in enumerate((0.5, -0.5)) for x in (-0.8, 0.8)
+    ]
+    selected = []
+    window = SimpleNamespace(
+        latheMode=False,
+        _view_mode="3d",
+        render_points=points,
+        execution_result=SimpleNamespace(motions=motions),
+        _motion_to_playback=(4, 9),
+        ui=SimpleNamespace(
+            graphicsView=None,
+            horizontalSlider=SimpleNamespace(setValue=selected.append),
+            statusbar=SimpleNamespace(showMessage=lambda *_args: None),
+        ),
+    )
+    assert main_window.MainWindow._pick_trace_at(window, QPointF(50, 50))
+    assert selected == [10]

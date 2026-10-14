@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current development baseline: **2.2.3 extended**, **not released**. Validation continues for stock simulation and the rotary profile workflow. Completed features are recorded in CHANGELOG; the remaining rotary geometry extensions are listed at the end of this roadmap.
+Current development baseline: **2.3.0**, **not released**. Validation continues for stock simulation and the rotary profile workflow. Completed features are recorded in CHANGELOG; the remaining rotary geometry extensions are listed at the end of this roadmap.
 
 The 1.9.x stabilization phase is complete; its delivered changes are recorded under versions 1.9.5–1.9.8 in [CHANGELOG](CHANGELOG.md). This roadmap tracks current validation and future work rather than repeating completed stabilization tasks.
 

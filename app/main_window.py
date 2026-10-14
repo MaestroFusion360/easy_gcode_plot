@@ -97,7 +97,12 @@ class MainWindow(
         self.ui.setupUi(self)
         self._configure_runtime_ui()
         self._configure_playback_speed_slider()
-        self._plot_navigation = PlotNavigation(self.ui.graphicsView, self._plot_camera_changed, self._pick_trace_at)
+        self._plot_navigation = PlotNavigation(
+            self.ui.graphicsView,
+            self._plot_camera_changed,
+            self._pick_trace_at,
+            cimco_like=lambda: getattr(self, "cimcoLikePicking", False) and not self.latheMode,
+        )
         self.ui.graphicsView.installEventFilter(self._plot_navigation)
 
         icon = QIcon()
@@ -169,11 +174,7 @@ class MainWindow(
                 key=lambda item: item[0].casefold(),
             ),
         ):
-            text = (
-                QCoreApplication.translate("MainWindow", "None")
-                if profile_id is None
-                else profile.name
-            )
+            text = QCoreApplication.translate("MainWindow", "None") if profile_id is None else profile.name
             action = menu.addAction(text)
             action.setCheckable(True)
             action.setChecked(profile_id == self.rotaryKinematics)

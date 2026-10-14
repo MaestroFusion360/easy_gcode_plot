@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.0 - 2026-10-14
+
+- Unify flat/3D picking with rendered segment geometry and playback visibility. Preserve keyboard context menus, isolate Measure from picking, cancel mouse gestures on focus loss and validate rotary drafts before applying unrelated Options changes. Update the capability comparison and record the stabilization audit.
+
+- Add depth-aware milling 3D toolpath picking through Shift+left-click, preserving the selected execution occurrence when synchronizing the editor and playback slider. Add the optional Cimco Like Picking mode in General: left-click selects, right-button dragging pans and a right-click without dragging opens the context menu. Keep the option off by default and retain turning controls. Group General controls by type with all checkboxes below combo boxes and numeric fields.
+
 ## 2.2.3 - 2026-10-14
 
 - Add optional paired Min/Max angular travel limits to user rotary profiles and their Options editor. Warn on changed axes outside the inclusive range without stopping execution, blocking export, wrapping angles or altering TWP/TCP branch selection. Preserve limits in execution snapshots and fingerprints; leave all installed profiles unrestricted.

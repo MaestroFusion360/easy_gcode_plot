@@ -2,7 +2,11 @@
 
 Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling and SINUMERIK 840D milling (native and ISO-M), including supported native 3+2 and continuous five-axis CAM toolpaths.
 
-**New in 2.0.0: [3D milling stock removal on the GPU](#3d-milling-stock-removal).** Follow the remaining material through a three-axis program, inspect the machined surface and save the current stock as STL. Turning stock removal remains available separately.
+**New in 2.3.0: 3D toolpath picking and optional Cimco Like Picking controls.** Click a milling trajectory line or arc to locate its executed movement in the editor and playback slider.
+
+The default controls remain **Shift+left-click to select** and **left-button dragging to pan**. Enable **Options → General → Cimco Like Picking** for **left-click to select** and **right-button dragging to pan**. A right-click without dragging opens the context menu; dragging does not. Middle-button rotation and wheel zoom are available in both modes. The option is off by default, applies on OK and affects milling views; turning controls stay the same.
+
+[3D milling stock removal on the GPU](#3d-milling-stock-removal) follows the remaining material through a three-axis program, lets you inspect the machined surface and saves the current stock as STL. Turning stock removal remains available separately.
 
 Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 with SINUMERIK 840D and FANUC postprocessors. Coverage follows the supported commands and configured kinematics documented below.
 

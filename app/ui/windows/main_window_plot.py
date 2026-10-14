@@ -30,7 +30,6 @@ from app.ui.plot.axis_triad import AxisTriadItem
 from app.ui.plot.geometry_picking import view_projection
 from app.ui.plot.milling_tool_preview import MillingToolPreviewItem
 from app.ui.plot.plot_grid import adaptive_grid_geometry
-from app.ui.plot.plot_navigation import point_segment_distance as _point_segment_distance
 from app.ui.plot.stl import StlMesh, mesh_from_triangles, read_stl
 from app.ui.plot.stl_overlay import StlOverlay
 from app.ui.plot.stl_transform import (
@@ -42,6 +41,7 @@ from app.ui.plot.stl_transform import (
     rectangular_array,
 )
 from app.ui.plot.toolpath_vbo import ToolpathVboItem, segments_from_render_points
+from app.ui.plot.trace_picking import TracePicker
 
 PICK_DISTANCE_PX = 8.0
 CURSOR_SIZE_PX = 7.0
@@ -146,6 +146,29 @@ class _StlSceneState:
 
 
 class MainWindowPlotMixin:
+    def _pick_camera_trace_motion(self, position):
+        result = getattr(self, "execution_result", None)
+        if result is None:
+            return None
+        item = getattr(self, "_toolpath_item", None)
+        if item is not None and not item.visible():
+            return None
+        cache = getattr(self, "_trace_pick_cache", None)
+        if cache is None or cache[0] is not self.render_points or cache[1] is not result:
+            segments = segments_from_render_points(self.render_points, result.motions, lathe_radius_view=self.latheMode)
+            cache = (self.render_points, result, TracePicker(segments, getattr(self, "_motion_to_playback", None)))
+            self._trace_pick_cache = cache
+        matrix, viewport = view_projection(self.ui.graphicsView)
+        visible_count = getattr(item, "visible_logical_count", None)
+        return cache[2].pick(
+            (position.x(), position.y()),
+            matrix,
+            viewport,
+            show_rapid=getattr(self, "plotShowRapid", True),
+            visible_count=visible_count,
+            depth_aware=not self.latheMode and getattr(self, "_view_mode", "3d") == "3d",
+        )
+
     def _configure_stl_panel(self):
         """Create the runtime STL object dock without modifying generated Designer files."""
         self._stl_entries = []
@@ -1120,6 +1143,7 @@ class MainWindowPlotMixin:
 
     def _dispose_trace_item(self):
         """Release trajectory buffers before the owning GL view disappears."""
+        self._trace_pick_cache = None
         toolpath_item = getattr(self, "_toolpath_item", None)
         if toolpath_item is not None:
             toolpath_item.dispose()
@@ -1142,35 +1166,19 @@ class MainWindowPlotMixin:
         )
 
     def _pick_trace_at(self, position):
-        """Select the nearest trajectory segment on Shift+Click in a 2D view."""
+        """Select a sampled trajectory movement and synchronize playback and source."""
         bbox_picker = getattr(self, "_pick_stl_bbox_point", None)
         if bbox_picker is not None and bbox_picker(position):
             return True
         if getattr(self, "_stock_animation_active", False):
             return False
         view_mode = "lathe" if self.latheMode else getattr(self, "_view_mode", "3d")
-        if view_mode not in {"lathe", "top", "front", "left"} or not self.render_points:
+        if view_mode not in {"lathe", "top", "front", "left", "3d"} or not self.render_points:
             return False
 
-        px = float(position.x())
-        py = float(position.y())
-        best_distance = PICK_DISTANCE_PX
-        best_motion = None
-        projected_previous = self._project_world_to_screen(
-            self.render_points[0].x, self.render_points[0].y, self.render_points[0].z
-        )
-        for current in self.render_points[1:]:
-            projected_current = self._project_world_to_screen(current.x, current.y, current.z)
-            if projected_previous is not None and projected_current is not None:
-                distance = _point_segment_distance(
-                    px, py, projected_previous[0], projected_previous[1], projected_current[0], projected_current[1]
-                )
-                if distance <= best_distance:
-                    best_distance = distance
-                    best_motion = current.motion_index
-            projected_previous = projected_current
+        best_motion = MainWindowPlotMixin._pick_camera_trace_motion(self, position)
 
-        result = self.execution_result
+        result = getattr(self, "execution_result", None)
         if result is None or best_motion is None or not 0 <= best_motion < len(result.motions):
             return False
         motion_to_playback = getattr(self, "_motion_to_playback", tuple(range(len(result.motions))))
@@ -1182,9 +1190,7 @@ class MainWindowPlotMixin:
             self.ui.horizontalSlider.setValue(target)
         source_block = result.motions[best_motion].source_block
         if source_block is not None:
-            self.ui.statusbar.showMessage(
-                f"Trajectory source: line {source_block + 1}, motion {best_motion + 1} (Shift+Click)", 5000
-            )
+            self.ui.statusbar.showMessage(f"Trajectory source: line {source_block + 1}, motion {best_motion + 1}", 5000)
         return True
 
     def _sync_editor_to_motion(self, idx):
@@ -1216,6 +1222,7 @@ class MainWindowPlotMixin:
         self._stock_auto_suggestion = None
         self._dispose_trace_item()
         self.execution_result = None
+        self._trace_pick_cache = None
         self._deferred_execution_result = None
         self._deferred_execution_source = None
         self.render_points = []

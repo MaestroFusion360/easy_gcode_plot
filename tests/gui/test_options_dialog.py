@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import pytest
 from PyQt6.QtGui import QColor, QKeySequence
-from PyQt6.QtWidgets import QApplication, QMainWindow
+from PyQt6.QtWidgets import QApplication, QCheckBox, QComboBox, QFormLayout, QMainWindow
 from rotary_ui_helpers import profile_id as _profile_id
 from rotary_ui_helpers import profile_row as _profile_row
 
@@ -17,6 +17,57 @@ from app.ui.dialogs.hotkey_assignment import HotkeyAssignmentDialog
 from app.ui.dialogs.options import OptionsDialog
 from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
+
+
+def test_general_groups_controls_and_persists_optional_cimco_picking(qt_app):
+    window = MainWindow()
+    try:
+        dialog, ui = window.optionsDlg, window.optionsDlg.ui
+        dialog.load_values()
+        assert not window.cimcoLikePicking and not ui.cimcoLikePickingCheck.isChecked()
+        fields = [
+            ui.generalForm.itemAt(row, QFormLayout.ItemRole.FieldRole) for row in range(ui.generalForm.rowCount())
+        ]
+        spanning = [
+            ui.generalForm.itemAt(row, QFormLayout.ItemRole.SpanningRole) for row in range(ui.generalForm.rowCount())
+        ]
+        rows = [
+            item.widget() for field, span in zip(fields, spanning, strict=True) if (item := field or span) is not None
+        ]
+        combo_rows = [i for i, widget in enumerate(rows) if isinstance(widget, QComboBox)]
+        check_rows = [i for i, widget in enumerate(rows) if isinstance(widget, QCheckBox)]
+        assert combo_rows and check_rows and max(combo_rows) < min(check_rows)
+        assert all(isinstance(widget, QCheckBox) for widget in rows[min(check_rows) :])
+        ui.cimcoLikePickingCheck.setChecked(True)
+        dialog.reject()
+        assert not window.cimcoLikePicking
+        dialog.load_values()
+        ui.cimcoLikePickingCheck.setChecked(True)
+        dialog.accept()
+        assert window.cimcoLikePicking
+        assert window.settings.value("GENERAL/CIMCO_LIKE_PICKING", type=bool)
+        dialog.restore_defaults()
+        assert not ui.cimcoLikePickingCheck.isChecked()
+        assert window.cimcoLikePicking
+    finally:
+        window.deleteLater()
+        qt_app.processEvents()
+
+
+def test_invalid_rotary_draft_does_not_apply_hotkeys_or_save_posts(qt_app, monkeypatch):
+    window = MainWindow()
+    try:
+        dialog = window.optionsDlg
+        dialog.load_values()
+        applied = []
+        monkeypatch.setattr(dialog.rotarySettings, "stage", lambda: False)
+        monkeypatch.setattr(window, "setHotkeys", lambda _values: applied.append("hotkeys"))
+        monkeypatch.setattr(dialog.postProfileSettings, "apply", lambda: applied.append("posts"))
+        dialog.accept()
+        assert applied == []
+    finally:
+        window.deleteLater()
+        qt_app.processEvents()
 
 
 def test_lexer_motion_colors_persist_through_theme_file_type_and_cancel(qt_app, monkeypatch):

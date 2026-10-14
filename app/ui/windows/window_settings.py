@@ -161,6 +161,7 @@ _EDITOR_SETTINGS = (
 _GENERAL_SETTINGS = (
     _SettingSpec("LANGUAGE", "uiLanguage", "en", str),
     _SettingSpec("LOGGING", "loggingEnabled", False, bool),
+    _SettingSpec("CIMCO_LIKE_PICKING", "cimcoLikePicking", False, bool),
     _SettingSpec("AUTO_UPDATE", "autoUpdateEnabled", True, bool),
     _SettingSpec(
         "AUTO_UPDATE_MAX_SEGMENTS",

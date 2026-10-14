@@ -1817,7 +1817,9 @@ Playback tracks execution occurrence and source ownership separately.
 
 ### How do I locate a plotted move in the editor?
 
-Use Shift+Click near the trajectory. The application selects the owning source block and moves the logical-motion slider to the corresponding motion.
+Use Shift+left-click near a trajectory line or arc, including in the milling 3D view. The application selects the owning source block and moves the playback slider to the corresponding executed movement. Overlapping 3D segments are selected by camera depth; hidden rapid moves are excluded.
+
+**Options → General → Cimco Like Picking** is off by default. Enable it to select with a left-click and pan by dragging the right mouse button in milling views. A right-click without dragging opens the context menu; dragging does not. With the option off, left-button dragging pans and Shift+left-click selects. Middle-button rotation and wheel zoom remain available. The setting takes effect on OK; Cancel discards the change. Turning controls are unchanged.
 
 ### Does automatic refresh move the editor caret?
 

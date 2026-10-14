@@ -99,20 +99,23 @@ class Ui_OptionsDlg(object):
 
         self.generalForm.setWidget(4, QFormLayout.ItemRole.FieldRole, self.themeCombo)
 
-        self.loggingCheck = QCheckBox(self.generalTab)
-        self.loggingCheck.setObjectName(u"loggingCheck")
+        self.toolpanelIconsLabel = QLabel(self.generalTab)
+        self.toolpanelIconsLabel.setObjectName(u"toolpanelIconsLabel")
 
-        self.generalForm.setWidget(5, QFormLayout.ItemRole.SpanningRole, self.loggingCheck)
+        self.generalForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.toolpanelIconsLabel)
 
-        self.autoUpdateCheck = QCheckBox(self.generalTab)
-        self.autoUpdateCheck.setObjectName(u"autoUpdateCheck")
+        self.toolpanelIconsCombo = QComboBox(self.generalTab)
+        self.toolpanelIconsCombo.addItem("")
+        self.toolpanelIconsCombo.addItem("")
+        self.toolpanelIconsCombo.addItem("")
+        self.toolpanelIconsCombo.setObjectName(u"toolpanelIconsCombo")
 
-        self.generalForm.setWidget(6, QFormLayout.ItemRole.SpanningRole, self.autoUpdateCheck)
+        self.generalForm.setWidget(5, QFormLayout.ItemRole.FieldRole, self.toolpanelIconsCombo)
 
         self.autoUpdateMaxSegmentsLabel = QLabel(self.generalTab)
         self.autoUpdateMaxSegmentsLabel.setObjectName(u"autoUpdateMaxSegmentsLabel")
 
-        self.generalForm.setWidget(7, QFormLayout.ItemRole.LabelRole, self.autoUpdateMaxSegmentsLabel)
+        self.generalForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.autoUpdateMaxSegmentsLabel)
 
         self.autoUpdateMaxSegmentsSpin = QSpinBox(self.generalTab)
         self.autoUpdateMaxSegmentsSpin.setObjectName(u"autoUpdateMaxSegmentsSpin")
@@ -121,12 +124,12 @@ class Ui_OptionsDlg(object):
         self.autoUpdateMaxSegmentsSpin.setSingleStep(5000)
         self.autoUpdateMaxSegmentsSpin.setValue(2147483647)
 
-        self.generalForm.setWidget(7, QFormLayout.ItemRole.FieldRole, self.autoUpdateMaxSegmentsSpin)
+        self.generalForm.setWidget(6, QFormLayout.ItemRole.FieldRole, self.autoUpdateMaxSegmentsSpin)
 
         self.maxGeneratedMotionsLabel = QLabel(self.generalTab)
         self.maxGeneratedMotionsLabel.setObjectName(u"maxGeneratedMotionsLabel")
 
-        self.generalForm.setWidget(8, QFormLayout.ItemRole.LabelRole, self.maxGeneratedMotionsLabel)
+        self.generalForm.setWidget(7, QFormLayout.ItemRole.LabelRole, self.maxGeneratedMotionsLabel)
 
         self.maxGeneratedMotionsSpin = QSpinBox(self.generalTab)
         self.maxGeneratedMotionsSpin.setObjectName(u"maxGeneratedMotionsSpin")
@@ -135,20 +138,22 @@ class Ui_OptionsDlg(object):
         self.maxGeneratedMotionsSpin.setSingleStep(50000)
         self.maxGeneratedMotionsSpin.setValue(2147483647)
 
-        self.generalForm.setWidget(8, QFormLayout.ItemRole.FieldRole, self.maxGeneratedMotionsSpin)
+        self.generalForm.setWidget(7, QFormLayout.ItemRole.FieldRole, self.maxGeneratedMotionsSpin)
 
-        self.toolpanelIconsLabel = QLabel(self.generalTab)
-        self.toolpanelIconsLabel.setObjectName(u"toolpanelIconsLabel")
+        self.autoUpdateCheck = QCheckBox(self.generalTab)
+        self.autoUpdateCheck.setObjectName(u"autoUpdateCheck")
 
-        self.generalForm.setWidget(9, QFormLayout.ItemRole.LabelRole, self.toolpanelIconsLabel)
+        self.generalForm.setWidget(8, QFormLayout.ItemRole.SpanningRole, self.autoUpdateCheck)
 
-        self.toolpanelIconsCombo = QComboBox(self.generalTab)
-        self.toolpanelIconsCombo.addItem("")
-        self.toolpanelIconsCombo.addItem("")
-        self.toolpanelIconsCombo.addItem("")
-        self.toolpanelIconsCombo.setObjectName(u"toolpanelIconsCombo")
+        self.loggingCheck = QCheckBox(self.generalTab)
+        self.loggingCheck.setObjectName(u"loggingCheck")
 
-        self.generalForm.setWidget(9, QFormLayout.ItemRole.FieldRole, self.toolpanelIconsCombo)
+        self.generalForm.setWidget(9, QFormLayout.ItemRole.SpanningRole, self.loggingCheck)
+
+        self.cimcoLikePickingCheck = QCheckBox(self.generalTab)
+        self.cimcoLikePickingCheck.setObjectName(u"cimcoLikePickingCheck")
+
+        self.generalForm.setWidget(10, QFormLayout.ItemRole.SpanningRole, self.cimcoLikePickingCheck)
 
         self.tabs.addTab(self.generalTab, "")
         self.cncTab = QWidget()
@@ -1135,8 +1140,11 @@ class Ui_OptionsDlg(object):
         self.themeCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Light", None))
         self.themeCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"Dark", None))
 
-        self.loggingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Enable application log", None))
-        self.autoUpdateCheck.setText(QCoreApplication.translate("OptionsDlg", u"Auto update plot while editing", None))
+        self.toolpanelIconsLabel.setText(QCoreApplication.translate("OptionsDlg", u"Toolpanel icons", None))
+        self.toolpanelIconsCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Large 32x32", None))
+        self.toolpanelIconsCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"Medium 24x24", None))
+        self.toolpanelIconsCombo.setItemText(2, QCoreApplication.translate("OptionsDlg", u"Small 16x16", None))
+
         self.autoUpdateMaxSegmentsLabel.setText(QCoreApplication.translate("OptionsDlg", u"Auto update max segments", None))
 #if QT_CONFIG(tooltip)
         self.autoUpdateMaxSegmentsSpin.setToolTip(QCoreApplication.translate("OptionsDlg", u"Maximum sampled points for automatic refresh only. Manual Update has no hidden render limit.", None))
@@ -1145,11 +1153,12 @@ class Ui_OptionsDlg(object):
 #if QT_CONFIG(tooltip)
         self.maxGeneratedMotionsSpin.setToolTip(QCoreApplication.translate("OptionsDlg", u"Maximum total number of motions generated by one CNC execution.", None))
 #endif // QT_CONFIG(tooltip)
-        self.toolpanelIconsLabel.setText(QCoreApplication.translate("OptionsDlg", u"Toolpanel icons", None))
-        self.toolpanelIconsCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Large 32x32", None))
-        self.toolpanelIconsCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"Medium 24x24", None))
-        self.toolpanelIconsCombo.setItemText(2, QCoreApplication.translate("OptionsDlg", u"Small 16x16", None))
-
+        self.autoUpdateCheck.setText(QCoreApplication.translate("OptionsDlg", u"Auto update plot while editing", None))
+        self.loggingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Enable application log", None))
+        self.cimcoLikePickingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Cimco Like Picking", None))
+#if QT_CONFIG(tooltip)
+        self.cimcoLikePickingCheck.setToolTip(QCoreApplication.translate("OptionsDlg", u"Milling: left-click selects a toolpath movement; drag with the right button to pan. Right-click opens the context menu. When off, use Shift+left-click to select and drag with the left button to pan.", None))
+#endif // QT_CONFIG(tooltip)
         self.tabs.setTabText(self.tabs.indexOf(self.generalTab), QCoreApplication.translate("OptionsDlg", u"General", None))
         self.correctionCheck.setText(QCoreApplication.translate("OptionsDlg", u"Correction (G41/G42)", None))
         self.autodetectArcTypeCheck.setText(QCoreApplication.translate("OptionsDlg", u"Autodetect Arc Type", None))

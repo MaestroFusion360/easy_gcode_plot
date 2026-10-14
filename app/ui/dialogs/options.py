@@ -53,6 +53,7 @@ def _option_snapshot(window):
         "file_type": getattr(window, "defaultFileType", 0),
         "units": getattr(window, "defaultUnits", "mm"),
         "logging": getattr(window, "loggingEnabled", False),
+        "cimco_like_picking": getattr(window, "cimcoLikePicking", False),
         "auto_update": getattr(window, "autoUpdateEnabled", True),
         "auto_update_limit": getattr(window, "autoUpdateMaxSegments", AUTO_UPDATE_SEGMENTS_DEFAULT),
         "generated_motions_limit": getattr(window, "maxGeneratedMotions", GENERATED_MOTIONS_DEFAULT),
@@ -194,7 +195,7 @@ class OptionsDialog(QDialog):
         self.ui.latheGcodeSystemCombo.setToolTip(
             "Dialect of the source program. Select the output controller in Export / Target CNC."
         )
-        self.ui.generalForm.addRow(QLabel("Source lathe G-code system", self), self.ui.latheGcodeSystemCombo)
+        self.ui.generalForm.insertRow(6, QLabel("Source lathe G-code system", self), self.ui.latheGcodeSystemCombo)
         self._configure_sinumerik_cycles_control()
         self.rotarySettings = RotaryKinematicsSettings(self)
         self._configure_caret_line_color()
@@ -323,6 +324,7 @@ class OptionsDialog(QDialog):
             TOOLBAR_ICON_SIZES.index(icon_size) if icon_size in TOOLBAR_ICON_SIZES else 1
         )
         self.ui.loggingCheck.setChecked(getattr(window, "loggingEnabled", False))
+        self.ui.cimcoLikePickingCheck.setChecked(getattr(window, "cimcoLikePicking", False))
         self.ui.autoUpdateCheck.setChecked(getattr(window, "autoUpdateEnabled", True))
         self.ui.autoUpdateMaxSegmentsSpin.setValue(
             getattr(window, "autoUpdateMaxSegments", AUTO_UPDATE_SEGMENTS_DEFAULT)
@@ -535,6 +537,7 @@ class OptionsDialog(QDialog):
         window.toolbarIconSize = TOOLBAR_ICON_SIZES[self.ui.toolpanelIconsCombo.currentIndex()]
         window.applyToolbarIconSize(window.toolbarIconSize)
         window.loggingEnabled = self.ui.loggingCheck.isChecked()
+        window.cimcoLikePicking = self.ui.cimcoLikePickingCheck.isChecked()
         window.autoUpdateEnabled = self.ui.autoUpdateCheck.isChecked()
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
         window.maxGeneratedMotions = self.ui.maxGeneratedMotionsSpin.value()
@@ -597,9 +600,11 @@ class OptionsDialog(QDialog):
         return (
             self.discoverySettings.validate()
             and self._valid_colors(tuple(edit for _, edit in self._color_controls))
-            and self._apply_hotkeys(window)
+            and self.rotarySettings.stage()
+            and self._selected_hotkeys() is not None
             and self.postProfileSettings.apply()
             and self.rotarySettings.apply()
+            and self._apply_hotkeys(window)
         )
 
     def _commit_refresh(self, window, previous_options, selected_rotary, execution_changed, sampling_changed):
@@ -675,6 +680,7 @@ class OptionsDialog(QDialog):
         self.ui.themeCombo.setCurrentIndex(0)
         self.ui.toolpanelIconsCombo.setCurrentIndex(1)
         self.ui.loggingCheck.setChecked(False)
+        self.ui.cimcoLikePickingCheck.setChecked(False)
         self.ui.autoUpdateCheck.setChecked(True)
         self.ui.autoUpdateMaxSegmentsSpin.setValue(AUTO_UPDATE_SEGMENTS_DEFAULT)
         self.ui.maxGeneratedMotionsSpin.setValue(GENERATED_MOTIONS_DEFAULT)

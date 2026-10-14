@@ -1,7 +1,10 @@
 """Mouse navigation and picking helpers for the OpenGL plot."""
 
-from PyQt6.QtCore import QEvent, QObject, Qt, QTimer
-from PyQt6.QtGui import QVector4D
+from dataclasses import dataclass
+
+from PyQt6.QtCore import QEvent, QObject, QPointF, Qt, QTimer
+from PyQt6.QtGui import QContextMenuEvent, QVector4D
+from PyQt6.QtWidgets import QApplication
 
 
 def point_segment_distance(px, py, ax, ay, bx, by):
@@ -17,17 +20,29 @@ def point_segment_distance(px, py, ax, ay, bx, by):
     return ((px - qx) ** 2 + (py - qy) ** 2) ** 0.5
 
 
+@dataclass
+class _MouseGesture:
+    origin: QPointF
+    last: QPointF
+    button: Qt.MouseButton
+    pan_button: Qt.MouseButton
+    pick: bool = False
+    menu: bool = False
+    dragged: bool = False
+
+
 class PlotNavigation(QObject):
     """CAD-like viewport navigation matching the CNCEditor OpenTK controls."""
 
-    def __init__(self, view, on_view_changed=None, on_pick=None):
+    def __init__(self, view, on_view_changed=None, on_pick=None, *, cimco_like=None):
         super().__init__(view)
         self.view = view
         self.on_view_changed = on_view_changed or (lambda: None)
         self.on_pick = on_pick or (lambda _pos: None)
-        self._drag_pos = None
         self._orbit_pivot = None
         self.measure = None
+        self.cimco_like = cimco_like or (lambda: False)
+        self._gesture = None
 
     def _pivot_at(self, position):
         """Intersect the cursor ray with the view plane through the current center."""
@@ -52,51 +67,82 @@ class PlotNavigation(QObject):
         view.opts["center"] += (after_matrix.inverted()[0] * delta).toVector3D()
         view.update()
 
+    def _mouse_press(self, event):
+        button = event.button()
+        cimco = self.cimco_like()
+        pan_button = Qt.MouseButton.RightButton if cimco else Qt.MouseButton.LeftButton
+        picking_allowed = self.measure is None or not self.measure.active
+        if (
+            picking_allowed
+            and button == Qt.MouseButton.LeftButton
+            and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
+        ):
+            self._gesture = None
+            self.on_pick(event.position())
+            return True
+        pick = cimco and picking_allowed and button == Qt.MouseButton.LeftButton
+        if button not in (pan_button, Qt.MouseButton.MiddleButton) and not pick:
+            return False
+        self._gesture = _MouseGesture(
+            event.position(), event.position(), button, pan_button, pick, cimco and button == Qt.MouseButton.RightButton
+        )
+        self._orbit_pivot = self._pivot_at(event.position()) if button == Qt.MouseButton.MiddleButton else None
+        return True
+
+    def _mouse_release(self, event):
+        gesture = self._gesture
+        if gesture is None or event.button() != gesture.button:
+            return False
+        moved = (event.position() - gesture.origin).manhattanLength() >= QApplication.startDragDistance()
+        click = not gesture.dragged and not moved
+        self._gesture = self._orbit_pivot = None
+        if gesture.pick and click:
+            self.on_pick(event.position())
+        if gesture.menu and click:
+            self.view.customContextMenuRequested.emit(event.position().toPoint())
+        return True
+
+    def _mouse_move(self, event):
+        gesture = self._gesture
+        if gesture is None:
+            return False
+        if not event.buttons() & gesture.button:
+            self._gesture = self._orbit_pivot = None
+            return False
+        pos = event.position()
+        if not gesture.dragged and (gesture.menu or gesture.pick):
+            if (pos - gesture.origin).manhattanLength() < QApplication.startDragDistance():
+                return True
+            gesture.dragged = True
+        diff = pos - gesture.last
+        gesture.last = pos
+        if gesture.pick:
+            return True
+        if gesture.button == gesture.pan_button:
+            self.view.pan(diff.x(), diff.y(), 0, relative="view")
+        elif gesture.button == Qt.MouseButton.MiddleButton:
+            self._orbit_at_pivot(diff.x(), diff.y())
+        QTimer.singleShot(0, self.on_view_changed)
+        return True
+
     def eventFilter(self, watched, event):
         if watched is not self.view:
             return False
-        if self.measure is not None and self.measure.handle_event(event):
-            self._drag_pos = None
-            return True
-
-        handled = False
         event_type = event.type()
-        if event_type == QEvent.Type.MouseButtonPress:
-            if (
-                event.button() == Qt.MouseButton.LeftButton
-                and event.modifiers() & Qt.KeyboardModifier.ShiftModifier
-                and not (self.measure is not None and self.measure.active)
-            ):
-                self._drag_pos = None
-                self.on_pick(event.position())
-                handled = True
-            elif event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
-                self._drag_pos = event.position()
-                self._orbit_pivot = (
-                    self._pivot_at(self._drag_pos) if event.button() == Qt.MouseButton.MiddleButton else None
-                )
-                handled = True
-        elif event_type == QEvent.Type.MouseButtonRelease:
-            if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.MiddleButton):
-                self._drag_pos = None
-                self._orbit_pivot = None
-                handled = True
-        elif event_type == QEvent.Type.MouseMove and self._drag_pos is not None:
-            pos = event.position()
-            diff = pos - self._drag_pos
-            self._drag_pos = pos
-
-            if event.buttons() & Qt.MouseButton.LeftButton:
-                self.view.pan(diff.x(), diff.y(), 0, relative="view")
-                QTimer.singleShot(0, self.on_view_changed)
-                handled = True
-            elif event.buttons() & Qt.MouseButton.MiddleButton:
-                self._orbit_at_pivot(diff.x(), diff.y())
-                QTimer.singleShot(0, self.on_view_changed)
-                handled = True
-        elif event_type == QEvent.Type.Wheel:
+        if event_type in (QEvent.Type.FocusOut, QEvent.Type.Hide):
+            self._gesture = self._orbit_pivot = None
+        if self.measure is not None and self.measure.handle_event(event):
+            self._gesture = self._orbit_pivot = None
+            return True
+        if event_type == QEvent.Type.ContextMenu and self.cimco_like():
+            return event.reason() == QContextMenuEvent.Reason.Mouse
+        handlers = {
+            QEvent.Type.MouseButtonPress: self._mouse_press,
+            QEvent.Type.MouseButtonRelease: self._mouse_release,
+            QEvent.Type.MouseMove: self._mouse_move,
+        }
+        if event_type in handlers:
+            return handlers[event_type](event)
+        if event_type in (QEvent.Type.Wheel, QEvent.Type.Resize):
             QTimer.singleShot(0, self.on_view_changed)
-        elif event_type == QEvent.Type.Resize:
-            QTimer.singleShot(0, self.on_view_changed)
-
-        return handled
+        return False

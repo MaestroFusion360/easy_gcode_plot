@@ -28,24 +28,10 @@ foreach ($nativeModule in $nativeModules) {
             $stream.Dispose()
         }
         catch {
-            $owners = foreach ($process in Get-Process) {
-                try {
-                    foreach ($module in $process.Modules) {
-                        if ($module.FileName -eq $file.FullName) {
-                            "$($process.ProcessName) (PID $($process.Id))"
-                            break
-                        }
-                    }
-                }
-                catch {
-                    # Windows may deny access to unrelated processes.
-                }
-            }
-            $ownerText = if ($owners) { " Loaded by: $($owners -join ', ')." } else { '' }
             [Console]::Error.WriteLine(
                 "Close the running application or Python session using this project, then retry the build."
             )
-            throw "Native extension cannot be replaced: $($file.FullName).$ownerText Close the running application or Python session using this project, then retry the build. No processes were terminated. Windows error: $($_.Exception.Message)"
+            throw "Native extension cannot be replaced: $($file.FullName). Close the running application or Python session using this project, then retry the build. No processes were terminated. Windows error: $($_.Exception.Message)"
         }
     }
 }
