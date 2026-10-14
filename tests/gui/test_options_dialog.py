@@ -4,17 +4,17 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 from PyQt6.QtGui import QColor, QKeySequence
 from PyQt6.QtWidgets import QApplication, QMainWindow
+from rotary_ui_helpers import profile_id as _profile_id
+from rotary_ui_helpers import profile_row as _profile_row
 
 from app.gcode.kernel.milling.kinematics import CATALOG_PATH, load_catalog, user_catalog_path
 from app.main_window import MainWindow
 from app.settings import get_settings
 from app.ui.dialogs.hotkey_assignment import HotkeyAssignmentDialog
-from app.ui.dialogs.options import OptionsDialog, RotaryKinematicsJsonDialog
+from app.ui.dialogs.options import OptionsDialog
 from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
@@ -153,7 +153,7 @@ def test_current_line_colors_are_independent_and_follow_active_theme(qt_app):
         window.deleteLater()
 
 
-def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
+def test_all_builtin_rotary_profiles_appear_in_gui(qt_app):
     catalog = load_catalog()
     assert len(catalog) > 2
     assert {key for key, profile in catalog.items() if profile.enabled} == {
@@ -165,13 +165,13 @@ def test_only_checked_rotary_profiles_appear_in_gui(qt_app):
     }
     window = MainWindow()
     try:
-        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c", "5ax_table_ac_angled", "5ax_table_bc_angled"}
+        expected = {None, *load_catalog(ignore_user_errors=True)}
         assert set(window._rotary_kinematics_actions) == expected
-        combo = window.optionsDlg.ui.rotaryKinematicsCombo
-        assert {combo.itemData(index) for index in range(combo.count())} == expected
+        combo = window.optionsDlg.ui.rotaryProfileList
+        assert {combo.item(index).data(256) for index in range(combo.count())} == expected - {None}
         ordered_ids = [None, *sorted(expected - {None})]
         assert list(window._rotary_kinematics_actions) == ordered_ids
-        assert [combo.itemData(index) for index in range(combo.count())] == ordered_ids
+        assert [combo.item(index).data(256) for index in range(combo.count())] == ordered_ids[1:]
     finally:
         window.deleteLater()
 
@@ -181,10 +181,10 @@ def test_broken_user_rotary_catalog_does_not_prevent_gui_startup(qt_app):
 
     window = MainWindow()
     try:
-        expected = {None, "4ax_table_a", "4ax_table_b", "4ax_table_c", "5ax_table_ac_angled", "5ax_table_bc_angled"}
+        expected = {None, *load_catalog(ignore_user_errors=True)}
         assert set(window._rotary_kinematics_actions) == expected
-        combo = window.optionsDlg.ui.rotaryKinematicsCombo
-        assert {combo.itemData(index) for index in range(combo.count())} == expected
+        combo = window.optionsDlg.ui.rotaryProfileList
+        assert {combo.item(index).data(256) for index in range(combo.count())} == expected - {None}
     finally:
         window.deleteLater()
 
@@ -193,16 +193,23 @@ def test_rotary_profile_editor_saves_user_override_and_refreshes_menu(qt_app):
     installed = CATALOG_PATH.read_bytes()
     window = MainWindow()
     try:
-        editor = RotaryKinematicsJsonDialog("4ax_table_b", window.optionsDlg)
-        document = json.loads(editor.editor.toPlainText())
-        document["name"] = "My B table"
-        editor.editor.setPlainText(json.dumps(document))
-        editor.accept()
-        assert editor.result() == editor.DialogCode.Accepted
+        dialog = window.optionsDlg
+        dialog.load_values()
+        combo = dialog.ui.rotaryProfileList
+        combo.setCurrentRow(_profile_row(combo, "4ax_table_b"))
+        assert dialog.ui.rotaryNameEdit.isReadOnly()
+        assert not dialog.ui.rotaryDeleteButton.isEnabled()
+        dialog.ui.rotaryCopyButton.click()
+        profile_id = _profile_id(combo)
+        dialog.ui.rotaryNameEdit.setText("My B table")
+        dialog.ui.rotaryY1Edit.setText("-1")
+        dialog.accept()
         assert user_catalog_path().exists()
         assert CATALOG_PATH.read_bytes() == installed
-        window._refresh_rotary_kinematics_menu()
-        assert "My B table" in window._rotary_kinematics_actions["4ax_table_b"].text()
+        assert "My B table" in window._rotary_kinematics_actions[profile_id].text()
+        assert window.rotaryKinematics is None
+        window._rotary_kinematics_actions[profile_id].trigger()
+        assert window.rotaryKinematics == profile_id
     finally:
         window.deleteLater()
 
@@ -572,7 +579,7 @@ def test_plot_options_use_two_columns_with_playback_last(qt_app):
     window = MainWindow()
     dialog = window.optionsDlg
     form = dialog.ui.plotForm
-    assert form.rowCount() == 8  # Rotary kinematics is inserted ahead of the UI rows.
+    assert form.rowCount() == 7  # Rotary profiles have their own Designer tab.
     for left, right in (
         (dialog.ui.axesCheck, dialog.ui.gridCheck),
         (dialog.ui.showRapidCheck, dialog.ui.dashedRapidCheck),
@@ -685,3 +692,11 @@ def test_options_default_file_type_is_not_taken_from_current_editor_mode(qt_app,
     assert window.ui.fileTypeCombo.currentIndex() == 1
     assert applied == [1]
     window.deleteLater()
+
+
+@pytest.fixture(autouse=True)
+def rotary_copy_name_dialog(monkeypatch):
+    monkeypatch.setattr(
+        "app.ui.dialogs.rotary_kinematics_settings.RotaryKinematicsSettings._ask_name",
+        lambda self, _title, default: default,
+    )

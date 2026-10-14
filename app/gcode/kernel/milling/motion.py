@@ -12,7 +12,7 @@ from ..geometry.spatial_arc import through_three_points
 from ..runtime.cycles import CycleContext, apply_cycle_outcome
 from ..runtime.home import reference_return
 from .cycles import execute_milling_cycle
-from .kinematics import TCP_TABLE_PROFILES, effective_orientation, point_orientation, transform_point
+from .kinematics import effective_orientation, point_orientation, transform_point
 from .reference import append_reference_event
 from .state import MillState, _coordinate_transform, _machine, _orient_vector, _wcs_offset, _xyz
 
@@ -88,7 +88,7 @@ def _set_machine_position(state: MillState, position, wcs_offsets) -> None:
 def _continuous_c_changed(state: MillState, words, rotary_start_angles) -> bool:
     return (
         state.kinematics is not None
-        and state.kinematics.id == "4ax_table_c"
+        and state.kinematics.continuous_c_table
         and "C" in words
         and rotary_start_angles is not None
         and rotary_start_angles["C"] != state.rotary_angles["C"]
@@ -99,7 +99,7 @@ def _tcp_rotary_changed(state: MillState, words, rotary_start_angles) -> bool:
     return (
         state.tcp_control
         and state.kinematics is not None
-        and state.kinematics.id in TCP_TABLE_PROFILES
+        and state.kinematics.tcp_table_supported
         and rotary_start_angles is not None
         and any(
             axis in words and rotary_start_angles[axis] != state.rotary_angles[axis]

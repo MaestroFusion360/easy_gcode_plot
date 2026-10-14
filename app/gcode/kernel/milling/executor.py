@@ -18,7 +18,7 @@ from ..runtime.execution import ProgramRuntime, resolve_program_tools, semantic_
 from .block import _BlockAction, _BlockOutcome, _MillingExecutionContext, _PreparedMillingBlock
 from .cycles.sinumerik import execute_native_cycle
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
-from .kinematics import TCP_TABLE_PROFILES, MachineKinematics, effective_orientation, kinematics_snapshot
+from .kinematics import MachineKinematics, effective_orientation, kinematics_snapshot
 from .motion import _emit_milling_motions
 from .policy import (
     MILLING_RECOGNIZED_G_CODES,
@@ -406,7 +406,7 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
     move = next((g for g in reversed(gcodes) if g in (0, 1, 2, 3)), state.move)
     continuous_c = (
         state.kinematics is not None
-        and state.kinematics.id == "4ax_table_c"
+        and state.kinematics.continuous_c_table
         and changed == ("C",)
         and 28 not in gcodes
         and 53 not in gcodes
@@ -416,7 +416,7 @@ def _apply_rotary_index(ctx, block, evaluated_block, occurrence_events) -> _Bloc
         state.tcp_control
         and not any(g in (43, 49) for g in gcodes)
         and state.kinematics is not None
-        and state.kinematics.id in TCP_TABLE_PROFILES
+        and state.kinematics.tcp_table_supported
         and 28 not in gcodes
         and 53 not in gcodes
         and move in (0, 1, 2, 3)

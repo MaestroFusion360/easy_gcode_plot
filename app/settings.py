@@ -1,5 +1,6 @@
 """Per-user application settings stored outside the program directory."""
 
+import json
 import logging
 import math
 import os
@@ -17,6 +18,17 @@ _LOG_HANDLER_MARKER = "_easy_gcode_plot_handler"
 _LOG_PREVIOUS_LEVEL_MARKER = "_easy_gcode_plot_previous_level"
 _LOG_PREVIOUS_PROPAGATE_MARKER = "_easy_gcode_plot_previous_propagate"
 LOGGER = logging.getLogger(__name__)
+ROTARY_PROFILE_ENABLED_KEY = "CNC/ROTARY_PROFILE_ENABLED"
+
+
+def load_rotary_profile_visibility(settings) -> dict[str, bool]:
+    try:
+        values = json.loads(settings.value(ROTARY_PROFILE_ENABLED_KEY, "{}", type=str))
+    except (TypeError, ValueError):
+        return {}
+    if not isinstance(values, dict):
+        return {}
+    return {key: value for key, value in values.items() if isinstance(value, bool)}
 
 
 class ToolLibraryLoadError(RuntimeError):

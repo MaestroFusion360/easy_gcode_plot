@@ -16,6 +16,7 @@ from app.gcode.file_io import atomic_export as _atomic_export
 from app.gcode.file_io import protect_source
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
+from app.gcode.kernel.milling.kinematics import profile_from_snapshot
 from app.gcode.post_profiles import load_post_profile
 
 ARC_MODES = {"ijk-relative": 0, "ijk-absolute": 1, "radius": 2, "linearized": 3}
@@ -247,12 +248,8 @@ def _preflight_export_failure(result, request, started):
                 "Expanded multiaxis export does not yet reconstruct G68.2/CYCLE800 tilted working-plane semantics",
             ),
         }
-        if supports_tcp and result.kinematics_profile in {
-            "5ax_table_ac",
-            "5ax_table_bc",
-            "5ax_table_ac_angled",
-            "5ax_table_bc_angled",
-        }:
+        executed_profile = profile_from_snapshot(result.kinematics_definition)
+        if supports_tcp and executed_profile is not None and executed_profile.tcp_table_supported:
             unsupported.pop("TILTED_WORK_PLANE_ON")
         if not supports_tcp:
             unsupported["TCP_CONTROL_ON"] = (

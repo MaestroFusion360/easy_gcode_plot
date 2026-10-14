@@ -15,6 +15,7 @@ import pytest
 from PyQt6.QtCore import QCoreApplication, QEvent, Qt, QTimer
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDialogButtonBox, QMessageBox
+from rotary_ui_helpers import profile_row as _profile_row
 
 from app import settings as app_settings
 from app.gcode.export import EXPANDED_EXECUTION_MODE
@@ -244,10 +245,10 @@ def _options(window, app, *, profile=None, appearance=False, stl_edges=None):
         ui.arcColorEdit.setText("#ffb347")
         _check_step(app, "Toolpath colors")
     if profile:
-        ui.tabs.setCurrentWidget(ui.plotTab)
-        index = ui.rotaryKinematicsCombo.findData(profile)
+        ui.tabs.setCurrentWidget(ui.rotaryTab)
+        index = _profile_row(ui.rotaryProfileList, profile)
         assert index >= 0, profile
-        ui.rotaryKinematicsCombo.setCurrentIndex(index)
+        ui.rotaryProfileList.setCurrentRow(index)
         _check_step(app, profile)
     if stl_edges is not None:
         ui.tabs.setCurrentWidget(ui.plotTab)
@@ -256,6 +257,7 @@ def _options(window, app, *, profile=None, appearance=False, stl_edges=None):
     ui.buttonBox.button(QDialogButtonBox.StandardButton.Ok).click()
     _check_step(app, "Options applied")
     if profile:
+        window._rotary_kinematics_actions[profile].trigger()
         assert window.rotaryKinematics == profile
     if stl_edges is not None:
         assert window.stlWireframe == stl_edges

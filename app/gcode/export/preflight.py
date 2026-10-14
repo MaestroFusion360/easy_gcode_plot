@@ -7,10 +7,10 @@ import math
 
 from ..kernel import ExecutionResult
 from ..kernel.milling.kinematics import (
-    TCP_TABLE_PROFILES,
     MachineKinematics,
     RotaryAxis,
     point_orientation,
+    profile_from_snapshot,
     transform_point,
 )
 from .common import ExportLimitation, ExportOptions, _execution_slices, _require_continuous_motions
@@ -96,6 +96,8 @@ def _inverse_orientation_point(matrix, point):
 
 
 def _has_unreconstructable_non_tcp_rotary_motion(result: ExecutionResult) -> bool:
+    executed_profile = profile_from_snapshot(result.kinematics_definition)
+    continuous_c = executed_profile is not None and executed_profile.continuous_c_table
     tcp_active = False
     for step in result.execution_steps:
         for event in step.events:
@@ -103,7 +105,7 @@ def _has_unreconstructable_non_tcp_rotary_motion(result: ExecutionResult) -> boo
                 tcp_active = True
             elif event.kind == "TCP_CONTROL_OFF":
                 tcp_active = False
-            elif event.kind == "ROTARY_MOTION" and not tcp_active and event.kinematics_profile != "4ax_table_c":
+            elif event.kind == "ROTARY_MOTION" and not tcp_active and not continuous_c:
                 return True
     return False
 
@@ -203,8 +205,10 @@ def _require_supported_twp(result, profile):
     frames = [e for e in result.events if e.kind == "TILTED_WORK_PLANE_ON"]
     if not frames:
         return
+    executed_profile = profile_from_snapshot(result.kinematics_definition)
     supported = (
-        result.kinematics_profile in TCP_TABLE_PROFILES
+        executed_profile is not None
+        and executed_profile.tcp_table_supported
         and profile["id"] in {"fanuc_mill_multiaxis", "sinumerik_840d_multiaxis"}
         and all(e.twp_orientation is not None and e.twp_origin is not None for e in frames)
         and not result.extended_wcs_offsets

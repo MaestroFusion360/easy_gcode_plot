@@ -8,7 +8,6 @@ from ..api.types import Diagnostic, ExecutionEvent
 from ..runtime.capabilities import COMMON_ISO_M_CODES
 from ..runtime.diagnostics import modal_conflict_diagnostics
 from .block import _BlockAction, _BlockOutcome
-from .kinematics import TCP_TABLE_PROFILES
 from .state import MillState, _apply_pre_flow_modal_state
 
 MILLING_RECOGNIZED_M_CODES = frozenset({0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 19, 29, 30, 98, 99})
@@ -154,7 +153,7 @@ def _milling_transform_error(ctx, block, evaluated_block):
     tcp_requested = 43.4 in codes.all_g
     rotary_requested = any(axis in words for axis in ("A", "B", "C"))
     error = None
-    if tcp_requested and (ctx.state.kinematics is None or ctx.state.kinematics.id not in TCP_TABLE_PROFILES):
+    if tcp_requested and (ctx.state.kinematics is None or not ctx.state.kinematics.tcp_table_supported):
         error = (
             "TCP_KINEMATICS_REQUIRED",
             "G43.4 requires a supported AC/BC table kinematics profile",

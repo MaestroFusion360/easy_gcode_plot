@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from ..api.resources import SemanticError
 from ..api.types import ExecutionEvent
-from .kinematics import IDENTITY, TCP_TABLE_PROFILES, _multiply, _rotation, transform_vector
+from .kinematics import IDENTITY, _multiply, _rotation, transform_vector
 from .sinumerik_parameters import parameter_value
 from .state import _cancel_twp, _orient_twp_tool_axis, configure_tilted_frame
 from .twp import solve_table_orientation
@@ -42,7 +42,7 @@ def _validate_options(values, state):
     transform = state.transform
     if transform.rotation_active or transform.scaling_active or transform.translation != (0.0, 0.0, 0.0):
         _unsupported("CYCLE800 composition with programmed transforms is not modeled")
-    if values[1] != "0" and (state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES):
+    if values[1] != "0" and (state.kinematics is None or not state.kinematics.tcp_table_supported):
         raise SemanticError(
             "TWP_KINEMATICS_REQUIRED", "CYCLE800 requires a supported AC/BC table profile", "unsupported"
         )
@@ -95,7 +95,7 @@ def _validate_dataset(values, state):
     # It never invokes an OEM indexing/retract implementation.
     if (
         values[1] == "DMG"
-        and state.kinematics.id == "5ax_table_bc_angled"
+        and state.kinematics.dmg_bc_frame_supported
         and values[2] in (220000, 220001)
         and values[0] == 0
     ):

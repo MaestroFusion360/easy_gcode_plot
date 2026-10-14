@@ -16,7 +16,6 @@ from ..frontend.program import EvaluatedWords
 from ..runtime.execution import EvaluatedBlock, classify_block_codes
 from ..runtime.signals import signals_for_words
 from .cycles.sinumerik import compile_native_cycle
-from .kinematics import TCP_TABLE_PROFILES
 from .sinumerik_feed import native_feed_diagnostic
 from .sinumerik_frame import apply_frame, compile_frame
 from .sinumerik_iso import _diag, _normalize_g_codes
@@ -445,7 +444,7 @@ def _compile_native_declaration(block, evaluated, state):
 
 
 def _tcp_declaration_diagnostic(block, state):
-    if state.kinematics is None or state.kinematics.id not in TCP_TABLE_PROFILES:
+    if state.kinematics is None or not state.kinematics.tcp_table_supported:
         return _diag(block, "TCP_KINEMATICS_REQUIRED", "TRAORI requires a supported AC/BC table profile")
     transform_active = (
         state.transform.rotation_active

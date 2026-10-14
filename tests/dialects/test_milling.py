@@ -89,29 +89,30 @@ def test_rotary_profile_override_is_persistent_and_does_not_edit_installed_catal
     original = CATALOG_PATH.read_bytes()
     assert user_catalog_path() == tmp_path / "rotary_profiles.json"
     edited = profile_document("4ax_table_b")
+    edited["id"] = "user_b"
     edited["table"][0]["axis"] = [0, -1, 0]
-    save_profile_override("4ax_table_b", edited)
+    save_profile_override("user_b", edited)
     assert user_catalog_path().exists()
     assert CATALOG_PATH.read_bytes() == original
-    assert load_catalog()["4ax_table_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
-    result = execute("G90 G0 B90\nG0 Z10\nM30", language="fanuc_mill", kinematics="4ax_table_b")
+    assert load_catalog()["user_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
+    result = execute("G90 G0 B90\nG0 Z10\nM30", language="fanuc_mill", kinematics="user_b")
     assert result.ok, result.diagnostics
     assert result.motions[-1].end_x == pytest.approx(-10)
-    invalid = profile_document("4ax_table_b")
+    invalid = profile_document("user_b")
     invalid["table"][0]["axis"] = [0, 0, 0]
     with pytest.raises(InvalidKinematicsProfile):
-        save_profile_override("4ax_table_b", invalid)
-    assert load_catalog()["4ax_table_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
+        save_profile_override("user_b", invalid)
+    assert load_catalog()["user_b"].table_rotary_axes[0].axis == pytest.approx((0, -1, 0))
 
 
-def test_invalid_user_rotary_catalog_is_strict_by_default_and_has_explicit_fallback():
+def test_invalid_user_rotary_catalog_has_explicit_strict_mode_and_safe_default():
     path = user_catalog_path()
     path.write_text("{broken json", encoding="utf-8")
 
     with pytest.raises(InvalidKinematicsProfile):
-        load_catalog()
+        load_catalog(ignore_user_errors=False)
 
-    fallback = load_catalog(ignore_user_errors=True)
+    fallback = load_catalog()
     assert {key for key, profile in fallback.items() if profile.enabled} == {
         "4ax_table_a",
         "4ax_table_b",

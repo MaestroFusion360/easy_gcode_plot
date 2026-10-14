@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.2.3 - 2026-10-14
+
+- Replace the rotary JSON editor with a Rotary Kinematics Options tab: a profile list, resizable splitter, compact axis settings and action icons matching Postprocessors. Create named user copies, rename, save and delete them; keep installed profiles read-only. Stage edits and deletions until OK and discard them on Cancel.
+- Make all 24 installed rotary configurations available in Options and add an Enabled checkbox controlling their visibility in the Settings menu. Store built-in visibility separately from installed definitions, retain hidden profiles in Options and clear the active selection when its profile is hidden.
+- Apply configured axis directions, table/head ownership and joint order through the existing rotation calculations. Determine TCP, continuous-C, SINUMERIK swivel and horizontal-table view compatibility from profile geometry rather than built-in IDs, so compatible user copies retain those capabilities. Preserve unsupported-layout checks and use the executed profile snapshot for resolved geometry and export.
+- Migrate legacy built-in overrides into separate user copies and preserve saved selections. Recover valid entries independently from damaged user catalogs; retain the original file bytes in a backup before migration or recovery is saved, and write user profiles atomically.
+- Sort Options tabs alphabetically by their displayed names while keeping General first. Standardize rotary axis names as AC, BC and AB and use the Russian title “Кинематика вращения”.
+- Document profile editing, visibility, migration and current kinematics limitations in the English and Russian FAQ. Distinguish the five profiles with practical reference-program verification from the remaining available, unverified configurations; add regression coverage for catalog parameter effects, user copies and transactional settings.
+- Add a NoSync switch to the PowerShell test runner and use quiet pytest output by default. Update application metadata and both website languages to version 2.2.3.
+
 ## 2.2.2 - 2026-10-13
 
 - Compile turning collision clipping and the existing swept-profile intersection loop in Cython. Avoid reclipping unchanged marks on G0, cache derived material sections by their actual state, and cover the real basic-turning-cycle fixture with Python/native parity and performance checks. Include the extension in Windows/Linux builds, packaging and locked-DLL checks.

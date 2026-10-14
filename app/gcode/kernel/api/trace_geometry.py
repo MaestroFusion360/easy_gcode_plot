@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, replace
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..geometry import resolve_arc
-from ..milling.kinematics import transform_vector
+from ..milling.kinematics import profile_from_snapshot, transform_vector
 from ..runtime.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
 from .arc_validation import _validate_turning_arc_source
 from .resources import SemanticError
@@ -141,8 +141,8 @@ def _compensation_diagnostics(result, motions, *, code, message, predicate):
 
 def _resolve_milling_compensation(result, motions, motion_step_owners, milling_tools, kinematics):
     """Apply verified local-plane offsets or retain the unverified C-table trace."""
-    selected = getattr(kinematics, "id", kinematics)
-    table_c = selected == "4ax_table_c"
+    profile = profile_from_snapshot(result.kinematics_definition)
+    table_c = profile is not None and profile.continuous_c_table
     diagnostics = ()
     if table_c:
         diagnostics = _compensation_diagnostics(
@@ -150,7 +150,7 @@ def _resolve_milling_compensation(result, motions, motion_step_owners, milling_t
             motions,
             code="UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION",
             message=(
-                "G41/G42 cutter compensation is not supported for 4ax_table_c; "
+                "G41/G42 cutter compensation is not supported for a vertical C table; "
                 "the plotted path is the programmed, uncompensated tool-tip path"
             ),
             predicate=lambda motion: motion.compensation_mode in (41, 42),

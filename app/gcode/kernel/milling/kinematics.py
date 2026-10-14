@@ -31,7 +31,6 @@ _transpose = matrix.transpose
 transform_point = matrix.transform_point
 transform_vector = matrix.transform_vector
 
-TCP_TABLE_PROFILES = frozenset({"5ax_table_ac", "5ax_table_bc", "5ax_table_ac_angled", "5ax_table_bc_angled"})
 CATALOG_PATH = Path(__file__).with_name("rotary_profiles.json")
 LOGGER = logging.getLogger(__name__)
 
@@ -58,6 +57,48 @@ class MachineKinematics:
     table_rotary_axes: tuple[RotaryAxis, ...]
     head_rotary_axes: tuple[RotaryAxis, ...]
     enabled: bool = False
+
+    @property
+    def continuous_c_table(self) -> bool:
+        """The planar interpolator supports a single signed vertical C joint."""
+        return (
+            not self.head_rotary_axes
+            and len(self.table_rotary_axes) == 1
+            and self.table_rotary_axes[0].address == "C"
+            and math.hypot(*self.table_rotary_axes[0].axis[:2]) < 1e-12
+            and abs(abs(self.table_rotary_axes[0].axis[2]) - 1) < 1e-12
+        )
+
+    @property
+    def tcp_table_supported(self) -> bool:
+        """TCP requires a tilt followed by a vertical C spin on the table."""
+        if self.head_rotary_axes or len(self.table_rotary_axes) != 2:
+            return False
+        tilt, spin = self.table_rotary_axes
+        return (
+            tilt.address in ("A", "B")
+            and spin.address == "C"
+            and math.hypot(*spin.axis[:2]) < 1e-12
+            and abs(abs(spin.axis[2]) - 1) < 1e-12
+            and math.hypot(*tilt.axis[:2]) > 1e-8
+        )
+
+    @property
+    def horizontal_b_table(self) -> bool:
+        """Preserve the horizontal camera for a single signed Y-axis B table."""
+        return (
+            not self.head_rotary_axes
+            and len(self.table_rotary_axes) == 1
+            and self.table_rotary_axes[0].address == "B"
+            and math.hypot(self.table_rotary_axes[0].axis[0], self.table_rotary_axes[0].axis[2]) < 1e-12
+        )
+
+    @property
+    def dmg_bc_frame_supported(self) -> bool:
+        if not self.tcp_table_supported:
+            return False
+        tilt, spin = self.table_rotary_axes
+        return tilt.address == "B" and math.dist(tilt.axis, (0, 2**-0.5, -(2**-0.5))) < 1e-6 and spin.axis[2] > 0
 
     @property
     def addresses(self) -> frozenset[str]:
@@ -160,54 +201,109 @@ def _builtin_document() -> dict:
     return document
 
 
-def _read_user_overrides(path: Path, known_ids: set[str], *, ignore_errors: bool) -> dict | None:
-    """Return valid overrides or an explicit damaged-file marker for the editor."""
+def builtin_profile_ids() -> frozenset[str]:
+    return frozenset(item["id"] for item in _builtin_document()["profiles"])
+
+
+def legacy_profile_id(profile_id: str) -> str:
+    """Stable namespace for old overrides, including saved GUI selections."""
+    return "legacy_" + profile_id
+
+
+def migrate_saved_profile_id(profile_id: str) -> str:
+    users, _ = _read_user_document(ignore_errors=True)
+    return next((item["id"] for item in users["profiles"] if item.get("legacy_source_id") == profile_id), profile_id)
+
+
+def _read_user_document(*, ignore_errors: bool) -> tuple[dict, bool]:
+    """Recover valid entries independently; leave original bytes untouched on read."""
+    path = user_catalog_path()
+    empty = {"schema_version": 1, "profiles": []}
     if not path.exists():
-        return {"schema_version": 1, "profiles": []}
+        return empty, False
     try:
-        overrides = json.loads(path.read_text(encoding="utf-8"))
-        parse_catalog(overrides)
-        unknown = {item["id"] for item in overrides["profiles"]} - known_ids
-        if unknown:
-            raise InvalidKinematicsProfile(f"Unknown profile override: {', '.join(sorted(unknown))}")
-        return overrides
-    except (OSError, UnicodeError, json.JSONDecodeError, InvalidKinematicsProfile) as exc:
-        if ignore_errors:
-            LOGGER.warning("rotary_profile_override_invalid path=%s error=%s", path, exc)
-            return None
-        if isinstance(exc, InvalidKinematicsProfile):
-            raise
-        raise InvalidKinematicsProfile(str(exc)) from exc
+        document = json.loads(path.read_text(encoding="utf-8"))
+        if (
+            not isinstance(document, dict)
+            or not isinstance(document.get("schema_version"), int)
+            or document.get("schema_version") != 1
+            or isinstance(document.get("schema_version"), bool)
+        ):
+            raise InvalidKinematicsProfile("unsupported schema_version")
+        if not isinstance(document.get("profiles"), list):
+            raise InvalidKinematicsProfile("profiles must be an array")
+    except (OSError, UnicodeError, ValueError) as exc:
+        if not ignore_errors:
+            raise InvalidKinematicsProfile(str(exc)) from exc
+        LOGGER.warning("rotary_profile_override_invalid path=%s error=%s", path, exc)
+        return empty, True
+    return _recover_user_entries(document)
 
 
-def load_catalog(*, ignore_user_errors: bool = False) -> Mapping[str, MachineKinematics]:
-    """Load overrides strictly by default; startup may explicitly use built-ins."""
+def _recover_user_entries(document: dict) -> tuple[dict, bool]:
+    builtins = builtin_profile_ids()
+    # Reserve explicit IDs before translating legacy ones, so neither is lost.
+    reserved = {
+        item.get("id") for item in document["profiles"] if isinstance(item, dict) and isinstance(item.get("id"), str)
+    }
+    entries, seen = [], set()
+    changed = False
+    for item in document["profiles"]:
+        try:
+            profile = _parse_profile(item)
+            if profile.id in seen:
+                raise ValueError(f"duplicate profile id: {profile.id}")
+            seen.add(profile.id)
+            if profile.id in builtins:
+                item = dict(item)
+                candidate = legacy_profile_id(profile.id)
+                while candidate in reserved:
+                    candidate = "legacy_" + candidate
+                item["legacy_source_id"] = profile.id
+                item["id"] = candidate
+                reserved.add(candidate)
+                changed = True
+            entries.append(item)
+        except (KeyError, TypeError, ValueError, OverflowError) as exc:
+            LOGGER.warning("rotary_profile_entry_invalid error=%s", exc)
+            changed = True
+    return {"schema_version": 1, "profiles": entries}, changed
+
+
+def load_catalog(*, ignore_user_errors: bool = True) -> Mapping[str, MachineKinematics]:
     document = _builtin_document()
-    overrides = _read_user_overrides(
-        user_catalog_path(), {item["id"] for item in document["profiles"]}, ignore_errors=ignore_user_errors
-    )
-    if overrides is not None:
-        replacements = {item["id"]: item for item in overrides["profiles"]}
-        document["profiles"] = [replacements.get(item["id"], item) for item in document["profiles"]]
+    users, _ = _read_user_document(ignore_errors=ignore_user_errors)
+    document["profiles"].extend(users["profiles"])
     return parse_catalog(document)
 
 
 def profile_document(profile_id: str) -> dict:
-    """Open valid overrides, or the built-in profile when the override is damaged."""
     document = _builtin_document()
-    known = {item["id"] for item in document["profiles"]}
-    if profile_id not in known:
-        raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
-    overrides = _read_user_overrides(user_catalog_path(), known, ignore_errors=True)
-    if overrides is not None:
-        for item in overrides["profiles"]:
-            if item["id"] == profile_id:
-                return item
-    return next(item for item in document["profiles"] if item["id"] == profile_id)
+    users, _ = _read_user_document(ignore_errors=True)
+    for item in document["profiles"] + users["profiles"]:
+        if item["id"] == profile_id:
+            return item
+    raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
+
+
+def profile_from_snapshot(definition: str | None) -> MachineKinematics | None:
+    """Use the executed definition for export, without rereading mutable settings."""
+    if not definition:
+        return None
+    item = json.loads(definition)
+    return _parse_profile(
+        {
+            "id": item["id"],
+            "name": item["name"],
+            "enabled": item["enabled"],
+            "table": item["table_rotary_axes"],
+            "head": item["head_rotary_axes"],
+        }
+    )
 
 
 def _backup_invalid_override(path: Path) -> None:
-    """Keep the exact damaged bytes before replacing the user's override file."""
+    """Keep exact original bytes before migration or damaged-file recovery."""
     contents = path.read_bytes()
     fd, name = tempfile.mkstemp(prefix=path.name + ".invalid-", suffix=".bak", dir=path.parent)
     with os.fdopen(fd, "wb") as stream:
@@ -215,28 +311,33 @@ def _backup_invalid_override(path: Path) -> None:
     LOGGER.warning("rotary_profile_override_recovered path=%s backup=%s", path, name)
 
 
-def save_profile_override(profile_id: str, edited: dict) -> None:
-    """Validate and atomically save; recover damaged overrides with a backup."""
-    if edited.get("id") != profile_id:
-        raise InvalidKinematicsProfile("Profile id cannot be changed")
-    built_in = _builtin_document()
-    known = {item["id"] for item in built_in["profiles"]}
-    if profile_id not in known:
-        raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
+def save_user_profiles(profiles: list[dict]) -> None:
+    """Validate the complete user catalog, then replace it atomically."""
+    document = {"schema_version": 1, "profiles": profiles}
+    parsed = parse_catalog(document)
+    if parsed.keys() & builtin_profile_ids():
+        raise InvalidKinematicsProfile("Built-in profiles are read-only")
     path = user_catalog_path()
-    overrides = _read_user_overrides(path, known, ignore_errors=True)
-    entries = [] if overrides is None else [item for item in overrides["profiles"] if item["id"] != profile_id]
-    entries.append(edited)
-    document = {"schema_version": 1, "profiles": entries}
-    parse_catalog(document)
+    _, needs_backup = _read_user_document(ignore_errors=True)
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temporary_name = tempfile.mkstemp(prefix="rotary-profiles-", suffix=".tmp", dir=path.parent)
     try:
         with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as stream:
             json.dump(document, stream, ensure_ascii=False, indent=2)
             stream.write("\n")
-        if overrides is None:
+        if needs_backup:
             _backup_invalid_override(path)
         os.replace(temporary_name, path)
     finally:
         Path(temporary_name).unlink(missing_ok=True)
+
+
+def save_profile_override(profile_id: str, edited: dict) -> None:
+    """Save a user copy while protecting all installed definitions."""
+    if edited.get("id") != profile_id:
+        raise InvalidKinematicsProfile("Profile id cannot be changed")
+    if profile_id in builtin_profile_ids():
+        raise InvalidKinematicsProfile("Built-in profiles are read-only")
+    users, _ = _read_user_document(ignore_errors=True)
+    entries = [item for item in users["profiles"] if item["id"] != profile_id]
+    save_user_profiles([*entries, edited])

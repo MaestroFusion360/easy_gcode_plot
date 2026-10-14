@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 from pyqtgraph.opengl import GLGridItem, GLLinePlotItem, GLScatterPlotItem
 
+from app.gcode.kernel.milling.kinematics import load_catalog
 from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.ui.panels.stl_objects_panel import StlObjectsPanel
 from app.ui.plot.axis_triad import AxisTriadItem
@@ -1506,6 +1507,10 @@ class MainWindowPlotMixin:
         grid.translate(snapped_x - old_x, 0.0, snapped_z - old_z)
         self._lathe_grid_center = (snapped_x, snapped_z)
 
+    def _horizontal_rotary_table(self):
+        profile = load_catalog(ignore_user_errors=True).get(getattr(self, "rotaryKinematics", None))
+        return profile is not None and profile.horizontal_b_table
+
     def _milling_view_plane(self, view_mode=None):
         """Map a physical milling view name to its fixed world plane."""
         mapping = self._milling_view_mapping(view_mode)
@@ -1516,7 +1521,7 @@ class MainWindowPlotMixin:
         mode = view_mode or getattr(self, "_view_mode", "3d")
         if mode not in {"top", "front", "left"}:
             return None
-        machine = "4ax_table_b" if getattr(self, "rotaryKinematics", None) == "4ax_table_b" else "vertical"
+        machine = "4ax_table_b" if self._horizontal_rotary_table() else "vertical"
         return _MILLING_VIEW_MAPPINGS[machine][mode]
 
     def _sync_milling_view_tooltips(self):
@@ -1652,7 +1657,7 @@ class MainWindowPlotMixin:
         self._sync_grid_view_state()
         view = self.ui.graphicsView
         view.setProjectionMode("orthographic")
-        if getattr(self, "rotaryKinematics", None) == "4ax_table_b":
+        if self._horizontal_rotary_table():
             # Horizontal mill: +Y is screen-up; +X and +Z run to the right
             # on opposite diagonals. Only the camera changes; WCS stays fixed.
             view.opts["rotationMethod"] = "quaternion"

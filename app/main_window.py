@@ -20,9 +20,10 @@ from PyQt6.QtPrintSupport import QPrinter, QPrintPreviewDialog
 from PyQt6.QtWidgets import QComboBox, QMainWindow, QMenu, QMessageBox, QSlider, QToolBar, QToolButton
 
 import app.resources.files_res  # noqa: F401  # pylint: disable=unused-import  # Registers Qt resources on import.
-from app.gcode.kernel.milling.kinematics import load_catalog
+from app.gcode.kernel.milling.kinematics import builtin_profile_ids, load_catalog, migrate_saved_profile_id
 from app.settings import (
     DEFAULT_TOOLBAR_ICON_SIZE,
+    load_rotary_profile_visibility,
     normalized_milling_tools,
     normalized_recent_files,
     normalized_tools,
@@ -115,11 +116,22 @@ class MainWindow(
         self._ruler = PlotRuler(self)
         self._plot_navigation.measure = self._ruler
 
+    def _rotary_profile_available(self, profile):
+        if profile.id in builtin_profile_ids():
+            return self.rotaryProfileEnabled.get(profile.id, True)
+        return profile.enabled
+
     def _configure_rotary_kinematics_menu(self):
         """Expose indexed milling kinematics at the top of the Settings menu."""
         catalog = load_catalog(ignore_user_errors=True)
+        self.rotaryProfileEnabled = load_rotary_profile_visibility(self.settings)
         saved = self.settings.value("CNC/ROTARY_KINEMATICS", "", type=str)
-        self.rotaryKinematics = saved if saved in catalog and catalog[saved].enabled else None
+        previous_saved = saved
+        saved = "5ax_table_bc_angled" if saved == "tablebc45" else saved
+        saved = migrate_saved_profile_id(saved)
+        self.rotaryKinematics = saved if saved in catalog and self._rotary_profile_available(catalog[saved]) else None
+        if previous_saved == "tablebc45":
+            self.settings.setValue("CNC/ROTARY_KINEMATICS", self.rotaryKinematics or "")
 
         menu = QMenu(QCoreApplication.translate("MainWindow", "Rotary kinematics"), self.ui.menuSettings)
         menu.setObjectName("menuRotaryKinematics")
@@ -143,7 +155,7 @@ class MainWindow(
         if previous_group is not None:
             previous_group.deleteLater()
         if self.rotaryKinematics is not None and (
-            self.rotaryKinematics not in catalog or not catalog[self.rotaryKinematics].enabled
+            self.rotaryKinematics not in catalog or not self._rotary_profile_available(catalog[self.rotaryKinematics])
         ):
             self.rotaryKinematics = None
             self.settings.setValue("CNC/ROTARY_KINEMATICS", "")
@@ -153,7 +165,8 @@ class MainWindow(
         for profile_id, profile in (
             (None, None),
             *sorted(
-                ((key, value) for key, value in catalog.items() if value.enabled), key=lambda item: item[0].casefold()
+                ((key, value) for key, value in catalog.items() if self._rotary_profile_available(value)),
+                key=lambda item: item[0].casefold(),
             ),
         ):
             text = (
@@ -178,7 +191,9 @@ class MainWindow(
 
     def _apply_rotary_kinematics(self, profile_id, *, force_refresh=False):
         catalog = load_catalog(ignore_user_errors=True)
-        if profile_id is not None and (profile_id not in catalog or not catalog[profile_id].enabled):
+        if profile_id is not None and (
+            profile_id not in catalog or not self._rotary_profile_available(catalog[profile_id])
+        ):
             profile_id = None
         changed = profile_id != getattr(self, "rotaryKinematics", None)
         self.rotaryKinematics = profile_id
@@ -209,6 +224,11 @@ class MainWindow(
                 self.viewLeft()
             else:
                 self.view3d()
+
+    @property
+    def rotary_kinematics_actions(self):
+        """Rotary kinematics menu actions keyed by profile id (``None`` is the unset entry)."""
+        return dict(getattr(self, "_rotary_kinematics_actions", {}))
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""

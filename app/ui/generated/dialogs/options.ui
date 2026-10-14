@@ -209,71 +209,6 @@
                             </item>
                         </layout>
                     </widget>
-                    <widget class="QWidget" name="editorTab">
-                        <attribute name="title">
-                            <string>Editor</string>
-                        </attribute>
-                        <layout class="QFormLayout" name="editorForm">
-                            <item row="0" column="0">
-                                <widget class="QLabel" name="fontLabel">
-                                    <property name="text">
-                                        <string>Font family</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="0" column="1">
-                                <widget class="QFontComboBox" name="fontCombo"/>
-                            </item>
-                            <item row="1" column="0">
-                                <widget class="QLabel" name="fontSizeLabel">
-                                    <property name="text">
-                                        <string>Font size</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="1" column="1">
-                                <widget class="QSpinBox" name="fontSizeSpin">
-                                    <property name="minimum">
-                                        <number>6</number>
-                                    </property>
-                                    <property name="maximum">
-                                        <number>48</number>
-                                    </property>
-                                    <property name="value">
-                                        <number>12</number>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="2" column="0" colspan="2">
-                                <widget class="QCheckBox" name="caretLineCheck">
-                                    <property name="text">
-                                        <string>Highlight current line</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="3" column="0" colspan="2">
-                                <widget class="QCheckBox" name="marginCheck">
-                                    <property name="text">
-                                        <string>Show line numbers</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="4" column="0" colspan="2">
-                                <widget class="QCheckBox" name="eolCheck">
-                                    <property name="text">
-                                        <string>Show EOL</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="5" column="0" colspan="2">
-                                <widget class="QCheckBox" name="whitespaceCheck">
-                                    <property name="text">
-                                        <string>Show whitespace</string>
-                                    </property>
-                                </widget>
-                            </item>
-                        </layout>
-                    </widget>
                     <widget class="QWidget" name="cncTab">
                         <attribute name="title">
                             <string>CNC / Execution</string>
@@ -455,143 +390,6 @@
                                         </property>
                                     </item>
                                 </widget>
-                            </item>
-                        </layout>
-                    </widget>
-                    <widget class="QWidget" name="plotTab">
-                        <attribute name="title">
-                            <string>Plot</string>
-                        </attribute>
-                        <layout class="QFormLayout" name="plotForm">
-                            <property name="rowWrapPolicy">
-                                <enum>QFormLayout::RowWrapPolicy::WrapLongRows</enum>
-                            </property>
-                            <item row="0" column="0">
-                                <widget class="QLabel" name="lineWidthLabel">
-                                    <property name="text">
-                                        <string>Line width</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="0" column="1">
-                                <widget class="QDoubleSpinBox" name="lineWidthSpin">
-                                    <property name="decimals">
-                                        <number>2</number>
-                                    </property>
-                                    <property name="minimum">
-                                        <double>0.25</double>
-                                    </property>
-                                    <property name="maximum">
-                                        <double>6.0</double>
-                                    </property>
-                                    <property name="singleStep">
-                                        <double>0.25</double>
-                                    </property>
-                                    <property name="value">
-                                        <double>1.5</double>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="1" column="0">
-                                <widget class="QLabel" name="gridStepLabel">
-                                    <property name="text">
-                                        <string>Grid step (0 = adaptive)</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="1" column="1">
-                                <widget class="QDoubleSpinBox" name="gridStepSpin">
-                                    <property name="decimals">
-                                        <number>3</number>
-                                    </property>
-                                    <property name="maximum">
-                                        <double>1000000.0</double>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="2" column="0">
-                                <widget class="QCheckBox" name="axesCheck">
-                                    <property name="text">
-                                        <string>Show axes</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="2" column="1">
-                                <widget class="QCheckBox" name="gridCheck">
-                                    <property name="text">
-                                        <string>Show grid</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="5" column="0">
-                                <widget class="QCheckBox" name="backgroundGradientCheck">
-                                    <property name="text">
-                                        <string>Gradient background</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="4" column="1">
-                                <widget class="QCheckBox" name="showStockCheck">
-                                    <property name="text">
-                                        <string>Show Stock</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="5" column="1">
-                                <widget class="QCheckBox" name="stlWireframeCheck">
-                                    <property name="text">
-                                        <string>STL edges only</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="3" column="0">
-                                <widget class="QCheckBox" name="showRapidCheck">
-                                    <property name="text"><string>Show rapid moves (G0)</string></property>
-                                </widget>
-                            </item>
-                            <item row="3" column="1">
-                                <widget class="QCheckBox" name="dashedRapidCheck">
-                                    <property name="text"><string>Dashed rapid moves</string></property>
-                                </widget>
-                            </item>
-                            <item row="4" column="0">
-                                <widget class="QCheckBox" name="colorByToolCheck">
-                                    <property name="text"><string>Color by tool</string></property>
-                                </widget>
-                            </item>
-                            <item row="6" column="0">
-                                <widget class="QLabel" name="playbackSpeedLabel">
-                                    <property name="text">
-                                        <string>Playback speed</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="6" column="1">
-                                <layout class="QHBoxLayout" name="playbackSpeedLayout">
-                                    <item>
-                                        <widget class="QSlider" name="playbackSpeedSlider">
-                                            <property name="minimum">
-                                                <number>1</number>
-                                            </property>
-                                            <property name="maximum">
-                                                <number>5</number>
-                                            </property>
-                                            <property name="value">
-                                                <number>3</number>
-                                            </property>
-                                            <property name="orientation">
-                                                <enum>Qt::Orientation::Horizontal</enum>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                    <item>
-                                        <widget class="QLabel" name="playbackSpeedValueLabel">
-                                            <property name="text">
-                                                <string>3 — 100 ms/step</string>
-                                            </property>
-                                        </widget>
-                                    </item>
-                                </layout>
                             </item>
                         </layout>
                     </widget>
@@ -794,6 +592,228 @@
                             </item>
                         </layout>
                     </widget>
+                    <widget class="QWidget" name="editorTab">
+                        <attribute name="title">
+                            <string>Editor</string>
+                        </attribute>
+                        <layout class="QFormLayout" name="editorForm">
+                            <item row="0" column="0">
+                                <widget class="QLabel" name="fontLabel">
+                                    <property name="text">
+                                        <string>Font family</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="0" column="1">
+                                <widget class="QFontComboBox" name="fontCombo"/>
+                            </item>
+                            <item row="1" column="0">
+                                <widget class="QLabel" name="fontSizeLabel">
+                                    <property name="text">
+                                        <string>Font size</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="1">
+                                <widget class="QSpinBox" name="fontSizeSpin">
+                                    <property name="minimum">
+                                        <number>6</number>
+                                    </property>
+                                    <property name="maximum">
+                                        <number>48</number>
+                                    </property>
+                                    <property name="value">
+                                        <number>12</number>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="0" colspan="2">
+                                <widget class="QCheckBox" name="caretLineCheck">
+                                    <property name="text">
+                                        <string>Highlight current line</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="3" column="0" colspan="2">
+                                <widget class="QCheckBox" name="marginCheck">
+                                    <property name="text">
+                                        <string>Show line numbers</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="4" column="0" colspan="2">
+                                <widget class="QCheckBox" name="eolCheck">
+                                    <property name="text">
+                                        <string>Show EOL</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="5" column="0" colspan="2">
+                                <widget class="QCheckBox" name="whitespaceCheck">
+                                    <property name="text">
+                                        <string>Show whitespace</string>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="hotkeysTab">
+                        <attribute name="title"><string>Hotkeys</string></attribute>
+                        <layout class="QVBoxLayout" name="hotkeysLayout">
+                            <item>
+                                <widget class="QTableWidget" name="hotkeysTable">
+                                    <property name="selectionBehavior"><enum>QAbstractItemView::SelectionBehavior::SelectRows</enum></property>
+                                    <property name="selectionMode"><enum>QAbstractItemView::SelectionMode::SingleSelection</enum></property>
+                                    <property name="editTriggers"><set>QAbstractItemView::EditTrigger::NoEditTriggers</set></property>
+                                    <column><property name="text"><string>Command</string></property></column>
+                                    <column><property name="text"><string>Shortcut</string></property></column>
+                                    <column><property name="text"><string>Category</string></property></column>
+                                </widget>
+                            </item>
+                            <item>
+                                <widget class="QPushButton" name="editHotkeyButton">
+                                    <property name="text"><string>Edit shortcut</string></property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="plotTab">
+                        <attribute name="title">
+                            <string>Plot</string>
+                        </attribute>
+                        <layout class="QFormLayout" name="plotForm">
+                            <property name="rowWrapPolicy">
+                                <enum>QFormLayout::RowWrapPolicy::WrapLongRows</enum>
+                            </property>
+                            <item row="0" column="0">
+                                <widget class="QLabel" name="lineWidthLabel">
+                                    <property name="text">
+                                        <string>Line width</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="0" column="1">
+                                <widget class="QDoubleSpinBox" name="lineWidthSpin">
+                                    <property name="decimals">
+                                        <number>2</number>
+                                    </property>
+                                    <property name="minimum">
+                                        <double>0.25</double>
+                                    </property>
+                                    <property name="maximum">
+                                        <double>6.0</double>
+                                    </property>
+                                    <property name="singleStep">
+                                        <double>0.25</double>
+                                    </property>
+                                    <property name="value">
+                                        <double>1.5</double>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="0">
+                                <widget class="QLabel" name="gridStepLabel">
+                                    <property name="text">
+                                        <string>Grid step (0 = adaptive)</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="1" column="1">
+                                <widget class="QDoubleSpinBox" name="gridStepSpin">
+                                    <property name="decimals">
+                                        <number>3</number>
+                                    </property>
+                                    <property name="maximum">
+                                        <double>1000000.0</double>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="0">
+                                <widget class="QCheckBox" name="axesCheck">
+                                    <property name="text">
+                                        <string>Show axes</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="2" column="1">
+                                <widget class="QCheckBox" name="gridCheck">
+                                    <property name="text">
+                                        <string>Show grid</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="5" column="0">
+                                <widget class="QCheckBox" name="backgroundGradientCheck">
+                                    <property name="text">
+                                        <string>Gradient background</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="4" column="1">
+                                <widget class="QCheckBox" name="showStockCheck">
+                                    <property name="text">
+                                        <string>Show Stock</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="5" column="1">
+                                <widget class="QCheckBox" name="stlWireframeCheck">
+                                    <property name="text">
+                                        <string>STL edges only</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="3" column="0">
+                                <widget class="QCheckBox" name="showRapidCheck">
+                                    <property name="text"><string>Show rapid moves (G0)</string></property>
+                                </widget>
+                            </item>
+                            <item row="3" column="1">
+                                <widget class="QCheckBox" name="dashedRapidCheck">
+                                    <property name="text"><string>Dashed rapid moves</string></property>
+                                </widget>
+                            </item>
+                            <item row="4" column="0">
+                                <widget class="QCheckBox" name="colorByToolCheck">
+                                    <property name="text"><string>Color by tool</string></property>
+                                </widget>
+                            </item>
+                            <item row="6" column="0">
+                                <widget class="QLabel" name="playbackSpeedLabel">
+                                    <property name="text">
+                                        <string>Playback speed</string>
+                                    </property>
+                                </widget>
+                            </item>
+                            <item row="6" column="1">
+                                <layout class="QHBoxLayout" name="playbackSpeedLayout">
+                                    <item>
+                                        <widget class="QSlider" name="playbackSpeedSlider">
+                                            <property name="minimum">
+                                                <number>1</number>
+                                            </property>
+                                            <property name="maximum">
+                                                <number>5</number>
+                                            </property>
+                                            <property name="value">
+                                                <number>3</number>
+                                            </property>
+                                            <property name="orientation">
+                                                <enum>Qt::Orientation::Horizontal</enum>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QLabel" name="playbackSpeedValueLabel">
+                                            <property name="text">
+                                                <string>3 — 100 ms/step</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                        </layout>
+                    </widget>
                     <widget class="QWidget" name="postprocessorsTab">
                         <attribute name="title">
                             <string>Postprocessors</string>
@@ -934,22 +954,328 @@
                             </item>
                         </layout>
                     </widget>
-                    <widget class="QWidget" name="hotkeysTab">
-                        <attribute name="title"><string>Hotkeys</string></attribute>
-                        <layout class="QVBoxLayout" name="hotkeysLayout">
+                    <widget class="QWidget" name="rotaryTab">
+                        <attribute name="title">
+                            <string>Rotary Kinematics</string>
+                        </attribute>
+                        <layout class="QVBoxLayout" name="rotaryLayout" stretch="1">
+
                             <item>
-                                <widget class="QTableWidget" name="hotkeysTable">
-                                    <property name="selectionBehavior"><enum>QAbstractItemView::SelectionBehavior::SelectRows</enum></property>
-                                    <property name="selectionMode"><enum>QAbstractItemView::SelectionMode::SingleSelection</enum></property>
-                                    <property name="editTriggers"><set>QAbstractItemView::EditTrigger::NoEditTriggers</set></property>
-                                    <column><property name="text"><string>Command</string></property></column>
-                                    <column><property name="text"><string>Shortcut</string></property></column>
-                                    <column><property name="text"><string>Category</string></property></column>
-                                </widget>
-                            </item>
-                            <item>
-                                <widget class="QPushButton" name="editHotkeyButton">
-                                    <property name="text"><string>Edit shortcut</string></property>
+                                <widget class="QSplitter" name="rotaryProfileSplitter">
+                                    <property name="orientation">
+                                        <enum>Qt::Orientation::Horizontal</enum>
+                                    </property>
+                                    <widget class="QWidget" name="rotaryProfileSidebar">
+                                        <layout class="QVBoxLayout" name="rotaryProfileSidebarLayout">
+                                            <item>
+                                                <widget class="QListWidget" name="rotaryProfileList" />
+                                            </item>
+                                            <item>
+                                                <layout class="QHBoxLayout" name="rotaryProfileActions">
+                                                    <item>
+                                                        <widget class="QPushButton" name="rotaryCopyButton">
+                                                            <property name="toolTip">
+                                                                <string>Add</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Add</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/add.png</normaloff>:/resource/icons/add.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item>
+                                                        <widget class="QPushButton" name="rotarySaveButton">
+                                                            <property name="toolTip">
+                                                                <string>Save</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Save</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/save.png</normaloff>:/resource/icons/save.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item>
+                                                        <widget class="QPushButton" name="rotaryRenameButton">
+                                                            <property name="toolTip">
+                                                                <string>Rename</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Rename</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/rename.png</normaloff>:/resource/icons/rename.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item>
+                                                        <widget class="QPushButton" name="rotaryDeleteButton">
+                                                            <property name="toolTip">
+                                                                <string>Delete</string>
+                                                            </property>
+                                                            <property name="accessibleName">
+                                                                <string>Delete</string>
+                                                            </property>
+                                                            <property name="text">
+                                                                <string />
+                                                            </property>
+                                                            <property name="icon">
+                                                                <iconset resource="../../../resources/files_res.qrc">
+                                                                    <normaloff>:/resource/icons/trash.png</normaloff>:/resource/icons/trash.png</iconset>
+                                                            </property>
+                                                            <property name="iconSize">
+                                                                <size>
+                                                                    <width>24</width>
+                                                                    <height>24</height>
+                                                                </size>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                </layout>
+                                            </item>
+                                        </layout>
+                                    </widget>
+                                    <widget class="QWidget" name="rotaryProfileEditor">
+                                        <layout class="QVBoxLayout" name="rotaryProfileEditorLayout">
+                                            <item>
+                                                <widget class="QLabel" name="rotaryProfileIdLabel">
+                                                    <property name="text">
+                                                        <string />
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <layout class="QFormLayout" name="rotaryNameForm">
+                                                    <item row="0" column="0">
+                                                        <widget class="QLabel" name="rotaryNameLabel">
+                                                            <property name="text">
+                                                                <string>Profile name</string>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                    <item row="0" column="1">
+                                                        <widget class="QLineEdit" name="rotaryNameEdit" />
+                                                    </item>
+                                                    <item row="1" column="1">
+                                                        <widget class="QCheckBox" name="rotaryEnabledCheck">
+                                                            <property name="text">
+                                                                <string>Enabled</string>
+                                                            </property>
+                                                            <property name="toolTip">
+                                                                <string>Show this profile in Settings / Rotary kinematics. Changes are applied with OK.</string>
+                                                            </property>
+                                                        </widget>
+                                                    </item>
+                                                </layout>
+                                            </item>
+                                            <item>
+                                                <widget class="QLabel" name="rotaryStatusLabel">
+                                                    <property name="text">
+                                                        <string />
+                                                    </property>
+                                                    <property name="wordWrap">
+                                                        <bool>true</bool>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QGroupBox" name="rotaryAxis1Group">
+                                                    <property name="title">
+                                                        <string>Axis 1</string>
+                                                    </property>
+                                                    <layout class="QFormLayout" name="rotaryAxis1Form">
+                                                        <item row="0" column="0">
+                                                            <widget class="QLabel" name="rotaryBranch1Label">
+                                                                <property name="text">
+                                                                    <string>Table / Head</string>
+                                                                </property>
+                                                            </widget>
+                                                        </item>
+                                                        <item row="0" column="1">
+                                                            <widget class="QComboBox" name="rotaryBranch1Combo" />
+                                                        </item>
+                                                        <item row="1" column="0">
+                                                            <widget class="QLabel" name="rotaryAddress1Label">
+                                                                <property name="text">
+                                                                    <string>Address</string>
+                                                                </property>
+                                                            </widget>
+                                                        </item>
+                                                        <item row="1" column="1">
+                                                            <widget class="QComboBox" name="rotaryAddress1Combo" />
+                                                        </item>
+                                                        <item row="2" column="0">
+                                                            <widget class="QLabel" name="rotaryDirection1Label">
+                                                                <property name="text">
+                                                                    <string>Direction</string>
+                                                                </property>
+                                                            </widget>
+                                                        </item>
+                                                        <item row="2" column="1">
+                                                            <layout class="QHBoxLayout" name="rotaryVector1Layout">
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryX1Label">
+                                                                        <property name="text">
+                                                                            <string>X</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryX1Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryY1Label">
+                                                                        <property name="text">
+                                                                            <string>Y</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryY1Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryZ1Label">
+                                                                        <property name="text">
+                                                                            <string>Z</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryZ1Edit" />
+                                                                </item>
+                                                            </layout>
+                                                        </item>
+                                                    </layout>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QGroupBox" name="rotaryAxis2Group">
+                                                    <property name="title">
+                                                        <string>Axis 2</string>
+                                                    </property>
+                                                    <layout class="QFormLayout" name="rotaryAxis2Form">
+                                                        <item row="0" column="0">
+                                                            <widget class="QLabel" name="rotaryBranch2Label">
+                                                                <property name="text">
+                                                                    <string>Table / Head</string>
+                                                                </property>
+                                                            </widget>
+                                                        </item>
+                                                        <item row="0" column="1">
+                                                            <widget class="QComboBox" name="rotaryBranch2Combo" />
+                                                        </item>
+                                                        <item row="1" column="0">
+                                                            <widget class="QLabel" name="rotaryAddress2Label">
+                                                                <property name="text">
+                                                                    <string>Address</string>
+                                                                </property>
+                                                            </widget>
+                                                        </item>
+                                                        <item row="1" column="1">
+                                                            <widget class="QComboBox" name="rotaryAddress2Combo" />
+                                                        </item>
+                                                        <item row="2" column="0">
+                                                            <widget class="QLabel" name="rotaryDirection2Label">
+                                                                <property name="text">
+                                                                    <string>Direction</string>
+                                                                </property>
+                                                            </widget>
+                                                        </item>
+                                                        <item row="2" column="1">
+                                                            <layout class="QHBoxLayout" name="rotaryVector2Layout">
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryX2Label">
+                                                                        <property name="text">
+                                                                            <string>X</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryX2Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryY2Label">
+                                                                        <property name="text">
+                                                                            <string>Y</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryY2Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryZ2Label">
+                                                                        <property name="text">
+                                                                            <string>Z</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryZ2Edit" />
+                                                                </item>
+                                                            </layout>
+                                                        </item>
+                                                    </layout>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <widget class="QLabel" name="rotaryOrderLabel">
+                                                    <property name="text">
+                                                        <string>Axis 1 precedes Axis 2 within each branch. Use None to omit an axis. Direction vectors must be nonzero.</string>
+                                                    </property>
+                                                    <property name="wordWrap">
+                                                        <bool>true</bool>
+                                                    </property>
+                                                </widget>
+                                            </item>
+                                            <item>
+                                                <spacer name="rotaryEditorSpacer">
+                                                    <property name="orientation">
+                                                        <enum>Qt::Orientation::Vertical</enum>
+                                                    </property>
+                                                    <property name="sizeHint">
+                                                        <size>
+                                                            <width>20</width>
+                                                            <height>0</height>
+                                                        </size>
+                                                    </property>
+                                                </spacer>
+                                            </item>
+                                        </layout>
+                                    </widget>
                                 </widget>
                             </item>
                         </layout>

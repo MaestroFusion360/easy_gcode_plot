@@ -10,6 +10,7 @@ import ezdxf
 import pytest
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication
+from rotary_ui_helpers import profile_row as _profile_row
 
 from app import main_window
 from app.gcode.execution.source import SOURCE_DIALECT_FANUC, SOURCE_DIALECT_SINUMERIK
@@ -807,7 +808,7 @@ def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, t
         assert window._rotary_kinematics_actions["4ax_table_b"].isChecked()
         assert window._rotary_kinematics_actions["5ax_table_ac_angled"].isEnabled()
         assert window._rotary_kinematics_actions["5ax_table_bc_angled"].isEnabled()
-        assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
+        assert window.optionsDlg.ui.rotaryProfileList.isEnabled()
         assert window._document_arc_type == 1
         assert window._document_comment_style == "semicolon"
         assert window.lexer.comment_style == "semicolon"
@@ -832,7 +833,7 @@ def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, t
         assert window._document_source_dialect == "fanuc"
         assert window.rotaryKinematics == "4ax_table_b"
         assert window._rotary_kinematics_actions["4ax_table_b"].isEnabled()
-        assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
+        assert window.optionsDlg.ui.rotaryProfileList.isEnabled()
         assert window._document_arc_type is None
         assert window._document_comment_style is None
         assert window.lexer.comment_style == window.commentStyle
@@ -864,12 +865,11 @@ M30
     path.write_text(source, encoding="utf-8")
     try:
         window.loadFile(str(path))
-        combo = window.optionsDlg.ui.rotaryKinematicsCombo
+        combo = window.optionsDlg.ui.rotaryProfileList
         assert combo.isEnabled()
         assert window._rotary_kinematics_actions[profile].isEnabled()
         window._rotary_kinematics_actions[profile].trigger()
         assert window.rotaryKinematics == profile
-        assert combo.currentData() == profile
         assert window.execution_result.ok and window.execution_result.complete, window.execution_result.diagnostics
         assert window.execution_result.kinematics_profile == profile
         assert window.execution_result.source_dialect == "sinumerik"
@@ -878,18 +878,20 @@ M30
         other = "5ax_table_bc_angled" if axis == "A" else "5ax_table_ac_angled"
         previous_result = window.execution_result
         window.optionsDlg.show()
-        combo.setCurrentIndex(combo.findData(other))
+        combo.setCurrentRow(_profile_row(combo, other))
         assert window.rotaryKinematics == profile
         assert window.execution_result is previous_result
         window.optionsDlg.reject()
         assert window.rotaryKinematics == profile
         assert window.execution_result is previous_result
         window.optionsDlg.show()
-        assert combo.currentData() == profile
-        combo.setCurrentIndex(combo.findData(other))
+        combo.setCurrentRow(_profile_row(combo, other))
         assert window.rotaryKinematics == profile
         assert window.execution_result is previous_result
         window.optionsDlg.accept()
+        assert window.rotaryKinematics == profile
+        assert window.execution_result is previous_result
+        window._rotary_kinematics_actions[other].trigger()
         assert window.rotaryKinematics == other
         assert window.execution_result is not previous_result
         assert not window.execution_result.ok
@@ -898,7 +900,6 @@ M30
         path.write_text("G710 G90\nG0 X1\nM30\n", encoding="utf-8")
         window.loadFile(str(path))
         assert window.rotaryKinematics == other
-        assert combo.currentData() == other
     finally:
         window.deleteLater()
 
@@ -924,7 +925,7 @@ def test_supplied_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
             assert all(motion.compensation_applied for motion in corner)
         assert len(result.execution_steps) == 5232
         assert window._document_arc_type == 1
-        assert window.optionsDlg.ui.rotaryKinematicsCombo.isEnabled()
+        assert window.optionsDlg.ui.rotaryProfileList.isEnabled()
         assert all(d.status != "unsupported" for d in result.diagnostics)
     finally:
         window.deleteLater()

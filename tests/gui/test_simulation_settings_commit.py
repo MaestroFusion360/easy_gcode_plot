@@ -2,16 +2,16 @@
 
 # pylint: disable=protected-access
 
-import json
 from copy import deepcopy
 
 import pytest
-from PyQt6.QtWidgets import QApplication, QDialog
+from PyQt6.QtWidgets import QApplication
+from rotary_ui_helpers import profile_id as _profile_id
+from rotary_ui_helpers import profile_row as _profile_row
 
 from app.gcode.kernel.milling.kinematics import profile_document, user_catalog_path
 from app.main_window import MainWindow
 from app.tools.program_io import write_program_tools
-from app.ui.dialogs.options import RotaryKinematicsJsonDialog
 
 
 @pytest.fixture(scope="session")
@@ -53,7 +53,7 @@ def test_options_cancel_keeps_active_stock_and_ok_rebuilds_once(window, monkeypa
     dialog.show()
     dialog.ui.correctionCheck.setChecked(not correction)
     dialog.ui.showStockCheck.setChecked(not stock)
-    dialog.ui.rotaryKinematicsCombo.setCurrentIndex(1)
+    dialog.ui.rotaryProfileList.setCurrentRow(1)
     assert (window.correctionEnabled, window.showStock, window.rotaryKinematics) == (correction, stock, rotary)
     assert calls == []
     dialog.restore_defaults()
@@ -170,36 +170,28 @@ def test_stock_reset_and_accuracy_wait_for_ok(window, monkeypatch):
         assert calls[0]["accuracy"] == 4
 
 
-def test_rotary_json_draft_is_discarded_with_options(window, monkeypatch):
+def test_rotary_draft_is_discarded_with_options(window, monkeypatch):
     dialog = window.optionsDlg
-    profile_id = "4ax_table_b"
     path = user_catalog_path()
-    original = path.read_bytes() if path.exists() else None
-    edited = profile_document(profile_id)
-    edited["name"] = "Pending table"
-
-    def edit_json(editor):
-        editor.editor.setPlainText(json.dumps(edited))
-        editor.accept()
-        assert editor.result() == QDialog.DialogCode.Accepted
-        return editor.result()
-
-    monkeypatch.setattr(RotaryKinematicsJsonDialog, "exec", edit_json)
     calls = []
     monkeypatch.setattr(window, "_select_rotary_kinematics", lambda *a, **kw: calls.append(a))
     dialog.show()
-    dialog.ui.rotaryKinematicsCombo.setCurrentIndex(dialog.ui.rotaryKinematicsCombo.findData(profile_id))
-    dialog._edit_rotary_kinematics()
-    assert calls == []
-    assert (path.read_bytes() if path.exists() else None) == original
+    dialog.ui.rotaryProfileList.setCurrentRow(_profile_row(dialog.ui.rotaryProfileList, "4ax_table_b"))
+    dialog.ui.rotaryCopyButton.click()
+    discarded = _profile_id(dialog.ui.rotaryProfileList)
+    dialog.ui.rotaryNameEdit.setText("Pending table")
+    dialog.ui.rotarySaveButton.click()
+    assert not path.exists()
     dialog.reject()
-    assert (path.read_bytes() if path.exists() else None) == original
+    assert not path.exists()
     dialog.show()
-    dialog.ui.rotaryKinematicsCombo.setCurrentIndex(dialog.ui.rotaryKinematicsCombo.findData(profile_id))
-    dialog._edit_rotary_kinematics()
+    assert _profile_row(dialog.ui.rotaryProfileList, discarded) == -1
+    dialog.ui.rotaryCopyButton.click()
+    saved = _profile_id(dialog.ui.rotaryProfileList)
+    dialog.ui.rotaryNameEdit.setText("Pending table")
     dialog.accept()
-    assert len(calls) == 1
-    assert profile_document(profile_id)["name"] == "Pending table"
+    assert calls == []  # Browsing/saving a profile never activates it.
+    assert profile_document(saved)["name"] == "Pending table"
 
 
 @pytest.mark.parametrize("operation", ["edit", "assign"])
@@ -241,13 +233,12 @@ def test_rotary_selection_and_execution_changes_share_one_commit(window, monkeyp
     monkeypatch.setattr(window, "updateData", lambda: calls.append("execute"))
     monkeypatch.setattr(window, "refreshPlotView", lambda: calls.append("plot"))
     dialog.show()
-    dialog.ui.rotaryKinematicsCombo.setCurrentIndex(1)
-    selected = dialog.ui.rotaryKinematicsCombo.currentData()
+    dialog.ui.rotaryProfileList.setCurrentRow(1)
     dialog.ui.correctionCheck.setChecked(not window.correctionEnabled)
     assert window.rotaryKinematics is None
     assert calls == []
     dialog.accept()
-    assert window.rotaryKinematics == selected
+    assert window.rotaryKinematics is None
     assert calls == ["execute"]
 
 
@@ -269,3 +260,11 @@ def test_failed_tool_library_save_does_not_commit_program_geometry(window, monke
     assert getattr(window, attribute) == original
     assert calls == []
     dialog.reject()
+
+
+@pytest.fixture(autouse=True)
+def rotary_copy_name_dialog(monkeypatch):
+    monkeypatch.setattr(
+        "app.ui.dialogs.rotary_kinematics_settings.RotaryKinematicsSettings._ask_name",
+        lambda self, _title, default: default,
+    )
