@@ -18,7 +18,7 @@ from ..runtime.execution import ProgramRuntime, resolve_program_tools, semantic_
 from .block import _BlockAction, _BlockOutcome, _MillingExecutionContext, _PreparedMillingBlock
 from .cycles.sinumerik import execute_native_cycle
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
-from .kinematics import MachineKinematics, effective_orientation, kinematics_snapshot
+from .kinematics import MachineKinematics, effective_orientation, kinematics_snapshot, rotary_limit_violations
 from .motion import _emit_milling_motions
 from .policy import (
     MILLING_RECOGNIZED_G_CODES,
@@ -118,6 +118,7 @@ def _gate_milling_block(ctx, block, occurrence_events, evaluated_block=None):
         )
         return normalized, _BlockOutcome(events=tuple(occurrence_events), words=normalized.values)
     if normalized is not None and ctx.runtime.controller_mode == "sinumerik_native":
+        rotary_start_angles = dict(ctx.state.rotary_angles)
         code = native_operation_code(block)
         if code is not None:
             occurrence_events.append(ExecutionEvent("SINUMERIK_NATIVE_OPERATION", block.index, code=code))
@@ -125,7 +126,10 @@ def _gate_milling_block(ctx, block, occurrence_events, evaluated_block=None):
             return normalized, _BlockOutcome(
                 events=tuple(occurrence_events),
                 words=normalized.values,
-                diagnostics=tuple(native_ignored_mode_warnings(block)),
+                diagnostics=tuple(
+                    native_ignored_mode_warnings(block)
+                    + _rotary_limit_diagnostics(ctx.state, block, rotary_start_angles)
+                ),
             )
     return normalized, None
 
@@ -169,6 +173,24 @@ def _finish_milling_block(ctx, block, prepared: _PreparedMillingBlock, occurrenc
     )
 
 
+def _rotary_limit_diagnostics(state, block, start_angles):
+    return [
+        Diagnostic(
+            code="ROTARY_AXIS_LIMIT_EXCEEDED",
+            message=(
+                f"{address} angle {value:g} exceeds [{minimum:g}, {maximum:g}] degrees "
+                f'for profile "{state.kinematics.name}"'
+            ),
+            severity="warning",
+            status="unverified",
+            line=block.index + 1,
+            raw=block.raw,
+        )
+        for address, value, minimum, maximum in rotary_limit_violations(state.kinematics, state.rotary_angles)
+        if value != start_angles.get(address, 0.0)
+    ]
+
+
 def _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events):
     words = evaluated_block.words
     early_outcome = _validate_milling_block(ctx, block, evaluated_block, occurrence_events)
@@ -193,9 +215,11 @@ def _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
     early_outcome = _apply_rotary_index(ctx, block, evaluated_block, occurrence_events)
     if early_outcome is None:
         early_outcome = _apply_milling_block_state(ctx, block, evaluated_block, occurrence_events, diagnostics)
+    limit_diagnostics = _rotary_limit_diagnostics(ctx.state, block, rotary_start_angles)
     if early_outcome is not None:
-        return early_outcome, None
+        return replace(early_outcome, diagnostics=early_outcome.diagnostics + tuple(limit_diagnostics)), None
 
+    diagnostics.extend(limit_diagnostics)
     early_outcome = _dispatch_milling_program_flow(ctx, block, evaluated_block, occurrence_events, diagnostics)
     if early_outcome is not None:
         return early_outcome, None

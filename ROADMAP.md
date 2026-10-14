@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current development baseline: **2.2.2**, **not released**. Three-axis milling stock removal is now implemented. Validation continues alongside the in-memory stock-mesh insertion workflow. Version 2.2.2 adds persistent red G0 collision marks on the remaining turning stock section, with reversible playback and removal of marks as the affected material is machined away.
+Current development baseline: **2.2.3 extended**, **not released**. Validation continues for stock simulation and the rotary profile workflow. Completed features are recorded in CHANGELOG; the remaining rotary geometry extensions are listed at the end of this roadmap.
 
 The 1.9.x stabilization phase is complete; its delivered changes are recorded under versions 1.9.5–1.9.8 in [CHANGELOG](CHANGELOG.md). This roadmap tracks current validation and future work rather than repeating completed stabilization tasks.
 
@@ -21,23 +21,9 @@ The 1.9.x stabilization phase is complete; its delivered changes are recorded un
 
 The next stage is focused on features that reduce the need to leave Easy G-Code Plot for CIMCO, Vericut, or external helper tools.
 
-## Priority A — Rotary Kinematics Dialog
+## Priority A — Heidenhain lexer and AST
 
-Planned for a future version; not part of the current 2.2.0 scope.
-
-The current GUI already provides JSON editing, validation and saved overrides for existing rotary profiles through Options. Add a structured dialog with profile creation and guided geometry fields.
-
-Minimum scope:
-
-- rotary axis type;
-- A/B/C axis assignment;
-- axis direction/sign;
-- table/head arrangement;
-- pivot/offset values;
-- axis limits where relevant;
-- preset templates for common 4-axis and 5-axis layouts.
-
----
+- Implement a lexer and AST for native Heidenhain programs, integrated with the shared execution kernel and source diagnostics.
 
 ## Priority B — Integrated workflow tools
 
@@ -146,7 +132,7 @@ Three-axis milling stock removal is part of the 2.0.0 development baseline. Cont
 
 Recommended sequence:
 
-1. Structured rotary kinematics editor extending the existing JSON workflow.
+1. Heidenhain lexer and AST.
 2. Embedded console panel.
 3. Report templates.
 4. Post-aware generators and additional NC templates.
@@ -154,7 +140,7 @@ Recommended sequence:
 6. Contour editor / DXF contour workflow.
 7. Further stock shapes, collision checks and verified stock-simulation extensions.
 
-The first five items mostly expose or extend capabilities already present in the architecture. Contour authoring and broader stock-simulation geometry remain larger follow-up tasks; the initial three-axis milling simulation is already implemented in 2.0.0.
+The console, report and generator items mostly expose or extend capabilities already present in the architecture. Contour authoring and broader stock-simulation geometry remain larger follow-up tasks; the initial three-axis milling simulation is already implemented in 2.0.0.
 
 ---
 
@@ -174,3 +160,11 @@ existing kernel/service first
 Avoid creating GUI-only implementations of logic that already belongs in the execution, export, tool, report, or generator layers.
 
 The main objective after 2.1.0 is not feature count by itself. It is to make Easy G-Code Plot capable of covering a larger part of the real NC editing, analysis, conversion and preparation workflow without forcing the user back into another application for routine operations.
+
+
+---
+
+## Rotary Kinematics tab in Options - future geometry extensions
+
+- Add rotary pivot locations and machine offsets only with a defined kernel contract and verified reference programs.
+- Continue practical verification of available head, mixed table/head and angled configurations.

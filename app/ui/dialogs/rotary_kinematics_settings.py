@@ -36,6 +36,10 @@ class RotaryKinematicsSettings:
         self.selected = None
         self.builtins = builtin_profile_ids()
         self.rows = []
+        self.limit_rows = [
+            (getattr(self.ui, f"rotaryMin{number}Edit"), getattr(self.ui, f"rotaryMax{number}Edit"))
+            for number in (1, 2)
+        ]
         for number in (1, 2):
             branch = getattr(self.ui, f"rotaryBranch{number}Combo")
             address = getattr(self.ui, f"rotaryAddress{number}Combo")
@@ -94,7 +98,7 @@ class RotaryKinematicsSettings:
             suffix = QCoreApplication.translate("OptionsDlg", " (built-in)") if key in self.builtins else ""
             entry = QListWidgetItem(item["name"] + suffix)
             entry.setData(Qt.ItemDataRole.UserRole, key)
-            entry.setToolTip(key)
+            entry.setToolTip(item["name"])
             profiles.addItem(entry)
         profiles.setCurrentRow(self.profile_row(selected))
         profiles.blockSignals(blocked)
@@ -118,7 +122,7 @@ class RotaryKinematicsSettings:
         if item is None:
             return
         editable = self.selected not in self.builtins
-        self.ui.rotaryProfileIdLabel.setText(item["id"])
+        self.ui.rotaryProfileIdLabel.setText(item["name"])
         self.ui.rotaryNameEdit.setText(item["name"])
         self.ui.rotaryNameEdit.setReadOnly(not editable)
         self.ui.rotaryEnabledCheck.setChecked(item["enabled"] if editable else self.visibility.get(self.selected, True))
@@ -134,6 +138,7 @@ class RotaryKinematicsSettings:
             address.setCurrentIndex(address.findData(joint["address"]))
             for edit, value in zip(vectors, joint["axis"], strict=True):
                 edit.setText(str(value))
+            self._display_limits(row, joint)
         if editable:
             status = QCoreApplication.translate("OptionsDlg", "User profile (unverified)")
         elif self.selected in _REFERENCE_CHECKED_PROFILES:
@@ -142,15 +147,27 @@ class RotaryKinematicsSettings:
             status = QCoreApplication.translate("OptionsDlg", "Built-in profile (read-only; unverified)")
         self.ui.rotaryStatusLabel.setText(status)
 
+    def _display_limits(self, row, joint):
+        for edit, key in zip(self.limit_rows[row], ("min", "max"), strict=True):
+            value = joint.get(key)
+            edit.setText("" if value is None else str(value))
+
+    def _edited_joint(self, row, address, vectors):
+        joint = {"address": address.currentData(), "axis": [float(edit.text()) for edit in vectors]}
+        for edit, key in zip(self.limit_rows[row], ("min", "max"), strict=True):
+            value = edit.text().strip()
+            if value:
+                joint[key] = float(value)
+        return joint
+
     def _edited_document(self):
         item = deepcopy(self.documents[self.selected])
         item.update(name=self.ui.rotaryNameEdit.text().strip(), enabled=self.ui.rotaryEnabledCheck.isChecked())
         item["table"], item["head"] = [], []
-        for branch, address, vectors in self.rows:
+        for row, (branch, address, vectors) in enumerate(self.rows):
             if address.currentData() is None:
                 continue
-            axis = [float(edit.text()) for edit in vectors]
-            item[branch.currentData()].append({"address": address.currentData(), "axis": axis})
+            item[branch.currentData()].append(self._edited_joint(row, address, vectors))
         parse_catalog({"schema_version": 1, "profiles": [item]})
         return item
 
@@ -173,8 +190,10 @@ class RotaryKinematicsSettings:
             )
             return False
         self.documents[self.selected] = item
+        self.ui.rotaryProfileIdLabel.setText(item["name"])
         index = self.profile_row(self.selected)
         self.ui.rotaryProfileList.item(index).setText(item["name"])
+        self.ui.rotaryProfileList.item(index).setToolTip(item["name"])
         return True
 
     def _ask_name(self, title, default):

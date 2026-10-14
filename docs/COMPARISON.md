@@ -18,7 +18,7 @@ Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [�
 - FANUC milling adds G74 left tapping, G76 fine boring, G87 back boring and G89 dwell/feed-return boring. G74/G84 Q now produces synchronized tapping pecks. Q shift direction and tapping retract behavior are configurable machine assumptions.
 - Native SINUMERIK adds CYCLE85/86/87/89 and extends CYCLE84 to metric right/left and deep tapping, including VARI=1/2, DAM/VRT and balanced final pecks. CYCLE88 remains unsupported.
 - Siemens circles can select a block-local plane from two endpoint axes; helical TURN moves retain the modal plane. Pure rapid rotary indexing can retain an active CYCLE800 frame.
-- Both supplied Fusion 1001 programs reach M30 on `5ax_table_ac`. Tests cover home Z=0 and 500. This verifies those fixtures, not arbitrary CAM output. Missing tool geometry leaves compensation unverified. Out-of-range DC angles are normalized with warnings for backplot compatibility; that does not validate them for a real controller.
+- Both supplied Fusion 1001 programs reach M30 on **5Ax Table AC**. Tests cover home Z=0 and 500. This verifies those fixtures, not arbitrary CAM output. Missing tool geometry leaves compensation unverified. Out-of-range DC angles are normalized with warnings for backplot compatibility; that does not validate them for a real controller.
 - G92.1 zero-valued axis selectors are treated as coordinate preset without physical motion. The model has no manual/G92 shift to cancel. FANUC G53 machine coordinates and configured G28 reference returns were already supported.
 - An invalid arc produces a diagnostic and execution can continue to later blocks. Completion and validity are separate result fields; reaching M30 alone does not establish a valid result.
 
@@ -51,7 +51,7 @@ Comparison of FANUC milling, FANUC turning and native SINUMERIK 840D milling. [�
 | G68.2 with G43.4 | ? | ❌ composition unsupported | Not established |
 | Indexed 3+1 A/B/C | ✅ configurable 4/5-axis Backplot [C2] | ✅ selected A/B/C table profiles | ≈ supported profiles |
 | Indexed 3+2 | ✅ 4/5-axis setup; frame coverage unconfirmed [C2, C3] | ✅ supported G68.2/G53.1 subset | Not ranked |
-| Continuous 4-axis X/C | ✅ 4/5-axis class [C2]; X/C semantics unknown | ✅ tested 4ax_table_c subset | Not established |
+| Continuous 4-axis X/C | ✅ 4/5-axis class [C2]; X/C semantics unknown | ✅ tested 4Ax Table C subset | Not established |
 | Continuous 5-axis AC/BC | ✅ 5-axis Backplot [C2]; TCP scope unknown | ✅ AC/BC TCP and tool orientation | Not ranked |
 | Full machine simulation | ? not established for this Backplot | ❌ | No verified equivalence |
 | Finished-part STL overlay | ? V8 overlay scope | ✅ visual STL overlay; removal uses separate box stock | Not established |

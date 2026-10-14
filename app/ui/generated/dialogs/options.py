@@ -727,7 +727,7 @@ class Ui_OptionsDlg(object):
         self.rotaryProfileEditor.setObjectName(u"rotaryProfileEditor")
         self.rotaryProfileEditorLayout = QVBoxLayout(self.rotaryProfileEditor)
         self.rotaryProfileEditorLayout.setObjectName(u"rotaryProfileEditorLayout")
-        self.rotaryProfileEditorLayout.setContentsMargins(0, 0, 0, 0)
+        self.rotaryProfileEditorLayout.setContentsMargins(9, 9, 9, 9)
         self.rotaryProfileIdLabel = QLabel(self.rotaryProfileEditor)
         self.rotaryProfileIdLabel.setObjectName(u"rotaryProfileIdLabel")
 
@@ -820,6 +820,26 @@ class Ui_OptionsDlg(object):
 
         self.rotaryVector1Layout.addWidget(self.rotaryZ1Edit)
 
+        self.rotaryMin1Label = QLabel(self.rotaryAxis1Group)
+        self.rotaryMin1Label.setObjectName(u"rotaryMin1Label")
+
+        self.rotaryVector1Layout.addWidget(self.rotaryMin1Label)
+
+        self.rotaryMin1Edit = QLineEdit(self.rotaryAxis1Group)
+        self.rotaryMin1Edit.setObjectName(u"rotaryMin1Edit")
+
+        self.rotaryVector1Layout.addWidget(self.rotaryMin1Edit)
+
+        self.rotaryMax1Label = QLabel(self.rotaryAxis1Group)
+        self.rotaryMax1Label.setObjectName(u"rotaryMax1Label")
+
+        self.rotaryVector1Layout.addWidget(self.rotaryMax1Label)
+
+        self.rotaryMax1Edit = QLineEdit(self.rotaryAxis1Group)
+        self.rotaryMax1Edit.setObjectName(u"rotaryMax1Edit")
+
+        self.rotaryVector1Layout.addWidget(self.rotaryMax1Edit)
+
 
         self.rotaryAxis1Form.setLayout(2, QFormLayout.ItemRole.FieldRole, self.rotaryVector1Layout)
 
@@ -886,6 +906,26 @@ class Ui_OptionsDlg(object):
         self.rotaryZ2Edit.setObjectName(u"rotaryZ2Edit")
 
         self.rotaryVector2Layout.addWidget(self.rotaryZ2Edit)
+
+        self.rotaryMin2Label = QLabel(self.rotaryAxis2Group)
+        self.rotaryMin2Label.setObjectName(u"rotaryMin2Label")
+
+        self.rotaryVector2Layout.addWidget(self.rotaryMin2Label)
+
+        self.rotaryMin2Edit = QLineEdit(self.rotaryAxis2Group)
+        self.rotaryMin2Edit.setObjectName(u"rotaryMin2Edit")
+
+        self.rotaryVector2Layout.addWidget(self.rotaryMin2Edit)
+
+        self.rotaryMax2Label = QLabel(self.rotaryAxis2Group)
+        self.rotaryMax2Label.setObjectName(u"rotaryMax2Label")
+
+        self.rotaryVector2Layout.addWidget(self.rotaryMax2Label)
+
+        self.rotaryMax2Edit = QLineEdit(self.rotaryAxis2Group)
+        self.rotaryMax2Edit.setObjectName(u"rotaryMax2Edit")
+
+        self.rotaryVector2Layout.addWidget(self.rotaryMax2Edit)
 
 
         self.rotaryAxis2Form.setLayout(2, QFormLayout.ItemRole.FieldRole, self.rotaryVector2Layout)
@@ -965,7 +1005,7 @@ class Ui_OptionsDlg(object):
         self.discoveryEditorPane.setObjectName(u"discoveryEditorPane")
         self.discoveryEditorLayout = QVBoxLayout(self.discoveryEditorPane)
         self.discoveryEditorLayout.setObjectName(u"discoveryEditorLayout")
-        self.discoveryEditorLayout.setContentsMargins(0, 0, 0, 0)
+        self.discoveryEditorLayout.setContentsMargins(9, 9, 9, 9)
         self.discoveryNamesLabel = QLabel(self.discoveryEditorPane)
         self.discoveryNamesLabel.setObjectName(u"discoveryNamesLabel")
 
@@ -1251,6 +1291,8 @@ class Ui_OptionsDlg(object):
         self.rotaryX1Label.setText(QCoreApplication.translate("OptionsDlg", u"X", None))
         self.rotaryY1Label.setText(QCoreApplication.translate("OptionsDlg", u"Y", None))
         self.rotaryZ1Label.setText(QCoreApplication.translate("OptionsDlg", u"Z", None))
+        self.rotaryMin1Label.setText(QCoreApplication.translate("OptionsDlg", u"Min (deg)", None))
+        self.rotaryMax1Label.setText(QCoreApplication.translate("OptionsDlg", u"Max (deg)", None))
         self.rotaryAxis2Group.setTitle(QCoreApplication.translate("OptionsDlg", u"Axis 2", None))
         self.rotaryBranch2Label.setText(QCoreApplication.translate("OptionsDlg", u"Table / Head", None))
         self.rotaryAddress2Label.setText(QCoreApplication.translate("OptionsDlg", u"Address", None))
@@ -1258,6 +1300,8 @@ class Ui_OptionsDlg(object):
         self.rotaryX2Label.setText(QCoreApplication.translate("OptionsDlg", u"X", None))
         self.rotaryY2Label.setText(QCoreApplication.translate("OptionsDlg", u"Y", None))
         self.rotaryZ2Label.setText(QCoreApplication.translate("OptionsDlg", u"Z", None))
+        self.rotaryMin2Label.setText(QCoreApplication.translate("OptionsDlg", u"Min (deg)", None))
+        self.rotaryMax2Label.setText(QCoreApplication.translate("OptionsDlg", u"Max (deg)", None))
         self.rotaryOrderLabel.setText(QCoreApplication.translate("OptionsDlg", u"Axis 1 precedes Axis 2 within each branch. Use None to omit an axis. Direction vectors must be nonzero.", None))
         self.tabs.setTabText(self.tabs.indexOf(self.rotaryTab), QCoreApplication.translate("OptionsDlg", u"Rotary Kinematics", None))
         self.discoveryModeLabel.setText(QCoreApplication.translate("OptionsDlg", u"Mode", None))

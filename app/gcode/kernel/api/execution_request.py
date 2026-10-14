@@ -118,7 +118,7 @@ def _execute_impl(
         if isinstance(kinematics, str):
             try:
                 kinematics = load_catalog()[kinematics]
-            except (InvalidKinematicsProfile, KeyError) as exc:
+            except (InvalidKinematicsProfile, KeyError):
                 return ExecutionResult(
                     False,
                     None,
@@ -127,7 +127,7 @@ def _execute_impl(
                     (
                         Diagnostic(
                             "INVALID_KINEMATICS_PROFILE",
-                            f"Invalid kinematics profile: {kinematics}: {exc}",
+                            "The selected kinematics profile is missing or invalid.",
                             "error",
                             "malformed",
                         ),

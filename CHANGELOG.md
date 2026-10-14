@@ -2,6 +2,8 @@
 
 ## 2.2.3 - 2026-10-14
 
+- Add optional paired Min/Max angular travel limits to user rotary profiles and their Options editor. Warn on changed axes outside the inclusive range without stopping execution, blocking export, wrapping angles or altering TWP/TCP branch selection. Preserve limits in execution snapshots and fingerprints; leave all installed profiles unrestricted.
+
 - Replace the rotary JSON editor with a Rotary Kinematics Options tab: a profile list, resizable splitter, compact axis settings and action icons matching Postprocessors. Create named user copies, rename, save and delete them; keep installed profiles read-only. Stage edits and deletions until OK and discard them on Cancel.
 - Make all 24 installed rotary configurations available in Options and add an Enabled checkbox controlling their visibility in the Settings menu. Store built-in visibility separately from installed definitions, retain hidden profiles in Options and clear the active selection when its profile is hidden.
 - Apply configured axis directions, table/head ownership and joint order through the existing rotation calculations. Determine TCP, continuous-C, SINUMERIK swivel and horizontal-table view compatibility from profile geometry rather than built-in IDs, so compatible user copies retain those capabilities. Preserve unsupported-layout checks and use the executed profile snapshot for resolved geometry and export.
@@ -122,7 +124,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Add experimental five-axis FANUC ↔ SINUMERIK conversion in EXPANDED through the bundled multiaxis posts. Conversion may contain errors and is used entirely at the user's own risk; verify the output for the target machine before use.
 - Clarify that EXPANDED does not output G41/G42. Disable cutter-radius compensation in Options before five-axis conversion; the resulting G40 contour has no radius compensation. Tool-length H/D offsets are separate.
 - Fix missing ordinary G43/H before the first working Z approach in programs containing TCP operations. Preserve length-offset activation after tool changes and explicit reactivation following G49/D0, keep G43.4/H inside TCP, and retain the selected ordinary offset when G43 cancels TCP.
-- Support G43.4 / TRAORI TCP on standard `5ax_table_ac` and `5ax_table_bc` profiles as well as the angled AC/BC profiles.
+- Support G43.4 / TRAORI TCP on standard **5Ax Table AC** and **5Ax Table BC** profiles as well as the angled AC/BC profiles.
 - Convert supported indexed AC/BC G68.2/G53.1 and CYCLE800 working planes, including nonzero origins, arcs and drilling motions. Preserve the resolved table orientation when switching working planes.
 - Preserve G54–G59 and required work offsets in supported tilted-plane exports. List required offsets in output comments; configure the same offsets on the target controller. Other unsupported displaced-WCS cases, extended/dynamic work offsets and incremental tilted-plane output remain rejected.
 - Split multi-turn helical arcs into segments supported by the target controller while preserving feeds, spindle speeds, tools and orientations.
@@ -181,7 +183,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Allow already-resolved zero-distance reference returns and source-preserving macro/index normalization. Reject indexed export about a displaced WCS until target frame offsets can be reconstructed; classify unverified compensation/ignored native geometry as export limitations with their concrete diagnostic codes.
 - Prototype controller-neutral multiaxis EXPANDED reconstruction. Multiaxis posts can declare target TCP control frames; bundled FANUC and SINUMERIK multiaxis profiles map resolved `G43.4`/`G49` and `TRAORI`/`TRAFOOF` semantics across controllers instead of rejecting all TCP execution.
 - Emit verified indexed `A/B/C` changes as dedicated rotary rapid frames instead of folding an index into the next XYZ motion. Reconstruct indexed-table XYZ/arc geometry in the rotary frame before postprocessing so replay does not rotate physical coordinates twice.
-- Reconstruct the verified non-TCP `4ax_table_c` continuous rotary subset through FANUC and SINUMERIK multiaxis posts. Indexed A/B/C and simultaneous table-C output now re-execute with matching geometry and final rotary state; other unresolved continuous-rotary semantics remain fail-closed.
+- Reconstruct the verified non-TCP **4-axis Table C** continuous rotary subset through FANUC and SINUMERIK multiaxis posts. Indexed A/B/C and simultaneous table-C output now re-execute with matching geometry and final rotary state; other unresolved continuous-rotary semantics remain fail-closed.
 - Record TCP controls as real state transitions instead of source-word echoes: inactive `G49`, native `D0` and `TRAFOOF` no longer manufacture `TCP_CONTROL_OFF`, and repeated activation/cancellation does not duplicate semantic edges.
 - Allow native SINUMERIK A/B/C positioning on any selected profile that actually configures those axes; ISO-M rotary remains fail-closed and TRAORI still requires the supported angled AC/BC TCP profiles.
 - Keep tilted working planes/CYCLE800 fail-closed in EXPANDED until their controller reconstruction contract is implemented.
@@ -401,12 +403,12 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 
 ## 1.6.7 - 2026-09-27
 
-- Added deterministic indexed 3+1 milling for the verified `4ax_table_a` (vertical mill) and `4ax_table_b` (horizontal mill) profiles. Programmed G90/G91 A/B indexing transforms subsequent tool-tip trajectories, arcs and milling cycles while WCS axes remain fixed; playback rotates the tool preview.
+- Added deterministic indexed 3+1 milling for the verified **4Ax Table A** (vertical mill) and **4Ax Table B** (horizontal mill) profiles. Programmed G90/G91 A/B indexing transforms subsequent tool-tip trajectories, arcs and milling cycles while WCS axes remain fixed; playback rotates the tool preview.
 - Corrected A/B rotation signs and repeated G28/G53 machine-axis returns after indexing. Removed false plot segments joining positions across a rotary index.
 - G40/G41/G42 now calculate cutter compensation in the local working plane before the completed geometry is transformed by A/B, including arc centers and normals. Missing tools or unsupported contours produce warnings without stopping execution; unknown M-codes also remain non-blocking warnings.
 - Added an `enabled` flag to every rotary profile. Only the verified table A/B/C profiles appear in the GUI; **None** is the default. Other profiles remain in the JSON catalog, disabled pending reference programs. G68.2 and 5-axis behavior are outside the verified 1.6.7 scope.
-- Enabled `4ax_table_c` for the checked planar X/C program: concurrent X/C and C-only blocks map tool-tip points into fixed XY WCS. The resulting contour overlays the equivalent XY contour in `indexed_table_c.nc` within 0.05 mm at sampled endpoints.
-- Disabled G41/G42 cutter compensation for `4ax_table_c`. Programs continue with the programmed, uncompensated X/C tool-tip path and an explicit warning; G40 still cancels the modal request. The correction approach in `tmp/indexed_table_c_correction.nc` is not treated as verified compensation.
+- Enabled **4-axis Table C** for the checked planar X/C program: concurrent X/C and C-only blocks map tool-tip points into fixed XY WCS. The resulting contour overlays the equivalent XY contour in `indexed_table_c.nc` within 0.05 mm at sampled endpoints.
+- Disabled G41/G42 cutter compensation for **4-axis Table C**. Programs continue with the programmed, uncompensated X/C tool-tip path and an explicit warning; G40 still cancels the modal request. The correction approach in `tmp/indexed_table_c_correction.nc` is not treated as verified compensation.
 - Matched CAD-style mouse navigation to CNCEditor: left drag pans, middle drag orbits around the cursor. Corrected the table B 3D/ISO camera so +Y points vertically up, +X runs upward-right and +Z downward-right; table A retains the vertical mill view.
 - Fixed **New** so an accepted new-document action removes the imported STL model and disables **Clear STL**. Canceling the action preserves the model.
 - Refreshed the FAQ and License dialogs with larger, resizable reading windows, clearer heading and paragraph spacing, padded code blocks, and theme-aware syntax colors for fenced examples. Preserved FAQ anchor and License links.

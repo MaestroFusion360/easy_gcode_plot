@@ -1,7 +1,7 @@
 """Designer tab recovers damaged data through user copies, without activation."""
 
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QMessageBox
 from rotary_ui_helpers import profile_id as _profile_id
 from rotary_ui_helpers import profile_row as _profile_row
 
@@ -208,3 +208,48 @@ def rotary_copy_name_dialog(monkeypatch):
         "app.ui.dialogs.rotary_kinematics_settings.RotaryKinematicsSettings._ask_name",
         lambda self, _title, default: default,
     )
+
+
+@pytest.mark.parametrize("profile_id", ["4ax_table_b", "5ax_table_bc"])
+def test_rotary_limits_editor_round_trip_and_validation(qt_app, monkeypatch, profile_id):
+    window = MainWindow()
+    try:
+        dialog, ui = window.optionsDlg, window.optionsDlg.ui
+        dialog.load_values()
+        ui.rotaryProfileList.setCurrentRow(_profile_row(ui.rotaryProfileList, profile_id))
+        assert ui.rotaryMin1Edit.text() == ui.rotaryMax1Edit.text() == ""
+        assert not ui.rotaryMin1Edit.isEnabled() and not ui.rotaryMax1Edit.isEnabled()
+        assert ui.rotaryMin2Edit.text() == ui.rotaryMax2Edit.text() == ""
+        assert not ui.rotaryMin2Edit.isEnabled() and not ui.rotaryMax2Edit.isEnabled()
+        ui.rotaryCopyButton.click()
+        copied = _profile_id(ui.rotaryProfileList)
+        assert ui.rotaryMin1Edit.isEnabled() and ui.rotaryMax1Edit.isEnabled()
+        ui.rotaryMin1Edit.setText("-20")
+        ui.rotaryMax1Edit.setText("40")
+        ui.rotaryMin2Edit.setText("-180")
+        ui.rotaryMax2Edit.setText("180")
+        ui.rotarySaveButton.click()
+        dialog.accept()
+        joint = load_catalog()[copied].table_rotary_axes[0]
+        assert (joint.minimum, joint.maximum) == (-20, 40)
+        if profile_id == "5ax_table_bc":
+            second_joint = load_catalog()[copied].table_rotary_axes[1]
+            assert (second_joint.minimum, second_joint.maximum) == (-180, 180)
+        dialog.load_values()
+        ui.rotaryProfileList.setCurrentRow(_profile_row(ui.rotaryProfileList, copied))
+        assert (ui.rotaryMin1Edit.text(), ui.rotaryMax1Edit.text()) == ("-20.0", "40.0")
+        warnings = []
+        monkeypatch.setattr(QMessageBox, "warning", lambda *args: warnings.append(args))
+        for minimum, maximum in (("50", "40"), ("abc", "40"), ("", "40")):
+            ui.rotaryMin1Edit.setText(minimum)
+            ui.rotaryMax1Edit.setText(maximum)
+            ui.rotarySaveButton.click()
+        assert len(warnings) == 3
+        assert load_catalog()[copied].table_rotary_axes[0] == joint
+        ui.rotaryMin1Edit.clear()
+        ui.rotaryMax1Edit.clear()
+        dialog.accept()
+        assert load_catalog()[copied].table_rotary_axes[0].minimum is None
+    finally:
+        window.deleteLater()
+        qt_app.processEvents()

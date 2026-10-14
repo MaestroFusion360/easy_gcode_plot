@@ -172,7 +172,7 @@ class MainWindow(
             text = (
                 QCoreApplication.translate("MainWindow", "None")
                 if profile_id is None
-                else f"{profile.name} [{profile_id}]"
+                else profile.name
             )
             action = menu.addAction(text)
             action.setCheckable(True)

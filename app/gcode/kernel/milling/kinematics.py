@@ -48,6 +48,8 @@ class InvalidKinematicsProfile(ValueError):
 class RotaryAxis:
     address: str
     axis: Vector
+    minimum: float | None = None
+    maximum: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +135,33 @@ def point_orientation(profile: MachineKinematics, angles: dict[str, float]) -> M
     return _branch(profile.table_rotary_axes, angles)
 
 
+def _axis_limits(entry: dict) -> tuple[float | None, float | None]:
+    if "min" not in entry and "max" not in entry:
+        return None, None
+    if "min" not in entry or "max" not in entry:
+        raise ValueError("rotary limits require both min and max")
+    values = entry["min"], entry["max"]
+    if any(isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) for v in values):
+        raise ValueError("rotary limits must be finite numbers")
+    minimum, maximum = map(float, values)
+    if minimum > maximum:
+        raise ValueError("rotary min must not exceed max")
+    return minimum, maximum
+
+
+def rotary_limit_violations(profile, angles) -> tuple[tuple[str, float, float, float], ...]:
+    """Compare executed angles directly, without wrapping or changing geometry."""
+    if profile is None:
+        return ()
+    return tuple(
+        (joint.address, angles.get(joint.address, 0.0), joint.minimum, joint.maximum)
+        for joint in profile.table_rotary_axes + profile.head_rotary_axes
+        if joint.minimum is not None
+        and joint.maximum is not None
+        and not joint.minimum <= angles.get(joint.address, 0.0) <= joint.maximum
+    )
+
+
 def _parse_axis(entry: object) -> RotaryAxis:
     address, raw_axis = entry["address"], entry["axis"]
     if address not in ("A", "B", "C") or not isinstance(raw_axis, list) or len(raw_axis) != 3:
@@ -142,7 +171,7 @@ def _parse_axis(entry: object) -> RotaryAxis:
     magnitude = math.hypot(*raw_axis)
     if not math.isfinite(magnitude) or magnitude == 0:
         raise ValueError("axis vector must be normalizable and nonzero")
-    return RotaryAxis(address, tuple(float(v / magnitude) for v in raw_axis))
+    return RotaryAxis(address, tuple(float(v / magnitude) for v in raw_axis), *_axis_limits(entry))
 
 
 def _parse_profile(item: object) -> MachineKinematics:
@@ -184,7 +213,7 @@ def parse_catalog(document: object) -> Mapping[str, MachineKinematics]:
         for item in items:
             profile = _parse_profile(item)
             if profile.id in registry:
-                raise ValueError(f"duplicate profile id: {profile.id}")
+                raise ValueError(f"duplicate profile identifier for {profile.name}")
             registry[profile.id] = profile
         return MappingProxyType(registry)
     except (KeyError, TypeError, ValueError, OverflowError) as exc:
@@ -252,7 +281,7 @@ def _recover_user_entries(document: dict) -> tuple[dict, bool]:
         try:
             profile = _parse_profile(item)
             if profile.id in seen:
-                raise ValueError(f"duplicate profile id: {profile.id}")
+                raise ValueError(f"duplicate profile identifier for {profile.name}")
             seen.add(profile.id)
             if profile.id in builtins:
                 item = dict(item)
@@ -283,7 +312,7 @@ def profile_document(profile_id: str) -> dict:
     for item in document["profiles"] + users["profiles"]:
         if item["id"] == profile_id:
             return item
-    raise InvalidKinematicsProfile(f"Unknown profile: {profile_id}")
+    raise InvalidKinematicsProfile("The selected kinematics profile is missing.")
 
 
 def profile_from_snapshot(definition: str | None) -> MachineKinematics | None:
@@ -291,6 +320,10 @@ def profile_from_snapshot(definition: str | None) -> MachineKinematics | None:
     if not definition:
         return None
     item = json.loads(definition)
+    for branch in ("table_rotary_axes", "head_rotary_axes"):
+        for joint in item[branch]:
+            if joint.get("minimum") is not None:
+                joint.update(min=joint["minimum"], max=joint["maximum"])
     return _parse_profile(
         {
             "id": item["id"],

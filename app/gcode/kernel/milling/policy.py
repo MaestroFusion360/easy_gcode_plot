@@ -378,7 +378,7 @@ def _rotary_index_error(state, words, gcodes, changed, move, continuous_c, tcp_m
         message = f"Select a kinematics profile to resolve rotary address {', '.join(changed)}"
     elif any(axis not in state.kinematics.addresses for axis in changed):
         code = "UNCONFIGURED_ROTARY_AXIS"
-        message = f"Rotary address {', '.join(changed)} is not configured in profile {state.kinematics.id}"
+        message = f"Rotary address {', '.join(changed)} is not configured in profile {state.kinematics.name}"
     elif any(axis in words for axis in ("X", "Y", "Z")) and not (continuous_c or tcp_motion or machine_rapid):
         code = "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"
         message = "Rotary and linear motion in one block is not supported"

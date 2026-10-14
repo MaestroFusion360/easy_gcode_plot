@@ -1070,6 +1070,18 @@
                                     </widget>
                                     <widget class="QWidget" name="rotaryProfileEditor">
                                         <layout class="QVBoxLayout" name="rotaryProfileEditorLayout">
+                                            <property name="leftMargin">
+                                                <number>9</number>
+                                            </property>
+                                            <property name="topMargin">
+                                                <number>9</number>
+                                            </property>
+                                            <property name="rightMargin">
+                                                <number>9</number>
+                                            </property>
+                                            <property name="bottomMargin">
+                                                <number>9</number>
+                                            </property>
                                             <item>
                                                 <widget class="QLabel" name="rotaryProfileIdLabel">
                                                     <property name="text">
@@ -1176,6 +1188,26 @@
                                                                 <item>
                                                                     <widget class="QLineEdit" name="rotaryZ1Edit" />
                                                                 </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryMin1Label">
+                                                                        <property name="text">
+                                                                            <string>Min (deg)</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryMin1Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryMax1Label">
+                                                                        <property name="text">
+                                                                            <string>Max (deg)</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryMax1Edit" />
+                                                                </item>
                                                             </layout>
                                                         </item>
                                                     </layout>
@@ -1245,6 +1277,26 @@
                                                                 </item>
                                                                 <item>
                                                                     <widget class="QLineEdit" name="rotaryZ2Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryMin2Label">
+                                                                        <property name="text">
+                                                                            <string>Min (deg)</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryMin2Edit" />
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLabel" name="rotaryMax2Label">
+                                                                        <property name="text">
+                                                                            <string>Max (deg)</string>
+                                                                        </property>
+                                                                    </widget>
+                                                                </item>
+                                                                <item>
+                                                                    <widget class="QLineEdit" name="rotaryMax2Edit" />
                                                                 </item>
                                                             </layout>
                                                         </item>
@@ -1373,14 +1425,17 @@
                                     </widget>
                                     <widget class="QWidget" name="discoveryEditorPane">
                                         <layout class="QVBoxLayout" name="discoveryEditorLayout" stretch="0,0,2,0,3">
+                                            <property name="leftMargin">
+                                                <number>9</number>
+                                            </property>
                                             <property name="rightMargin">
-                                                <number>0</number>
+                                                <number>9</number>
                                             </property>
                                             <property name="topMargin">
-                                                <number>0</number>
+                                                <number>9</number>
                                             </property>
                                             <property name="bottomMargin">
-                                                <number>0</number>
+                                                <number>9</number>
                                             </property>
                                             <item>
                                                 <widget class="QLabel" name="discoveryNamesLabel">

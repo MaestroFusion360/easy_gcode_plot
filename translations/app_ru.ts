@@ -1206,7 +1206,7 @@ Select Auto or another valid profile.</source>
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="838"/>
-        <location filename="../app/main_window.py" line="477"/>
+        <location filename="../app/main_window.py" line="482"/>
         <source>Tool Library</source>
         <translation>Библиотека инструментов</translation>
     </message>
@@ -1314,57 +1314,57 @@ Select Auto or another valid profile.</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="231"/>
+        <location filename="../app/main_window.py" line="236"/>
         <source>Stock</source>
         <translation>Заготовка</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="249"/>
+        <location filename="../app/main_window.py" line="254"/>
         <source>Insert Mesh into Plot View</source>
         <translation>Вставить mesh в графическое окно</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="268"/>
+        <location filename="../app/main_window.py" line="273"/>
         <source>Hole Calculator</source>
         <translation>Калькулятор отверстий</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="273"/>
+        <location filename="../app/main_window.py" line="278"/>
         <source>Pocket Calculator</source>
         <translation>Калькулятор карманов</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="278"/>
+        <location filename="../app/main_window.py" line="283"/>
         <source>Snippets</source>
         <translation>Шаблоны</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="316"/>
+        <location filename="../app/main_window.py" line="321"/>
         <source>Text File</source>
         <translation>Текстовый файл</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="317"/>
+        <location filename="../app/main_window.py" line="322"/>
         <source>ISO G-Code</source>
         <translation>ISO G-код</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="346"/>
+        <location filename="../app/main_window.py" line="351"/>
         <source>File Type</source>
         <translation>Тип файла</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="469"/>
+        <location filename="../app/main_window.py" line="474"/>
         <source>Tool Library is unavailable because tools.db could not be read</source>
         <translation>Библиотека инструментов недоступна: не удалось прочитать tools.db</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="498"/>
+        <location filename="../app/main_window.py" line="503"/>
         <source>Cancelling CNC execution; close again when it has stopped.</source>
         <translation>Отмена выполнения ЧПУ; закройте окно ещё раз после остановки.</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="505"/>
+        <location filename="../app/main_window.py" line="510"/>
         <source>Cancelling stock preparation; close again when it has stopped.</source>
         <translation>Идёт отмена подготовки заготовки; закройте снова, когда она завершится.</translation>
     </message>
@@ -1862,18 +1862,18 @@ Do you want to reload it from disk?</source>
         <translation>Введите координаты модели и задайте базовую точку.</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="234"/>
+        <location filename="../app/main_window.py" line="239"/>
         <source>Configure Stock Removal</source>
         <translation>Параметры симуляции съёма материала</translation>
     </message>
     <message>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="258"/>
-        <location filename="../app/main_window.py" line="237"/>
+        <location filename="../app/main_window.py" line="242"/>
         <source>Stock Removal</source>
         <translation>Съём материала</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="242"/>
+        <location filename="../app/main_window.py" line="247"/>
         <source>Toggle stock simulation (3-axis milling or turning)</source>
         <translation>Включить или выключить симуляцию съёма материала (трёхосевое фрезерование или точение)</translation>
     </message>
@@ -1881,7 +1881,7 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="430"/>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="469"/>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="487"/>
-        <location filename="../app/main_window.py" line="245"/>
+        <location filename="../app/main_window.py" line="250"/>
         <source>Save stock as STL</source>
         <translation>Сохранить заготовку в STL</translation>
     </message>
@@ -2245,7 +2245,7 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/generated/dialogs/options.ui" line="896"/>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1024"/>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1027"/>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="216"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="233"/>
         <source>Rename</source>
         <translation>Переименовать</translation>
     </message>
@@ -2258,44 +2258,56 @@ Do you want to reload it from disk?</source>
         <translation>Удалить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1285"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1182"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1272"/>
+        <source>Min (deg)</source>
+        <translation>Мин. (°)</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1192"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1282"/>
+        <source>Max (deg)</source>
+        <translation>Макс. (°)</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1325"/>
         <source>Tool Discovery</source>
         <translation>Распознавание инструментов</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1293"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1333"/>
         <source>Mode</source>
         <translation>Режим</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1307"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1347"/>
         <source>Milling</source>
         <translation>Фрезерование</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1312"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1352"/>
         <source>Turning</source>
         <translation>Точение</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1437"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1477"/>
         <source>Recognition labels</source>
         <translation>Метки распознавания</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1449"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1489"/>
         <source>Test Recognition</source>
         <translation>Проверка распознавания</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1458"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1498"/>
         <source>Sample Comment</source>
         <translation>Пример комментария</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="959"/>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="171"/>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="240"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="188"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="257"/>
         <source>Rotary Kinematics</source>
         <translation>Кинематика вращения</translation>
     </message>
@@ -2305,12 +2317,12 @@ Do you want to reload it from disk?</source>
         <translation>Ось 1</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1187"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1207"/>
         <source>Axis 2</source>
         <translation>Ось 2</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1257"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1297"/>
         <source>Axis 1 precedes Axis 2 within each branch. Use None to omit an axis. Direction vectors must be nonzero.</source>
         <translation>В каждой ветви ось 1 предшествует оси 2. Выберите «Нет», чтобы исключить ось. Векторы направлений должны быть ненулевыми.</translation>
     </message>
@@ -2326,78 +2338,78 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1085"/>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="184"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="201"/>
         <source>Profile name</source>
         <translation>Название профиля</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1123"/>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1193"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1213"/>
         <source>Table / Head</source>
         <translation>Стол / Голова</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1133"/>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1203"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1223"/>
         <source>Address</source>
         <translation>Адрес</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1143"/>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1213"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1233"/>
         <source>Direction</source>
         <translation>Направление</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1152"/>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1222"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1242"/>
         <source>X</source>
         <translation>X</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1162"/>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1232"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1252"/>
         <source>Y</source>
         <translation>Y</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="1172"/>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1242"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1262"/>
         <source>Z</source>
         <translation>Z</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1320"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1360"/>
         <source>Regular expressions</source>
         <translation>Регулярные выражения</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1358"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1398"/>
         <source>Tool types</source>
         <translation>Типы инструментов</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1388"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1428"/>
         <source>Tool names / Aliases</source>
         <translation>Имена / Поисковые названия</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1412"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1452"/>
         <source>Parameters</source>
         <translation>Параметры</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1432"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1472"/>
         <source>Parameter</source>
         <translation>Параметр</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1465"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1505"/>
         <source>END MILL D10 FL30</source>
         <translation>END MILL D10 FL30</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="1472"/>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="1512"/>
         <source>Test</source>
         <translation>Тест</translation>
     </message>
@@ -2602,7 +2614,7 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="784"/>
-        <location filename="../app/main_window.py" line="375"/>
+        <location filename="../app/main_window.py" line="380"/>
         <source>Playback speed</source>
         <translation>Скорость воспроизведения</translation>
     </message>
@@ -2687,57 +2699,57 @@ Do you want to reload it from disk?</source>
         <translation>Обработанная поверхность</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="42"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="46"/>
         <source>Table</source>
         <translation>Стол</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="43"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="47"/>
         <source>Head</source>
         <translation>Голова</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="44"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="48"/>
         <source>None</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="94"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="98"/>
         <source> (built-in)</source>
         <translation> (встроенный)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="138"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="143"/>
         <source>User profile (unverified)</source>
         <translation>Пользовательский профиль (не верифицирован)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="140"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="145"/>
         <source>Checked against reference programs (read-only)</source>
         <translation>Проверен на эталонных УП (только чтение)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="142"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="147"/>
         <source>Built-in profile (read-only; unverified)</source>
         <translation>Встроенный профиль (только чтение; не верифицирован)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="172"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="189"/>
         <source>Invalid profile parameters.</source>
         <translation>Некорректные параметры профиля.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="191"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="208"/>
         <source>Profile name must not be empty</source>
         <translation>Название профиля не должно быть пустым</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="201"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="218"/>
         <source>Copy profile</source>
         <translation>Копировать профиль</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="202"/>
+        <location filename="../app/ui/dialogs/rotary_kinematics_settings.py" line="219"/>
         <source>(copy)</source>
         <translation>(копия)</translation>
     </message>
