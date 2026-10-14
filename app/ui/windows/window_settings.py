@@ -349,7 +349,8 @@ class MainWindowSettingsMixin:
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
 
         self.lexer = GcodeLexer()
-        self.ui.fileTypeCombo.setCurrentIndex(1 if self.defaultFileType == 1 else 0)
+        self.defaultFileType = self.defaultFileType if 0 <= self.defaultFileType < self.ui.fileTypeCombo.count() else 0
+        self.ui.fileTypeCombo.setCurrentIndex(self.defaultFileType)
         self.ui.editor.setFont(
             QFont(
                 self.fontFamily,

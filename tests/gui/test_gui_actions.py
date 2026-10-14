@@ -25,13 +25,14 @@ def qt_app():
     return QApplication.instance() or QApplication([])
 
 
-def test_main_ui_has_separate_options_and_tokens_settings_actions(qt_app):
+def test_main_ui_has_options_in_settings_and_tokens_in_cnc(qt_app):
     window = QMainWindow()
     ui = Ui_MainWindow()
     ui.setupUi(window)
     settings_actions = ui.menuSettings.actions()
     assert ui.actionOptions in settings_actions
-    assert ui.actionTokens in settings_actions
+    assert ui.actionTokens not in settings_actions
+    assert ui.actionTokens in ui.menuCNC_Functions.actions()
     assert ui.actionOptions.text() == "Options"
     assert ui.actionOptions.shortcut().toString() == "F2"
     assert not ui.actionOptions.icon().isNull()
@@ -87,27 +88,28 @@ def test_play_pause_artwork_survives_toolbar_scaling_and_playback_end(qt_app, di
         window.deleteLater()
 
 
-def test_cnc_toolbar_places_existing_commands_before_calculators(qt_app):
+def test_cnc_toolbar_defaults_group_navigation_comparison_and_measurement(qt_app):
     window = MainWindow()
     assert window.ui.actionStock in window.ui.menuSettings.actions()
     assert not window.ui.actionStock.icon().isNull()
-    actions = window.ui.cncToolBar.actions()
-    expected = (
+    actions = [
+        action
+        for action in window.ui.cncToolBar.actions()
+        if not action.isSeparator() and window.ui.cncToolBar.widgetForAction(action) is not window.ui.fileTypeButton
+    ]
+    assert actions == [
+        window.ui.actionLatheMode,
         window.ui.actionPrevToolchange,
         window.ui.actionNextToolchange,
         window.ui.menuBlockNumbers.menuAction(),
-        window.ui.actionRemoveSpaces,
-        window.ui.actionRemoveEmptyLines,
-    )
-    positions = [actions.index(action) for action in expected]
-    assert positions == list(range(positions[0], positions[0] + len(expected)))
-    assert actions[positions[-1] + 1] is window.ui.actionStatistics
-    assert actions[positions[-1] + 2] is window.ui.actionExportToolList
-    assert actions[positions[-1] + 3] is window.ui.actionMeasure
+        window.ui.actionCompare,
+        window.ui.actionStatistics,
+        window.ui.actionMeasure,
+    ]
     assert window.ui.actionMeasure in window.ui.menuCNC_Functions.actions()
     assert not window.ui.actionMeasure.icon().isNull()
-    assert actions[positions[-1] + 4].isSeparator()
-    assert actions[positions[-1] + 5] is getattr(window.ui, "actionHoleCalculator")
+    assert not window.toolbarSettings.defaults["actionHoleCalculator"]
+    assert "actionHoleCalculator" in window.toolbarSettings.commands
     assert [toolbar.objectName() for toolbar in window.findChildren(QToolBar)[:4]] == [
         "fileToolBar",
         "editToolBar",
@@ -122,7 +124,8 @@ def test_editor_case_actions_use_icons_and_change_selection_or_current_line(qt_a
     editor = window.ui.editor
     assert not window.ui.actionUppercase.icon().isNull()
     assert not window.ui.actionLowercase.icon().isNull()
-    assert window.ui.actionUppercase in window.ui.editToolBar.actions()
+    assert window.ui.actionUppercase in window.ui.menu_Edit.actions()
+    assert not window.toolbarSettings.defaults["actionUppercase"]
     assert window.ui.actionLowercase in window.ui.menu_Edit.actions()
     assert window.ui.actionUppercase.shortcut() == QKeySequence("Ctrl+Shift+U")
     assert window.ui.actionLowercase.shortcut() == QKeySequence("Ctrl+U")
@@ -214,7 +217,7 @@ def test_file_type_toolbar_menu_switches_the_editor_lexer(qt_app):
     assert window.ui.fileTypeCombo.isHidden()
     assert window.ui.cncToolBar.widgetForAction(window.ui.cncToolBar.actions()[0]) is window.ui.fileTypeButton
     assert window.ui.fileTypeButton.menu() is menu
-    assert [action.text() for action in actions] == ["Text File", "ISO G-Code"]
+    assert [action.text() for action in actions] == ["Text File", "ISO G-Code", "iTNC-code"]
     assert actions[0].isChecked()
     assert not actions[0].icon().isNull()
     assert not actions[1].icon().isNull()
@@ -227,6 +230,14 @@ def test_file_type_toolbar_menu_switches_the_editor_lexer(qt_app):
     assert actions[1].isChecked()
     assert window.ui.fileTypeButton.text() == "ISO G-Code"
     assert window.ui.fileTypeButton.icon().cacheKey() == actions[1].icon().cacheKey()
+
+    actions[2].trigger()
+    assert window.ui.fileTypeCombo.currentIndex() == 2
+    assert window.ui.editor.lexer() is None
+    assert actions[2].isChecked()
+    assert not actions[1].isChecked()
+    assert window.ui.fileTypeButton.text() == "iTNC-code"
+    assert not actions[2].icon().isNull()
 
     actions[0].trigger()
     assert window.ui.fileTypeCombo.currentIndex() == 0

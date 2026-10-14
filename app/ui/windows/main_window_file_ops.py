@@ -381,6 +381,9 @@ class MainWindowFileMixin:
         file_name = getattr(self, "curFile", "")
         if not file_name or self._document_reload_prompt_active:
             return
+        if hasattr(self, "_documents") and self._document_reload_busy():
+            self._schedule_document_disk_check()
+            return
         path = Path(file_name).resolve()
         watcher = self._document_watcher
         if os.name != "nt" and path.is_file() and str(path) not in watcher.files():
@@ -410,7 +413,7 @@ class MainWindowFileMixin:
         finally:
             self._document_reload_prompt_active = False
         if answer == QMessageBox.StandardButton.Yes:
-            self.loadFile(file_name)
+            self.loadFile(file_name, reload=True)
 
     @staticmethod
     def _first_local_drop_path(event):
@@ -435,8 +438,7 @@ class MainWindowFileMixin:
         if not file_name:
             event.ignore()
             return
-        if self.maybeSave():
-            self.loadFile(file_name)
+        if self.loadFile(file_name):
             event.acceptProposedAction()
         else:
             event.ignore()
@@ -573,8 +575,7 @@ class MainWindowFileMixin:
             )
             self._remove_recent_file(path)
             return
-        if self.maybeSave():
-            self.loadFile(path)
+        self.loadFile(path)
 
     def _refresh_unnamed_source_mode(self):
         if getattr(self, "curFile", ""):
@@ -590,6 +591,9 @@ class MainWindowFileMixin:
 
     def newFile(self):
         """Clear editor contents and reset state for a new document."""
+        if hasattr(self, "_documents"):
+            self._new_document_slot()
+            return
         if self.maybeSave():
             reset_program_setup(self)
             self._manual_arc_type_override = False
@@ -609,10 +613,9 @@ class MainWindowFileMixin:
 
     def openFile(self):
         """Prompt for a file to open and load its contents."""
-        if self.maybeSave():
-            fileName, _ = QFileDialog.getOpenFileName(self, "Open", self._open_file_directory(), NC_FILE_FILTER)
-            if fileName:
-                self.loadFile(fileName)
+        fileName, _ = QFileDialog.getOpenFileName(self, "Open", self._open_file_directory(), NC_FILE_FILTER)
+        if fileName:
+            self.loadFile(fileName)
 
     def save(self):
         """Save the current file or prompt for a destination if unnamed."""
@@ -626,6 +629,15 @@ class MainWindowFileMixin:
         if fileName:
             if not Path(fileName).suffix:
                 fileName += ".mpf" if selected_filter == SINUMERIK_FILE_FILTER else ".nc"
+            if hasattr(self, "_documents"):
+                other = self._document_index_for_path(fileName)
+                if other is not None and other != self._active_document_index:
+                    QMessageBox.warning(
+                        self,
+                        QCoreApplication.translate("MainWindow", "Easy G-code Plot"),
+                        QCoreApplication.translate("MainWindow", "This file is already open in another document."),
+                    )
+                    return False
             return self.saveFile(fileName)
         return False
 
@@ -636,6 +648,8 @@ class MainWindowFileMixin:
         self.ui.actionSave.setEnabled(modified)
         self.ui.actionUndo.setEnabled(self.ui.editor.isUndoAvailable())
         self.ui.actionRedo.setEnabled(self.ui.editor.isRedoAvailable())
+        if hasattr(self, "_documents") and not getattr(self, "_document_switching", False):
+            self._update_documents_menu()
 
     def maybeSave(self):
         """Ask the user to save if the document has unsaved changes."""
@@ -660,10 +674,31 @@ class MainWindowFileMixin:
 
         return True
 
-    def loadFile(self, fileName):
-        """Load file contents into the editor and reset cursor."""
+    def _prepare_document_open(self, file_name, *, reload):
+        """Return a handled outcome, or None when the source needs reading."""
+        if not hasattr(self, "_documents"):
+            return None
+        existing = self._document_index_for_path(file_name)
+        if reload and not self._document_switch_allowed():
+            return False
+        if existing is not None:
+            if existing != self._active_document_index:
+                return self._activate_document(existing)
+            return None if reload else True
+        return None if self._document_switch_allowed() else False
+
+    def _create_document_for_open(self, file_name):
+        if not hasattr(self, "_documents") or self._document_index_for_path(file_name) is not None:
+            return True
+        return self._empty_initial_slot() or self._new_document_slot()
+
+    def loadFile(self, fileName, *, reload=False):
+        """Open a separate document, or explicitly reload the active file."""
         if Path(fileName).suffix.casefold() == ".stl":
             return self.importStl(fileName)
+        handled = self._prepare_document_open(fileName, reload=reload)
+        if handled is not None:
+            return handled
         try:
             content, document_encoding = _read_editor_text(fileName, getattr(self, "fileEncoding", "utf-8"))
         except (OSError, UnicodeError) as exc:
@@ -675,6 +710,8 @@ class MainWindowFileMixin:
             )
             return
 
+        if not self._create_document_for_open(fileName):
+            return False
         reset_program_setup(self)
         self._manual_arc_type_override = False
         _configure_document_source_mode(self, fileName, content)
@@ -708,9 +745,22 @@ class MainWindowFileMixin:
         # the user's setting is respected instead of forcing a synchronous
         # trajectory build for every Open.
         self.scheduleAutoUpdate(show_dialog=True)
+        if hasattr(self, "_documents"):
+            self._capture_active_document()
+            self._update_documents_menu()
+        return True
 
     def saveFile(self, fileName):
         """Write editor contents to disk."""
+        if hasattr(self, "_documents"):
+            other = self._document_index_for_path(fileName)
+            if other is not None and other != self._active_document_index:
+                QMessageBox.warning(
+                    self,
+                    QCoreApplication.translate("MainWindow", "Easy G-code Plot"),
+                    QCoreApplication.translate("MainWindow", "This file is already open in another document."),
+                )
+                return False
         encoding = getattr(self, "_document_encoding", None) or getattr(self, "fileEncoding", "utf-8")
         same_file = bool(self.curFile) and _same_file_path(fileName, self.curFile)
         if same_file and getattr(self, "_document_disk_signature", None) is not None:
@@ -750,6 +800,9 @@ class MainWindowFileMixin:
         self._watch_current_document()
         self._remember_file_directory(fileName)
         self._add_recent_file(fileName)
+        if hasattr(self, "_documents"):
+            self._capture_active_document()
+            self._update_documents_menu()
         return True
 
     def setCurrentFile(self, fileName):
@@ -765,6 +818,9 @@ class MainWindowFileMixin:
             name = "new"
 
         self.setWindowTitle(QCoreApplication.translate("MainWindow", "%s[*] - Easy G-code Plot") % name)
+        if hasattr(self, "_documents"):
+            self._capture_active_document()
+            self._update_documents_menu()
 
     def strippedName(self, fullFileName):
         """Return just the filename component."""

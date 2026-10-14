@@ -1,0 +1,277 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+    <class>CompareDialog</class>
+    <widget class="QDialog" name="CompareDialog">
+        <property name="geometry">
+            <rect>
+                <x>0</x>
+                <y>0</y>
+                <width>1100</width>
+                <height>650</height>
+            </rect>
+        </property>
+        <property name="minimumSize">
+            <size>
+                <width>700</width>
+                <height>360</height>
+            </size>
+        </property>
+        <property name="windowTitle">
+            <string>Compare</string>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+            <item>
+                <widget class="QSplitter" name="splitter">
+                    <property name="orientation">
+                        <enum>Qt::Orientation::Horizontal</enum>
+                    </property>
+                    <widget class="QWidget" name="leftPanel">
+                        <layout class="QVBoxLayout" name="leftLayout">
+                            <property name="leftMargin">
+                                <number>0</number>
+                            </property>
+                            <property name="topMargin">
+                                <number>0</number>
+                            </property>
+                            <property name="rightMargin">
+                                <number>0</number>
+                            </property>
+                            <property name="bottomMargin">
+                                <number>0</number>
+                            </property>
+                            <item>
+                                <layout class="QHBoxLayout" name="leftHeader">
+                                    <item>
+                                        <widget class="QLabel" name="leftLabel">
+                                            <property name="text">
+                                                <string>File A</string>
+                                            </property>
+                                            <property name="buddy">
+                                                <cstring>leftCombo</cstring>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QComboBox" name="leftCombo">
+                                            <property name="sizePolicy">
+                                                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                                                    <horstretch>0</horstretch>
+                                                    <verstretch>0</verstretch>
+                                                </sizepolicy>
+                                            </property>
+                                            <property name="minimumContentsLength">
+                                                <number>12</number>
+                                            </property>
+                                            <property name="sizeAdjustPolicy">
+                                                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                            </property>
+                                            <property name="placeholderText">
+                                                <string>Select a document or open a file</string>
+                                            </property>
+                                            <property name="accessibleName">
+                                                <string>File A</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QToolButton" name="leftOpenButton">
+                                            <property name="toolTip">
+                                                <string>Open NC program</string>
+                                            </property>
+                                            <property name="accessibleName">
+                                                <string>Open file A</string>
+                                            </property>
+                                            <property name="icon">
+                                                <iconset resource="../../../resources/files_res.qrc">
+                                                    <normaloff>:/resource/icons/open.png</normaloff>
+                                                </iconset>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item>
+                                <widget class="QPlainTextEdit" name="leftEditor">
+                                    <property name="readOnly">
+                                        <bool>true</bool>
+                                    </property>
+                                    <property name="lineWrapMode">
+                                        <enum>QPlainTextEdit::LineWrapMode::NoWrap</enum>
+                                    </property>
+                                    <property name="horizontalScrollBarPolicy">
+                                        <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
+                                    </property>
+                                    <property name="verticalScrollBarPolicy">
+                                        <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
+                                    </property>
+                                    <property name="accessibleName">
+                                        <string>Text of file A</string>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                    <widget class="QWidget" name="rightPanel">
+                        <layout class="QVBoxLayout" name="rightLayout">
+                            <property name="leftMargin">
+                                <number>0</number>
+                            </property>
+                            <property name="topMargin">
+                                <number>0</number>
+                            </property>
+                            <property name="rightMargin">
+                                <number>0</number>
+                            </property>
+                            <property name="bottomMargin">
+                                <number>0</number>
+                            </property>
+                            <item>
+                                <layout class="QHBoxLayout" name="rightHeader">
+                                    <item>
+                                        <widget class="QLabel" name="rightLabel">
+                                            <property name="text">
+                                                <string>File B</string>
+                                            </property>
+                                            <property name="buddy">
+                                                <cstring>rightCombo</cstring>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QComboBox" name="rightCombo">
+                                            <property name="sizePolicy">
+                                                <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+                                                    <horstretch>0</horstretch>
+                                                    <verstretch>0</verstretch>
+                                                </sizepolicy>
+                                            </property>
+                                            <property name="minimumContentsLength">
+                                                <number>12</number>
+                                            </property>
+                                            <property name="sizeAdjustPolicy">
+                                                <enum>QComboBox::SizeAdjustPolicy::AdjustToMinimumContentsLengthWithIcon</enum>
+                                            </property>
+                                            <property name="placeholderText">
+                                                <string>Select a document or open a file</string>
+                                            </property>
+                                            <property name="accessibleName">
+                                                <string>File B</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QToolButton" name="rightOpenButton">
+                                            <property name="toolTip">
+                                                <string>Open NC program</string>
+                                            </property>
+                                            <property name="accessibleName">
+                                                <string>Open file B</string>
+                                            </property>
+                                            <property name="icon">
+                                                <iconset resource="../../../resources/files_res.qrc">
+                                                    <normaloff>:/resource/icons/open.png</normaloff>
+                                                </iconset>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item>
+                                <widget class="QPlainTextEdit" name="rightEditor">
+                                    <property name="readOnly">
+                                        <bool>true</bool>
+                                    </property>
+                                    <property name="lineWrapMode">
+                                        <enum>QPlainTextEdit::LineWrapMode::NoWrap</enum>
+                                    </property>
+                                    <property name="horizontalScrollBarPolicy">
+                                        <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
+                                    </property>
+                                    <property name="verticalScrollBarPolicy">
+                                        <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
+                                    </property>
+                                    <property name="accessibleName">
+                                        <string>Text of file B</string>
+                                    </property>
+                                </widget>
+                            </item>
+                        </layout>
+                    </widget>
+                </widget>
+            </item>
+            <item>
+                <layout class="QHBoxLayout" name="footerLayout" stretch="0,0,0,1,0">
+                    <item>
+                        <widget class="QLabel" name="changedLabel">
+                            <property name="text">
+                                <string>Changed</string>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
+                        <widget class="QLabel" name="addedLabel">
+                            <property name="text">
+                                <string>Added</string>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
+                        <widget class="QLabel" name="removedLabel">
+                            <property name="text">
+                                <string>Removed</string>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
+                        <widget class="QLabel" name="statusLabel">
+                            <property name="text">
+                                <string>Select two sources to compare.</string>
+                            </property>
+                            <property name="wordWrap">
+                                <bool>true</bool>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
+                        <widget class="QToolButton" name="refreshButton">
+                            <property name="text">
+                                <string>Refresh</string>
+                            </property>
+                            <property name="toolTip">
+                                <string>Refresh comparison (reload disk sources)</string>
+                            </property>
+                            <property name="accessibleName">
+                                <string>Refresh</string>
+                            </property>
+                            <property name="icon">
+                                <iconset resource="../../../resources/files_res.qrc">
+                                    <normaloff>:/resource/icons/refresh.png</normaloff>
+                                </iconset>
+                            </property>
+                            <property name="toolButtonStyle">
+                                <enum>Qt::ToolButtonStyle::ToolButtonTextBesideIcon</enum>
+                            </property>
+                        </widget>
+                    </item>
+                    <item>
+                        <widget class="QDialogButtonBox" name="buttonBox">
+                            <property name="standardButtons">
+                                <set>QDialogButtonBox::StandardButton::Close</set>
+                            </property>
+                            <property name="sizePolicy">
+                                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                                    <horstretch>0</horstretch>
+                                    <verstretch>0</verstretch>
+                                </sizepolicy>
+                            </property>
+                        </widget>
+                    </item>
+                </layout>
+            </item>
+        </layout>
+    </widget>
+    <resources>
+        <include location="../../../resources/files_res.qrc" />
+    </resources>
+    <connections />
+</ui>

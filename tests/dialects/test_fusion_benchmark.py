@@ -1,6 +1,6 @@
 """Full, unmodified Fusion programs and controller cycle path regressions.
 
-Sources: tmp/last/1001.nc and 1001.mpf supplied with the 1.9.8 bug report.
+Sources: checked-in Fusion 1001 NC/MPF regression fixtures.
 The local CPS posts define signatures; Siemens PGZ 11/2006 sections 2.1.6,
 2.1.8-12 and FANUC B-63014EN/02 sections 13.1/13.2 define the movements.
 """

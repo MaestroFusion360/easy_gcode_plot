@@ -726,22 +726,23 @@ def test_arc_sampling_only_change_rerenders_without_reexecution(qt_app, monkeypa
     window.deleteLater()
 
 
-def test_options_default_file_type_is_not_taken_from_current_editor_mode(qt_app, monkeypatch):
+@pytest.mark.parametrize("default_type", [1, 2])
+def test_options_default_file_type_is_not_taken_from_current_editor_mode(qt_app, monkeypatch, default_type):
     window = MainWindow()
-    window.defaultFileType = 1
+    window.defaultFileType = default_type
     window.ui.fileTypeCombo.setCurrentIndex(0)
     dialog = window.optionsDlg
     dialog.load_values()
-    assert dialog.ui.fileTypeCombo.currentIndex() == 1
+    assert dialog.ui.fileTypeCombo.currentIndex() == default_type
 
     applied = []
     monkeypatch.setattr(window, "changeFileType", applied.append)
     monkeypatch.setattr(window, "saveSettings", lambda: None)
     monkeypatch.setattr(window, "refreshPlotView", lambda: None)
     dialog.accept()
-    assert window.defaultFileType == 1
-    assert window.ui.fileTypeCombo.currentIndex() == 1
-    assert applied == [1]
+    assert window.defaultFileType == default_type
+    assert window.ui.fileTypeCombo.currentIndex() == default_type
+    assert applied == [default_type]
     window.deleteLater()
 
 

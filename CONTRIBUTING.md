@@ -109,7 +109,7 @@ On Windows:
 
 ```powershell
 .\scripts\ps1\test.ps1
-.\scripts\ps1\lint.ps1 -CheckResources
+.\scripts\ps1\lint.ps1 -Fix -CheckResources
 ```
 
 On POSIX systems:
@@ -117,6 +117,19 @@ On POSIX systems:
 ```bash
 bash scripts/sh/test.sh
 bash scripts/sh/lint.sh
+```
+
+Both test runners default to quiet pytest output and preserve its exit code. Use
+`-NoSync` on Windows or `--no-sync` on POSIX to reuse installed dependencies;
+`-Verbose` / `--verbose` enables verbose test names. A test path and additional
+pytest arguments can follow, for example:
+
+```powershell
+.\scripts\ps1\test.ps1 -NoSync tests/gui/test_compare.py -k refresh
+```
+
+```bash
+bash scripts/sh/test.sh --no-sync tests/gui/test_compare.py -k refresh
 ```
 
 The expected result is:

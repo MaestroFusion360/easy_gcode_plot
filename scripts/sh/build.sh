@@ -73,6 +73,9 @@ arguments=(
     --specpath "$project_root/build/pyinstaller"
     --workpath "$project_root/build/pyinstaller/work"
     --distpath "$dist_path"
+    --exclude-module PySide6
+    --exclude-module PySide2
+    --exclude-module PyQt5
     --collect-submodules app.gcode.export
     --hidden-import app.gcode.kernel.frontend._native_parser
     --hidden-import app.tools._native_discovery

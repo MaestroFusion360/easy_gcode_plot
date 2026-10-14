@@ -37,7 +37,7 @@ class Ui_ToolbarSettingsDlg(object):
 
         self.searchEdit = QLineEdit(ToolbarSettingsDlg)
         self.searchEdit.setObjectName(u"searchEdit")
-        self.searchEdit.setClearButtonEnabled(True)
+        self.searchEdit.setClearButtonEnabled(False)
 
         self.verticalLayout.addWidget(self.searchEdit)
 

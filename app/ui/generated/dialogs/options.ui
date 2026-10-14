@@ -61,6 +61,11 @@
                                             <string>ISO G-code</string>
                                         </property>
                                     </item>
+                                    <item>
+                                        <property name="text">
+                                            <string>iTNC-code</string>
+                                        </property>
+                                    </item>
                                 </widget>
                             </item>
                             <item row="2" column="0">

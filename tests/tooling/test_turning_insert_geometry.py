@@ -319,7 +319,7 @@ def test_thread_insert_has_three_small_profile_teeth(angle):
     assert polygon[2] == pytest.approx((0.0, 0.0))
 
 
-def test_thread_schematic_matches_supplied_dxf_and_mirrors_for_internal():
+def test_thread_schematic_matches_reference_dxf_and_mirrors_for_internal():
     external = turning_tool_polygon({"type": "thread", "tipOrientation": 8, "threadCornerRadius": 0.0}, 50.0)
     internal = turning_tool_polygon({"type": "thread", "tipOrientation": 6, "threadCornerRadius": 0.0}, 50.0)
     assert external is not None and internal is not None

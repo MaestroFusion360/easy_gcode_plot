@@ -50,7 +50,7 @@ def export_file_suffix(source_path, *, target: str | None = None, dxf: bool = Fa
 
 
 def load_post_profile(target):
-    """Load a bundled controller or a user-supplied JSON post profile."""
+    """Load a bundled controller or an external JSON post profile."""
     path = Path(__file__).parent / "export" / "posts" / f"{target}.json" if target in POST_TARGETS else Path(target)
     try:
         with path.open(encoding="utf-8-sig") as stream:

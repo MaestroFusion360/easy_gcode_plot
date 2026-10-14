@@ -1,20 +1,24 @@
 # GUI Sandbox
 
+Updated for 2.4.0. Run automated checks without showing test windows; use the
+visible demonstration only when you explicitly want to watch the simulation.
+
 The existing pytest scenario `tests/gui/test_daily_workflow_smoke.py` drives
 MainWindow through four unchanged representative programs. QSettings, the tool
 library, logs, HTML and NC exports use pytest temporary storage. No fixture is
 rewritten and the user library is never opened or changed.
 
 ```powershell
-# Visible simulation demonstration
-.\scripts\ps1\start-sandbox.ps1
 # Offscreen regression, without GPU rendering claims
 .\scripts\ps1\start-sandbox.ps1 -Automated
+# Optional visible simulation demonstration
+.\scripts\ps1\start-sandbox.ps1
 ```
 
 ```bash
-bash scripts/sh/start-sandbox.sh
 bash scripts/sh/start-sandbox.sh --automated
+# Optional visible demonstration
+bash scripts/sh/start-sandbox.sh
 ```
 
 Use `-DelayMs 1500` or `--delay-ms 1500` to change presentation pauses. The
@@ -42,8 +46,10 @@ All NC paths above are relative to `tests/fixtures`. Large multi-axis examples
 use brief real playback and slider sections to keep the demonstration bounded.
 The flange and turning stock visit every logical motion. Visible full playback
 uses an 8 ms precise timer; regression mode uses a zero timer interval. Waits
-process Qt events and have explicit deadlines. The final summary remains visible
-for at least three seconds. Unexpected warnings or modal dialogs fail the stage.
+process Qt events and have explicit deadlines. Visible mode keeps its final
+summary on screen for at least three seconds. Automated mode writes the summary
+to stdout without showing windows. Unexpected warnings or modal dialogs fail
+the stage.
 
 ## GPU availability
 
@@ -57,7 +63,9 @@ instead of being converted into a skip. There is no CPU material-removal fallbac
 
 ## Isolated setup
 
-File > New clears the editor, toolpath, STL and stock before every input. G54-G59
+File → New creates a fresh active MDI document with an empty editor, toolpath,
+STL scene and stock state before every input. Previous documents remain in the
+isolated session; New does not clear their buffers or scenes. G54-G59
 offsets are zero. Configured Home is X=150, Y=0, Z=10 for turning (diameter display),
 X=0, Y=0, Z=100 for flange/test6, and X=0, Y=0, Z=300 for the impeller. Milling GPU
 stock uses automatic bounds, 2 mm resolution and accuracy preset 1.

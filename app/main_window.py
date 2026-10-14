@@ -30,6 +30,7 @@ from app.settings import (
 )
 from app.settings import RECENT_FILES_LIMIT as _RECENT_FILES_LIMIT
 from app.ui.dialogs.calculators import HoleCalculatorDialog, PocketCalculatorDialog
+from app.ui.dialogs.compare import CompareDialog
 from app.ui.dialogs.general import About, BlockNum, Export, Find, Wcs
 from app.ui.dialogs.help import HelpDialog
 from app.ui.dialogs.options import OptionsDialog
@@ -42,6 +43,7 @@ from app.ui.generated.main.main_ui import Ui_MainWindow
 from app.ui.plot.plot_navigation import PlotNavigation
 from app.ui.plot.ruler import PlotRuler
 from app.ui.support.toolbar_settings import ToolbarSettings
+from app.ui.windows.main_window_documents import MainWindowDocumentsMixin
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.windows.main_window_execution import (
     AUTO_REFRESH_DELAY_MS,
@@ -80,9 +82,10 @@ RAPID_COLOR = _RAPID_COLOR
 LOGGER = logging.getLogger(__name__)
 
 
-class MainWindow(
+class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins compose one Qt window.
     MainWindowSettingsMixin,
     MainWindowFileMixin,
+    MainWindowDocumentsMixin,
     MainWindowEditorMixin,
     MainWindowExecutionMixin,
     MainWindowStockMixin,
@@ -111,11 +114,11 @@ class MainWindow(
         self.setWindowIcon(icon)
 
         self.loadSettings()
+        # Every session starts with one milling document.
+        self.latheMode = False
+        self.ui.actionLatheMode.setChecked(False)
         self._configure_document_watcher()
         self._configure_rotary_kinematics_menu()
-        self.toolbarSettings = ToolbarSettings(self)
-        self.applyToolbarIconSize(self.toolbarIconSize)
-        self.restoreToolbarState()
         self._initialize_runtime_helpers()
         self.connectActions()
         self.createLabelStatBar()
@@ -123,6 +126,10 @@ class MainWindow(
         self.changeLathe()
         self._ruler = PlotRuler(self)
         self._plot_navigation.measure = self._ruler
+        self._initialize_documents()
+        self.toolbarSettings = ToolbarSettings(self)
+        self.applyToolbarIconSize(self.toolbarIconSize)
+        self.restoreToolbarState()
 
     def _rotary_profile_available(self, profile):
         if profile.id in builtin_profile_ids():
@@ -147,10 +154,8 @@ class MainWindow(
         first_action = self.ui.menuSettings.actions()[0] if self.ui.menuSettings.actions() else None
         if first_action is None:
             self.ui.menuSettings.addMenu(menu)
-            self.ui.menuSettings.addSeparator()
         else:
             self.ui.menuSettings.insertMenu(first_action, menu)
-            self.ui.menuSettings.insertSeparator(first_action)
 
         self._rotary_kinematics_menu = menu
         self._refresh_rotary_kinematics_menu(catalog)
@@ -273,14 +278,13 @@ class MainWindow(
         before = self.ui.menu_File.actions()[stl_end]
         self.ui.menu_File.insertAction(before, self.ui.actionSaveStockStl)
         self.ui.menu_File.insertAction(before, self.ui.actionInsertStockMesh)
-        self.ui.menuCNC_Functions.addSeparator()
-        self.ui.cncToolBar.addSeparator()
         self.viewActionGroup = QActionGroup(self)
         self.viewActionGroup.setExclusive(True)
         for action in (self.ui.action3D, self.ui.actionTop, self.ui.actionFront, self.ui.actionLeft):
             action.setCheckable(True)
             self.viewActionGroup.addAction(action)
         self.ui.action3D.setChecked(True)
+        runtime_actions = {}
         for name, text, icon_path in (
             (
                 "actionHoleCalculator",
@@ -297,12 +301,21 @@ class MainWindow(
                 QCoreApplication.translate("MainWindow", "Snippets"),
                 ":/resource/icons/snippets.png",
             ),
+            (
+                "actionCompare",
+                QCoreApplication.translate("MainWindow", "Compare"),
+                ":/resource/icons/compare.png",
+            ),
         ):
             action = QAction(QIcon(icon_path), text, self)
             action.setObjectName(name)
-            setattr(self.ui, name, action)
-            self.ui.menuCNC_Functions.addAction(action)
-            self.ui.cncToolBar.addAction(action)
+            runtime_actions[name] = action
+
+        self.ui.actionHoleCalculator = runtime_actions["actionHoleCalculator"]
+        self.ui.actionPocketCalculator = runtime_actions["actionPocketCalculator"]
+        self.ui.actionSnippets = runtime_actions["actionSnippets"]
+        self.ui.actionCompare = runtime_actions["actionCompare"]
+        self._configure_cnc_menu_groups()
 
         self.ui.actionGroupArcType = QActionGroup(self)
         self.ui.actionGroupArcType.setExclusive(True)
@@ -326,6 +339,21 @@ class MainWindow(
 
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
 
+    def _configure_cnc_menu_groups(self):
+        """Place runtime commands in the Designer menu's editing/report/geometry groups."""
+        menu = self.ui.menuCNC_Functions
+        actions = menu.actions()
+        report_boundary = actions[actions.index(self.ui.actionStatistics) - 1]
+        menu.insertAction(report_boundary, self.ui.actionSnippets)
+        menu.insertAction(self.ui.actionStatistics, self.ui.actionCompare)
+        menu.addActions([self.ui.actionHoleCalculator, self.ui.actionPocketCalculator])
+        toolbar = self.ui.cncToolBar
+        actions = toolbar.actions()
+        report_boundary = actions[actions.index(self.ui.actionStatistics) - 1]
+        toolbar.insertAction(report_boundary, self.ui.actionSnippets)
+        toolbar.insertAction(self.ui.actionStatistics, self.ui.actionCompare)
+        toolbar.addActions([self.ui.actionHoleCalculator, self.ui.actionPocketCalculator])
+
     def _configure_file_type_button(self):
         """Create the CNC toolbar's source-type chooser."""
         self.ui.fileTypeCombo = QComboBox(self)
@@ -334,6 +362,7 @@ class MainWindow(
             [
                 QCoreApplication.translate("MainWindow", "Text File"),
                 QCoreApplication.translate("MainWindow", "ISO G-Code"),
+                QCoreApplication.translate("MainWindow", "iTNC-code"),
             ]
         )
         self.ui.fileTypeCombo.hide()
@@ -341,7 +370,8 @@ class MainWindow(
         self.ui.fileTypeMenu.setObjectName("fileTypeMenu")
         self._file_type_icons = (
             QIcon(":/resource/icons/text.png"),
-            QIcon(":/resource/icons/text-color.png"),
+            QIcon(":/resource/icons/gcode.png"),
+            QIcon(":/resource/icons/itnc.png"),
         )
         self._file_type_action_group = QActionGroup(self)
         self._file_type_action_group.setExclusive(True)
@@ -395,7 +425,7 @@ class MainWindow(
         self.ui.playbackToolBar.addWidget(self.ui.playbackSpeedSlider)
 
     def syncFileTypeMenu(self, index: int):
-        selected = 1 if index == 1 else 0
+        selected = index if 0 <= index < len(self._file_type_actions) else 0
         for action_index, action in enumerate(self._file_type_actions):
             action.setChecked(action_index == selected)
         label = self.ui.fileTypeCombo.itemText(selected)
@@ -492,9 +522,11 @@ class MainWindow(
         self.holeCalculatorDlg = HoleCalculatorDialog(self)
         self.pocketCalculatorDlg = PocketCalculatorDialog(self)
         self.snippetsDlg = SnippetsDialog(self)
+        self.compareDlg = CompareDialog(self)
         getattr(self.ui, "actionHoleCalculator").triggered.connect(self.holeCalculatorDlg.show)
         getattr(self.ui, "actionPocketCalculator").triggered.connect(self.pocketCalculatorDlg.show)
         getattr(self.ui, "actionSnippets").triggered.connect(self.snippetsDlg.show)
+        self.ui.actionCompare.triggered.connect(self.compareDlg.show)
         self.timer = QBasicTimer()
         self.ui.playbackSpeedSlider.valueChanged.connect(self.setPlaybackSpeed)
         self.autoUpdateTimer = QTimer(self)
@@ -541,16 +573,15 @@ class MainWindow(
             )
             event.ignore()
             return
-        if self.maybeSave():
-            if not self._cancel_milling_seek():
-                self.ui.statusbar.showMessage(
-                    QCoreApplication.translate(
-                        "MainWindow", "Cancelling stock preparation; close again when it has stopped."
-                    )
+        if not self._cancel_milling_seek():
+            self.ui.statusbar.showMessage(
+                QCoreApplication.translate(
+                    "MainWindow", "Cancelling stock preparation; close again when it has stopped."
                 )
-                event.ignore()
-                return
-            self.saveSettings()
+            )
+            event.ignore()
+            return
+        if self.closeAllDocuments(exiting=True):
             self._dispose_trace_item()
             event.accept()
         else:

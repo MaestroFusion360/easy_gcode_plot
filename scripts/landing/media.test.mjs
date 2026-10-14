@@ -67,9 +67,12 @@ for (const language of ["en", "ru"]) {
     const { window, video, dialog, playCalls } = page(t, language);
     const document = window.document;
     assert.equal(video.autoplay, false);
+    assert.equal(video.hasAttribute("muted"), false);
     assert.equal(video.preload, "none");
     assert.ok(
-      video.poster.endsWith("assets-optimized/easy_gcode_plot-poster.webp"),
+      new URL(video.poster).pathname.endsWith(
+        "assets-optimized/easy_gcode_plot-poster.webp",
+      ),
     );
     video.currentTime = 12;
     video.volume = 0.4;

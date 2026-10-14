@@ -125,23 +125,23 @@ def test_recent_stl_menu_tracks_imports_reopens_models_and_clears(qt_app):
         window.deleteLater()
 
 
-def test_new_command_clears_stl_only_after_document_close_is_accepted(qt_app, monkeypatch):
+def test_new_document_keeps_previous_stl_scene_and_switch_restores_it(qt_app, monkeypatch):
     window = MainWindow()
     try:
         assert window.importStl(str(STL_FIXTURE)) is True
+        obj = window._stl_entries[0].obj
         item = window._stl_entries[0].overlay.item
         assert item in window.ui.graphicsView.items
-
-        monkeypatch.setattr(window, "maybeSave", lambda: False)
+        monkeypatch.setattr(window, "maybeSave", lambda: pytest.fail("New must retain the previous document"))
         window.ui.actionNew.trigger()
-        assert window._stl_entries[0].overlay.item is item
-        assert item in window.ui.graphicsView.items
-
-        monkeypatch.setattr(window, "maybeSave", lambda: True)
-        window.ui.actionNew.trigger()
+        assert len(window._documents) == 2
         assert not window._stl_entries
         assert item not in window.ui.graphicsView.items
         assert not window.ui.actionClearSTL.isEnabled()
+        assert window._activate_document(0)
+        assert window._stl_entries[0].obj is obj
+        assert window._stl_entries[0].overlay.item in window.ui.graphicsView.items
+        assert window.ui.actionClearSTL.isEnabled()
     finally:
         window.deleteLater()
 
@@ -377,13 +377,13 @@ def test_stl_rectangular_array_and_selected_delete(qt_app):
         window.deleteLater()
 
 
-def test_stl_panel_is_in_settings_and_history_restores_transforms_arrays_and_delete(qt_app):
+def test_stl_panel_is_in_view_and_history_restores_transforms_arrays_and_delete(qt_app):
     window = MainWindow()
     try:
         panel = window.stlObjectsDock
         toggle_action = window._stl_panel_toggle_action
-        assert toggle_action in window.ui.menuSettings.actions()
-        assert toggle_action not in window.ui.menu_View.actions()
+        assert toggle_action in window.ui.menu_View.actions()
+        assert toggle_action not in window.ui.menuSettings.actions()
         assert toggle_action.isCheckable()
         assert not toggle_action.isChecked()
         assert panel.isHidden()

@@ -137,7 +137,7 @@ def test_d_edge_selection_does_not_cancel_tcp(edge):
     assert (result.motions[-1].end_x, result.motions[-1].end_y, result.motions[-1].end_z) == (0, 10, 0)
 
 
-def test_supplied_bc_impeller_finishes_without_skipping_cam_header(fixture_text):
+def test_fixture_bc_impeller_finishes_without_skipping_cam_header(fixture_text):
     result = native(fixture_text("milling/sinumerik/impeller.mpf"), profile="5ax_table_bc_angled", home_z=300)
     assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
     assert len(result.motions) == 5469
@@ -169,7 +169,7 @@ def test_compact_cam_fixture_finishes_static_tcp_drilling_and_home_sections(fixt
     assert result.execution_steps[-1].source_block == len(result.program.blocks) - 1
 
 
-def test_supplied_full_cam_program_reaches_m30_without_suppressing_compensation_warning(fixture_text):
+def test_fixture_full_cam_program_reaches_m30_without_suppressing_compensation_warning(fixture_text):
     result = native(fixture_text("milling/sinumerik/5ax_test.mpf"))
     assert result.ok and result.complete, result.diagnostics
     # Machine-home edits may add or remove zero-length SUPA returns.

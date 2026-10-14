@@ -1,5 +1,7 @@
 # Easy G-Code Plot FAQ
 
+Updated for **2.4.0**: MDI documents, read-only Compare and refreshed GUI defaults.
+
 This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC and SINUMERIK native/ISO-M semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
@@ -18,6 +20,12 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
   - [Getting started](#getting-started)
     - [How do I install it?](#how-do-i-install-it)
     - [What is the normal GUI workflow?](#what-is-the-normal-gui-workflow)
+    - [How do I work with multiple documents?](#how-do-i-work-with-multiple-documents)
+    - [Which settings are per document and which are shared?](#which-settings-are-per-document-and-which-are-shared)
+    - [What happens to dialogs and playback when I switch documents?](#what-happens-to-dialogs-and-playback-when-i-switch-documents)
+    - [How do Close and Close All handle unsaved changes?](#how-do-close-and-close-all-handle-unsaved-changes)
+    - [How do I compare programs?](#how-do-i-compare-programs)
+    - [What does the iTNC-code source type do?](#what-does-the-itnc-code-source-type-do)
     - [Which input encodings are supported?](#which-input-encodings-are-supported)
     - [Are compact FANUC blocks accepted?](#are-compact-fanuc-blocks-accepted)
     - [Which comment forms are understood?](#which-comment-forms-are-understood)
@@ -395,7 +403,7 @@ A clean result means the modeled program was executed without a known error insi
 
 Yes, within the supported native milling subset. `CYCLE800` resolves supported static working frames and 3+2 indexing, while `TRAORI` / `TRAFOOF` resolves supported continuous TCP motion on **5Ax Table AC Angled** and **5Ax Table BC Angled**. Configured rotary axes, XYZ geometry and resolved tool orientations reach the same GUI, CLI and trace consumers.
 
-Select Milling mode, open the native program as `.mpf` / `.spf`, and choose the matching rotary profile. The supplied `5ax_test.mpf` and `impeller.mpf` CAM examples are covered by execution tests through program completion.
+Select Milling mode, open the native program as `.mpf` / `.spf`, and choose the matching rotary profile. The bundled `5ax_test.mpf` and `impeller.mpf` CAM examples are covered by execution tests through program completion.
 
 Read diagnostics when checking the plot: some native commands are accepted with `UNMODELED_SINUMERIK_NATIVE` warnings and their effects are not modeled, so completion through `M30` alone does not establish verified geometry. Exact cycle/frame/TCP limits are listed under [SINUMERIK 840D input](#sinumerik-840d-input). EXPANDED export has its own limits. Supported G68.2/G53.1 and CYCLE800 indexed AC/BC frames can be converted experimentally through the bundled multiaxis posts; other frame combinations remain rejected.
 
@@ -430,6 +438,48 @@ uv run --no-dev python main.py
 4. Refresh the execution result.
 5. Inspect the trajectory, playback, diagnostics and statistics.
 6. Export FULL, EXPANDED or DXF when required.
+
+Menu locations in 2.4.0:
+
+| Command | Menu path |
+| --- | --- |
+| Application options | Settings → Options |
+| Stock, WCS and saved tools | Settings → Stock / WCS / Tool Library |
+| STL object panel | View → STL Objects |
+| Compare and execution reports | CNC Functions → Compare / Statistics / Tool List / Tokens/Macro Variables |
+| Measurements and generators | CNC Functions → Measure / Hole Calculator / Pocket Calculator |
+| Document closing | File → Close / Close All |
+| Toolbar button selection | Right-click a toolbar → Customize Toolbars |
+
+### How do I work with multiple documents?
+
+The application starts with **one empty milling document**, even if the previous session used Lathe Mode. Use **+** or **File → New** to create another document. **Open**, recent files and drag-and-drop open CNC programs without replacing a nonempty active document. Opening into an empty, unmodified unnamed buffer fills that buffer and keeps its selected machine mode. Opening a file that is already open selects its existing document.
+
+Use the **document-list arrow** at the upper right of the menu bar to select an open document. The check mark identifies the active document; `*` marks unsaved text. **Save**, **Save As**, editor commands, export and calculation operate on the active document. Save As cannot overwrite a file that is open in another document. Open documents are retained in memory for the current session; the next launch starts with one empty document rather than restoring the list.
+
+### Which settings are per document and which are shared?
+
+Each document keeps its text, undo/redo history, caret, selection, scroll position, file path and detected encoding. Its machine mode, source dialect/comment and arc overrides, current-program tool assignments, execution result, view direction and playback position are restored when selected. Stock dimensions and manual/automatic choices, STL objects, section and STL undo/redo history also belong to that document. A new document uses the active document's machine mode, with an empty scene and fresh program-tool assignments. STL edits are session state; saving the CNC source does not embed its STL scene.
+
+**Options**, interface language/theme, editor appearance, shortcuts, toolbar layout, playback speed, export preferences, saved tool libraries, **WCS/Home offsets** and the selected rotary profile are shared application settings. If shared CNC inputs or arc-sampling settings change, an inactive document's old cached result becomes **STALE** when selected. Auto Update recalculates it when enabled; otherwise use **Refresh** before relying on its trajectory or exporting it. Switching documents does not undo shared preference changes.
+
+### What happens to dialogs and playback when I switch documents?
+
+Finish or cancel an open **Export**, **Renumber**, **WCS**, **Options**, **Stock**, **Tool Library**, **Hole/Pocket Calculator** or **Snippets** dialog before creating, switching or closing documents. This prevents pending edits from being applied to a different CNC program. Find/Replace continues to act on the active editor. The visible Tokens/Macro Variables inspector refreshes for the selected document; the previous Statistics report is hidden, and Statistics can be opened again for the active program.
+
+Switching pauses playback, removes the previous stock simulation and restores the selected document's saved playback position and scene. Start Play again to rebuild stock removal for that document. Switching/closing is blocked during CNC calculation or stock export, and waits for cancelled stock-preparation workers to stop.
+
+### How do Close and Close All handle unsaved changes?
+
+Use the **×** control, **File → Close**, or the default **Ctrl+W** shortcut to close the active document. **Close All** and closing the application check each modified document for Save, Discard or Cancel. Cancel or a failed/cancelled save stops closing and keeps the unsaved document open; documents already closed by Close All remain closed. Closing the last document leaves one empty milling editor. Opening or creating another document does not discard unsaved text. Close and Close All are available in the configurable hotkeys list.
+
+### How do I compare programs?
+
+Choose **CNC Functions → Compare** or its toolbar button. Select open documents (including unsaved buffers) or browse for external files independently on either side. The read-only panes align matching lines: yellow marks changes, green additions and red deletions. Vertical and horizontal scrolling are synchronized. **Refresh** rereads selected disk sources and current MDI buffers without replacing editor documents; a read error keeps the previous comparison. Copying is available, but editing, merging and saving/printing diff reports are not. This is a text comparison, not a comparison of CNC semantics or trajectories.
+
+### What does the iTNC-code source type do?
+
+The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code currently selects plain-text display only: it does not add an iTNC lexer, AST or native input execution.
 
 ### Which input encodings are supported?
 
@@ -849,7 +899,7 @@ Subprogram/macro boundaries are preserved as execution events/comments where app
 
 ## FANUC turning
 
-The turning interpreter supports FANUC Type A (default) and Type B. Select Type B in Options under **Lathe G-code system**, or pass `--lathe-gcode-system B` to a CLI command. Type B uses G90/G91 for absolute/incremental X/Z, G33 for threading, G77/G78/G79 for simple cycles, and G94/G95 for feed per minute/revolution. Type C, G66/G67 modal macro calls and G68.2/G53.1 indexed-plane operations are outside the current turning language.
+The turning interpreter supports FANUC Type A (default) and Type B. Select Type B in **Settings → Options → General → Source lathe G-code system**, or pass `--lathe-gcode-system B` to a CLI command. Type B uses G90/G91 for absolute/incremental X/Z, G33 for threading, G77/G78/G79 for simple cycles, and G94/G95 for feed per minute/revolution. Type C, G66/G67 modal macro calls and G68.2/G53.1 indexed-plane operations are outside the current turning language.
 
 ### Main differences between Type A and Type B
 
@@ -1354,7 +1404,7 @@ For the checked **4-axis Table C** profile, concurrent X/C feed blocks and C-onl
 
 The **4Ax Table A** and **4Ax Table B** profiles have been compared with the programs in `tests/fixtures/milling/indexed_table_a.nc` and `tests/fixtures/milling/indexed_table_b.nc`. The **4-axis Table C** profile is checked against `tests/fixtures/milling/indexed_table_c.nc`: its X/C contour overlays the program's first XY contour within 0.05 mm at the sampled endpoints. The fixture files are reference inputs, not definitions of a machine. Automated checks also cover A/B angle signs, G90/G91, and repeated G28/G53 behavior.
 
-The complete installed catalog of 24 configurations is available in **Options ? Rotary Kinematics**. This includes Head A/B/C, orthogonal AC/BC, mixed table/head and angled profiles. **Enabled**, in the profile settings, controls whether a profile appears in **Settings ? Rotary kinematics**. Built-in visibility preferences are stored separately in user settings; installed definitions and their historical `enabled` flags remain unchanged. Hidden profiles remain in Options so they can be enabled again. Visibility changes take effect with **OK** and are discarded by **Cancel**. Hiding the active profile clears the active selection and refreshes execution. All built-in profiles are initially visible; user copies retain their own enabled state.
+The complete installed catalog of 24 configurations is available in **Settings → Options → Rotary Kinematics**. This includes Head A/B/C, orthogonal AC/BC, mixed table/head and angled profiles. **Enabled**, in the profile settings, controls whether a profile appears in **Settings → Rotary kinematics**. Built-in visibility preferences are stored separately in user settings; installed definitions and their historical `enabled` flags remain unchanged. Hidden profiles remain in Options so they can be enabled again. Visibility changes take effect with **OK** and are discarded by **Cancel**. Hiding the active profile clears the active selection and refreshes execution. All built-in profiles are initially visible; user copies retain their own enabled state.
 
 Each rotary joint in a user profile has optional **Min (deg)** and **Max (deg)** travel limits. Enter both finite values with Min <= Max, or leave both blank for an unrestricted (continuous) axis. Installed profiles have no limits; create a copy to add them. An executed angle outside the inclusive range produces a **ROTARY_AXIS_LIMIT_EXCEEDED** warning in Tokens/Macro Variables on the source line, without stopping execution or blocking export. Only changed axes are checked; angles are compared as executed, without wrapping. Limits do not change geometry or select a different TWP/TCP solution.
 
@@ -1732,11 +1782,11 @@ The milling 3D view uses an orthographic CAD projection. Rotating from Top, Fron
 
 ### How does an imported STL affect toolpath visibility?
 
-In solid mode, the STL surface hides toolpath segments behind it. The feature-edge wireframe has no solid surface to occlude those segments. This changes only visibility in the plot, not the resolved trajectory geometry. Manage imported models in **Settings → STL Objects**; the guide below covers transforms, sections, picking and measurements.
+In solid mode, the STL surface hides toolpath segments behind it. The feature-edge wireframe has no solid surface to occlude those segments. This changes only visibility in the plot, not the resolved trajectory geometry. Manage imported models in **View → STL Objects**; the guide below covers transforms, sections, picking and measurements.
 
 ### How do I use the STL Objects panel?
 
-The **Settings → STL Objects** dock edits imported STL scene objects without changing the G-code program. Import a model with **File → Import STL**. The dock lists each imported model; select a row before applying an operation. Choose **Base point**, **Position**, **Transform**, **Circular array**, **Rectangular array** or **Section** from the operation selector. The four compact buttons at the top apply Undo, Redo, Statistics and Delete to the STL scene.
+The **View → STL Objects** dock edits imported STL scene objects without changing the G-code program. Import a model with **File → Import STL**. The dock lists each imported model; select a row before applying an operation. Choose **Base point**, **Position**, **Transform**, **Circular array**, **Rectangular array** or **Section** from the operation selector. The four compact buttons at the top apply Undo, Redo, Statistics and Delete to the STL scene.
 
 #### How do I import and select STL models?
 
@@ -1781,13 +1831,13 @@ STL files do not encode a unit system, so these labels are display units and do 
 
 ### How do I change letter case or mark optional blocks?
 
-Use **Edit → Uppercase** (`Ctrl+Shift+U`) or **Edit → Lowercase** (`Ctrl+U`), or their toolbar buttons, to convert selected text. With no selection, they convert the entire editor document. Their shortcuts can be changed in Options.
+Use **Edit → Uppercase** (`Ctrl+Shift+U`) or **Edit → Lowercase** (`Ctrl+U`), or their optional toolbar buttons enabled in Customize Toolbars, to convert selected text. With no selection, they convert the entire editor document. Their shortcuts can be changed in Options.
 
 Select one or more blocks and press **Ctrl+/** to add `/` at the start of each selected nonempty block. Press **Ctrl+Shift+/** to remove one leading `/` from each selected block. Without a selection, these commands do nothing. Both shortcuts are fixed and cannot be assigned to another command. The slash is the FANUC optional block skip marker; whether such blocks execute depends on the Block Skip setting.
 
 ### How do I print the plot?
 
-Use **File → Print** (`Ctrl+P`) or the Print button in the File toolbar. The app prints sharp vector lines in the current camera orientation, fitted to a landscape page. Printing ignores the playback slider and does not hide lines behind an imported STL. In **Options → Plot**, you can show or hide rapid moves, render them dashed or solid, and color all moves by tool; Print follows those choices. **FAQ** opens with `F3`, and **Grid** toggles with `F4` by default.
+Use **File → Print** (`Ctrl+P`) or enable its optional File-toolbar button through Customize Toolbars. The app prints sharp vector lines in the current camera orientation, fitted to a landscape page. Printing ignores the playback slider and does not hide lines behind an imported STL. In **Settings → Options → Plot**, you can show or hide rapid moves, render them dashed or solid, and color all moves by tool; Print follows those choices. **FAQ** opens with `F3`, and **Grid** toggles with `F4` by default.
 
 ### Which fixed views are available?
 
@@ -1820,12 +1870,14 @@ Playback tracks execution occurrence and source ownership separately.
 
 Right-click a toolbar and choose **Customize Toolbars**. Check the buttons you want on each panel; search filters the list without changing your choices. **OK** applies and saves the selection, **Cancel** discards it, and **Restore Defaults** stages the compact default button set. The toolbar context menu also lets you hide whole panels or reset their layout and buttons. Menu commands and shortcuts remain available even when a button is hidden. Static CNC Functions and Tool Library/WCS/Stock/Tokens commands are available; Recent Files and rotary-profile lists remain in menus. Source-type and playback-speed widgets are retained.
 
+The 2.4.0 default keeps grouped file operations, undo/redo/search, view controls, toolchange navigation, Compare/statistics/measurement and playback. Clipboard buttons, case conversion, cleanup, Save As, Print, tool-list export, snippets and calculators are optional. Existing saved choices remain unchanged until you explicitly restore defaults.
+
 
 ### How do I locate a plotted move in the editor?
 
 Use Shift+left-click near a trajectory line or arc, including in the milling 3D view. The application selects the owning source block and moves the playback slider to the corresponding executed movement. Overlapping 3D segments are selected by camera depth; hidden rapid moves are excluded.
 
-**Options → General → Cimco Like Picking** is off by default. Enable it to select with a left-click and pan by dragging the right mouse button in milling views. A right-click without dragging opens the context menu; dragging does not. With the option off, left-button dragging pans and Shift+left-click selects. Middle-button rotation and wheel zoom remain available. The setting takes effect on OK; Cancel discards the change. Turning controls are unchanged.
+**Settings → Options → General → Cimco Like Picking** is off by default. Enable it to select with a left-click and pan by dragging the right mouse button in milling views. A right-click without dragging opens the context menu; dragging does not. With the option off, left-button dragging pans and Shift+left-click selects. Middle-button rotation and wheel zoom remain available. The setting takes effect on OK; Cancel discards the change. Turning controls are unchanged.
 
 ### Does automatic refresh move the editor caret?
 
@@ -1895,7 +1947,7 @@ Open **Settings → Options → General**, select **Light** or **Dark** in **The
 
 Open **Settings → Options → Colors**. The **Editor** group contains separate current-line colors for the light and dark themes: `#e8e8ff` and `#2a2d2e` by default. Click the color swatch for the native color picker or enter `#RRGGBB`, then press **OK**. Both colors are saved independently; changing themes or the editor file type preserves custom values. **Cancel** leaves the saved colors unchanged, and **Restore Defaults** resets both. The **Plot** group contains trajectory, tool, background and STL colors.
 
-Enable or disable the highlight in **Options → Editor → Highlight current line**.
+Enable or disable the highlight in **Settings → Options → Editor → Highlight current line**.
 
 ### Where do I set work coordinate systems and home values?
 
@@ -2070,6 +2122,8 @@ This check covers the configured cutting tool and the sampled turning stock sect
 ## Statistics and Tokens/Macro Variables
 
 ### What does Toolpath Statistics contain?
+
+Open **CNC Functions → Statistics**. The inspector is under **CNC Functions → Tokens/Macro Variables**; it is no longer in Settings.
 
 Statistics are derived from the resolved trace and include:
 

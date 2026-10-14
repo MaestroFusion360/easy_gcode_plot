@@ -190,7 +190,7 @@ class MainWindowPlotMixin:
         self._stl_panel_toggle_action.toggled.connect(self.stlObjectsDock.setVisible)
         self.stlObjectsDock.visibilityChanged.connect(self._stl_panel_toggle_action.setChecked)
         self.stlObjectsDock.visibilityChanged.connect(self._sync_stl_pivot_marker_visibility)
-        self.ui.menuSettings.insertAction(self.ui.actionOptions, self._stl_panel_toggle_action)
+        self.ui.menu_View.addAction(self._stl_panel_toggle_action)
         self.stlObjectsDock.hide()
 
         panel = self.stlObjectsDock
@@ -924,7 +924,6 @@ class MainWindowPlotMixin:
         """Show context menu for plot view controls."""
         menu = QMenu()
         menu.addAction(self.ui.actionFitToView)
-        menu.addSeparator()
         menu.addAction(self.ui.actionZoom_In)
         menu.addAction(self.ui.actionZoom_Out)
         menu.addSeparator()

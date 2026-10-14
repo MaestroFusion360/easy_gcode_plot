@@ -12,8 +12,10 @@ browser-side fragment loading or Jekyll configuration. `.nojekyll` disables Jeky
 The displayed version, Open Graph title and video cache keys use `{{APP_VERSION}}`
 in the HTML fragments. `docs/build.py` replaces it with `[project].version` from
 the repository's `pyproject.toml`; regenerate both pages after a version change.
-Version-specific comparison notes and historical reports retain their original
-versions. Building requires Python 3.11+ (standard-library `tomllib`).
+The current version in `COMPARISON.md` / `COMPARISON_RU.md` must also be updated
+when release scope changes; it is not replaced automatically. Historical
+sections and example reports retain their original versions. Building requires
+Python 3.11+ (standard-library `tomllib`).
 
 The landing page is a compact technical overview of Easy G-Code Plot. It
 is intentionally not a replacement for [FAQ.md](../FAQ.md) / [FAQ_RU.md](../FAQ_RU.md): exact command
@@ -96,7 +98,7 @@ Edit the fragments rather than the generated `index.html` files:
 - `header.html`, `hero.html`, `footer.html`: navigation, introduction and footer.
 - `capabilities.html`: command section layout; `controllers/` contains separate
   FANUC turning, FANUC milling, SINUMERIK ISO-M and native tables.
-- `visualization.html`: 3D playback, STL models, turning stock removal and rotary demonstrations.
+- `visualization.html`: MDI, Compare, 3D playback, STL models, turning stock removal and rotary demonstrations.
 - `tools.html` and `generators.html`: tool library/editor screenshots and all four hole/pocket generator screenshots.
 - `export.html`, `execution.html`, `statistics.html`, `automation.html` and `documentation.html`: the corresponding feature sections.
 - `comparison.html`: the collapsible comparison wrapper. `COMPARISON.md` (English) and `COMPARISON_RU.md` (Russian) are the comparison content sources; `comparison.py` renders their supported Markdown subset during assembly.

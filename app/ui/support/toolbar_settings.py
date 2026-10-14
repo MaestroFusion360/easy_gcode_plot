@@ -9,6 +9,38 @@ SETTINGS_KEY = "GENERAL/TOOLBAR_COMMANDS"
 ORDER_SETTINGS_KEY = "GENERAL/TOOLBAR_ORDER"
 MENU_ONLY_ACTIONS = ARC_MODE_ACTIONS | {"actionRenumber", "actionNumbRemove"}
 
+# Defaults emphasize everyday work; all other commands remain opt-in.
+DEFAULT_BUTTONS = frozenset(
+    {
+        "actionNew",
+        "actionOpen",
+        "actionSave",
+        "actionExportData",
+        "actionImportSTL",
+        "actionUndo",
+        "actionRedo",
+        "actionFindReplace",
+        "actionRefresh",
+        "actionFitToView",
+        "action3D",
+        "actionTop",
+        "actionFront",
+        "actionLeft",
+        "actionGrid",
+        "actionLatheMode",
+        "actionPrevToolchange",
+        "actionNextToolchange",
+        "actionCompare",
+        "actionStatistics",
+        "actionMeasure",
+        "actionStockPlayback",
+        "actionStep_Backward",
+        "actionPlay",
+        "actionStop",
+        "actionStep_Forward",
+    }
+)
+
 
 def _static_commands(window, toolbars):
     commands = list(menu_commands(window))
@@ -68,9 +100,14 @@ class ToolbarSettings:
             if action is self.action or key in MENU_ONLY_ACTIONS:
                 continue
             toolbar = next((toolbar for toolbar, actions in self.templates.items() if action in actions), None)
-            self.defaults[key] = toolbar is not None
+            self.defaults[key] = toolbar is not None and key in DEFAULT_BUTTONS
             if toolbar is None:
-                toolbar = categories.get(category, ui.commandsToolBar)
+                # Menu regrouping must retain the destination of saved optional buttons.
+                toolbar = (
+                    ui.commandsToolBar
+                    if key in {"actionTokens", "actionStlObjects"}
+                    else categories.get(category, ui.commandsToolBar)
+                )
                 self.templates[toolbar].append(action)
             self.commands[key] = (action, toolbar, category)
             self.window.registerToolbarIcon(action)

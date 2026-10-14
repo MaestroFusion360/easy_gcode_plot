@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.4.0 - 2026-10-14
+
+- Use compact toolbar defaults with grouped file actions, undo/redo/search, view controls, navigation, Compare/statistics/measurement and playback; keep formatting, clipboard, printing and calculators optional, preserving saved custom selections.
+- Align the POSIX test runner with PowerShell: quiet output, no-sync/verbose options, active environments and forwarded pytest arguments/exit codes.
+- Replace the ISO source-type icon with gcode.png and add a persistent iTNC-code choice to Options and the CNC toolbar; iTNC remains plain text pending lexer/AST implementation.
+- Regroup main-menu commands with consistent separators; move STL Objects to View and Tokens/Macro Variables to CNC Functions while preserving shortcuts and saved toolbar destinations.
+- Add read-only Compare for MDI buffers and external files, with colored aligned differences, synchronized vertical/horizontal scrolling and Refresh to reload disk sources.
+- Add compact + / document list / close controls for multiple NC documents without visible tabs.
+- Keep independent unsaved QScintilla buffers, editor position, source identity, and cached execution/plot state.
+- Add Close and Close All with per-document save confirmation; Open activates existing files instead of duplicating them.
+- Start each session with one empty milling document; keep stock settings, STL scenes and STL edit history per document.
+- Register document-close hotkeys for customization and default reset; protect pending dialogs during document changes.
+- Refresh Tokens/Macro Variables on document selection, hide old statistics, and invalidate cached traces after shared CNC settings change.
+- Document multi-document controls, shared preferences and save/close behavior in the English/Russian FAQs and landing pages.
+
 ## 2.3.1 - 2026-10-14
 
 - Add customizable toolbars with command search, visibility controls and saved button order.
@@ -154,7 +169,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 
 ## 1.9.6 - 2026-10-08
 
-- Add the supplied NX `text_NX.mpf` to the fixture corpus. Verify all 571 motions, completion at M30, and unchanged geometry when its five unmodeled auxiliary M codes are removed.
+- Add the NX `text_NX.mpf` to the fixture corpus. Verify all 571 motions, completion at M30, and unchanged geometry when its five unmodeled auxiliary M codes are removed.
 - Make Editor G0, G1 and G2/G3 lexer colors configurable in Options / Colors, preserving custom values across theme/file-type changes and supporting Cancel and Restore Defaults.
 - Distinguish orange warning rows from red error rows in Tokens/Macro Variables. Open the full source block and diagnostic text on double-click without requiring copy/paste.
 - Split the bilingual landing page into editable HTML fragments with a deterministic assembler and stale-output check. Link README to the published English/Russian site. Synchronize FAQ/site controller tables for inverse-time feed, programmable frames, reference returns and non-blocking M codes; clarify post-template cycle reconstruction.
@@ -189,7 +204,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Emit supported drilling and tapping operations through the selected post's cycle templates, preserving resolved geometry and machine state. Native SINUMERIK posts retain separate classic 01/2008 and extended 03/2009 cycle interfaces.
 - Use the display name `840D Extended cycles` in Options, help and diagnostics. Keep the saved `CNC/SINUMERIK_840D_SL` setting, CLI `--sinumerik-cycles classic|sl` values and JSON cycle-profile identifiers compatible.
 - Add direct NC reference comparison to CLI `export` with `--compare-with FILE`: print a deterministic unified diff and return 1 on mismatch, 0 on a match, or 2 on export/read errors. Protect the reference from overwrite.
-- Add the supplied `ext_cycles.mpf` and `no_ext_cycles.mpf` programs to the fixture corpus, checking common drilling geometry, supported extended tapping, export replay and explicit rejection of unmodeled operations.
+- Add the `ext_cycles.mpf` and `no_ext_cycles.mpf` programs to the fixture corpus, checking common drilling geometry, supported extended tapping, export replay and explicit rejection of unmodeled operations.
 - Audit multiaxis reconstruction with real fixture replay in absolute and incremental output. Preserve physical position on repeated G43.4 and G43 cancellation, distribute ABC over split/linearized TCP arcs without cumulative incremental angle drift, and preserve inverse-time block duration after subdivision.
 - Keep rotary feed motion at the table-C origin in the trace, retain table-frame metadata on reference returns independently of head orientation, validate every emitted rotary axis against the post, and invalidate modal motion after explicit rotary control frames.
 - Allow already-resolved zero-distance reference returns and source-preserving macro/index normalization. Reject indexed export about a displaced WCS until target frame offsets can be reconstructed; classify unverified compensation/ignored native geometry as export limitations with their concrete diagnostic codes.
@@ -226,7 +241,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Use the shared configured G28/SUPA reference coordinates for native zero XYZ returns, matching FANUC G53 in the application's coordinate model. Preserve absolute SUPA under G91, nonzero targets and rotary zero; resolve the return through WCS and the current AC/BC frame. Set sandbox impeller return Z to 300 and verify parity with FANUC under nonzero WCS. Correct both FAQ architecture diagrams to place tool setup after the shared Program/AST.
 - Prevent world-axis arrows from being cut by camera near/far planes when rotating an empty scene. Keep their screen projection and fixed colors, independently of scene depth clipping; cover several camera orientations with regression tests.
 - Rotate test7 STL by +90 degrees around Z through Transform before sectioning; Undo preserves that rotation. Include full flange playback and use a faster sandbox timer with cooperative Qt waits for the complete playback stages.
-- Play the complete turning Stock Removal and BC impeller in the visible sandbox without slider jumps; select ISO view after New. Support native D0..D12 edge selection with explicit unverified controller-offset diagnostics and frame-only CYCLE800 ST220000/220001. Bind the DMG frame-only call to the selected BC profile; retain rejection of OEM indexing and incompatible profiles. The supplied impeller now completes all 5469 motions through M30.
+- Play the complete turning Stock Removal and BC impeller in the visible sandbox without slider jumps; select ISO view after New. Support native D0..D12 edge selection with explicit unverified controller-offset diagnostics and frame-only CYCLE800 ST220000/220001. Bind the DMG frame-only call to the selected BC profile; retain rejection of OEM indexing and incompatible profiles. The impeller now completes all 5469 motions through M30.
 - Give the flange benchmark explicit T2 D10 end-mill geometry and T4 selection in O8000 so discovery attributes drilling to the caller's tool and all G41/G42 motions resolve without compensation warnings; leave discovery unchanged.
 - Keep STL Objects at least 440 pixels wide so operation fields and buttons remain visible.
 - Support SINUMERIK rotary-only and mixed XYZ/ABC rapid SUPA blocks on configured profiles. Machine rotary targets remain absolute under G91; reject missing/incompatible profiles even for unchanged zero targets.
@@ -246,7 +261,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Resolve program tool geometry from matching saved-library numbers before applying source/default geometry, while retaining manual Current Program overrides. Read library snapshots for GUI discovery, execution and conversion without writing SQLite. Classify native SINUMERIK CYCLE81/82/83 as DRILL and CYCLE84 as TAP from controller AST facts, including modal MCALL, cancellation and tool changes; comments and MSG text do not activate cycles. Operation type takes priority over conflicting comment type hints; comments still supply fallback dimensions.
 - Remove Stock Removal's dependence on the OD/ID/Face checkboxes. These remain UI filters for available tracing orientations. Material removal follows the resolved motion and physical cutter geometry; bounded sweeps preserve separate material rings instead of removing everything on a guessed side of the contour. Fix G71 boring with the P2 tool in `PROFILE ROUGHING2`, including deterministic backward/forward playback.
 - Separate radial and face-groove geometry from application filters through the Groove geometry selector; correct its Russian translations and embed the rebuilt translation catalog.
-- Replace the thread preview's single wedge with `THREAD_INSERT_OUTLINE`, the supplied 15-edge insert contour with three 60-degree cutting teeth. Tool Library and the Stock Removal overlay share this silhouette and its active tracing point. P8 external tools point down; P6 internal tools point up.
+- Replace the thread preview's single wedge with `THREAD_INSERT_OUTLINE`, the 15-edge insert contour with three 60-degree cutting teeth. Tool Library and the Stock Removal overlay share this silhouette and its active tracing point. P8 external tools point down; P6 internal tools point up.
 - Scale the complete thread-insert silhouette only by its inscribed-circle diameter: the reference is D12, so D20 uses a factor of 20/12. EX, RC and the thread profile angle do not deform the displayed insert. Keep the radial thread-removal profile separate from the displayed body; hide the profile angle in the editor and replace the library's angle summary with the tracing orientation. Leave existing SQLite tool records unchanged.
 - Update test fixtures and corpus references for `tests/fixtures/milling/fanuc` and `tests/fixtures/milling/sinumerik`, including the five-axis CAM and impeller samples. Accept both UTF-8 and Windows-1251 fixture text in corpus checks.
 - Add regressions for checkbox-independent stock removal, G71 boring, thread orientation, uniform diameter scaling, fixed preview geometry and recessed insert shoulders in the 3D mesh.
@@ -268,7 +283,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Keep native drilling return-plane changes in FANUC conversion and avoid negative-zero coordinates and redundant mode restoration before returns.
 - Include dynamically loaded PyOpenGL platform/array handlers in GUI builds and repair missing contributed PyInstaller hooks in the cached build environment.
 - Support bounded three-axis SINUMERIK native → FANUC milling Full Program conversion through the same GUI/CLI/batch API. Preserve operation order, modal feed and supported arc geometry; map numeric tool offsets, D0 cancellation and SUPA positioning, apply comment style and uppercase FANUC comments. Accept empty CYCLE800 frame resets while retaining guards on actual rotary/TWP/TCP conversion.
-- Convert native MCALL CYCLE81/82 to G81/G82 with validated drilling and return planes. Expand CYCLE83 locally to preserve Siemens peck degression, feed factors and reentry geometry. Convert supported metric right-hand CYCLE84 to M29/G99 G84 with feed withdrawal, dwell and rapid return to RTP. Re-execute FANUC output to verify motion paths, feeds and machine signals; cover the supplied drilling/tapping fixtures with 31 conversion regressions.
+- Convert native MCALL CYCLE81/82 to G81/G82 with validated drilling and return planes. Expand CYCLE83 locally to preserve Siemens peck degression, feed factors and reentry geometry. Convert supported metric right-hand CYCLE84 to M29/G99 G84 with feed withdrawal, dwell and rapid return to RTP. Re-execute FANUC output to verify motion paths, feeds and machine signals; cover the drilling/tapping fixtures with 31 conversion regressions.
 - Document FANUC Mill → SINUMERIK ISO-M/G291 and native SINUMERIK → FANUC Mill in both FAQs and documentation-site languages, distinguishing Full Program from Resolved conversion and explicitly marking SINUMERIK lathe/ISO Dialect T as unsupported.
 - Allow native SINUMERIK Full Program formatting in GUI As source/native and CLI `--target-dialect sinumerik_native`: preserve native function arguments, variables, semicolon comments, modal and multi-axis state while applying numbering and address formatting. Keep FANUC-to-native Full Program conversion prohibited.
 - Replace the Statistics dialog's continuous text with HTML measurement tables and a tool selector. Export the same aggregate report, including all tool sections and current units, from GUI Export HTML or CLI `analyze --html`. Exported HTML includes static XY/XZ toolpath SVGs; NC source is not embedded. Batch analysis can generate per-file HTML reports through the single-file API.
@@ -283,9 +298,9 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Accept native G60 exact-stop metadata and G500 modal work-offset deactivation with coordinate rebasing. G500 defaults to zero; API wcs_offsets[500] supports translation. OEM base-frame rotations/scaling and acceleration dynamics remain outside the model.
 - Verified CLI/kernel subset; OEM machine retract trajectories remain unmodeled. Multi-axis controller conversion stays fail-closed.
 - Updated both documentation-site SINUMERIK tables with incremental IJK / explicit AC centers, native CAM setup, DC, legacy CYCLE800 and ignored CYCLE832.
-- Execute the supplied 5232-block five-axis sample through M30: support bounded DEF REAL variables, named tools, DC rotary targets, legacy CYCLE800 setup and short CYCLE81 calls.
+- Execute the 5232-block five-axis sample through M30: support bounded DEF REAL variables, named tools, DC rotary targets, legacy CYCLE800 setup and short CYCLE81 calls.
 - Preserve TRAORI when D0/D1 selects a cutting edge; allow explicit SUPA machine positioning with rotary axes.
-- Ignore CYCLE832 without geometry or display events, as requested.
+- Ignore CYCLE832 without geometry or display events.
 - Correct native IJK to incremental centers; support explicit AC centers and emit AC syntax for absolute native conversion output.
 - Removed the obsolete GUI-wide MPF/SPF rotary lock. Native CYCLE800/TRAORI can use the selected AC/BC profile through Settings or Options; opening documents preserves selection while kernel capability checks remain authoritative.
 - Macro B AND/OR now use explicit integer bitwise semantics, consistent with XOR.
@@ -409,7 +424,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - G72 Type II now reports ambiguous interior crossings instead of silently returning no motion. Empty profiles and zero pass depth also produce explicit errors.
 - Enabled relative I/K, absolute I/K and R arc selection and auto detection for turning in the GUI and kernel. Auto detection compares turning X/I in physical radial coordinates. Expanded turning export accepts the same arc output modes as milling.
 - Fixed P/Q profile motion selection when a block contains both a motion code and G40, such as `G01 G40`; the following G70 no longer fabricates an arc without I/K or R.
-- Added golden trace checks for every checked-in turning fixture and regression coverage for the supplied G71 ID arc case.
+- Added golden trace checks for every checked-in turning fixture and regression coverage for the G71 ID arc case.
 - Manual Arc Type selection now overrides auto detection for the current document without changing the saved Auto Detect setting. Turning arcs report diagnostics when the selected I/K center does not fit the endpoints or Radius mode has no R word.
 - Kept R-programmed P/Q arcs as R arcs through cycle expansion; synthesized internal I/K offsets no longer change with the source Arc Type. A bad I/K arc in a P/Q profile now discards the entire G71/G70 cycle group before publishing any of its motions.
 
@@ -648,7 +663,7 @@ The milling simulator now keeps material state in GPU memory and renders the mac
 - Added P2/P3 Groove + Face orientations and used the same orientation-aware cutter polygon for the tool preview, 3D playback and Stock Removal.
 - Added configurable corner radius for Groove tools in OD, ID and Face applications, with `R0` compatibility and real rounded cutter footprints for preview and material removal.
 - Restored a clearly visible yellow/gold turning insert material without changing global scene lighting or the rendering of stock, STL, grid and toolpaths.
-- Added groove regressions covering the supplied G74 face-grooving cycle, local material removal, rapid/feed behavior, multiple X passes, P2/P3, rounded OD/ID/Face footprints and reversible stock playback.
+- Added groove regressions covering the G74 face-grooving cycle, local material removal, rapid/feed behavior, multiple X passes, P2/P3, rounded OD/ID/Face footprints and reversible stock playback.
 - Fixed disconnected stock-ring meshing so topology changes do not create overlapping faces and exact radial Groove profile breaks remain effective alongside Groove + Face cuts.
 - Kept long kernel executions responsive to Qt events and made Stop, repeated Refresh and window close request cooperative cancellation.
 - Removed machine-specific window geometry from the bundled legacy configuration, constrained runtime dependency ranges and added Linux CI coverage for the shell workflow.

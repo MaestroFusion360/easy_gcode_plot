@@ -59,6 +59,7 @@ class Ui_OptionsDlg(object):
         self.fileTypeCombo = QComboBox(self.generalTab)
         self.fileTypeCombo.addItem("")
         self.fileTypeCombo.addItem("")
+        self.fileTypeCombo.addItem("")
         self.fileTypeCombo.setObjectName(u"fileTypeCombo")
 
         self.generalForm.setWidget(1, QFormLayout.ItemRole.FieldRole, self.fileTypeCombo)
@@ -1127,6 +1128,7 @@ class Ui_OptionsDlg(object):
         self.fileTypeLabel.setText(QCoreApplication.translate("OptionsDlg", u"Default file type", None))
         self.fileTypeCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Text", None))
         self.fileTypeCombo.setItemText(1, QCoreApplication.translate("OptionsDlg", u"ISO G-code", None))
+        self.fileTypeCombo.setItemText(2, QCoreApplication.translate("OptionsDlg", u"iTNC-code", None))
 
         self.unitsLabel.setText(QCoreApplication.translate("OptionsDlg", u"Default units", None))
         self.unitsCombo.setItemText(0, QCoreApplication.translate("OptionsDlg", u"Millimeters", None))

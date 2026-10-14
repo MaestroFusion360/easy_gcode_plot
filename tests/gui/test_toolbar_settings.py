@@ -139,6 +139,12 @@ def test_dialog_cancel_search_and_defaults_are_staged(window):
     dialog.ui.searchEdit.setText("Tool Library")
     assert not dialog.items["actionToolLibrary"].isHidden()
     assert dialog.items["actionNew"].isHidden()
+    assert dialog.clearSearchAction.isVisible()
+    assert not dialog.clearSearchAction.icon().isNull()
+    dialog.clearSearchAction.trigger()
+    assert dialog.ui.searchEdit.text() == ""
+    assert not dialog.clearSearchAction.isVisible()
+    assert not any(item.isHidden() for item in dialog.items.values())
     dialog.reject()
     assert manager.selected == before
     manager.apply(dict(before, actionToolLibrary=True))

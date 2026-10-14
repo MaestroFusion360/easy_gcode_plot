@@ -312,7 +312,7 @@ def _physical_geometry_spec(spec, application):
     return {**spec, "applications": [application]}, application
 
 
-# Outline from the supplied thread-insert drawing, centred on its D=12
+# Outline from the reference thread-insert drawing, centred on its D=12
 # inscribed circle. Each tooth has its own 60-degree profile; the body edges
 # and recessed shoulders are independent of that profile.
 THREAD_INSERT_OUTLINE = (
@@ -501,7 +501,7 @@ def turning_tool_polygon(
 ) -> tuple[tuple[float, float], ...] | None:
     """Return a cutting footprint or the tool silhouette relative to its trace point.
 
-    Thread previews use the supplied insert schematic; stock
+    Thread previews use the reference insert schematic; stock
     removal uses the radial cutting profile. Other tools share both outlines.
     """
     tool_type = canonical_turning_tool_type(spec.get("type"))

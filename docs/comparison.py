@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 REPOSITORY = "https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/"
-INLINE = re.compile(r"(`[^`]+`|\*\*.+?\*\*|\[[^\]]+\]\([^)]+\)|\[(?:U|E|C[1-6])\])")
+INLINE = re.compile(r"(`[^`]+`|\*\*.+?\*\*|\[[^\]]+\]\([^)]+\)|\[(?:N|E|C\d+)\])")
 
 
 def _link(target, language):

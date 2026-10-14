@@ -34,7 +34,7 @@ def test_optional_diameter_and_rounding_words_do_not_warn_when_skipped():
 
 @pytest.mark.parametrize("scale", [1.0, 25.4])
 @pytest.mark.parametrize("skip", [False, True])
-def test_supplied_guide_radius_arcs_complete_with_bounded_warnings(fixture_text, scale, skip):
+def test_fixture_guide_radius_arcs_complete_with_bounded_warnings(fixture_text, scale, skip):
     result = native(
         fixture_text("milling/sinumerik/sinumerik_guide_radius.mpf"),
         default_unit_scale=scale,

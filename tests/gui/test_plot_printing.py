@@ -21,7 +21,8 @@ def test_print_action_is_in_file_menu_and_toolbar(qt_app):
     window = MainWindow()
     actions = window.ui.menu_File.actions()
     assert actions.index(window.ui.actionPrint) < actions.index(window.ui.actionExit)
-    assert window.ui.actionPrint in window.ui.fileToolBar.actions()
+    assert "actionPrint" in window.toolbarSettings.commands
+    assert not window.toolbarSettings.defaults["actionPrint"]
     assert window.ui.actionPrint.shortcut() == QKeySequence("Ctrl+P")
     assert not window.ui.actionPrint.icon().isNull()
     assert window.ui.actionFAQ.shortcut() == QKeySequence("F3")

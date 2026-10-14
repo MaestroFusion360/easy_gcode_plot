@@ -1,7 +1,8 @@
 """Stage toolbar button choices until the customization dialog is accepted."""
 
 from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QTreeWidgetItem
+from PyQt6.QtGui import QAction, QIcon, QPainter, QPalette, QPixmap
+from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QLineEdit, QTreeWidgetItem
 
 from app.ui.generated.dialogs.toolbar_settings import Ui_ToolbarSettingsDlg
 
@@ -12,6 +13,7 @@ class ToolbarSettingsDialog(QDialog):
         self.settings = settings
         self.ui = Ui_ToolbarSettingsDlg()
         self.ui.setupUi(self)
+        self._configure_search_clear()
         self.setWindowIcon(parent.windowIcon())
         self.items = {}
         self._populate()
@@ -23,6 +25,20 @@ class ToolbarSettingsDialog(QDialog):
         self.ui.buttonBox.accepted.connect(self.accept)
         self.ui.buttonBox.rejected.connect(self.reject)
         self.ui.buttonBox.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
+
+    def _configure_search_clear(self):
+        """Use the application's close glyph with the current theme's text color."""
+        pixmap = QPixmap(":/resource/icons/close.png")
+        painter = QPainter(pixmap)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceIn)
+        painter.fillRect(pixmap.rect(), self.palette().color(QPalette.ColorRole.Text))
+        painter.end()
+        self.clearSearchAction = QAction(QIcon(pixmap), self.tr("Clear search"), self)
+        self.clearSearchAction.setObjectName("actionClearToolbarSearch")
+        self.clearSearchAction.setVisible(False)
+        self.ui.searchEdit.addAction(self.clearSearchAction, QLineEdit.ActionPosition.TrailingPosition)
+        self.clearSearchAction.triggered.connect(self.ui.searchEdit.clear)
+        self.ui.searchEdit.textChanged.connect(lambda text: self.clearSearchAction.setVisible(bool(text)))
 
     def _populate(self):
         groups = {

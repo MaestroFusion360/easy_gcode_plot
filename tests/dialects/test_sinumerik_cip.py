@@ -19,7 +19,7 @@ def native(source, **options):
 
 @pytest.fixture
 def ic_ac_cip_programs():
-    """Exact supplied programs, including the AC variant's extra rapid move."""
+    """Reference fixture programs, including the AC variant's extra rapid move."""
     return (
         "; CIP SAMPLE IC\n"
         "T1 D1\n"
@@ -59,7 +59,7 @@ def _expected_ic_ac_cip_point(fraction):
     return tuple(center[i] + radial[i] * math.cos(angle) + tangent[i] * math.sin(angle) for i in range(3))
 
 
-def test_supplied_cip_ic_and_ac_have_identical_complete_spatial_arcs(ic_ac_cip_programs):
+def test_fixture_cip_ic_and_ac_have_identical_complete_spatial_arcs(ic_ac_cip_programs):
     incremental, absolute = (native(source) for source in ic_ac_cip_programs)
     # SUPA after modal CIP is outside the existing rapid-only SUPA subset.
     # Assert the exact later blocker rather than hiding arbitrary failures;

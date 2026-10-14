@@ -2,6 +2,8 @@
 
 Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling and SINUMERIK 840D milling (native and ISO-M), including supported native 3+2 and continuous five-axis CAM toolpaths.
 
+**New in 2.4.0: multiple documents and Compare.** Start with one empty milling document; use **+**, the document list and **×** to manage independent programs. **CNC Functions → Compare** shows aligned, read-only text differences between open buffers or disk files, with synchronized scrolling and Refresh. The source-type chooser also offers **iTNC-code** as a GUI-only plain-text mode; an iTNC lexer and AST are not implemented.
+
 **New in 2.3.1: customizable toolbars.** Right-click a toolbar and choose **Customize Toolbars** to choose its buttons. Search and enable static commands such as Tool Library, WCS, Stock, Tokens, Macro Variables and CNC Functions. Choices are saved across restarts; menus and shortcuts stay available. OK applies changes, Cancel discards them, and Restore Defaults restores the compact button set. Recent Files and other dynamic lists are excluded.
 
 **New in 2.3.0: 3D toolpath picking and optional Cimco Like Picking controls.** Click a milling trajectory line or arc to locate its executed movement in the editor and playback slider.

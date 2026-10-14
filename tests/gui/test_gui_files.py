@@ -102,8 +102,9 @@ def test_drop_event_opens_first_local_file_only():
         def maybeSave(self):
             return True
 
-        def loadFile(self, fileName):
+        def loadFile(self, fileName, *, reload=False):
             opened.append(fileName)
+            return True
 
     event = _DropEvent(
         [
@@ -904,7 +905,7 @@ M30
         window.deleteLater()
 
 
-def test_supplied_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
+def test_fixture_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
     path = Path(__file__).resolve().parents[2] / "tmp/cnc programs/5ax/smpl_sim08_5ax_sinumerik_mm.mpf"
     if not path.exists():
         pytest.skip("User's full CAM reference is not present")

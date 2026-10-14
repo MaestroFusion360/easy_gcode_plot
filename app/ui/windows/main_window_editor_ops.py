@@ -55,7 +55,8 @@ class MainWindowEditorMixin:
         self.ui.editor.setLexer(None)
         self.ui.editor.setMarginsForegroundColor(QColor(self.marginColor))
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
-        if idx == 0:
+        # iTNC currently has a GUI choice only; use plain text until its lexer exists.
+        if idx != 1:
             self.ui.editor.setFont(
                 QFont(
                     self.fontFamily,
