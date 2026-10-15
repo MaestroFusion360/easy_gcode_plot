@@ -9,6 +9,7 @@ from app.gcode.comments import strip_comments
 
 SOURCE_DIALECT_FANUC = "fanuc"
 SOURCE_DIALECT_SINUMERIK = "sinumerik"
+SOURCE_DIALECT_HEIDENHAIN = "heidenhain"
 SINUMERIK_MODE_SIEMENS = "siemens"
 SINUMERIK_MODE_ISO = "iso"
 
@@ -28,6 +29,14 @@ def source_dialect_for_path(path: str | Path | None, source: str | None = None) 
     """
     if path and Path(str(path)).suffix.lower() in _SINUMERIK_SUFFIXES:
         return SOURCE_DIALECT_SINUMERIK
+    if path and Path(str(path)).suffix.lower() == ".h":
+        return SOURCE_DIALECT_HEIDENHAIN
+    if (
+        not path
+        and source
+        and re.search(r"^\s*(?:\d+\s+)?BEGIN\s+PGM\s+.+\s+(?:MM|INCH)\s*(?:;.*)?$", source, re.I | re.M)
+    ):
+        return SOURCE_DIALECT_HEIDENHAIN
     if not path and source and has_sinumerik_signature(source):
         return SOURCE_DIALECT_SINUMERIK
     return SOURCE_DIALECT_FANUC
@@ -46,7 +55,7 @@ def language_for_path(path: str | Path, language: str | None = None) -> str:
     """Respect an explicit machine type, otherwise use the source container."""
     if language is not None:
         return language
-    return "fanuc_mill" if source_dialect_for_path(path) == SOURCE_DIALECT_SINUMERIK else "fanuc_turn"
+    return "fanuc_turn" if source_dialect_for_path(path) == SOURCE_DIALECT_FANUC else "fanuc_mill"
 
 
 def sinumerik_initial_mode(source: str) -> str:

@@ -6,13 +6,14 @@ import time
 from pathlib import Path
 from threading import Event
 
-from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, QTimer
+from PyQt6.QtCore import QCoreApplication, QFileInfo, QFileSystemWatcher, QIODevice, QSaveFile, Qt, QTimer
 from PyQt6.QtWidgets import QFileDialog, QMenu, QMessageBox, QPlainTextEdit
 
 from app.gcode.comments import DEFAULT_COMMENT_STYLE, SEMICOLON, normalize_comment_style
 from app.gcode.execution.source import (
     SINUMERIK_MODE_SIEMENS,
     SOURCE_DIALECT_FANUC,
+    SOURCE_DIALECT_HEIDENHAIN,
     SOURCE_DIALECT_SINUMERIK,
     sinumerik_initial_mode,
     source_dialect_for_path,
@@ -34,13 +35,18 @@ from app.post_profile_library import PostProfileLibrary
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
 from app.ui.dialogs.export_tool_numbers import select_tool_numbers
+from app.ui.support.file_drop import local_drop_paths
 from app.ui.windows.execution_worker import run_execution
 
 LOGGER = logging.getLogger(__name__)
 NC_PROGRAM_FILTER = "NC Programs (*.nc *.cnc *.ptp *.tap *.txt)"
 SINUMERIK_FILE_FILTER = "SINUMERIK (*.mpf *.spf)"
 SAVE_FILE_FILTER = f"{NC_PROGRAM_FILTER};;{SINUMERIK_FILE_FILTER};;All files (*)"
-NC_FILE_FILTER = f"{NC_PROGRAM_FILTER};;{SINUMERIK_FILE_FILTER};;STL models (*.stl);;All files (*)"
+HEIDENHAIN_FILE_FILTER = "HEIDENHAIN iTNC (*.h *.H)"
+NC_FILE_FILTER = (
+    "NC Programs (*.nc *.cnc *.ptp *.tap *.txt *.h *.H);;"
+    f"{SINUMERIK_FILE_FILTER};;{HEIDENHAIN_FILE_FILTER};;STL models (*.stl);;All files (*)"
+)
 
 
 def _set_arc_action(owner, arc_type: int) -> None:
@@ -57,14 +63,21 @@ def _set_arc_action(owner, arc_type: int) -> None:
             action.toggled.connect(owner.changeArcType)
 
 
-def _configure_document_source_mode(owner, file_name: str, source: str) -> None:
+def _configure_document_source_mode(owner, file_name: str, source: str, *, dialect=None) -> None:
     """Apply named-container or unnamed-text defaults without persisting settings."""
-    dialect = source_dialect_for_path(file_name, source)
+    dialect = dialect or source_dialect_for_path(file_name, source)
     mode = sinumerik_initial_mode(source) if dialect == SOURCE_DIALECT_SINUMERIK else None
     setattr(owner, "_document_source_dialect", dialect)
     setattr(owner, "_document_initial_mode", mode)
     setattr(owner, "_document_arc_type", None)
     setattr(owner, "_document_comment_style", None)
+    if dialect == SOURCE_DIALECT_HEIDENHAIN:
+        # pylint: disable=protected-access
+        if owner._restore_document_mode(False):
+            owner._view_mode = "3d"
+        owner.ui.fileTypeCombo.setCurrentIndex(2)
+        owner._document_arc_type = 1
+        owner._document_comment_style = SEMICOLON
     if dialect == SOURCE_DIALECT_SINUMERIK and mode == SINUMERIK_MODE_SIEMENS:
         setattr(owner, "_document_arc_type", 1)
         setattr(owner, "_document_comment_style", SEMICOLON)
@@ -415,31 +428,23 @@ class MainWindowFileMixin:
         if answer == QMessageBox.StandardButton.Yes:
             self.loadFile(file_name, reload=True)
 
-    @staticmethod
-    def _first_local_drop_path(event):
-        """Return the first local file from a drop event, or an empty string."""
-        if not event.mimeData().hasUrls():
-            return ""
-        for url in event.mimeData().urls():
-            if url.isLocalFile():
-                return url.toLocalFile()
-        return ""
-
     def dragEnterEvent(self, event):
         """Accept drag events only when they contain at least one local file."""
-        if self._first_local_drop_path(event):
-            event.acceptProposedAction()
+        if local_drop_paths(event.mimeData()):
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
         else:
             event.ignore()
 
     def dropEvent(self, event):
-        """Open the first local file from a drop and ignore additional URLs."""
-        file_name = self._first_local_drop_path(event)
-        if not file_name:
+        """Open all local dropped files through the existing MDI coordinator."""
+        paths = local_drop_paths(event.mimeData())
+        if not paths:
             event.ignore()
             return
-        if self.loadFile(file_name):
-            event.acceptProposedAction()
+        if self.openFiles(paths):
+            event.setDropAction(Qt.DropAction.CopyAction)
+            event.accept()
         else:
             event.ignore()
 
@@ -582,12 +587,14 @@ class MainWindowFileMixin:
             return
         source = self.ui.editor.text()
         dialect = source_dialect_for_path(None, source)
+        if self.ui.fileTypeCombo.currentIndex() == 2:
+            dialect = SOURCE_DIALECT_HEIDENHAIN
         mode = sinumerik_initial_mode(source) if dialect == SOURCE_DIALECT_SINUMERIK else None
         if (dialect, mode) != (
             getattr(self, "_document_source_dialect", SOURCE_DIALECT_FANUC),
             getattr(self, "_document_initial_mode", None),
         ):
-            _configure_document_source_mode(self, "", source)
+            _configure_document_source_mode(self, "", source, dialect=dialect)
 
     def newFile(self):
         """Clear editor contents and reset state for a new document."""
@@ -612,10 +619,28 @@ class MainWindowFileMixin:
             self.syncGuiCapabilities()
 
     def openFile(self):
-        """Prompt for a file to open and load its contents."""
-        fileName, _ = QFileDialog.getOpenFileName(self, "Open", self._open_file_directory(), NC_FILE_FILTER)
-        if fileName:
-            self.loadFile(fileName)
+        """Select several files and open them as individual MDI documents."""
+        file_names, _ = QFileDialog.getOpenFileNames(self, "Open", self._open_file_directory(), NC_FILE_FILTER)
+        self.openFiles(file_names)
+
+    def openFiles(self, file_names):
+        """Preserve selection order and stop if document switching is cancelled."""
+        opened = False
+        timer = getattr(self, "autoUpdateTimer", None)
+        pending_update = False
+        for file_name in dict.fromkeys(file_names):
+            # A read-error dialog can pump events. Defer the previous document's
+            # pending calculation so it cannot block the remaining MDI opens.
+            if timer is not None and timer.isActive():
+                timer.stop()
+                pending_update = True
+            result = self.loadFile(file_name)
+            if result is False:
+                break
+            opened = bool(result) or opened
+        if pending_update and not timer.isActive():
+            self.scheduleAutoUpdate(show_dialog=True)
+        return opened
 
     def save(self):
         """Save the current file or prompt for a destination if unnamed."""

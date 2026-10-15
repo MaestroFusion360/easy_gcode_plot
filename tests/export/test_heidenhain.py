@@ -1,4 +1,4 @@
-"""Native iTNC blocks are checked directly: this project has no TNC parser."""
+"""Native iTNC exporter contracts, independent of the separate source frontend."""
 
 import math
 import re
@@ -13,7 +13,7 @@ from app.gcode.kernel import execute
 from app.gcode.post_profiles import load_post_profile
 from app.post_profile_library import PostProfileLibrary
 
-TARGET = "heidanhain_itnc530"
+TARGET = "heidenhain_itnc530"
 
 
 @pytest.mark.parametrize("direction,sign", [(2, "-"), (3, "+")])

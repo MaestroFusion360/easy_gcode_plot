@@ -28,6 +28,7 @@ from ..geometry.coordinates import (
     turning_wcs_offsets as _turn_wcs_offsets,
 )
 from ..milling import execute_milling
+from ..milling.heidenhain import execute_heidenhain
 from ..milling.kinematics import InvalidKinematicsProfile, load_catalog
 from ..runtime.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
 from ..runtime.events import program_end_code
@@ -38,7 +39,7 @@ from ..turning.dialect import validate_system
 from .conversion import trace_motion as _trace_motion
 from .types import Diagnostic, ExecutionResult
 
-SUPPORTED_SOURCE_DIALECTS = frozenset({"fanuc", "sinumerik"})
+SUPPORTED_SOURCE_DIALECTS = frozenset({"fanuc", "sinumerik", "heidenhain"})
 
 
 SUPPORTED_LANGUAGES = frozenset({"fanuc_turn", "fanuc_mill"})
@@ -56,6 +57,10 @@ def _invalid_execution_request(language: str, source_dialect: str) -> ExecutionR
             message=("SINUMERIK ISO Dialect T is not modeled yet; G291 currently supports milling ISO Dialect M only"),
             severity="error",
             status="unsupported",
+        )
+    elif source_dialect == "heidenhain" and language != "fanuc_mill":
+        diagnostic = Diagnostic(
+            "UNSUPPORTED_HEIDENHAIN_TURNING", "Klartext execution supports milling only", status="unsupported"
         )
     elif language not in SUPPORTED_LANGUAGES:
         diagnostic = Diagnostic(
@@ -104,6 +109,7 @@ def _execute_impl(
     source_dialect: str = "fanuc",
     tool_resolver=None,
     parsed_program=None,
+    geometry_tolerance=0.01,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
@@ -113,6 +119,26 @@ def _execute_impl(
     invalid_request = _invalid_execution_request(language, source_dialect)
     if invalid_request is not None:
         return invalid_request
+
+    if source_dialect == "heidenhain":
+        mill_offsets = _mill_wcs_offsets(wcs_offsets)
+        mill_offsets.update(_mill_extended_wcs_offsets(extended_wcs_offsets))
+        return replace(
+            execute_heidenhain(
+                source,
+                parsed_program=parsed_program,
+                default_unit_scale=default_unit_scale,
+                home=(home_x, home_y, home_z),
+                emulate_home=emulate_g28_home,
+                wcs_offsets=mill_offsets,
+                skip_optional_blocks=skip_optional_blocks,
+                tool_resolver=tool_resolver,
+                include_instructions=include_instructions,
+                arc_tolerance=geometry_tolerance,
+            ),
+            wcs_offsets=_result_wcs_offsets(mill_offsets),
+            extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
+        )
 
     if language == "fanuc_mill":
         if isinstance(kinematics, str):

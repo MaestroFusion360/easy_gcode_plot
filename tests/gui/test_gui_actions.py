@@ -233,7 +233,7 @@ def test_file_type_toolbar_menu_switches_the_editor_lexer(qt_app):
 
     actions[2].trigger()
     assert window.ui.fileTypeCombo.currentIndex() == 2
-    assert window.ui.editor.lexer() is None
+    assert window.ui.editor.lexer() is window.heidenhainLexer
     assert actions[2].isChecked()
     assert not actions[1].isChecked()
     assert window.ui.fileTypeButton.text() == "iTNC-code"
@@ -357,6 +357,22 @@ def test_block_number_dialog_applies_values_only_on_ok(qt_app):
     )
     assert calls == [True]
     window.deleteLater()
+
+
+def test_klartext_renumber_omits_n_and_keeps_optional_prefix(qt_app):
+    window = MainWindow()
+    try:
+        window.autoUpdateEnabled = False
+        window.ui.fileTypeCombo.setCurrentIndex(2)
+        window.ui.editor.setText("L X+1\n/N2 L Y+2\nL Z+3\n")
+
+        window.renumber()
+        assert window.ui.editor.text() == "1 L X+1\n/2 L Y+2\n3 L Z+3\n"
+
+        window.numbRemove()
+        assert window.ui.editor.text() == "L X+1\n/L Y+2\nL Z+3\n"
+    finally:
+        window.deleteLater()
 
 
 def test_toolchange_navigation_skips_comments_and_wraps(qt_app):

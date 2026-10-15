@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .ast import NativeMillingSyntax, ProgramAst, build_program_ast
+from .heidenhain_syntax import HeidenhainSyntax
 from .lang import FlowNode, WordToken
 
 
@@ -113,7 +114,7 @@ class Block:
     nlabel: int | None
     olabel: int | None
     optional_skip: bool
-    native_syntax: NativeMillingSyntax | None = None
+    native_syntax: NativeMillingSyntax | HeidenhainSyntax | None = None
 
 
 @dataclass(frozen=True, slots=True)

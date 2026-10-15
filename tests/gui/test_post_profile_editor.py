@@ -61,7 +61,7 @@ def test_every_builtin_roundtrips_without_changing_fields(make_editor, target):
 
 @pytest.mark.parametrize("angle", [22.5, 5400])
 def test_custom_split_angle_is_displayed_and_can_be_changed(make_editor, angle):
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     profile["format"]["arcSplitAngle"] = angle
     dialog = make_editor(profile=profile)
     assert dialog.ui.centerSplit.currentText() == f"{angle:g}\N{DEGREE SIGN}"
@@ -138,7 +138,7 @@ def test_address_order_precision_sign_and_required_are_independent(make_editor):
 
 
 def test_native_fields_and_constraints_match_writer(make_editor):
-    dialog = make_editor("heidanhain_itnc530")
+    dialog = make_editor("heidenhain_itnc530")
     assert dialog.ui.rapidMoveEdit.text() == "L"
     assert dialog.ui.linearMoveEdit.text() == "FMAX"
     assert dialog.ui.circularMoveCWEdit.text() == "CC"

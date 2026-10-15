@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.5.0 - 2026-10-15
+
+- Add multi-document editing (MDI) with drag-and-drop, independent document states and preserved camera settings.
+- Support dropping files directly onto either Compare panel.
+- Add native HEIDENHAIN iTNC 530 Klartext parsing, execution and toolpath visualization.
+- Support HEIDENHAIN `.h/.H` programs in the editor, Compare, CLI and batch processing.
+- Add Klartext syntax highlighting with customizable motion colors.
+- Extend native HEIDENHAIN execution with datum shifts, coordinate rotation, trigonometric expressions, preset selection and drilling cycles.
+- Support Cycle 247 preset selection through configured G54–G59 work offsets.
+- Add M140 tool retraction support for vertical 3-axis previews, including feed handling and guarded MB MAX approximation.
+- Improve native TOOL CALL handling, symbolic cycle feeds and unsupported-cycle diagnostics.
+- Support native HEIDENHAIN toolpaths in 3-axis milling stock simulation.
+- Generate native HEIDENHAIN contours, pockets and hole patterns directly from calculators.
+- Improve HEIDENHAIN command handling, tool resolution, coordinate parsing and program metadata validation.
+- Improve native-to-ISO expanded export, including tool changes and replayable trajectories.
+- Correct HEIDENHAIN postprocessor naming, export formatting and file extension handling.
+- Unify NC generation and live preview validation, geometry limits and pocket depth stepping.
+- Improve MainWindow initialization, MDI document isolation and rotary kinematics handling.
+- Preserve parsed programs across compatible settings changes and prevent stale execution results.
+- Restore FANUC Lathe Type A defaults and fix plot reset behavior.
+- Improve interactive ruler responsiveness.
+- Expand native HEIDENHAIN execution fixtures, Qt integration tests and Options regression coverage.
+- Update bilingual documentation and improve MDI file handling and Compare error reporting.
+
 ## 2.4.0 - 2026-10-14
 
 - Use compact toolbar defaults with grouped file actions, undo/redo/search, view controls, navigation, Compare/statistics/measurement and playback; keep formatting, clipboard, printing and calculators optional, preserving saved custom selections.
@@ -80,7 +104,7 @@
 - Restrict Current Program tool export to `.json` destinations before writing, preventing accidental replacement of NC/MPF programs or other files with JSON. Report rejected paths in the GUI and log; test byte-for-byte preservation through the writer and file picker.
 - Apply G41/G42 cutter compensation to Face, Slot and Chamfer Mill using the configured diameter. Render Tap with a flat front face in milling and turning previews.
 - Edit postprocessors in an enlarged Settings window: catalog on the left, embedded editor on the right, and Snippets-style icon buttons below the list. New copies stay in memory until Save or OK; Cancel discards pending edits. Export only selects existing posts or imports a ready JSON using Add ready…; profile management no longer opens nested dialogs.
-- Add the bundled `heidanhain_itnc530` EXPANDED export target for resolved milling programs; Heidenhain remains an output format. Emit `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CC` with `C/CP`, `CR`, `CYCL DEF 200/201/202/203/207`, and numeric block prefixes without `N`. Match IPA signs to DR, preserve left-hand tapping pitch, use feed-out cycle 201 for G85 and stop/retract cycle 202 for G86, and linearize arcs outside the TOOL CALL spindle plane. Display custom arc split angles, including 5400 degrees, accurately in the editor.
+- Add the bundled `heidenhain_itnc530` EXPANDED export target for resolved milling programs; Heidenhain remains an output format. Emit `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CC` with `C/CP`, `CR`, `CYCL DEF 200/201/202/203/207`, and numeric block prefixes without `N`. Match IPA signs to DR, preserve left-hand tapping pitch, use feed-out cycle 201 for G85 and stop/retract cycle 202 for G86, and linearize arcs outside the TOOL CALL spindle plane. Display custom arc split angles, including 5400 degrees, accurately in the editor.
 - Keep all ten postprocessor editor tabs in the Designer UI. Put general number formatting in Format and address order in a separate Sequencing tab, where compact address tiles wrap automatically and can be reordered by drag and drop with a visible insertion marker. Show the selected address settings below the tiles; remove the preview, validation footer, address table and numeric Position field. Report save errors in a standard dialog.
 - Label Arc Output for the selected controller: ISO targets offer relative/absolute IJK, R and linearized output; Heidenhain offers CC with C/CP, R and linearized output while retaining the corresponding internal export mode identifiers.
 - Pass the configured geometry tolerance to G40 exit compensation. Detect parallel line segments using the angle between them, accounting for both segment lengths.

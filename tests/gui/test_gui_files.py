@@ -88,20 +88,23 @@ class _DropEvent:
     def mimeData(self):
         return self._mime
 
-    def acceptProposedAction(self):
+    def setDropAction(self, action):
+        self.action = action
+
+    def accept(self):
         self.accepted = True
 
     def ignore(self):
         self.ignored = True
 
 
-def test_drop_event_opens_first_local_file_only():
+def test_drop_event_opens_all_existing_local_files_in_order(tmp_path):
     opened = []
+    first, second = tmp_path / "first.nc", tmp_path / "second.h"
+    first.touch()
+    second.touch()
 
     class Window(MainWindowFileMixin):
-        def maybeSave(self):
-            return True
-
         def loadFile(self, fileName, *, reload=False):
             opened.append(fileName)
             return True
@@ -109,14 +112,17 @@ def test_drop_event_opens_first_local_file_only():
     event = _DropEvent(
         [
             _DropUrl("https://example.invalid/program.nc", local=False),
-            _DropUrl("C:/first.nc"),
-            _DropUrl("C:/second.nc"),
+            _DropUrl(str(first)),
+            _DropUrl(str(tmp_path)),
+            _DropUrl(str(tmp_path / "missing.nc")),
+            _DropUrl(str(second)),
+            _DropUrl(str(first)),
         ]
     )
 
     Window().dropEvent(event)
 
-    assert opened == ["C:/first.nc"]
+    assert opened == [str(first), str(second)]
     assert event.accepted is True
     assert event.ignored is False
 
@@ -238,17 +244,20 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
 
     monkeypatch.setattr(
         main_window_file_ops.QFileDialog,
-        "getOpenFileName",
-        lambda *args: calls.append(args) or ("", ""),
+        "getOpenFileNames",
+        lambda *args: calls.append(args) or ([], ""),
     )
     window = SimpleNamespace(
-        maybeSave=lambda: True,
+        openFiles=lambda paths: calls.append(paths),
         _open_file_directory=lambda: str(tmp_path),
     )
     MainWindowFileMixin.openFile(window)
-    assert calls[-1][1:4] == ("Open", str(tmp_path), main_window_file_ops.NC_FILE_FILTER)
+    assert calls[0][1:4] == ("Open", str(tmp_path), main_window_file_ops.NC_FILE_FILTER)
+    assert calls[1] == []
     nc_filter = main_window_file_ops.NC_FILE_FILTER.split(";;", 1)[0]
     assert "*.ptp" in nc_filter
+    assert "*.h" in nc_filter and "*.H" in nc_filter
+    assert main_window_file_ops.HEIDENHAIN_FILE_FILTER in main_window_file_ops.NC_FILE_FILTER.split(";;")
     assert "*.mpf" not in nc_filter and "*.spf" not in nc_filter
     assert "*.mpf" in main_window_file_ops.SINUMERIK_FILE_FILTER
     assert "*.spf" in main_window_file_ops.SINUMERIK_FILE_FILTER

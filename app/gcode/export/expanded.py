@@ -38,6 +38,8 @@ POST_TARGETS = post_profiles.POST_TARGETS
 
 def default_target_post(result, *, lathe_gcode_system=None):
     """Select the source controller consistently for direct and file export."""
+    if result.source_dialect == "heidenhain":
+        return "heidenhain_itnc530"
     if result.language == "fanuc_turn":
         return "fanuc_lathe_" + (lathe_gcode_system or result.lathe_gcode_system).lower()
     if is_native_full_program(result):
@@ -81,7 +83,7 @@ def convert_resolved_program(result, target="fanuc_mill", options=None, *, cance
     profile = select_cycle_profile(
         load_post_profile(target), result.sinumerik_840d_sl if sinumerik_840d_sl is None else sinumerik_840d_sl
     )
-    if profile.get("id") == "heidanhain_itnc530":
+    if profile.get("id") == "heidenhain_itnc530":
         from .heidenhain import export_heidenhain  # pylint: disable=import-outside-toplevel
 
         return export_heidenhain(result, profile, options, cancelled=cancelled)
@@ -192,6 +194,8 @@ def _tool_change_lines(step, profile, *, tool_numbers=None, source_names=()) -> 
         if event.kind != TOOL_CHANGE:
             continue
         code = "" if event.code == event.tool else event.code or ""
+        if code == "TOOL CALL":
+            code = "M06"
         tool = (tool_numbers or {}).get(event.tool, event.tool or "T0")
         if event.tool in source_names and not tool_numbers:
             tool = f'T="{event.tool}"'

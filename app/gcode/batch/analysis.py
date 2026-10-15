@@ -22,7 +22,7 @@ from app.gcode.reports.html import export_execution_statistics
 from app.gcode.reports.kinematics import kinematics_report_fields
 
 BATCH_REPORT_SCHEMA_VERSION = 2
-DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".mpf", ".spf", ".tap", ".txt")
+DEFAULT_BATCH_EXTENSIONS = (".nc", ".cnc", ".ptp", ".mpf", ".spf", ".tap", ".txt", ".h")
 _NC_HEADER_RE = re.compile(rb"(?m)^\s*O\d{1,5}(?:\b|\s*\()", re.IGNORECASE)
 _NC_BLOCK_RE = re.compile(rb"(?m)^\s*(?:N\d+\s*)?[GMT]\d+(?:\.\d+)?\b", re.IGNORECASE)
 STATUS_CLEAN = "CLEAN"

@@ -7,6 +7,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING
 
 from ..api.resources import checkpoint, checkpointed
+from .heidenhain_syntax import HeidenhainSyntax
 
 if TYPE_CHECKING:
     from .lang import WordToken
@@ -60,7 +61,62 @@ class AstNode:
     nlabel: int | None = None
     olabel: int | None = None
     words: tuple[AstWord, ...] = ()
-    native_syntax: NativeMillingSyntax | None = field(default=None, kw_only=True)
+    native_syntax: NativeMillingSyntax | HeidenhainSyntax | None = field(default=None, kw_only=True)
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainAstNode(AstNode):
+    """Native Klartext facts; no ISO motion or flow lowering is performed."""
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainProgramNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainMotionNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainCenterNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainContourNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainToolNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainParameterNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainCycleNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainLabelNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainControlNode(HeidenhainAstNode):
+    pass
+
+
+@dataclass(frozen=True, slots=True)
+class HeidenhainStockNode(HeidenhainAstNode):
+    pass
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,11 +181,22 @@ class ProgramAst:
     nodes: tuple[AstNode, ...]
     nlabel_to_index: Mapping[int, int]
     olabel_to_index: Mapping[int, int]
+    heidenhain_label_to_index: Mapping[int | str, int] = field(default_factory=dict, kw_only=True)
 
     def __post_init__(self):
         object.__setattr__(self, "nodes", tuple(self.nodes))
         object.__setattr__(self, "nlabel_to_index", MappingProxyType(dict(self.nlabel_to_index)))
         object.__setattr__(self, "olabel_to_index", MappingProxyType(dict(self.olabel_to_index)))
+        labels = {
+            node.native_syntax.label: node.block_index
+            for node in self.nodes
+            if isinstance(node, HeidenhainLabelNode)
+            and node.native_syntax.command == "LBL"
+            and node.native_syntax.label not in (None, 0)
+        }
+        if self.heidenhain_label_to_index and dict(self.heidenhain_label_to_index) != labels:
+            raise ValueError("Heidenhain label map does not match its AST")
+        object.__setattr__(self, "heidenhain_label_to_index", MappingProxyType(labels))
 
 
 def _int_code(expr: str | None) -> int | None:
@@ -221,6 +288,8 @@ def _build_native_ast_node(block, common, cache):
     from dataclasses import replace  # pylint: disable=import-outside-toplevel
 
     syntax = block.native_syntax
+    if isinstance(syntax, HeidenhainSyntax):
+        return _build_heidenhain_ast_node(syntax, common)
     if syntax.kind in ("while", "endwhile", "goto", "if_goto", "invalid_flow"):
         return SinumerikFlowAstNode("sinumerik_flow", *common, native_syntax=syntax)
     if syntax.kind != "words":
@@ -228,6 +297,22 @@ def _build_native_ast_node(block, common, cache):
     # Reuse the common motion/control builder for shared address semantics.
     node = _build_address_ast_node(block, common, cache)
     return replace(node, native_syntax=syntax)
+
+
+def _build_heidenhain_ast_node(syntax, common):
+    node_type = {
+        "program": HeidenhainProgramNode,
+        "motion": HeidenhainMotionNode,
+        "center": HeidenhainCenterNode,
+        "contour": HeidenhainContourNode,
+        "tool": HeidenhainToolNode,
+        "parameter": HeidenhainParameterNode,
+        "cycle": HeidenhainCycleNode,
+        "label": HeidenhainLabelNode,
+        "control": HeidenhainControlNode,
+        "stock": HeidenhainStockNode,
+    }.get(syntax.kind, HeidenhainAstNode)
+    return node_type("heidenhain_" + syntax.kind, *common, native_syntax=syntax)
 
 
 def _control_or_meta_node(block, words):

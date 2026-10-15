@@ -9,6 +9,7 @@ from gcode_samples import MILLING_ARC_PLANES, TURNING_PARTIAL_TRACE
 from PyQt6.QtCore import QEventLoop, QTimer
 from PyQt6.QtGui import QPalette
 from PyQt6.QtWidgets import QApplication, QWidget
+from window_state_helpers import window_namespace
 
 from app import main_window
 from app.gcode.kernel import execute
@@ -224,7 +225,7 @@ class _StatusBar:
 
 
 def _gui_execution_harness(source: str, *, lathe_mode: bool):
-    return SimpleNamespace(
+    return window_namespace(
         ui=SimpleNamespace(editor=_Editor(source), statusbar=_StatusBar()),
         latheMode=lathe_mode,
         xPosMach=0.0,
@@ -269,7 +270,7 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     monkeypatch.setattr("app.gcode.execution.program.execute", fake_execute)
     tools = {"T0101": {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 1}}
     offsets = {54: (10.0, 20.0, -2.0)}
-    window = SimpleNamespace(
+    window = window_namespace(
         ui=SimpleNamespace(editor=_Editor("G54\nG1 X20 Y30 Z-5"), statusbar=_StatusBar()),
         latheMode=False,
         xPosMach=100.0,
@@ -361,7 +362,7 @@ def test_gui_keeps_partial_turning_trace_renderable_when_kernel_reports_unsuppor
     captured = []
     cleared = []
 
-    window = SimpleNamespace(
+    window = window_namespace(
         ui=SimpleNamespace(editor=_Editor(TURNING_PARTIAL_TRACE)),
         _calculate_editor_source=lambda **_kwargs: (result, [], False),
         latheMode=True,
@@ -391,6 +392,7 @@ def test_auto_update_schedule_marks_trace_stale_without_moving_old_slider():
 
     class Window(MainWindowExecutionMixin):
         def __init__(self):
+            self.__dict__.update(window_namespace().__dict__)
             self.autoUpdateTimer = Timer()
             self.autoUpdateEnabled = True
             self.execution_result = object()
@@ -418,7 +420,7 @@ def test_programmatic_file_load_does_not_schedule_auto_update():
         def start(self):
             calls.append("start")
 
-    window = SimpleNamespace(_loading_document=True, autoUpdateTimer=Timer())
+    window = window_namespace(_loading_document=True, autoUpdateTimer=Timer())
     MainWindowExecutionMixin.scheduleAutoUpdate(window)
 
     assert calls == []
@@ -434,7 +436,7 @@ def test_disabled_auto_update_marks_trace_stale_without_starting_timer():
         def start(self):
             calls.append("start")
 
-    window = SimpleNamespace(autoUpdateTimer=Timer(), autoUpdateEnabled=False)
+    window = window_namespace(autoUpdateTimer=Timer(), autoUpdateEnabled=False)
     MainWindowExecutionMixin.scheduleAutoUpdate(window)
 
     assert calls == ["stop"]
@@ -451,7 +453,7 @@ def test_edit_during_auto_update_cancels_current_execution_and_queues_refresh():
         def start(self):
             calls.append("start")
 
-    window = SimpleNamespace(
+    window = window_namespace(
         autoUpdateTimer=Timer(),
         autoUpdateEnabled=True,
         _auto_update_in_progress=True,

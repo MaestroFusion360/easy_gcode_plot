@@ -11,6 +11,7 @@ from PyQt6.QtCore import QCoreApplication, QEventLoop
 
 from app.gcode.comments import format_comment
 from app.gcode.execution.program import execute_program
+from app.gcode.execution.source import SOURCE_DIALECT_HEIDENHAIN, source_dialect_for_path
 from app.gcode.kernel.api.resources import ExecutionLimits
 from app.gcode.trace import RenderLimitExceeded, render_trace, trace_statistics
 from app.settings import AUTO_UPDATE_SEGMENTS_MAX, GENERATED_MOTIONS_DEFAULT
@@ -30,6 +31,21 @@ LOGGER = logging.getLogger(__name__)
 PLAYBACK_INTERVALS_MS = (1000, 250, 100, 40, 10)
 
 
+def _apply_native_source_dialect(owner, source):
+    """Switch to native Klartext when iTNC is selected or the source is a program."""
+    # pylint: disable=protected-access
+    combo = getattr(owner.ui, "fileTypeCombo", None)
+    native_file_type = combo is not None and combo.currentIndex() == 2
+    detected = source_dialect_for_path(getattr(owner, "curFile", ""), source)
+    if not native_file_type and detected != SOURCE_DIALECT_HEIDENHAIN:
+        return
+    owner._document_source_dialect = SOURCE_DIALECT_HEIDENHAIN
+    owner._document_arc_type = 1
+    if owner.latheMode:
+        owner._restore_document_mode(False)
+        owner._view_mode = "3d"
+
+
 class _PlotUpdateCancelledError(Exception):
     """Stop an in-progress GUI publication at a cooperative checkpoint."""
 
@@ -40,19 +56,25 @@ class _PlotCompletion:
     def __init__(self, owner, deferred_result=None, expected_source=None):
         self.owner = owner
         self.deferred_result = deferred_result
-        self.expected_source = expected_source
+        self.expected_source = owner.ui.editor.text() if expected_source is None else expected_source
+        self.document = owner._documents[owner._active_document_index] if owner._documents else None
+        self.auto_fit = expected_source is not None
         self.finished = False
         self.cancelled = False
 
+    def _current(self):
+        # pylint: disable=protected-access
+        index = self.owner._active_document_index
+        document = self.owner._documents[index] if index is not None else None
+        return document is self.document and self.owner.ui.editor.text() == self.expected_source
+
     def _finish(self, result, points, cancelled):
-        if self.expected_source is not None and self.owner.ui.editor.text() != self.expected_source:
+        if not self._current():
             self.cancelled = True
             return
         if result is not None and result.motions and points is not None:
             self.finished = bool(
-                self.owner.finishDataUpdate(
-                    result, points, cancelled=cancelled, auto_fit_milling=self.expected_source is not None
-                )
+                self.owner.finishDataUpdate(result, points, cancelled=cancelled, auto_fit_milling=self.auto_fit)
             )
             self.cancelled = not self.finished and cancelled()
 
@@ -61,7 +83,7 @@ class _PlotCompletion:
         if not render_limited:
             # Scene publication also draws the cutter. Publish this execution's
             # program assignments before it can display geometry from the old setup.
-            if self.expected_source is None or self.owner.ui.editor.text() == self.expected_source:
+            if self._current():
                 attribute = "tools" if self.owner.latheMode else "millingTools"
                 setattr(self.owner, attribute, deepcopy(updated_tools))
                 inference = dict(getattr(self.owner, "program_tool_inference", {}) or {})
@@ -168,7 +190,7 @@ class MainWindowExecutionMixin:
         self._playback_visual_motion_index = None
 
     def _playback_visual_interval(self):
-        samples = getattr(self, "_playback_visual_samples", ())
+        samples = self._playback_visual_samples
         return max(PLAYBACK_VISUAL_FRAME_MIN_MS, self.speedTimer // max(1, len(samples)))
 
     def _playback_arc_visuals(self, playback_value):
@@ -209,10 +231,10 @@ class MainWindowExecutionMixin:
         return True
 
     def _advance_playback_arc_visual(self):
-        samples = getattr(self, "_playback_visual_samples", ())
+        samples = self._playback_visual_samples
         if not samples:
             return False
-        index = getattr(self, "_playback_visual_sample_index", 0)
+        index = self._playback_visual_sample_index
         if index >= len(samples):
             self._clear_playback_visual_state()
             return False
@@ -224,7 +246,7 @@ class MainWindowExecutionMixin:
 
     def _advance_stock_playback(self):
         """Advance only when the previous stock frame is ready."""
-        if not self.latheMode and getattr(self, "_milling_frame_worker", None) is not None:
+        if not self.latheMode and self._milling_frame_worker is not None:
             return
         maximum = self.ui.horizontalSlider.maximum()
         value = self.ui.horizontalSlider.value()
@@ -248,7 +270,7 @@ class MainWindowExecutionMixin:
         if event.timerId() != self.timer.timerId():
             return super().timerEvent(event)
 
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self._advance_stock_playback()
             return
 
@@ -294,14 +316,12 @@ class MainWindowExecutionMixin:
             if self.ui.horizontalSlider.value() >= self.ui.horizontalSlider.maximum():
                 self._clear_playback_visual_state()
                 self.ui.horizontalSlider.setValue(self.ui.horizontalSlider.minimum())
-            interval = (
-                self._playback_visual_interval() if getattr(self, "_playback_visual_samples", ()) else self.speedTimer
-            )
+            interval = self._playback_visual_interval() if self._playback_visual_samples else self.speedTimer
             self.timer.start(interval, self)
             LOGGER.info(
                 "playback_started lathe=%s stock_animation=%s value=%d maximum=%d interval_ms=%d",
                 self.latheMode,
-                getattr(self, "_stock_animation_active", False),
+                self._stock_animation_active,
                 self.ui.horizontalSlider.value(),
                 self.ui.horizontalSlider.maximum(),
                 self.speedTimer,
@@ -310,18 +330,18 @@ class MainWindowExecutionMixin:
             self.timer.stop()
             LOGGER.info(
                 "playback_paused stock_animation=%s value=%d maximum=%d",
-                getattr(self, "_stock_animation_active", False),
+                self._stock_animation_active,
                 self.ui.horizontalSlider.value(),
                 self.ui.horizontalSlider.maximum(),
             )
 
     def stop(self):
         """Stop playback, completing a stock preview before restoring the trace."""
-        if getattr(self, "_kernel_execution_active", False):
+        if self._kernel_execution_active:
             self._kernel_cancel_requested = True
             self.ui.statusbar.showMessage(QCoreApplication.translate("MainWindow", "Cancelling CNC execution..."))
             return
-        stock_animation = bool(getattr(self, "_stock_animation_active", False))
+        stock_animation = bool(self._stock_animation_active)
         self.ui.actionPlay.setChecked(False)
         self.timer.stop()
         self._clear_playback_visual_state()
@@ -361,13 +381,13 @@ class MainWindowExecutionMixin:
 
     def scheduleAutoUpdate(self, *, show_dialog=False):
         """Mark the displayed trace stale and debounce a non-blocking editor refresh."""
-        if getattr(self, "_loading_document", False):
+        if self._loading_document:
             return
         refresh_source = getattr(self, "_refresh_unnamed_source_mode", None)
         if refresh_source is not None:
             refresh_source()
         self.autoUpdateTimer.stop()
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self.ui.actionPlay.setChecked(False)
             self.timer.stop()
             self._leave_stock_animation()
@@ -379,7 +399,7 @@ class MainWindowExecutionMixin:
             self.updateExecutionStatus("STALE")
         if hasattr(self, "tokensDlg"):
             self.tokensDlg.refresh_macro_variables_if_visible()
-        if getattr(self, "_auto_update_in_progress", False):
+        if self._auto_update_in_progress:
             self._kernel_cancel_requested = True
             self._auto_update_pending = True
             return
@@ -396,11 +416,12 @@ class MainWindowExecutionMixin:
         show_dialog=True,
         require_current_source=False,
     ):
-        if getattr(self, "_kernel_execution_active", False):
+        if self._kernel_execution_active:
             self._kernel_cancel_requested = True
             return None, None, False
 
         source = self.ui.editor.text()
+        _apply_native_source_dialect(self, source)
         language = "fanuc_turn" if self.latheMode else "fanuc_mill"
         turning = bool(self.latheMode)
         default_unit_scale = 25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0
@@ -434,11 +455,11 @@ class MainWindowExecutionMixin:
                 "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
                 "sinumerik_840d_sl": getattr(self, "sinumerik840dSl", True),
                 "kinematics": None if turning else getattr(self, "rotaryKinematics", None),
-                "source_dialect": getattr(self, "_document_source_dialect", "fanuc"),
-                "source_arc_type": getattr(self, "_document_arc_type", None) or getattr(self, "arc_type", 1),
+                "source_dialect": self._document_source_dialect,
+                "source_arc_type": self._document_arc_type or getattr(self, "arc_type", 1),
                 "autodetect_arc_type": getattr(self, "autodetectArcType", True)
-                and not getattr(self, "_manual_arc_type_override", False)
-                and getattr(self, "_document_arc_type", None) is None,
+                and not self._manual_arc_type_override
+                and self._document_arc_type is None,
                 "skip_optional_blocks": getattr(self, "ignoreBlockSkip", False),
                 "arc_tolerance": arc_tolerance,
                 "default_unit_scale": default_unit_scale,
@@ -455,7 +476,7 @@ class MainWindowExecutionMixin:
         )
 
         cache_key = (source, options["source_dialect"], turning)
-        cached = getattr(self, "_parsed_program_cache", None)
+        cached = self._parsed_program_cache
         if cached is not None and cached[0] == cache_key:
             options["parsed_program"] = cached[1]
 
@@ -535,7 +556,7 @@ class MainWindowExecutionMixin:
             inference.get(attribute, {}),
             turning=self.latheMode,
             library_tools=getattr(self, "turningToolLibrary" if self.latheMode else "millingToolLibrary", {}),
-            source_dialect=getattr(self, "_document_source_dialect", "fanuc"),
+            source_dialect=self._document_source_dialect,
             default_unit_scale=25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0,
             rules=getattr(self, "toolDiscovery", default_settings()),
         )
@@ -573,7 +594,7 @@ class MainWindowExecutionMixin:
     def _finish_auto_update_run(self, source_snapshot):
         self._auto_update_in_progress = False
         source_changed = self.ui.editor.text() != source_snapshot
-        pending = bool(getattr(self, "_auto_update_pending", False))
+        pending = bool(self._auto_update_pending)
         self._auto_update_pending = False
         if (pending or source_changed) and getattr(self, "autoUpdateEnabled", True):
             self.autoUpdateTimer.stop()
@@ -598,7 +619,7 @@ class MainWindowExecutionMixin:
             return False
         if result is None or not result.motions:
             if hasattr(self, "updateExecutionStatus"):
-                self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
+                self.updateExecutionStatus(result=result, elapsed_ms=self._last_execution_ms)
             return False
         if render_limited:
             self._auto_update_deferred = True
@@ -618,14 +639,14 @@ class MainWindowExecutionMixin:
 
     def autoUpdate(self):
         """Debounced refresh for programs whose sampled render path is small."""
-        if getattr(self, "_kernel_execution_active", False):
+        if self._kernel_execution_active:
             self._auto_update_pending = True
             return False
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self._clear_stock_animation()
 
         auto_limit = max(1, int(getattr(self, "autoUpdateMaxSegments", AUTO_REFRESH_MAX_POINTS)))
-        show_dialog = bool(getattr(self, "_auto_update_show_dialog", False))
+        show_dialog = bool(self._auto_update_show_dialog)
         self._auto_update_show_dialog = False
         source_snapshot = self.ui.editor.text()
         completion = _PlotCompletion(self, expected_source=source_snapshot) if show_dialog else None
@@ -685,21 +706,21 @@ class MainWindowExecutionMixin:
 
     def updateData(self, *, show_errors=True):
         """Execute editor source through the single authoritative CNC kernel."""
-        if getattr(self, "_kernel_execution_active", False):
+        if self._kernel_execution_active:
             return False
         if hasattr(self, "updateExecutionStatus"):
             self.updateExecutionStatus("UPDATING")
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self.ui.actionPlay.setChecked(False)
             self.timer.stop()
             self._clear_stock_animation()
         if hasattr(self, "autoUpdateTimer"):
             self.autoUpdateTimer.stop()
         source = self.ui.editor.text()
-        deferred_result = getattr(self, "_deferred_execution_result", None)
+        deferred_result = self._deferred_execution_result
         completion = _PlotCompletion(self, deferred_result)
 
-        if deferred_result is not None and getattr(self, "_deferred_execution_source", None) == source:
+        if deferred_result is not None and self._deferred_execution_source == source:
             result = deferred_result
             points = self._render_existing_result(result, completion=completion.rendered_points)
         else:
@@ -719,7 +740,7 @@ class MainWindowExecutionMixin:
             self.clearPlot()
             self.execution_result = result if result is not None and not result.ok else None
             if hasattr(self, "updateExecutionStatus"):
-                self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
+                self.updateExecutionStatus(result=result, elapsed_ms=self._last_execution_ms)
             return False
         if points is None:
             return False
@@ -785,7 +806,7 @@ class MainWindowExecutionMixin:
         playback_count = len(self._playback_movements)
         self.ui.horizontalSlider.setMaximum(playback_count)
         self.ui.horizontalSlider.setPageStep(max(1, playback_count // 10))
-        if getattr(self, "_fit_view_after_program_load", False) or playback_value is None:
+        if self._fit_view_after_program_load or playback_value is None:
             playback_value = playback_count
         playback_value = max(0, min(int(playback_value), playback_count))
         self.ui.horizontalSlider.setValue(playback_value)
@@ -807,7 +828,7 @@ class MainWindowExecutionMixin:
             self._update_stock_outline()
         if result.motions:
             self.valueHandler(playback_value, sync_editor=False)
-        if getattr(self, "_fit_view_after_program_load", False):
+        if self._fit_view_after_program_load:
             self._fit_view_after_program_load = False
             self.fitToView()
         elif auto_fit_milling:
@@ -842,7 +863,7 @@ class MainWindowExecutionMixin:
         self.render_points = points
         self._plot_source_stale = False
         if hasattr(self, "updateExecutionStatus"):
-            self.updateExecutionStatus(result=result, elapsed_ms=getattr(self, "_last_execution_ms", None))
+            self.updateExecutionStatus(result=result, elapsed_ms=self._last_execution_ms)
         render_ms = (perf_counter() - render_started) * 1000.0
         if not self._prepare_playback_metadata(result, cancelled):
             raise _PlotUpdateCancelledError
@@ -913,7 +934,7 @@ class MainWindowExecutionMixin:
             time_text = "{h:02}:{m:02}:{s:02}".format(
                 h=floor(time_min / 60), m=floor(time_min % 60), s=floor(time_sec % 60)
             )
-        style = getattr(self, "_document_comment_style", None) or self.commentStyle
+        style = self._document_comment_style or self.commentStyle
         return "\n".join(
             (
                 format_comment(f"Toolpath Length: {float(stats['total_length']):.3f}", style),
@@ -935,7 +956,7 @@ class MainWindowExecutionMixin:
         if bounds is None:
             return ""
         (xmin, xmax), (ymin, ymax), (zmin, zmax) = bounds
-        style = getattr(self, "_document_comment_style", None) or self.commentStyle
+        style = self._document_comment_style or self.commentStyle
         return "\n".join(
             format_comment(f"{axis} {bound}: {round(value, 3)}", style)
             for axis, bound, value in (

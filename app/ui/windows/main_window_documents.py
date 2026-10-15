@@ -40,6 +40,7 @@ class OpenDocument:
     signature: tuple[int, int] | None = None
     ignored_signature: tuple[int, int] | None = None
     source_dialect: str = "fanuc"
+    file_type: int = 0
     initial_mode: str | None = None
     arc_type: int | None = None
     comment_style: str | None = None
@@ -148,7 +149,7 @@ _RUSSIAN_LABELS = {
 
 
 def _document_tr(source):
-    """Translate 2.4.0 controls even with the pre-existing bundled .qm file."""
+    """Translate 2.5.0 controls even with the pre-existing bundled .qm file."""
     text = QCoreApplication.translate("MainWindow", source)
     if text == source and ui_language() == "ru":
         return _RUSSIAN_LABELS.get(source, source)
@@ -252,13 +253,24 @@ class MainWindowDocumentsMixin:
         self.setHotkeys(shortcuts)
 
     def _execution_settings(self):
-        values = {name: getattr(self, name, None) for name in _EXECUTION_SETTINGS}
+        values = {name: getattr(self, name) for name in _EXECUTION_SETTINGS}
         profile = values["rotaryKinematics"]
         values["rotary_profile"] = load_catalog(ignore_user_errors=True).get(profile) if profile else None
         return deepcopy(values)
 
     def _snapshot_runtime(self):
-        state = {name: getattr(self, name, None) for name in _DOCUMENT_STATE}
+        state = {name: getattr(self, name) for name in _DOCUMENT_STATE}
+        # These containers are edited in-place by tool/setup dialogs. A shallow
+        # snapshot would let inactive documents inherit subsequent edits.
+        for name in ("tools", "millingTools", "program_tool_inference", "exportToolNumbers"):
+            state[name] = deepcopy(state[name])
+        state["_camera"] = {
+            key: type(self.ui.graphicsView.opts[key])(self.ui.graphicsView.opts[key])
+            for key in ("center", "distance", "elevation", "azimuth", "rotation", "rotationMethod", "fov")
+            if key in self.ui.graphicsView.opts
+        }
+        state["_projection_mode"] = self.ui.graphicsView.projectionMode()
+        state["_orthographic_width"] = self.ui.graphicsView.orthographicWidth()
         state["_execution_settings"] = self._execution_settings()
         state["_stl_scene"] = self._capture_stl_scene()
         state["_stl_undo"] = list(self._stl_undo)
@@ -267,7 +279,7 @@ class MainWindowDocumentsMixin:
         return state
 
     def _fresh_document_state(self):
-        state = {name: getattr(self, name, None) for name in _DOCUMENT_STATE}
+        state = {name: getattr(self, name) for name in _DOCUMENT_STATE}
         state.update(
             execution_result=None,
             render_points=[],
@@ -289,21 +301,22 @@ class MainWindowDocumentsMixin:
         return state
 
     def _capture_active_document(self):
-        index = getattr(self, "_active_document_index", None)
+        index = self._active_document_index
         if index is None or not 0 <= index < len(self._documents):
             return
         item = self._documents[index]
         editor = self.ui.editor
         item.document = editor.document()
         item.file_name = self.curFile
-        item.encoding = getattr(self, "_document_encoding", None)
-        item.signature = getattr(self, "_document_disk_signature", None)
-        item.ignored_signature = getattr(self, "_ignored_document_signature", None)
-        item.source_dialect = getattr(self, "_document_source_dialect", "fanuc")
-        item.initial_mode = getattr(self, "_document_initial_mode", None)
-        item.arc_type = getattr(self, "_document_arc_type", None)
-        item.comment_style = getattr(self, "_document_comment_style", None)
-        item.manual_arc_type_override = getattr(self, "_manual_arc_type_override", False)
+        item.encoding = self._document_encoding
+        item.signature = self._document_disk_signature
+        item.ignored_signature = self._ignored_document_signature
+        item.source_dialect = self._document_source_dialect
+        item.file_type = self.ui.fileTypeCombo.currentIndex()
+        item.initial_mode = self._document_initial_mode
+        item.arc_type = self._document_arc_type
+        item.comment_style = self._document_comment_style
+        item.manual_arc_type_override = self._manual_arc_type_override
         item.cursor = editor.getCursorPosition()
         item.first_visible_line = editor.firstVisibleLine()
         item.selection = editor.getSelection() if editor.hasSelectedText() else None
@@ -321,7 +334,7 @@ class MainWindowDocumentsMixin:
             )
             return False
         if any(
-            getattr(self, flag, False)
+            getattr(self, flag)
             for flag in ("_kernel_execution_active", "_auto_update_in_progress", "_stock_export_active")
         ):
             self.ui.statusbar.showMessage(
@@ -341,7 +354,7 @@ class MainWindowDocumentsMixin:
 
     def _document_reload_busy(self):
         return self._document_dialog_open() or any(
-            getattr(self, flag, False)
+            getattr(self, flag)
             for flag in (
                 "_document_switching",
                 "_kernel_execution_active",
@@ -362,6 +375,8 @@ class MainWindowDocumentsMixin:
         self._document_comment_style = item.comment_style
         self._manual_arc_type_override = item.manual_arc_type_override
         self.lexer.set_comment_style(item.comment_style or self.commentStyle)
+        with QSignalBlocker(self.ui.fileTypeCombo):
+            self.ui.fileTypeCombo.setCurrentIndex(item.file_type)
         self.changeFileType(self.ui.fileTypeCombo.currentIndex())
         self.arc_type = item.state["arc_type"]
         _set_arc_action(self, item.arc_type or self.arc_type)
@@ -385,7 +400,10 @@ class MainWindowDocumentsMixin:
         state = item.state
         for name in _DOCUMENT_STATE:
             if name not in ("execution_result", "render_points", "latheMode", "_view_mode"):
-                setattr(self, name, state[name])
+                value = state[name]
+                if name in ("tools", "millingTools", "program_tool_inference", "exportToolNumbers"):
+                    value = deepcopy(value)
+                setattr(self, name, value)
         scene = state.get("_stl_scene")
         if scene is None:
             scene = type(self._capture_stl_scene())((), -1, None)
@@ -410,6 +428,16 @@ class MainWindowDocumentsMixin:
         else:
             desired = state.get("_view_mode", "3d")
             getattr(self, "view" + desired.title() if desired in ("top", "front", "left") else "view3d")()
+        camera = state.get("_camera")
+        if camera is not None:
+            self.ui.graphicsView.opts.update({key: type(value)(value) for key, value in camera.items()})
+            view = self.ui.graphicsView
+            if state["_projection_mode"] == "orthographic":
+                view.setOrthographicProjection(state["_orthographic_width"], 0.01, 1000.0)
+            else:
+                view.setProjectionMode("perspective")
+            self._plot_camera_changed()
+            view.update()
 
     def _sync_document_consumers(self, item):
         self.ui.editor.setCursorPosition(*item.cursor)
@@ -450,7 +478,10 @@ class MainWindowDocumentsMixin:
             self.clearPlot()
             self._active_document_index = index
             settings = self._execution_settings()
-            if item.state.get("_execution_settings", settings) != settings:
+            previous_settings = item.state.get("_execution_settings", settings)
+            if previous_settings != settings:
+                if any(previous_settings[key] != settings[key] for key in ("rotaryKinematics", "rotary_profile")):
+                    item.state.pop("_camera", None)
                 item.state.update(
                     _plot_source_stale=True,
                     _parsed_program_cache=None,
@@ -474,7 +505,9 @@ class MainWindowDocumentsMixin:
         state = deepcopy(self._document_defaults)
         if inherit_mode:
             state.update(latheMode=self.latheMode, _view_mode="lathe" if self.latheMode else "3d")
-        return OpenDocument(QsciDocument(), untitled_number=self._untitled_document_counter, state=state)
+        return OpenDocument(
+            QsciDocument(), untitled_number=self._untitled_document_counter, file_type=self.defaultFileType, state=state
+        )
 
     def _new_document_slot(self):
         """Add an untitled buffer, keeping all existing files and undo stacks."""

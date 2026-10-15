@@ -2,6 +2,7 @@
 
 import re
 
+from ..kernel.frontend.heidenhain_syntax import HeidenhainSyntax
 from ..kernel.runtime.events import TOOL_CHANGE
 from ..post_profiles import _render
 from .common import ExportLimitation
@@ -11,11 +12,15 @@ def named_tools(result):
     """Find names through the controller AST, including names resembling T codes."""
     if result.program is None:
         return set()
-    return {
-        node.native_syntax.named_tool
-        for node in result.program.ast.nodes
-        if node.native_syntax is not None and node.native_syntax.named_tool is not None
-    }
+    names = set()
+    for node in result.program.ast.nodes:
+        syntax = node.native_syntax
+        if isinstance(syntax, HeidenhainSyntax):
+            if syntax.command == "TOOL CALL" and isinstance(syntax.tool, str):
+                names.add(syntax.tool)
+        elif syntax is not None and syntax.named_tool is not None:
+            names.add(syntax.named_tool)
+    return names
 
 
 def _is_tool_number(number):

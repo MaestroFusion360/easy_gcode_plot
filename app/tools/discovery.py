@@ -10,6 +10,7 @@ from copy import deepcopy
 from functools import lru_cache, partial
 from io import StringIO
 
+from app.gcode.kernel.frontend.heidenhain import parse_heidenhain_program
 from app.gcode.kernel.frontend.lang import lex_words, strip_comments
 from app.gcode.kernel.frontend.program import parse_program
 from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
@@ -361,6 +362,8 @@ def discover_tools(
 ):
     """Return source tool candidates and operation-based fallback geometry."""
     rules = default_profile() if rules is None else validate_profile(rules)
+    if not turning and source_dialect == "heidenhain":
+        return _heidenhain_tools(program or parse_heidenhain_program(source), default_unit_scale, cancelled, rules)
     comment_test = partial(_is_tool_comment, hints=tuple(tuple(entry) for entry in rules["types"]))
     if rules == default_profile():
         headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled)
@@ -391,3 +394,53 @@ def discover_tools(
             spec["description"] = description
         tools[key] = spec
     return normalized_tools(tools) if turning else normalized_program_milling_tools(tools)
+
+
+def _heidenhain_tool_headers(program):
+    """Map tool keys to the comment documenting them anywhere in the program."""
+    headers = {}
+    for block in program.blocks:
+        description = block.native_syntax.comment or ""
+        match = _COMMENT_TOOL.search(description)
+        if match is None:
+            continue
+        key = _tool_key(match[1], False)
+        if key is not None:
+            headers[key] = description
+    return headers
+
+
+def _heidenhain_call_key(syntax):
+    """Resolve a TOOL CALL name or numeric/Q expression to its tool key."""
+    if syntax.tool is None:
+        return None
+    if isinstance(syntax.tool, str):
+        return syntax.tool
+    return _tool_key(syntax.tool.source, False)
+
+
+def _heidenhain_tools(program, scale, cancelled, rules):
+    """Use native TOOL CALL ownership and nearby comments without scanning ISO words."""
+    tools = {}
+    headers = _heidenhain_tool_headers(program)
+    for index, block in enumerate(program.blocks):
+        _cancel_checkpoint(index, cancelled)
+        syntax = block.native_syntax
+        if syntax.units is not None:
+            scale = 25.4 if syntax.units == "INCH" else 1.0
+        if syntax.command != "TOOL CALL":
+            continue
+        key = _heidenhain_call_key(syntax)
+        if key is None:
+            continue
+        comments = [syntax.comment or headers.get(key, "")]
+        for following in program.blocks[index + 1 : index + 9]:
+            if following.native_syntax.command == "TOOL CALL":
+                break
+            comments.append(following.native_syntax.comment or "")
+        description = " ".join(comments).strip()
+        spec = _milling_spec(description, scale, None, rules)
+        if description:
+            spec["description"] = description
+        tools[key] = spec
+    return normalized_program_milling_tools(tools)

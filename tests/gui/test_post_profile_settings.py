@@ -40,7 +40,7 @@ def select(settings, value):
 def test_settings_embeds_editor_and_protects_builtins(settings):
     assert settings.owner.width() >= 1000
     assert settings.owner.height() >= 700
-    for value in ("fanuc_mill", "fanuc_lathe_a", "heidanhain_itnc530"):
+    for value in ("fanuc_mill", "fanuc_lathe_a", "heidenhain_itnc530"):
         select(settings, value)
         assert not isinstance(settings.editor, QDialog)
         assert not settings.editor.isWindow()
@@ -69,7 +69,7 @@ def test_management_buttons_match_snippets(settings):
 
 
 def test_add_creates_embedded_draft_and_save_preserves_controller(settings):
-    select(settings, "heidanhain_itnc530")
+    select(settings, "heidenhain_itnc530")
     settings.ui.newPostProfileButton.click()
     assert not settings.library.list_profiles()
     assert not settings.editor.ui.nameEdit.isReadOnly()
@@ -78,7 +78,7 @@ def test_add_creates_embedded_draft_and_save_preserves_controller(settings):
     path = settings.editor.path
     assert settings._selected() == ("user", path)
     assert settings.library.load(path)["name"] == "Workshop"
-    assert settings.library.load(path)["id"] == "heidanhain_itnc530"
+    assert settings.library.load(path)["id"] == "heidenhain_itnc530"
     assert not settings.editor.is_dirty()
 
 

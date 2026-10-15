@@ -1,8 +1,8 @@
 # Easy G-Code Plot
 
-Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling and SINUMERIK 840D milling (native and ISO-M), including supported native 3+2 and continuous five-axis CAM toolpaths.
+Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling, SINUMERIK 840D milling (native and ISO-M) and HEIDENHAIN iTNC 530 three-axis Klartext. FANUC/SINUMERIK multi-axis support is described in the [FAQ](FAQ.md).
 
-**New in 2.4.0: multiple documents and Compare.** Start with one empty milling document; use **+**, the document list and **×** to manage independent programs. **CNC Functions → Compare** shows aligned, read-only text differences between open buffers or disk files, with synchronized scrolling and Refresh. The source-type chooser also offers **iTNC-code** as a GUI-only plain-text mode; an iTNC lexer and AST are not implemented.
+**New in 2.5.0: multiple documents, Compare and a new input language — HEIDENHAIN iTNC (Klartext).** Start with one empty milling document; use **+**, the document list and **×** to manage independent programs. **CNC Functions → Compare** shows aligned, read-only text differences between open buffers or disk files, with synchronized scrolling and Refresh. The **iTNC-code** editor mode highlights Klartext; `.h`/`.H` files automatically select native three-axis milling execution. See the [iTNC input coverage and limits](FAQ.md#heidenhain-itnc-530-input) for executable commands and syntax-only features.
 
 **New in 2.3.1: customizable toolbars.** Right-click a toolbar and choose **Customize Toolbars** to choose its buttons. Search and enable static commands such as Tool Library, WCS, Stock, Tokens, Macro Variables and CNC Functions. Choices are saved across restarts; menus and shortcuts stay available. OK applies changes, Cancel discards them, and Restore Defaults restores the compact button set. Recent Files and other dynamic lists are excluded.
 
@@ -112,7 +112,7 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
 
 ## What it is
 
-Easy G-Code Plot is a desktop workspace for editing CNC programs, inspecting calculated toolpaths, simulating stock removal and exporting NC/DXF geometry. It supports FANUC turning/milling and a documented subset of SINUMERIK 840D native/ISO-M milling, including configured 3+2 and five-axis toolpaths.
+Easy G-Code Plot is a desktop workspace for editing CNC programs, inspecting calculated toolpaths, simulating stock removal and exporting NC/DXF geometry. It supports FANUC turning/milling, a documented subset of SINUMERIK 840D native/ISO-M milling and native HEIDENHAIN iTNC 530 three-axis Klartext. Configured 3+2 and five-axis FANUC/SINUMERIK toolpaths have controller-specific limits described in the FAQ.
 
 The GUI and CLI share one CNC execution kernel. Supported behavior, controller limits and diagnostics are described in the [FAQ](FAQ.md). The application does not model a complete physical machine.
 
@@ -190,7 +190,7 @@ See the [FAQ](FAQ.md#which-native-components-exist) for native-extension require
 | --- | --- |
 | User reference | [English FAQ](FAQ.md) · [Русский FAQ](FAQ_RU.md), also available in **Help → FAQ** |
 | Milling stock simulation | [Setup, Accuracy, GPU engine and STL](FAQ.md#milling-stock-removal) |
-| Controller support | [FANUC turning](FAQ.md#fanuc-turning) · [FANUC milling](FAQ.md#fanuc-milling) · [SINUMERIK 840D](FAQ.md#sinumerik-840d-input) |
+| Controller support | [FANUC turning](FAQ.md#fanuc-turning) · [FANUC milling](FAQ.md#fanuc-milling) · [SINUMERIK 840D](FAQ.md#sinumerik-840d-input) · [HEIDENHAIN iTNC 530](FAQ.md#heidenhain-itnc-530-input) |
 | Tools and scene | [Tool Library](FAQ.md#tool-libraries-and-tool-discovery) · [Interface, editor and playback](FAQ.md#interface-editor-and-playback) |
 | Export and automation | [NC/DXF export](FAQ.md#export) · [CLI](FAQ.md#cli) · [Batch analysis](FAQ.md#batch-analysis) · [Batch export](FAQ.md#batch-export) |
 | Development | [Architecture and checks](FAQ.md#development-and-architecture) · [Build and release](FAQ.md#build-and-release) |

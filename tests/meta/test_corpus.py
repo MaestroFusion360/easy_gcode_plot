@@ -7,6 +7,17 @@ import gcode_samples
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 EXPECTED_FIXTURES = {
+    "milling/heidenhain/1001.h",
+    "milling/heidenhain/arcs.h",
+    "milling/heidenhain/bore_itnc530.h",
+    "milling/heidenhain/contour.h",
+    "milling/heidenhain/cycles_itnc530.h",
+    "milling/heidenhain/ellipse.h",
+    "milling/heidenhain/itnc530.h",
+    "milling/heidenhain/itnc530_base_pgm.h",
+    "milling/heidenhain/itnc530_cycl200macro.h",
+    "milling/heidenhain/sample.h",
+    "milling/heidenhain/sample_cr.h",
     "milling/fanuc/bottle.nc",
     "milling/fanuc/fusion_benchmark_1001.nc",
     "milling/sinumerik/fusion_benchmark_1001.mpf",
@@ -97,7 +108,7 @@ def test_fixture_corpus_is_explicit_unique_and_uses_supported_program_files_only
     files = sorted(path for path in FIXTURES.rglob("*") if path.is_file() and path != FIXTURES / "README.md")
     actual = {path.relative_to(FIXTURES).as_posix() for path in files}
     assert actual == EXPECTED_FIXTURES
-    assert {path.suffix.lower() for path in files} == {".nc", ".ptp", ".mpf"}
+    assert {path.suffix.lower() for path in files} == {".nc", ".ptp", ".mpf", ".h"}
 
     hashes = [hashlib.sha256(_normalized(_fixture_text(path)).encode("utf-8")).hexdigest() for path in files]
     assert len(hashes) == len(set(hashes))
@@ -107,7 +118,7 @@ def test_compact_gcode_samples_do_not_duplicate_fixture_programs():
     fixture_programs = {
         _normalized(_fixture_text(path))
         for path in FIXTURES.rglob("*")
-        if path.is_file() and path.suffix.lower() in {".nc", ".ptp", ".mpf"}
+        if path.is_file() and path.suffix.lower() in {".nc", ".ptp", ".mpf", ".h"}
     }
     compact_programs = {
         _normalized(value)

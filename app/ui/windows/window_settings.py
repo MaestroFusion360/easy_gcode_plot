@@ -54,6 +54,7 @@ from app.settings import (
     normalized_recent_files as _normalized_recent_files,
 )
 from app.tools.discovery_rules import SETTINGS_KEY, load_settings
+from app.ui.support.heidenhain_lexer import HeidenhainLexer
 from app.ui.support.hotkeys import LEGACY_KEYS, is_reserved_shortcut, menu_commands, portable_shortcut
 from app.ui.support.lexer import GcodeLexer
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
@@ -349,6 +350,7 @@ class MainWindowSettingsMixin:
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
 
         self.lexer = GcodeLexer()
+        self.heidenhainLexer = HeidenhainLexer()
         self.defaultFileType = self.defaultFileType if 0 <= self.defaultFileType < self.ui.fileTypeCombo.count() else 0
         self.ui.fileTypeCombo.setCurrentIndex(self.defaultFileType)
         self.ui.editor.setFont(
@@ -544,6 +546,12 @@ class MainWindowSettingsMixin:
             caret_line_color=self.caretLineDarkColor if self.uiTheme == "dark" else self.caretLineColor,
             motion_colors=colors,
         )
+        native_lexer = getattr(self, "heidenhainLexer", None)
+        if native_lexer is not None:
+            native_colors = theme.editor_colors(self.uiTheme)
+            native_colors.update(colors)
+            native_lexer.apply_theme(native_colors)
+            self.ui.editor.recolor()
 
     def applyPlotTheme(self):
         """Move untouched standard plot colors onto the active theme and repaint."""

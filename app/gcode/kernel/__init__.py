@@ -1,4 +1,4 @@
-"""Shared CNC kernel public API (FANUC turning/milling and SINUMERIK milling).
+"""Shared CNC kernel public API (FANUC, SINUMERIK and HEIDENHAIN milling).
 
 Implementation lives in subject packages (``api``, ``frontend``, ``geometry``,
 ``runtime``, ``milling``). The historical flat module paths are registered as

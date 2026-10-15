@@ -1,5 +1,24 @@
 # NC fixture inventory after 2.1.0 stabilization
 
+Version 2.5.0 registers the supplied Klartext milling programs as native-input
+fixtures. Parser/runtime and GUI regressions are run separately from corpus
+registration. All 11 programs in `milling/heidenhain/` must execute completely
+and open/plot in the real Qt GUI with configured Home emulation enabled.
+`tests/dialects/test_heidenhain_execution.py` and
+`tests/gui/test_gui_state_lifecycle.py` enforce this for the entire directory.
+
+The corpus includes CAM contours, drilling/tapping, Cycle 7 datum shifts,
+Cycle 10 planar rotation, Cycle 247 preset selection, FN 6/7 trigonometric
+assignments and Q/label flow. The actual programs are retained unchanged.
+`cycles_itnc530.h` reaches M30 and executes eight holes; the macro drilling
+program executes ten holes; `ellipse.h` completes its 40-step ellipse loop.
+
+M140 MB MAX uses Z from Home (G28) in WCS for the vertical three-axis preview.
+It requires Home emulation, emits a warning and blocks NC trace export because
+physical travel limits are not modeled. Cycle 32 smoothing and F0 warnings
+remain visible. Complete execution of this corpus does not imply complete
+controller coverage.
+
 All checked-in NC/MPF/PTP files were reviewed against tracked tests, scripts,
 documentation and CI. The table records literal filename references separately
 from directory consumers: `tests/export/test_batch_export_semantics.py` exports
@@ -9,8 +28,9 @@ missing literal reference does **not** establish that a fixture is unused.
 No normalized duplicates were found. Controller/CAM is a regression role, not a
 claim that undocumented files have verified CAM provenance.
 
-All fixtures are retained, including large impellers, paired controller exports,
-macros, cycles and simulation examples. No files are deleted or rewritten.
+The retained controller/CAM programs, including large impellers, paired controller
+exports, macros, cycles and simulation examples, remain unchanged. Small native
+HEIDENHAIN AST scenarios live inline in frontend tests.
 The four-line CUT3DC warning scenario now lives in a semantic golden test in
 `tests/dialects/test_sinumerik_tcp.py`; its file remains a directory batch input.
 The test freezes motion coordinates, feed, diagnostic location/severity and TCP
@@ -59,6 +79,17 @@ export/reimport coverage. STL files used by Sandbox remain untouched as well.
 | `milling/fanuc/test_5ax_bc_fanuc.nc` | 65 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py` |
 | `milling/fanuc/toolchange.nc` | 788 | Controller/CAM integration | yes | - | `tests/export/test_drilling_operations.py`, `tests/stock/test_milling_stock_gpu.py`, `tests/stock/test_milling_stock_gui.py`, `tests/tooling/test_tool_discovery.py` |
 | `milling/fanuc/wcs_test.nc` | 99 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py`, `tests/export/test_mill_full_program.py` |
+| `milling/heidenhain/1001.h` | 128 | Contours, RL/RR/R0, label calls, Cycle 247 and M140 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/arcs.h` | 29 | CC/C circular interpolation in coordinate planes | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/bore_itnc530.h` | 47 | Multi-turn helical CP boring, Q feeds and RL | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/contour.h` | 597 | L/CC/C contour and machine-coordinate positioning | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/cycles_itnc530.h` | 98 | Cycles 200/203, eight holes and completion at M30 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/ellipse.h` | 49 | Cycles 7/10, Q expressions and a 40-step ellipse loop | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/itnc530.h` | 3027 | CAM contours, Cycle 200 drilling, Cycle 207 tapping and M140 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/itnc530_base_pgm.h` | 18 | Basic contour, tool call, spindle/coolant and M91 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/itnc530_cycl200macro.h` | 38 | FN 6/7 trigonometry and ten-hole Cycle 200 macro | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/sample.h` | 5605 | Large CAM contour, Cycle 32 and F0 diagnostics | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/sample_cr.h` | 2256 | CR arcs, decimal-comma input and STOP M30 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
 | `milling/sinumerik/5ax_test.mpf` | 5232 | Controller/CAM integration | yes | yes | `tests/dialects/test_sinumerik_cam_setup.py`, `tests/export/test_multiaxis_audit.py`, `tests/gui/test_daily_workflow_smoke.py` |
 | `milling/sinumerik/contur_2d_sin840d.mpf` | 99 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_native.py`, `tests/export/test_multiaxis_audit.py` |
 | `milling/sinumerik/correction_ijk_sin840d.mpf` | 50 | Controller/CAM integration | yes | - | directory/corpus checks only |

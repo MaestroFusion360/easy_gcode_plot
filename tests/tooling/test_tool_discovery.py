@@ -6,6 +6,7 @@ from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
+from window_state_helpers import window_namespace
 
 from app import settings
 from app.gcode.kernel import execute
@@ -319,7 +320,7 @@ def test_new_program_tool_reaches_kernel_before_execution_and_removes_stock(monk
         return execute(text, **options)
 
     monkeypatch.setattr("app.gcode.execution.program.execute", checked_execute)
-    window = SimpleNamespace(
+    window = window_namespace(
         ui=SimpleNamespace(editor=SimpleNamespace(text=lambda: source)),
         latheMode=True,
         tools={},

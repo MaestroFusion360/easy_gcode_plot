@@ -70,7 +70,7 @@ def test_export_package_groups_public_paths_and_serialization_stages():
         "sinumerik_iso",
         "sinumerik_840d",
         "sinumerik_840d_multiaxis",
-        "heidanhain_itnc530",
+        "heidenhain_itnc530",
     }
     assert callable(common.motion_line)
     assert callable(full.normalize_full_program)

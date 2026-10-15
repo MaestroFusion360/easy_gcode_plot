@@ -29,6 +29,11 @@ def _insert_at_caret(owner, text: str) -> None:
     editor.replaceSelectedText(prefix + text + "\n")
 
 
+def _source_dialect(owner):
+    combo = getattr(getattr(owner, "ui", None), "fileTypeCombo", None)
+    return "heidenhain" if combo is not None and combo.currentIndex() == 2 else "fanuc"
+
+
 class HoleCalculatorDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -83,6 +88,7 @@ class HoleCalculatorDialog(QDialog):
     def calculate(self) -> str:
         if self.ui.patternTabs.currentWidget() is self.ui.gridTab:
             return hole_grid(
+                source_dialect=_source_dialect(self.parent()),
                 start_x=self.ui.startXSpin.value(),
                 start_y=self.ui.startYSpin.value(),
                 step_x=self.ui.stepXSpin.value(),
@@ -93,6 +99,7 @@ class HoleCalculatorDialog(QDialog):
         if self.ui.diameterSpin.value() <= 0:
             raise ValueError(QCoreApplication.translate("HoleCalculatorDialog", "Diameter must be greater than zero."))
         return hole_circle(
+            source_dialect=_source_dialect(self.parent()),
             diameter=self.ui.diameterSpin.value(),
             start_angle=self.ui.startAngleSpin.value(),
             center_x=self.ui.centerXSpin.value(),
@@ -290,6 +297,8 @@ class PocketCalculatorDialog(QDialog):
 
     def calculate_and_insert(self):
         try:
-            _insert_at_caret(self.parent(), pocket_program(self.parameters()))
+            _insert_at_caret(
+                self.parent(), pocket_program(self.parameters(), source_dialect=_source_dialect(self.parent()))
+            )
         except ValueError as exc:
             QMessageBox.warning(self, self.windowTitle(), str(exc))

@@ -82,7 +82,7 @@ def execute(
     milling_correction_enabled = bool(options.pop("milling_correction_enabled", True))
     options["tool_resolver"] = _capture_tool_resolver(options.pop("tool_resolver", None), resolved_tools)
     try:
-        result = _execute_impl(source, language, **options)
+        result = _execute_impl(source, language, geometry_tolerance=arc_tolerance, **options)
         result = replace(
             result,
             source_dialect=options.get("source_dialect", "fanuc"),

@@ -147,8 +147,12 @@ def test_ruler_two_clicks_live_preview_reset_and_editor_isolation(window, qt_app
     window.ui.actionMeasure.trigger()
     ruler = window._ruler
     assert ruler.active and ruler.dialog.isVisible() and not ruler.dialog.isModal()
+    # Finish showing/layout/focus events before projecting and injecting input.
+    qt_app.processEvents()
     first, second = (40, 20, 0), (55, 30, 20)
     QTest.mouseClick(window.ui.graphicsView, Qt.MouseButton.LeftButton, pos=_screen(window, first))
+    # Drain the click's queued native pointer events before the explicit move.
+    qt_app.processEvents()
     assert ruler.first == pytest.approx(first)
     event = QMouseEvent(
         QEvent.Type.MouseMove,
@@ -158,6 +162,8 @@ def test_ruler_two_clicks_live_preview_reset_and_editor_isolation(window, qt_app
         Qt.KeyboardModifier.NoModifier,
     )
     QApplication.sendEvent(window.ui.graphicsView, event)
+    assert ruler.second == pytest.approx(second), "The first live preview must be published by the input event"
+    assert ruler._timer.isActive(), "The mouse-move event did not schedule a ruler preview"
     deadline = monotonic() + 2
     while ruler.second is None and monotonic() < deadline:
         QTest.qWait(10)

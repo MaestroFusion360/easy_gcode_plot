@@ -16,7 +16,7 @@ BUILTIN_LABELS = {
     "fanuc_mill": "FANUC milling",
     "sinumerik_iso": "SINUMERIK 840D ISO-M (G291)",
     "sinumerik_840d": "SINUMERIK 840D native",
-    "heidanhain_itnc530": "Heidenhain iTNC 530",
+    "heidenhain_itnc530": "Heidenhain iTNC 530",
     "fanuc_mill_multiaxis": "FANUC milling (multi-axis)",
     "sinumerik_840d_multiaxis": "SINUMERIK 840D native (multi-axis)",
     "fanuc_lathe_a": "FANUC lathe A",

@@ -44,6 +44,11 @@ def _code_words_without_macro_expressions(line: str) -> str:
 
 
 class MainWindowEditorMixin:
+    def _native_file_type_selected(self) -> bool:
+        """Whether the iTNC Klartext file type is active; safe with mock UIs."""
+        combo = getattr(getattr(self, "ui", None), "fileTypeCombo", None)
+        return combo is not None and combo.currentIndex() == 2
+
     def updateStatusBar(self):
         """Update source position without reading the complete document."""
         line, index = self.ui.editor.getCursorPosition()
@@ -51,12 +56,31 @@ class MainWindowEditorMixin:
 
     def changeFileType(self, idx):
         """Switch editor highlighting for the selected file type."""
+        previous_dialect = self._document_source_dialect
+        if idx == 2:
+            self._document_source_dialect = "heidenhain"
+            self._document_arc_type = 1
+            if self.latheMode:
+                self._restore_document_mode(False)
+                self._view_mode = "3d"
+        elif not getattr(self, "curFile", "") and previous_dialect == "heidenhain":
+            from app.gcode.execution.source import (  # pylint: disable=import-outside-toplevel
+                source_dialect_for_path,
+            )
+
+            self._document_source_dialect = source_dialect_for_path(None, self.ui.editor.text())
+            if self._document_source_dialect != "heidenhain":
+                self._document_arc_type = None
+        if self._document_source_dialect != previous_dialect:
+            self._parsed_program_cache = None
+            self._deferred_execution_result = None
+            self._deferred_execution_source = None
+            self._plot_source_stale = True
         self.syncFileTypeMenu(idx)
         self.ui.editor.setLexer(None)
         self.ui.editor.setMarginsForegroundColor(QColor(self.marginColor))
         self.ui.editor.setMarginsFont(QFont(self.marginFontFamily, self.marginSizeTxt))
-        # iTNC currently has a GUI choice only; use plain text until its lexer exists.
-        if idx != 1:
+        if idx not in (1, 2):
             self.ui.editor.setFont(
                 QFont(
                     self.fontFamily,
@@ -67,7 +91,8 @@ class MainWindowEditorMixin:
             )
             self.ui.editor.SendScintilla(QsciScintilla.SCI_CLEARDOCUMENTSTYLE)
         else:
-            self.lexer.setFont(
+            lexer = self.heidenhainLexer if idx == 2 else self.lexer
+            lexer.setFont(
                 QFont(
                     self.fontFamily,
                     self.sizeTxt,
@@ -75,9 +100,11 @@ class MainWindowEditorMixin:
                     italic=self.fontItalic,
                 )
             )
-            self.ui.editor.setLexer(self.lexer)
+            self.ui.editor.setLexer(lexer)
         self.applyUiTheme()
         self.syncGuiCapabilities()
+        if self._document_source_dialect != previous_dialect and hasattr(self, "autoUpdateTimer"):
+            self.scheduleAutoUpdate()
         LOGGER.debug("editor lexer changed index=%d", idx)
 
     def createLabelStatBar(self):
@@ -488,12 +515,25 @@ class MainWindowEditorMixin:
         """Add or update block numbers for the selected or full document."""
         st = self.seqNumStart
         incr = self.seqNumIncr
-        delim = " " if self.seqNumSpacing else ""
+        native = self._native_file_type_selected()
+        delim = " " if native or self.seqNumSpacing else ""
 
         def handler(lines):
             nonlocal st
             lst = []
             for line in lines:
+                if native:
+                    if not line.strip():
+                        lst.append(line)
+                        continue
+                    body = line.lstrip()
+                    optional = "/" if body.startswith("/") else ""
+                    if optional:
+                        body = body[1:].lstrip()
+                    body = re.sub(r"^(?:N\d+|\d+)[ \t]*", "", body, count=1, flags=re.I)
+                    lst.append(f"{optional}{st} {body}")
+                    st += incr
+                    continue
                 skipline = "".join(re.findall(r"^[%O\r\n]", line))
                 if skipline:
                     lst.append(line)
@@ -511,10 +551,21 @@ class MainWindowEditorMixin:
 
     def numbRemove(self):
         """Remove block numbers from the selected or full document."""
+        native = self._native_file_type_selected()
 
         def handler(lines):
             lst = []
             for line in lines:
+                if native:
+                    if not line.strip():
+                        lst.append(line)
+                        continue
+                    body = line.lstrip()
+                    optional = "/" if body.startswith("/") else ""
+                    if optional:
+                        body = body[1:].lstrip()
+                    lst.append(optional + re.sub(r"^(?:N\d+|\d+)[ \t]*", "", body, count=1, flags=re.I))
+                    continue
                 num = "".join(re.findall(r"^N\d+", line))
                 if num:
                     new_line = re.sub(r"^N\d+", "", line).lstrip()
@@ -527,10 +578,17 @@ class MainWindowEditorMixin:
 
     def removeSpaces(self):
         """Strip spaces from code while preserving every parenthesized comment verbatim."""
+        native = self._native_file_type_selected()
 
         def handler(lines):
             transformed = []
             for line in lines:
+                if native:
+                    parts = re.split(r'("(?:[^"\r\n]|"")*"|;[^\r\n]*)', line)
+                    transformed.append(
+                        "".join(part if part.startswith(('"', ";")) else re.sub(r"[ \t]+", " ", part) for part in parts)
+                    )
+                    continue
                 parts = re.split(r"(\([^()]*\))", line)
                 transformed.append(
                     "".join(

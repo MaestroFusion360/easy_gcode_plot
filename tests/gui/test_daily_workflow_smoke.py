@@ -118,6 +118,11 @@ def _install_dialogs(monkeypatch, paths, exported):
         return QMessageBox.StandardButton.Ok
 
     monkeypatch.setattr(main_window_file_ops.QFileDialog, "getOpenFileName", open_file)
+    monkeypatch.setattr(
+        main_window_file_ops.QFileDialog,
+        "getOpenFileNames",
+        lambda *args, **kwargs: ([open_file(*args, **kwargs)[0]], ""),
+    )
     monkeypatch.setattr(main_window_file_ops.QFileDialog, "getSaveFileName", save_file)
     monkeypatch.setattr(QMessageBox, "information", information)
     monkeypatch.setattr(QMessageBox, "warning", unexpected)

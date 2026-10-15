@@ -16,6 +16,7 @@ from PyQt6.QtGui import QColor, QFontDatabase, QIcon, QTextCursor, QTextFormat
 from PyQt6.QtWidgets import QDialog, QFileDialog, QMessageBox, QTextEdit
 
 from app.ui.generated.dialogs.compare import Ui_CompareDialog
+from app.ui.support.file_drop import FileDropTarget
 from app.ui.windows.main_window_file_ops import NC_FILE_FILTER, _read_editor_text
 
 
@@ -141,6 +142,19 @@ class CompareDialog(QDialog):
             combo.currentIndexChanged.connect(self._selection_changed)
         self.ui.leftOpenButton.clicked.connect(lambda: self._browse(self.ui.leftCombo))
         self.ui.rightOpenButton.clicked.connect(lambda: self._browse(self.ui.rightCombo))
+        self._file_drop_targets = []
+        for panel, editor, combo in (
+            (self.ui.leftPanel, self.ui.leftEditor, self.ui.leftCombo),
+            (self.ui.rightPanel, self.ui.rightEditor, self.ui.rightCombo),
+        ):
+            self._file_drop_targets.append(
+                FileDropTarget(
+                    (panel, editor, editor.viewport(), combo),
+                    lambda paths, target=combo: self._open_disk_source(target, paths[0]),
+                    parent=self,
+                    max_files=1,
+                )
+            )
         self.ui.refreshButton.clicked.connect(self._refresh)
         for source, target in (
             (self.ui.leftEditor, self.ui.rightEditor),
@@ -212,6 +226,10 @@ class CompareDialog(QDialog):
         path, _filter = QFileDialog.getOpenFileName(self, self.tr("Open NC program"), "", NC_FILE_FILTER)
         if not path:
             return
+        self._open_disk_source(combo, path)
+
+    def _read_disk_source(self, path):
+        """Read a disk snapshot and report failures consistently for open/refresh."""
         try:
             text, _encoding = _read_editor_text(path, getattr(self.parent(), "fileEncoding", "utf-8"))
         except (OSError, UnicodeError) as exc:
@@ -220,11 +238,18 @@ class CompareDialog(QDialog):
                 self.tr("Compare"),
                 self.tr("Cannot read file %1:\n%2").replace("%1", path).replace("%2", str(exc)),
             )
-            return
+            return None
+        return text
+
+    def _open_disk_source(self, combo, path):
+        text = self._read_disk_source(path)
+        if text is None:
+            return False
         name = self.tr("%1 (disk)").replace("%1", f"{Path(path).name} — {path}")
         combo.addItem(name, CompareSource(name, text=text, path=path))
         combo.setItemData(combo.count() - 1, path, Qt.ItemDataRole.ToolTipRole)
         combo.setCurrentIndex(combo.count() - 1)
+        return True
 
     def _refresh(self):
         updates = []
@@ -232,14 +257,8 @@ class CompareDialog(QDialog):
             source = combo.currentData()
             if source is None or source.path is None:
                 continue
-            try:
-                text, _encoding = _read_editor_text(source.path, getattr(self.parent(), "fileEncoding", "utf-8"))
-            except (OSError, UnicodeError) as exc:
-                QMessageBox.warning(
-                    self,
-                    self.tr("Compare"),
-                    self.tr("Cannot read file %1:\n%2").replace("%1", source.path).replace("%2", str(exc)),
-                )
+            text = self._read_disk_source(source.path)
+            if text is None:
                 return
             updates.append((combo, replace(source, text=text)))
         for combo, source in updates:

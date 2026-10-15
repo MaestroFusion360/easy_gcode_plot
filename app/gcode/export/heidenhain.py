@@ -1,7 +1,8 @@
 """Export resolved milling operations to native iTNC 530 blocks.
 
-The application does not parse Heidenhain source. Variables, calls and source
-cycles from supported input languages are executed before this target writer.
+The separate Klartext frontend and three-axis runtime consume native input.
+Variables, calls and source cycles from executable input languages are resolved
+before this target writer; it does not interpret Klartext source ASTs.
 """
 
 from __future__ import annotations

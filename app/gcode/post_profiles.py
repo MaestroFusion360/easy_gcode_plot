@@ -23,9 +23,9 @@ POST_TARGETS = (
     "sinumerik_iso",
     "sinumerik_840d",
     "sinumerik_840d_multiaxis",
-    "heidanhain_itnc530",
+    "heidenhain_itnc530",
 )
-MILLING_TARGETS = ("fanuc_mill", "sinumerik_iso", "sinumerik_840d", "heidanhain_itnc530")
+MILLING_TARGETS = ("fanuc_mill", "sinumerik_iso", "sinumerik_840d", "heidenhain_itnc530")
 
 
 def target_post_for_index(target: int, *, turning: bool) -> str | None:
@@ -46,7 +46,7 @@ def export_file_suffix(source_path, *, target: str | None = None, dxf: bool = Fa
     if target:
         return "." + load_post_profile(target)["extension"]
     suffix = Path(source_path).suffix.casefold() if source_path else ""
-    return suffix if suffix in {".mpf", ".spf"} else ".nc"
+    return suffix if suffix in {".mpf", ".spf", ".h"} else ".nc"
 
 
 def load_post_profile(target):
@@ -164,7 +164,7 @@ def _validate_post_extras(profile):
 
 def _validate_heidenhain_native(profile):
     native = profile.get("native")
-    if profile.get("id") != "heidanhain_itnc530":
+    if profile.get("id") != "heidenhain_itnc530":
         if native is not None:
             raise ValueError("Post native commands are reserved for the Heidenhain iTNC 530 profile")
         return

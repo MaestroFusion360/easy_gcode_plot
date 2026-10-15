@@ -7,6 +7,7 @@ import pytest
 from PyQt6.QtCore import QPointF
 from PyQt6.QtGui import QColor, QMatrix4x4
 from PyQt6.QtWidgets import QApplication
+from window_state_helpers import window_namespace
 
 from app import main_window
 from app.gcode.kernel import execute
@@ -87,7 +88,7 @@ def test_grid_toggle_changes_state_and_refreshes_current_plot_position():
     recreated_trace_items = []
     refreshed = []
 
-    window = SimpleNamespace(
+    window = window_namespace(
         ui=SimpleNamespace(
             actionGrid=action_grid,
             horizontalSlider=slider,
@@ -147,7 +148,7 @@ def test_trace_cursor_is_fixed_pixel_size_and_toolpath_uses_one_vbo_item(monkeyp
     monkeypatch.setattr(main_window_plot, "ToolpathVboItem", _ToolpathItem)
     monkeypatch.setattr(main_window_plot, "GLScatterPlotItem", _ScatterItem)
     result = execute("G0 X10\nG1 X20 F100\nM30", language="fanuc_mill")
-    window = SimpleNamespace(
+    window = window_namespace(
         execution_result=result,
         render_points=render_trace(result),
         plotRapidColor="#110000",
@@ -207,7 +208,7 @@ def test_2d_picking_selects_nearest_motion_and_source_line(monkeypatch):
             SimpleNamespace(source_block=5, start_x=10, start_y=0, start_z=0, tool=None, move=1),
         ]
     )
-    window = SimpleNamespace(
+    window = window_namespace(
         latheMode=False,
         _view_mode="top",
         render_points=points,
@@ -228,7 +229,7 @@ def test_2d_picking_selects_nearest_motion_and_source_line(monkeypatch):
 
 
 def test_picking_without_an_execution_result_is_ignored_in_3d_view():
-    window = SimpleNamespace(latheMode=False, _view_mode="3d", render_points=[object()])
+    window = window_namespace(latheMode=False, _view_mode="3d", render_points=[object()])
     position = SimpleNamespace(x=lambda: 0.0, y=lambda: 0.0)
     assert main_window.MainWindow._pick_trace_at(window, position) is False
 
@@ -331,7 +332,7 @@ def test_3d_pick_synchronizes_selected_execution_occurrence(monkeypatch):
         SimpleNamespace(x=x, y=0, z=z, motion_index=index) for index, z in enumerate((0.5, -0.5)) for x in (-0.8, 0.8)
     ]
     selected = []
-    window = SimpleNamespace(
+    window = window_namespace(
         latheMode=False,
         _view_mode="3d",
         render_points=points,

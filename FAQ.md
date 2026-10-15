@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-Updated for **2.4.0**: MDI documents, read-only Compare and refreshed GUI defaults.
+Updated for **2.5.0**: MDI documents, read-only Compare and refreshed GUI defaults.
 
 This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC and SINUMERIK native/ISO-M semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
@@ -250,6 +250,11 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Can SINUMERIK native milling programs be converted to FANUC?](#can-sinumerik-native-milling-programs-be-converted-to-fanuc)
     - [How do Full Program and Expanded Execution differ?](#how-do-full-program-and-expanded-execution-differ)
     - [Is SINUMERIK lathe supported?](#is-sinumerik-lathe-supported)
+  - [HEIDENHAIN iTNC 530 input](#heidenhain-itnc-530-input)
+    - [What HEIDENHAIN support is included?](#what-heidenhain-support-is-included)
+    - [How are Klartext source, parameters and diagnostics represented?](#how-are-klartext-source-parameters-and-diagnostics-represented)
+    - [Which iTNC editor tools and exports are available?](#which-itnc-editor-tools-and-exports-are-available)
+    - [How is the iTNC implementation verified?](#how-is-the-itnc-implementation-verified)
   - [CLI](#cli)
     - [Does the CLI use the same kernel as the GUI?](#does-the-cli-use-the-same-kernel-as-the-gui)
     - [Which commands exist?](#which-commands-exist)
@@ -439,7 +444,7 @@ uv run --no-dev python main.py
 5. Inspect the trajectory, playback, diagnostics and statistics.
 6. Export FULL, EXPANDED or DXF when required.
 
-Menu locations in 2.4.0:
+Menu locations in 2.5.0:
 
 | Command | Menu path |
 | --- | --- |
@@ -479,7 +484,7 @@ Choose **CNC Functions → Compare** or its toolbar button. Select open document
 
 ### What does the iTNC-code source type do?
 
-The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code currently selects plain-text display only: it does not add an iTNC lexer, AST or native input execution.
+The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and three-axis runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241. Cycle 32 retains metadata without simulating controller smoothing. Rotary axes, tool offsets, `M120`, `RND`/`CHF` and `PLANE`/TCP remain syntax-only or unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
 
 ### Which input encodings are supported?
 
@@ -1870,8 +1875,7 @@ Playback tracks execution occurrence and source ownership separately.
 
 Right-click a toolbar and choose **Customize Toolbars**. Check the buttons you want on each panel; search filters the list without changing your choices. **OK** applies and saves the selection, **Cancel** discards it, and **Restore Defaults** stages the compact default button set. The toolbar context menu also lets you hide whole panels or reset their layout and buttons. Menu commands and shortcuts remain available even when a button is hidden. Static CNC Functions and Tool Library/WCS/Stock/Tokens commands are available; Recent Files and rotary-profile lists remain in menus. Source-type and playback-speed widgets are retained.
 
-The 2.4.0 default keeps grouped file operations, undo/redo/search, view controls, toolchange navigation, Compare/statistics/measurement and playback. Clipboard buttons, case conversion, cleanup, Save As, Print, tool-list export, snippets and calculators are optional. Existing saved choices remain unchanged until you explicitly restore defaults.
-
+The 2.5.0 default keeps grouped file operations, undo/redo/search, view controls, toolchange navigation, Compare/statistics/measurement and playback. Clipboard buttons, case conversion, cleanup, Save As, Print, tool-list export, snippets and calculators are optional. Existing saved choices remain unchanged until you explicitly restore defaults.
 
 ### How do I locate a plotted move in the editor?
 
@@ -2197,7 +2201,7 @@ FULL preserves ordinary source blocks, comments, modal commands, controller dial
 
 EXPANDED is the controller-conversion path. One generic postprocessor emits resolved geometry and machine state through a JSON profile. Cycles, variables and subprogram flow have already been executed. Target profiles define syntax, mandatory frames, capabilities and defaults; they do not disable user output options.
 
-Bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`, `fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d`, `sinumerik_840d_multiaxis` and `heidanhain_itnc530`; an external JSON path can be supplied with `--post-profile`. The `*_multiaxis` profiles declare `supports.axes` `X/Y/Z/A/B/C` and emit explicit resolved rotary coordinates; the three-axis profiles stay XYZ-only and still reject rotary geometry.
+Bundled profiles are `fanuc_mill`, `fanuc_mill_multiaxis`, `fanuc_lathe_a`, `fanuc_lathe_b`, `sinumerik_iso`, `sinumerik_840d`, `sinumerik_840d_multiaxis` and `heidenhain_itnc530`; an external JSON path can be supplied with `--post-profile`. The `*_multiaxis` profiles declare `supports.axes` `X/Y/Z/A/B/C` and emit explicit resolved rotary coordinates; the three-axis profiles stay XYZ-only and still reject rotary geometry.
 
 Supported tilted-plane output retains G54–G59 and requires matching target offsets; other displaced-WCS indexed cases remain rejected as `UNSUPPORTED_INDEXED_WCS_EXPANDED_EXPORT`. TCP arc subdivision distributes ABC with XYZ; G91 rotary output avoids cumulative rounding drift. With a custom G93-capable profile, subdivision preserves the original block duration and restores the source feed for later motions. Unverified compensation and ignored native geometry-changing commands return `UNSUPPORTED_UNVERIFIED_GEOMETRY_EXPANDED_EXPORT`, including the concrete execution diagnostic codes.
 
@@ -2215,7 +2219,7 @@ The editor contains **Source**, **Output**, **Format**, **Sequencing**, **Motion
 
 In **Export Options / EXPANDED EXECUTION**, choose **Target CNC** or use **Add ready…** to import a validated JSON for the current machine type. Import copies it into the configuration directory’s `post-profiles` folder and preserves the original. Profile editing and management stay in Settings; renaming retains the path and controller `id`.
 
-The bundled `heidanhain_itnc530` is an EXPANDED output target; the application has no Heidenhain input parser. It emits `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CR`, `CC` with `C/CP`, cycles 200/201/202/203/207 and rapid XYZ machine returns with `M91`. IPA and DR use matching signs; Q239 is negative for left-hand tapping. G85 uses cycle 201 with feed retraction, while G86 uses cycle 202 with stopped-spindle rapid retraction. Arcs outside the spindle plane in TOOL CALL are linearized at the export tolerance. Numeric sequence prefixes omit `N`. Unsupported rotary/TCP operations and cycles are rejected before writing.
+The bundled `heidenhain_itnc530` is an EXPANDED output target, separate from the native input parser and three-axis runtime. It emits `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CR`, `CC` with `C/CP`, cycles 200/201/202/203/207 and rapid XYZ machine returns with `M91`. IPA and DR use matching signs; Q239 is negative for left-hand tapping. G85 uses cycle 201 with feed retraction, while G86 uses cycle 202 with stopped-spindle rapid retraction. Arcs outside the spindle plane in TOOL CALL are linearized at the export tolerance. Numeric sequence prefixes omit `N`. Unsupported rotary/TCP operations and cycles are rejected before writing. Export capabilities do not imply corresponding iTNC input execution coverage; see [the input coverage table](#what-heidenhain-support-is-included).
 
 Export passes the selected JSON path through the same writer as CLI `--post-profile`, including its output extension. Selections persist by identifier/path. Missing, damaged or incompatible profiles require choosing Auto or another valid profile explicitly. Profile selection is disabled for FULL and DXF. Cancel in Export Options discards output options and the temporary selection; separately saved profiles remain available.
 
@@ -2436,6 +2440,60 @@ GUI and CLI use the same FULL / EXPANDED / DXF split. Target-controller selectio
 ### Is SINUMERIK lathe supported?
 
 **No. SINUMERIK turning/lathe is not supported yet**, in either native mode or ISO Dialect T. Siemens turning execution and conversion to/from FANUC turning are unavailable. SINUMERIK support described here is milling; the supported FANUC turning kernel is a separate mode.
+
+---
+
+## HEIDENHAIN iTNC 530 input
+
+HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. `.h`/`.H` files — or unnamed text whose block structure contains `BEGIN PGM ... MM/INCH` — select native three-axis milling execution (`fanuc_mill` with `source_dialect=heidenhain`). The **iTNC-code** source type selects it manually and enables Klartext highlighting. The parser builds an immutable native AST with unevaluated Q/QL/QR expressions, separate numeric/named label maps and physical source locations; the runtime consumes that AST directly and never lowers commands to ISO.
+
+The scope is **three-axis CAM contours and bounded parametric programs**. Unsupported semantics are not silently skipped: execution stops at the source block with a diagnostic and keeps the valid prefix of the trajectory. Structured results and CLI/batch reports expose `source_dialect=heidenhain` independently of the shared `fanuc_mill` geometry language.
+
+### What HEIDENHAIN support is included?
+
+| Native function | Current behavior |
+| --- | --- |
+| `BEGIN/END PGM`, `MM/INCH`, `BLK FORM 0.1/0.2` | Program/unit metadata and stock bounds; coordinates and feeds are converted to millimetres |
+| `L` and coordinate-only straight blocks | XYZ motion with `IX/IY/IZ` incremental addresses and `F`/`FMAX`/`FAUTO`, `R0/RL/RR` |
+| `CC`, `C`, `CR`, `CT` | Circle center and full/partial arcs with `DR+`/`DR-`, radius arcs and tangent arcs; circular motions require an explicit direction |
+| `LP`, `CP` | Polar positioning and polar/helical circular motion with `PR/IPR/PA/IPA` |
+| `APPR/DEP LT/LN/CT/LCT` | Approach/departure lines and tangent arcs to a planar contour |
+| `TOOL CALL`, `TOOL DEF` | Numeric, named and Q tools, spindle axis X/Y/Z, `S`/`F`; tool offsets `DL/DR/DR2` are parsed but stop execution |
+| `M0/M1/M2/M3/M4/M5/M6/M8/M9/M13/M14/M30` | Logical signals/spindle state and program end; `M99` calls the active cycle. Other M words stop execution |
+| `M91` | Nonmodal absolute machine XYZ using the configured WCS |
+| `Q/QL/QR`, `FN 0–4/6/7`, expressions | Bounded arithmetic, comparisons, trigonometry and function trees evaluated without `eval`; QL locals are saved across label calls |
+| `LBL`, `CALL LBL`, `REP`, `FN 9–12` | Numeric and named labels, call stack, repeats and conditional `GOTO`; unmatched labels, duplicate definitions and LBL 0 misuse are diagnosed |
+| `CYCL DEF`/`CYCL CALL` | Cycle 32 is metadata only; drilling/boring/tapping cycles 1/2, 200–209 and 240/241 expand to physical geometry; cycle 9 is dwell; unsupported cycle codes stop execution |
+| Q cycle parameters | Physical `Q...=` continuation blocks remain in the AST and are consumed by `CYCL CALL` in execution order; `Q208=MAX` retains a symbolic rapid retraction feed for cycles 202/203 |
+| Cycle 247 datum selection | Application mapping: `Q339=1..6` selects the configured G54..G59 offsets in millimetres. The tool's machine position is preserved; other preset numbers are unsupported. This is not an import of a controller's preset table |
+| Cycles 7/10 | Axis-address datum shifts and XY planar rotation (`ROT`) apply immediately without moving the tool; reset with zero values. Coordinate and circle-center transforms are retained in the machine-space trace; datum-table and tilted-plane variants remain unsupported |
+| `M140 MB distance`, `M140 MB MAX` | The current vertical three-axis preview always retracts along machine Z, before positioning, with a separate optional feed. MAX requires enabled Home emulation and uses Z from Home (G28) in WCS, in the positive direction only, with a warning. Tilted tool-axis retraction is not modeled. This approximation blocks NC trace export |
+| `F0`, repeated feed addresses | Geometry is retained; F0 is disclosed as a warning instead of inventing a feed; repeated feeds use the last value |
+| Optional `/` blocks and source numbers | Physical source lines and optional skip markers are retained; block numbers are not treated as `LBL` subprogram labels |
+| `RND/CHF`, `M120`, rotary `A/B/C/U/V/W`, `PLANE`, TCP, tool offsets | Parsed as native facts but not executed; execution stops at the block |
+| FULL formatting | Rejected for Klartext; EXPANDED and Save Source remain available |
+
+### How are Klartext source, parameters and diagnostics represented?
+
+The public parser is [`parse_heidenhain_program(source)`](app/gcode/kernel/frontend/heidenhain.py). Each physical line, including comments, empty lines, optional `/` skip and numeric block prefixes, remains a source `Block` with original text and locations. `Block.native_syntax` and the immutable AST share typed Klartext commands, expressions, M-function parameters (including typed `M120 LA`/`M140 MB` parameters and a separately scoped `M140` retraction feed) and cycle-parameter continuation records; no synthetic FANUC G words, ISO motions or Macro B nodes are introduced. The portable and Cython AST builders agree on these native nodes.
+
+Q expressions are parsed into trees **without evaluating them**; the dedicated runtime subsequently evaluates supported arithmetic, functions and assignments without Python `eval`. The accepted ranges are `Q0–Q1999` and `QL/QR0–499`. Program block numbers and numeric/named `LBL` definitions have separate maps; `LBL 0` returns, duplicate or unresolved static labels are diagnosed, and active cycle definitions are resolved in execution order rather than assumed from the lexical `CYCL CALL` reference. The parser does not invent missing cycle parameters; supported runtime defaults are applied only during execution. Unsupported `PLANE` and `FN 18` instructions do not generate motion.
+
+Parse errors include a physical line, column, source text and diagnostic code. During execution, emitted motions and steps keep source-block provenance; unsupported operations stop on the offending line with the valid prefix preserved. Execution limits and cooperative cancellation also apply to native Klartext. The shared `fanuc_mill` machine contract provides geometry, while `source_dialect=heidenhain` selects the independent interpreter.
+
+### Which iTNC editor tools and exports are available?
+
+**Open Document** includes `.h`/`.H`; the **iTNC-code** selection enables Klartext syntax highlighting with the configured editor font, colors and theme. Hole and pocket calculators generate native signed `L`/`CR` blocks and, where applicable, `CC`/`CP` helical entries instead of an ISO postprocessed fragment. **Renumber** writes numeric prefixes without `N`, allows a start at zero, retains optional `/` markers and supports selected lines; removing numbers also respects Klartext prefixes.
+
+**Save** retains the original source. Klartext **FULL** formatting is rejected; **EXPANDED** uses the distinct `heidenhain_itnc530` output post and resolved trace. It can emit `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CC` with `C/CP`, `CR` and `CYCL DEF 200/201/202/203/207`. This output support is **not** evidence that every emitted native construct can be consumed by the separate input interpreter. Rotary/TCP export remains restricted to the post's supported three-axis geometry.
+
+### How is the iTNC implementation verified?
+
+All 11 programs in `tests/fixtures/milling/heidenhain/` execute completely and open/plot in real Qt regressions with Home emulation enabled. The unchanged `cycles_itnc530.h` reaches M30 and executes eight holes; `itnc530_cycl200macro.h` executes ten holes using FN 6/7 trigonometric assignments; `ellipse.h` completes its 40-step loop using Cycle 7 datum shift and Cycle 10 planar rotation. MAX retraction uses Z from Home (G28) in WCS, emits `HEIDENHAIN_M140_HOME_EMULATION`, and blocks NC trace export. With Home emulation disabled, MAX stops with a source diagnostic. Cycle 247 maps entries 1–6 to G54–G59. Native motions, arc centers and drilling operations use machine coordinates.
+
+The repository retains the real CAM and parametric programs under [`tests/fixtures/milling/heidenhain/`](tests/fixtures/milling/heidenhain/). Regression checks cover AST structure, exact source positions, cycle continuations, portable/native AST equivalence, diagnostics, cancellation and source-to-motion links in [`test_heidenhain_frontend.py`](tests/dialects/test_heidenhain_frontend.py) and [`test_heidenhain_execution.py`](tests/dialects/test_heidenhain_execution.py). Small AST cases are inline test inputs. The full `sample.h` fixture reaches `M30`; Cycle 32 smoothing and `F0` generate explicit warnings. The corpus includes decimal-comma coordinates and `STOP M30` in `sample_cr.h`, plus `arcs.h` cases with repeated feeds and circle planes derived from `CC`. GUI highlighting, calculators, renumbering and the export post have separate tests. These checks are not a claim of full iTNC 530 controller or machine simulation coverage.
+
+Syntax references: HEIDENHAIN's [Klartext programming manual](https://content.heidenhain.de/doku/tnc_guide/pdf_files/iTNC530/34049x-neu/en/bhb.pdf) and [iTNC 530 60642x-03 manual](https://content.heidenhain.de/doku/tnc_guide/pdf_files/iTNC530/60642x-03/bhb/737759-22.pdf).
 
 ---
 

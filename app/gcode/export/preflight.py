@@ -175,6 +175,7 @@ def _require_valid_trace_export(result: ExecutionResult, profile: dict, *, allow
             code="UNSUPPORTED_SINUMERIK_CSS_EXPANDED_EXPORT",
         )
     ignored_native = {
+        "HEIDENHAIN_M140_HOME_EMULATION",
         "IGNORED_SINUMERIK_DIAMETER_MODE",
         "UNMODELED_SINUMERIK_CHF",
         "UNMODELED_SINUMERIK_CHR",
@@ -193,7 +194,7 @@ def _require_valid_trace_export(result: ExecutionResult, profile: dict, *, allow
         message = (
             "NC trace export cannot preserve ignored SINUMERIK diameter/corner/feed commands"
             if any("SINUMERIK" in code for code in blockers)
-            else "NC trace export cannot preserve unverified cutter compensation"
+            else "NC trace export cannot preserve unverified geometry"
         )
         raise ExportLimitation(
             message + ": " + ", ".join(sorted(set(blockers))),

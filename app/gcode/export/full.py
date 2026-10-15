@@ -19,6 +19,7 @@ from ..kernel import ExecutionResult, TraceMotion
 from ..kernel.geometry.coordinates import extended_wcs_id
 from ..kernel.runtime.events import PROGRAM_END, PROGRAM_START, SUBPROGRAM_END, SUBPROGRAM_START
 from .common import (
+    ExportLimitation,
     ExportOptions,
     _check_cancelled,
     _execution_slices,
@@ -57,6 +58,11 @@ def _dangerous_source(result):
 
 def normalize_full_program(result, source, options=None, *, cancelled=None):
     """Retain ordinary source blocks; unfold unsafe constructs in execution order."""
+    if result.source_dialect == "heidenhain":
+        raise ExportLimitation(
+            "Klartext FULL formatting is not modeled; use EXPANDED or save the source document",
+            code="UNSUPPORTED_HEIDENHAIN_FULL_EXPORT",
+        )
     _require_complete_export(result, "FULL requires a valid and complete execution result", cancelled)
     if result.program is None or not result.execution_steps:
         raise ValueError("FULL requires source blocks and a complete execution map")

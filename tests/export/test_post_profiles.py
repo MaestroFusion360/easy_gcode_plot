@@ -30,7 +30,7 @@ def test_native_drilling_is_postprocessed_from_resolved_operation(cycle, target)
     result = execute(source, language="fanuc_mill", source_dialect="sinumerik")
     assert result.ok and result.complete, result.diagnostics
     output = convert_resolved_program(result, target, ExportOptions(delimiter=True))
-    if target == "heidanhain_itnc530":
+    if target == "heidenhain_itnc530":
         definition = {"CYCLE81": 200, "CYCLE82": 200, "CYCLE83": 203, "CYCLE84": 207}[cycle.split("(")[0]]
         assert f"CYCL DEF {definition}" in output
         assert "CYCL CALL" in output

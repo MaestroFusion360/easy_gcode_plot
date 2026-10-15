@@ -120,6 +120,10 @@ class PlotRuler(QObject):
             return True
         if kind == QEvent.Type.MouseMove and not event.buttons():
             self._hover = event.position()
+            # Show the first live endpoint in the input event itself. A busy Qt
+            # queue must not leave the ruler waiting for its first timer tick.
+            if self.first is not None and self.second is None and not self.fixed:
+                self._preview()
             if not self._timer.isActive():
                 self._timer.start()
             return True

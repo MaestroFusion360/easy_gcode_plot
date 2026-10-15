@@ -257,7 +257,7 @@ def test_heidenhain_full_circles_use_center_and_polar_angle(tmp_path, direction)
     from app.gcode.export.expanded import convert_resolved_program
 
     library = PostProfileLibrary(tmp_path)
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     path = library.save(profile)
     result = execute(f"G21 G90\nG0 X10 Y0\nG{direction} X10 Y0 I-10 J0 F100", "fanuc_mill")
     text = convert_resolved_program(result, path)
@@ -276,7 +276,7 @@ def test_heidenhain_output_units_coordinates_and_numbering(tmp_path, units, coor
     from app.gcode.export.expanded import convert_resolved_program
 
     library = PostProfileLibrary(tmp_path)
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     profile["options"].update(units=units, incrementalMode=coordinates)
     path = library.save(profile)
     result = execute("G21 G90\nG0 X25.4 Y0 Z5\nG1 X50.8 F254", "fanuc_mill")
@@ -294,7 +294,7 @@ def test_heidenhain_helix_uses_cp_with_final_depth(tmp_path):
     from app.gcode.export.expanded import convert_resolved_program
 
     library = PostProfileLibrary(tmp_path)
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     path = library.save(profile)
     result = execute("G21 G90\nG0 X10 Y0 Z0\nG3 X0 Y10 Z-2 I-10 J0 F100", "fanuc_mill")
     text = convert_resolved_program(result, path)
@@ -306,7 +306,7 @@ def test_heidenhain_emits_resolved_machine_return(tmp_path):
     from app.gcode.export.expanded import convert_resolved_program
 
     library = PostProfileLibrary(tmp_path)
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     path = library.save(profile)
     result = execute("G21 G90\nG0 X0 Y0 Z5\nG28 Z0", "fanuc_mill")
     text = convert_resolved_program(result, path)
@@ -317,7 +317,7 @@ def test_heidenhain_shared_writer_outputs_radius_and_preserves_file_on_failure(t
     from app.gcode.export.service import ExportRequest, write_export
 
     library = PostProfileLibrary(tmp_path / "posts")
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     path = library.save(profile)
     request = ExportRequest(language="fanuc_mill", target_dialect=path, arc_type="radius")
     source = "G21 G90\nG0 X10 Y0\nG3 X0 Y10 I-10 J0 F100"
@@ -341,7 +341,7 @@ def test_heidenhain_emits_supported_drilling_cycles(tmp_path, cycle, definition)
     from app.gcode.export.expanded import convert_resolved_program
 
     library = PostProfileLibrary(tmp_path)
-    profile = load_post_profile("heidanhain_itnc530")
+    profile = load_post_profile("heidenhain_itnc530")
     path = library.save(profile)
     source = f"G21 G90\nT1 M6\nS1000 M3\nG0 X0 Y0 Z5\n{cycle}\nG80\nM30"
     result = execute(source, "fanuc_mill")

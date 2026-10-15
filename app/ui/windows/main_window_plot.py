@@ -166,7 +166,7 @@ class MainWindowPlotMixin:
             viewport,
             show_rapid=getattr(self, "plotShowRapid", True),
             visible_count=visible_count,
-            depth_aware=not self.latheMode and getattr(self, "_view_mode", "3d") == "3d",
+            depth_aware=not self.latheMode and self._view_mode == "3d",
         )
 
     def _configure_stl_panel(self):
@@ -908,7 +908,7 @@ class MainWindowPlotMixin:
             self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
 
     def _grid_available_in_current_view(self):
-        return self.latheMode or getattr(self, "_view_mode", "3d") in {"top", "front", "left"}
+        return self.latheMode or self._view_mode in {"top", "front", "left"}
 
     def _sync_grid_view_state(self):
         """Restrict the Grid command and rendered grid to supported views."""
@@ -944,15 +944,15 @@ class MainWindowPlotMixin:
             self._toolpath_bounds_source = points
             self._toolpath_bounds_cache = None
             return None
-        if getattr(self, "_toolpath_bounds_source", None) is points:
-            return getattr(self, "_toolpath_bounds_cache", None)
+        if self._toolpath_bounds_source is points:
+            return self._toolpath_bounds_cache
         bounds = _render_point_bounds(points)
         self._toolpath_bounds_source = points
         self._toolpath_bounds_cache = bounds
         return bounds
 
     def _scene_bounds(self):
-        if getattr(self, "_stock_animation_active", False) and hasattr(self, "stockFitBounds"):
+        if self._stock_animation_active and hasattr(self, "stockFitBounds"):
             return self.stockFitBounds()
         toolpath_bounds = self._cached_toolpath_bounds()
         stock_bounds = self.stockFitBounds() if hasattr(self, "stockFitBounds") else None
@@ -966,7 +966,7 @@ class MainWindowPlotMixin:
 
     def _should_auto_fit_milling(self, previous_bounds, points):
         """Fit only when a newly pasted 3D path has outgrown the current view."""
-        if self.latheMode or getattr(self, "_view_mode", "3d") != "3d" or not points:
+        if self.latheMode or self._view_mode != "3d" or not points:
             return False
         view = self.ui.graphicsView
         bounds = _render_point_bounds(points)
@@ -1002,7 +1002,7 @@ class MainWindowPlotMixin:
 
         spans = tuple(high - low for low, high in bounds)
         center = QVector3D(*(low + span / 2.0 for (low, _high), span in zip(bounds, spans)))
-        mode = "lathe" if self.latheMode else getattr(self, "_view_mode", "3d")
+        mode = "lathe" if self.latheMode else self._view_mode
 
         view = self.ui.graphicsView
         view.opts["center"] = center
@@ -1063,7 +1063,7 @@ class MainWindowPlotMixin:
 
     def _create_trace_items(self):
         """Attach the persistent VBO toolpath and lightweight cursor overlay."""
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self._load_stock_animation_plot()
             return
         width = getattr(self, "plotLineWidth", 1.5)
@@ -1169,9 +1169,9 @@ class MainWindowPlotMixin:
         bbox_picker = getattr(self, "_pick_stl_bbox_point", None)
         if bbox_picker is not None and bbox_picker(position):
             return True
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             return False
-        view_mode = "lathe" if self.latheMode else getattr(self, "_view_mode", "3d")
+        view_mode = "lathe" if self.latheMode else self._view_mode
         if view_mode not in {"lathe", "top", "front", "left", "3d"} or not self.render_points:
             return False
 
@@ -1227,6 +1227,8 @@ class MainWindowPlotMixin:
         self._deferred_execution_result = None
         self._deferred_execution_source = None
         self.render_points = []
+        self._motion_unit_scales = []
+        self._clear_playback_visual_state()
         self._motion_render_end = []
         self._playback_movements = ()
         self._playback_at_program_end = False
@@ -1278,7 +1280,7 @@ class MainWindowPlotMixin:
         if result is None or not 0 <= motion_index < len(result.motions):
             return
         motion = result.motions[motion_index]
-        scales = getattr(self, "_motion_unit_scales", ())
+        scales = self._motion_unit_scales
         unit_scale = scales[motion_index] if motion_index < len(scales) else 1.0
         self.ui.lineEditX.setText(_display_value(point.x, unit_scale))
         self.ui.lineEditY.setText(_display_value(point.y, unit_scale))
@@ -1315,13 +1317,13 @@ class MainWindowPlotMixin:
             return
         if value <= 0:
             motion = result.motions[0]
-            unit_scale = self._motion_unit_scales[0] if getattr(self, "_motion_unit_scales", ()) else 1.0
+            unit_scale = self._motion_unit_scales[0] if self._motion_unit_scales else 1.0
             self.ui.lineEditX.setText(_display_value(motion.start_x, unit_scale))
             self.ui.lineEditY.setText(_display_value(motion.start_y, unit_scale))
             self.ui.lineEditZ.setText(_display_value(motion.start_z, unit_scale))
             for widget in (self.ui.lineEdit_I, self.ui.lineEdit_J, self.ui.lineEdit_K, self.ui.lineEditFeed):
                 widget.clear()
-            if getattr(self, "_stock_animation_active", False):
+            if self._stock_animation_active:
                 self._update_stock_animation_frame(0)
                 return
             if getattr(self, "_toolpath_item", None) is None or self._cursor_item is None:
@@ -1341,7 +1343,7 @@ class MainWindowPlotMixin:
         playback = self._playback_movements[playback_index]
         idx = playback.motion_end - 1
         motion = result.motions[idx]
-        scales = getattr(self, "_motion_unit_scales", ())
+        scales = self._motion_unit_scales
         unit_scale = scales[idx] if idx < len(scales) else 1.0
         self.ui.lineEditX.setText(_display_value(motion.end_x, unit_scale))
         self.ui.lineEditY.setText(_display_value(motion.end_y, unit_scale))
@@ -1353,7 +1355,7 @@ class MainWindowPlotMixin:
         self.ui.lineEditFeed.setText(
             "Rapid" if motion.move == 0 else ("" if motion.feed is None else _display_value(motion.feed, unit_scale))
         )
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self._update_stock_animation_frame(value)
             if sync_editor:
                 self._sync_editor_to_motion(idx)
@@ -1386,7 +1388,7 @@ class MainWindowPlotMixin:
     def loadPlot(self):
         """Redraw axes, background, and the active orthographic grid."""
         started = perf_counter()
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self._load_stock_animation_plot()
             self._restore_measure_overlay()
             LOGGER.debug("plot_scene_loaded stock_animation=true duration_ms=%.3f", (perf_counter() - started) * 1000.0)
@@ -1526,7 +1528,7 @@ class MainWindowPlotMixin:
 
     def _milling_view_mapping(self, view_mode=None):
         """Return the world plane and oriented camera (elevation, azimuth)."""
-        mode = view_mode or getattr(self, "_view_mode", "3d")
+        mode = view_mode or self._view_mode
         if mode not in {"top", "front", "left"}:
             return None
         machine = "4ax_table_b" if self._horizontal_rotary_table() else "vertical"
@@ -1555,7 +1557,7 @@ class MainWindowPlotMixin:
     def _update_milling_grid(self):
         """Adapt the milling grid in 3D and fixed physical views."""
         grid = getattr(self, "_milling_grid_item", None)
-        view_mode = getattr(self, "_view_mode", "3d")
+        view_mode = self._view_mode
         plane = self._milling_view_plane(view_mode)
         if grid is None or self.latheMode or not self.plotGrid:
             return
@@ -1585,7 +1587,7 @@ class MainWindowPlotMixin:
         # expansion can revisit the same source lines many times; letting those
         # cursor updates drive the slider would jump back to the first occurrence
         # and can trap playback in a short loop.
-        if self._syncing_cursor or getattr(self, "_plot_source_stale", False) or self.ui.actionPlay.isChecked():
+        if self._syncing_cursor or self._plot_source_stale or self.ui.actionPlay.isChecked():
             return
         line = self.ui.editor.getCursorPosition()[0]
 
@@ -1650,7 +1652,7 @@ class MainWindowPlotMixin:
 
     def _orthographic_orbit_started(self):
         """Mark a rotated fixed milling view as freely rotatable orthographic 3D."""
-        if self.latheMode or getattr(self, "_view_mode", "3d") == "3d":
+        if self.latheMode or self._view_mode == "3d":
             return
         self._view_mode = "3d"
         self._set_active_view_action("3d")

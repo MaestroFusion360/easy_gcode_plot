@@ -374,7 +374,7 @@ class PostProfileEditor(QWidget):
         )
         if "multiaxis" not in self.profile:
             self._hide("tcpCheck")
-        native = self.profile.get("id") == "heidanhain_itnc530"
+        native = self.profile.get("id") == "heidenhain_itnc530"
         if not native:
             return
         for axis in _AXES:
@@ -448,7 +448,7 @@ class PostProfileEditor(QWidget):
     # -- loading ----------------------------------------------------------
     def _load_text(self):
         bindings = dict(_LINES)
-        if self.profile.get("id") == "heidanhain_itnc530":
+        if self.profile.get("id") == "heidenhain_itnc530":
             bindings.update(
                 {
                     "rapidMoveEdit": ("native", "linear"),
@@ -668,7 +668,7 @@ class PostProfileEditor(QWidget):
     # -- arcs -------------------------------------------------------------
     def arcs_index(self):
         arc = self.profile["format"]
-        if self.profile.get("id") == "heidanhain_itnc530" and arc["outputArcs"] and arc["arcMode"] == "IJK":
+        if self.profile.get("id") == "heidenhain_itnc530" and arc["outputArcs"] and arc["arcMode"] == "IJK":
             return 0
         return 3 if not arc["outputArcs"] else 2 if arc["arcMode"] == "R" else int(arc["arcCenter"] == "absolute")
 
@@ -705,7 +705,7 @@ class PostProfileEditor(QWidget):
             if index != 3:
                 profile["format"]["arcMode"] = "R" if index == 2 else "IJK"
                 profile["format"]["arcCenter"] = (
-                    "absolute" if index == 1 or self.profile.get("id") == "heidanhain_itnc530" else "incremental"
+                    "absolute" if index == 1 or self.profile.get("id") == "heidenhain_itnc530" else "incremental"
                 )
 
     def _apply_word_order(self, profile):
@@ -731,7 +731,7 @@ class PostProfileEditor(QWidget):
 
     def _checked_profile(self):
         profile = self.current_profile()
-        native = self.profile.get("id") == "heidanhain_itnc530"
+        native = self.profile.get("id") == "heidenhain_itnc530"
         if native and self._word_order and self._word_order[0] != "motion":
             raise ValueError(
                 QCoreApplication.translate(
@@ -754,7 +754,7 @@ class PostProfileEditor(QWidget):
         return self.library.validate(profile)
 
     def _validate(self):
-        native = self.profile.get("id") == "heidanhain_itnc530"
+        native = self.profile.get("id") == "heidenhain_itnc530"
         self.ui.arcs.model().item(0).setEnabled(True)
         self.ui.arcs.setItemText(
             2, "R" if native else QCoreApplication.translate("PostProfileEditorDlg", "Radius (R / CR)")

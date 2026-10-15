@@ -42,6 +42,7 @@ from app.ui.dialogs.tool_library_dialog import ToolLibraryDialog
 from app.ui.generated.main.main_ui import Ui_MainWindow
 from app.ui.plot.plot_navigation import PlotNavigation
 from app.ui.plot.ruler import PlotRuler
+from app.ui.support.file_drop import FileDropTarget
 from app.ui.support.toolbar_settings import ToolbarSettings
 from app.ui.windows.main_window_documents import MainWindowDocumentsMixin
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
@@ -99,13 +100,14 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
+        self._initialize_window_state()
         self._configure_runtime_ui()
         self._configure_playback_speed_slider()
         self._plot_navigation = PlotNavigation(
             self.ui.graphicsView,
             self._plot_camera_changed,
             self._pick_trace_at,
-            cimco_like=lambda: getattr(self, "cimcoLikePicking", False) and not self.latheMode,
+            cimco_like=lambda: self.cimcoLikePicking and not self.latheMode,
         )
         self.ui.graphicsView.installEventFilter(self._plot_navigation)
 
@@ -127,9 +129,81 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self._ruler = PlotRuler(self)
         self._plot_navigation.measure = self._ruler
         self._initialize_documents()
+        self._editor_file_drop = FileDropTarget(
+            (self.ui.editor, self.ui.editor.viewport()), self.openFiles, parent=self
+        )
         self.toolbarSettings = ToolbarSettings(self)
         self.applyToolbarIconSize(self.toolbarIconSize)
         self.restoreToolbarState()
+
+    def _initialize_window_state(self):
+        """Declare shared Python state before settings, dialogs or signals use it.
+
+        Persisted preferences are loaded by loadSettings; document snapshots
+        retain program data, while workers and publication flags stay here.
+        """
+        self._initialize_document_state()
+        self._initialize_execution_state()
+        self._initialize_stock_runtime()
+        self._rotary_kinematics_group = None
+        self._rotary_kinematics_actions = {}
+        self.cimcoLikePicking = False
+        self.latheMode = False
+        self._view_mode = "3d"
+        self._toolpath_bounds_source = None
+        self._toolpath_bounds_cache = None
+
+    def _initialize_document_state(self):
+        self.exportToolNumbers = {}
+        self._documents = []
+        self._active_document_index = None
+        self._document_switching = False
+        self._loading_document = False
+        self._document_encoding = None
+        self._document_disk_signature = None
+        self._ignored_document_signature = None
+        self._document_source_dialect = "fanuc"
+        self._document_initial_mode = None
+        self._document_arc_type = None
+        self._document_comment_style = None
+        self._manual_arc_type_override = False
+
+    def _initialize_execution_state(self):
+        self.execution_result = None
+        self.render_points = []
+        self._plot_source_stale = False
+        self._parsed_program_cache = None
+        self._deferred_execution_result = None
+        self._deferred_execution_source = None
+        self._last_execution_ms = None
+        self._kernel_execution_active = False
+        self._kernel_cancel_requested = False
+        self._auto_update_in_progress = False
+        self._auto_update_pending = False
+        self._auto_update_deferred = False
+        self._auto_update_show_dialog = False
+        self._fit_view_after_program_load = False
+        self._syncing_cursor = False
+        self._playback_visual_samples = ()
+        self._playback_visual_sample_index = 0
+        self._playback_visual_motion_index = None
+        self._motion_unit_scales = []
+
+    def _initialize_stock_runtime(self):
+        self._stock_animation_active = False
+        self._stock_export_active = False
+        self._stock_export_cancel = None
+        self._stock_timeline = None
+        self._stock_manual_override = False
+        self._stock_outline_use_configured = False
+        self._stock_auto_suggestion = None
+        self._milling_frame_worker = None
+        self._milling_retired_workers = set()
+        self._milling_seek_timer = None
+        self._milling_pending_count = None
+        self._milling_pending_quality = None
+        self._milling_play_clock = None
+        self._milling_publishing_frame = False
 
     def _rotary_profile_available(self, profile):
         if profile.id in builtin_profile_ids():
@@ -164,7 +238,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         catalog = catalog or load_catalog(ignore_user_errors=True)
         menu = self._rotary_kinematics_menu
         menu.clear()
-        previous_group = getattr(self, "_rotary_kinematics_group", None)
+        previous_group = self._rotary_kinematics_group
         if previous_group is not None:
             previous_group.deleteLater()
         if self.rotaryKinematics is not None and (
@@ -204,11 +278,11 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
             profile_id not in catalog or not self._rotary_profile_available(catalog[profile_id])
         ):
             profile_id = None
-        changed = profile_id != getattr(self, "rotaryKinematics", None)
+        changed = profile_id != self.rotaryKinematics
         self.rotaryKinematics = profile_id
         self.settings.setValue("CNC/ROTARY_KINEMATICS", profile_id or "")
 
-        action = getattr(self, "_rotary_kinematics_actions", {}).get(profile_id)
+        action = self._rotary_kinematics_actions.get(profile_id)
         if action is not None and not action.isChecked():
             action.setChecked(True)
         options = getattr(self, "optionsDlg", None)
@@ -217,14 +291,14 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
 
         if not (changed or force_refresh):
             return
-        view_mode = getattr(self, "_view_mode", "3d")
+        view_mode = self._view_mode
         self._deferred_execution_result = None
         self._deferred_execution_source = None
         if self.ui.editor.text():
             self.updateData()
         # Reapply after updateData: it redraws the scene and can restore a
         # previous camera state, including a quaternion left by table B.
-        if not getattr(self, "latheMode", False):
+        if not self.latheMode:
             if view_mode == "top":
                 self.viewTop()
             elif view_mode == "front":
@@ -237,7 +311,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
     @property
     def rotary_kinematics_actions(self):
         """Rotary kinematics menu actions keyed by profile id (``None`` is the unset entry)."""
-        return dict(getattr(self, "_rotary_kinematics_actions", {}))
+        return dict(self._rotary_kinematics_actions)
 
     def _configure_runtime_ui(self):
         """Attach runtime-only widgets and action groups to the generated Designer UI."""
@@ -562,11 +636,11 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
 
     def closeEvent(self, event):
         """Prompt to save and persist settings before closing the window."""
-        if getattr(self, "_stock_export_active", False):
+        if self._stock_export_active:
             self._stock_export_cancel.set()
             event.ignore()
             return
-        if getattr(self, "_kernel_execution_active", False):
+        if self._kernel_execution_active:
             self._kernel_cancel_requested = True
             self.ui.statusbar.showMessage(
                 QCoreApplication.translate("MainWindow", "Cancelling CNC execution; close again when it has stopped.")
@@ -685,7 +759,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         """Synchronize machine-specific actions with the active execution profile."""
         turning = bool(self.latheMode)
         self.ui.actionStock.setEnabled(True)
-        self.ui.actionSaveStockStl.setEnabled(not turning and bool(getattr(self, "_stock_animation_active", False)))
+        self.ui.actionSaveStockStl.setEnabled(not turning and bool(self._stock_animation_active))
         self.ui.actionInsertStockMesh.setEnabled(self.ui.actionSaveStockStl.isEnabled())
         if hasattr(self, "_ruler"):
             self._ruler.sync_view()
@@ -749,7 +823,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
     def changeLathe(self):
         """Toggle lathe visualization mode and refresh plot accordingly."""
         started = perf_counter()
-        if getattr(self, "_stock_animation_active", False):
+        if self._stock_animation_active:
             self.ui.actionPlay.setChecked(False)
             self.timer.stop()
             self._leave_stock_animation()

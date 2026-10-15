@@ -4,6 +4,9 @@
 
 from types import SimpleNamespace
 
+import pytest
+
+from app.main_window import MainWindow
 from app.ui.windows import main_window_milling_stock as module
 
 
@@ -60,6 +63,7 @@ class _Control:
 
 class _FakeWindow(module.MainWindowMillingStockMixin):
     def __init__(self):
+        MainWindow._initialize_stock_runtime(self)
         self._stock_timeline = SimpleNamespace(motion_count=0)
         self.execution_result = object()
         self._playback_movements = [SimpleNamespace(motion_end=1), SimpleNamespace(motion_end=2)]
@@ -86,6 +90,31 @@ class _FakeWindow(module.MainWindowMillingStockMixin):
 
     def _pause_playback(self):
         pass
+
+
+@pytest.mark.parametrize(
+    ("dialect", "supported"),
+    [("fanuc", True), ("sinumerik", True), ("heidenhain", True), ("other", False)],
+)
+def test_three_axis_stock_dialect_gate(monkeypatch, dialect, supported):
+    window = _FakeWindow()
+    window.execution_result = SimpleNamespace(
+        complete=True,
+        motions=[object()],
+        language="fanuc_mill",
+        source_dialect=dialect,
+        rotary_angles=(),
+        execution_steps=(),
+    )
+    monkeypatch.setattr(window, "millingStockDialogSpec", lambda: None)
+    failures = []
+    monkeypatch.setattr(window, "_notify_milling_stock_failure", failures.append)
+
+    assert window._start_milling_stock_animation() is False
+    rejected = any("requires FANUC" in message[0] for message in window.messages)
+    assert rejected is (not supported)
+    if supported:
+        assert [str(error) for error in failures] == ["No toolpath bounds"]
 
 
 def test_interrupted_worker_restarts_when_slider_returns_to_same_count(monkeypatch):

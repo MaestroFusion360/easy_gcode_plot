@@ -166,8 +166,20 @@ def _arc_sampling_snapshot(window):
 
 
 def _refresh_after_option_changes(window, *, execution_changed, sampling_changed):
-    if execution_changed and getattr(window, "execution_result", None) is not None:
-        window.updateData()
+    if execution_changed:
+        had_result = window.execution_result is not None or window._deferred_execution_result is not None
+        window._deferred_execution_result = None
+        window._deferred_execution_source = None
+        window._plot_source_stale = bool(window.ui.editor.text())
+        if had_result:
+            window.updateData()
+        elif window._plot_source_stale:
+            window.updateExecutionStatus()
+            if window.autoUpdateEnabled:
+                window.scheduleAutoUpdate()
+            window.refreshPlotView()
+        else:
+            window.refreshPlotView()
     elif sampling_changed and getattr(window, "execution_result", None) is not None:
         window.rerenderCurrentResult()
     else:
@@ -672,6 +684,7 @@ class OptionsDialog(QDialog):
         self.discoverySettings.restore_defaults()
         LOGGER.debug("options_restore_defaults_requested")
         self.ui.sinumerik840dSlCheck.setChecked(True)
+        self.ui.latheGcodeSystemCombo.setCurrentIndex(0)
         self.hotkeyEditor.reset_defaults()
         self.ui.encodingCombo.setCurrentIndex(0)
         self.ui.fileTypeCombo.setCurrentIndex(0)

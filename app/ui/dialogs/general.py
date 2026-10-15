@@ -71,9 +71,12 @@ class BlockNum(QDialog):
         super().showEvent(event)
 
     def loadSettings(self):
+        native = self.parent().ui.fileTypeCombo.currentIndex() == 2
+        self.ui.startSpinBox.setMinimum(0 if native else 1)
         self.ui.startSpinBox.setValue(self.parent().seqNumStart)
         self.ui.intervSpinBox.setValue(self.parent().seqNumIncr)
-        self.ui.spacingCmbBox.setCurrentIndex(1 if self.parent().seqNumSpacing else 0)
+        self.ui.spacingCmbBox.setEnabled(not native)
+        self.ui.spacingCmbBox.setCurrentIndex(1 if native or self.parent().seqNumSpacing else 0)
 
     def _apply_and_renumber(self):
         self.startVal()
@@ -91,6 +94,8 @@ class BlockNum(QDialog):
 
     def spaceVal(self, idx):
         """Update spacing preference between sequence number and code."""
+        if self.parent().ui.fileTypeCombo.currentIndex() == 2:
+            return
         idx = self.ui.spacingCmbBox.currentIndex()
         if idx == 0:
             self.parent().seqNumSpacing = False
@@ -202,7 +207,7 @@ class Export(PostProfileManagementMixin, QDialog):
         if not target or target == "auto":
             return False
         try:
-            return self.postLibrary.load(target).get("id") == "heidanhain_itnc530"
+            return self.postLibrary.load(target).get("id") == "heidenhain_itnc530"
         except (OSError, ValueError):
             return False
 

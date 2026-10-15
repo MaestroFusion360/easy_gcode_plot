@@ -27,6 +27,56 @@ def test_hole_generators_create_circle_and_serpentine_grid():
     assert grid.splitlines() == ["X0 Y0", "X10 Y0", "X20 Y0", "X20 Y5", "X10 Y5", "X0 Y5"]
 
 
+def test_hole_patterns_use_signed_klartext_cycle_positions():
+    circle = hole_circle(diameter=20, start_angle=0, center_x=1, center_y=2, count=4, source_dialect="heidenhain")
+    assert circle.splitlines() == [
+        "L X+11 Y+2 FMAX M99",
+        "L X+1 Y+12 FMAX M99",
+        "L X-9 Y+2 FMAX M99",
+        "L X+1 Y-8 FMAX M99",
+    ]
+    grid = hole_grid(start_x=0, start_y=0, step_x=10, step_y=5, count_x=3, count_y=2, source_dialect="heidenhain")
+    assert grid.splitlines()[0] == "L X+0 Y+0 FMAX M99"
+    assert not any("CYCL" in line or line.startswith("G") for line in grid.splitlines())
+
+
+def test_heidenhain_pocket_fragment_is_signed_klartext():
+    program = pocket_program(
+        PocketParameters(
+            circular=True,
+            tool_diameter=10,
+            pocket_diameter=30,
+            stepover=5,
+            z_end=-2,
+            z_step=1,
+        ),
+        source_dialect="heidenhain",
+    )
+    lines = program.splitlines()
+    assert lines[0] == "L Z+10 R0 FMAX M8"
+    assert lines[1] == "L X+0 Y+0 FMAX"
+    assert not any(line.startswith("G") for line in lines)
+    assert not any(line.startswith("N") for line in lines)
+
+    rectangular = pocket_program(
+        PocketParameters(
+            circular=False,
+            pocket_width=40,
+            pocket_height=30,
+            corner_radius=8,
+            tool_diameter=10,
+            stepover=5,
+            z_end=-2,
+            z_step=1,
+        ),
+        source_dialect="heidenhain",
+    )
+    rect_lines = rectangular.splitlines()
+    assert not any(line.startswith("G") for line in rect_lines)
+    assert any(line.startswith("CR ") for line in rect_lines)
+    assert all("X+" in line or "X-" in line for line in rect_lines if line.startswith("L X"))
+
+
 def test_hole_dialog_inserts_at_editor_caret():
     parent = QMainWindow()
     parent.ui = SimpleNamespace(editor=QsciScintilla(parent))
