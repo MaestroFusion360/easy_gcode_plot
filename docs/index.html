@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="Edit turning and milling programs, calculate toolpaths and inspect tool motion in a 3D scene. Supports FANUC and a subset of SINUMERIK 840D commands."
+      content="Edit turning and milling programs, calculate toolpaths and inspect tool motion in a 3D scene. Supports FANUC, SINUMERIK 840D and HEIDENHAIN iTNC 530 within documented command subsets."
     />
     <link
       rel="canonical"
@@ -122,6 +122,7 @@
     </p>
     <div class="dialect-strip">
       <span>FANUC Mill</span><span>FANUC Lathe</span><span>SINUMERIK 840D</span>
+      <span>HEIDENHAIN iTNC 530</span>
     </div>
   </div>
   <figure class="hero-image">
@@ -2517,6 +2518,152 @@ X17.0
     >
   </p>
 </div>
+<div class="controller-reference">
+  <h3>HEIDENHAIN iTNC 530 — native Klartext</h3>
+  <p class="prose">
+    Native three-axis milling input in version 2.5.0. Opening .h/.H
+    selects Klartext automatically; iTNC-code selects it manually. Unsupported
+    execution stops at the source block with a diagnostic.
+  </p>
+  <details class="code-table">
+    <summary>HEIDENHAIN iTNC 530 commands and cycles</summary>
+    <div
+      class="table-wrap"
+      role="region"
+      aria-label="HEIDENHAIN iTNC 530"
+      tabindex="0"
+    >
+      <table>
+        <thead>
+          <tr>
+            <th scope="col">Native function</th>
+            <th scope="col">Support and limitations</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>BEGIN/END PGM, MM/INCH, BLK FORM 0.1/0.2</td>
+            <td>Program metadata, units and stock bounds.</td>
+          </tr>
+          <tr>
+            <td>L, IX/IY/IZ, F/FMAX/FAUTO, R0/RL/RR</td>
+            <td>
+              XYZ straight motion, incremental coordinates, feeds and planar
+              cutter compensation.
+            </td>
+          </tr>
+          <tr>
+            <td>CC, C, CR, CT, DR+/DR−</td>
+            <td>
+              Circle centers, full/partial circles, radius and tangent arcs.
+            </td>
+          </tr>
+          <tr>
+            <td>LP, CP, PR/IPR/PA/IPA</td>
+            <td>Polar positioning and polar/helical circular motion.</td>
+          </tr>
+          <tr>
+            <td>APPR/DEP LT/LN/CT/LCT</td>
+            <td>
+              Approach/departure lines and tangent arcs to planar contours.
+            </td>
+          </tr>
+          <tr>
+            <td>TOOL CALL, TOOL DEF, S/F</td>
+            <td>
+              Numeric, named and Q tools; spindle and feed state. DL/DR/DR2 tool
+              offsets are not executed.
+            </td>
+          </tr>
+          <tr>
+            <td>M0/M1/M2/M3/M4/M5/M6/M8/M9/M13/M14/M30</td>
+            <td>Logical stops, spindle/coolant signals and program end.</td>
+          </tr>
+          <tr>
+            <td>M91</td>
+            <td>Nonmodal absolute machine XYZ with configured WCS.</td>
+          </tr>
+          <tr>
+            <td>Q/QL/QR, FN 0–4/6/7, expressions</td>
+            <td>Bounded arithmetic and trigonometry; FN 6/7 use degrees.</td>
+          </tr>
+          <tr>
+            <td>LBL, CALL LBL, REP, FN 9–12</td>
+            <td>Numeric/named labels, calls, repeats and conditional GOTO.</td>
+          </tr>
+          <tr>
+            <td>CYCL DEF, CYCL CALL, M99</td>
+            <td>
+              Drilling/boring/tapping cycles 1/2, 200–209, 240/241 within
+              supported parameter subsets; cycle 9 dwell. Cycle 32 stores
+              metadata without smoothing simulation.
+            </td>
+          </tr>
+          <tr>
+            <td>Q cycle continuations, Q208=MAX</td>
+            <td>
+              Cycle parameters are consumed in execution order; symbolic rapid
+              retraction feed is supported for cycles 202/203.
+            </td>
+          </tr>
+          <tr>
+            <td>Cycles 7/10</td>
+            <td>
+              Axis-address datum shifts and XY planar rotation (ROT); zero
+              resets. Datum-table and tilted-plane variants are unsupported.
+            </td>
+          </tr>
+          <tr>
+            <td>Cycle 247, Q339=1..6</td>
+            <td>
+              Selects the application's configured G54–G59 offsets while
+              preserving machine position. Other preset numbers are unsupported.
+            </td>
+          </tr>
+          <tr>
+            <td>M140 MB distance / MAX</td>
+            <td>
+              Vertical preview retracts along machine Z. MAX uses Z from Home
+              (G28) in WCS with Home emulation enabled, in the positive
+              direction only. The approximation emits a warning and blocks NC
+              trace export; tilted retraction is not modeled.
+            </td>
+          </tr>
+          <tr>
+            <td>F0, optional / blocks</td>
+            <td>
+              F0 retains geometry with a warning. Optional blocks follow Block
+              Skip settings.
+            </td>
+          </tr>
+          <tr>
+            <td>RND/CHF, M120, rotary axes, PLANE, TCP</td>
+            <td>
+              Not executed. Five-axis iTNC processing is outside the current
+              scope.
+            </td>
+          </tr>
+          <tr>
+            <td>Save Source / EXPANDED / FULL</td>
+            <td>
+              Save retains source. EXPANDED exports a supported resolved
+              three-axis trace via the selected post. Klartext FULL formatting
+              is unavailable.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </details>
+  <p class="note">
+    All 11 checked-in Klartext programs have complete execution and Qt plotting
+    regressions with Home emulation enabled. See the
+    <a
+      href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#heidenhain-itnc-530-input"
+      >iTNC coverage and parameter limits</a
+    >.
+  </p>
+</div>
     </div>
   </details>
 </section>
@@ -2527,14 +2674,17 @@ X17.0
       <h2>CIMCO Edit 8 &amp; Easy G-Code Plot</h2>
     </div>
     <p class="section-intro">
-      Compare MDI, text comparison and three CNC dialects. Updated for
-      2.5.0, with sources, tested scope and explicit unknowns.
+      Compare MDI, text comparison, FANUC, SINUMERIK and HEIDENHAIN support.
+      Updated for 2.5.0, with sources, tested scope and explicit
+      unknowns.
     </p>
   </div>
   <details class="reference-panel comparison-panel">
     <summary>
       <span>Read the full comparison</span
-      ><span class="summary-meta">FANUC Mill · FANUC Lathe · 840D</span>
+      ><span class="summary-meta"
+        >FANUC Mill · FANUC Lathe · 840D · iTNC 530</span
+      >
     </summary>
     <div class="reference-body comparison-content">
       <p>Comparison of document editing, text comparison, FANUC milling, FANUC turning, native SINUMERIK 840D milling and native HEIDENHAIN iTNC 530 Klartext. <a href="COMPARISON_RU.md">Русская версия</a>.</p>
