@@ -471,7 +471,7 @@ def test_edit_during_auto_update_cancels_current_execution_and_queues_refresh():
 def test_auto_update_requests_non_modal_execution(qt_app):
     window = main_window.MainWindow()
     captured = []
-    result = SimpleNamespace(motions=())
+    result = SimpleNamespace(ok=True, motions=())
 
     def calculate(**kwargs):
         captured.append(kwargs)

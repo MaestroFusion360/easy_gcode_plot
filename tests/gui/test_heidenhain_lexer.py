@@ -65,10 +65,17 @@ def test_native_styles_comments_and_partial_utf8_recolor(qt_app):
 def test_options_select_and_persist_native_lexer(qt_app, dark):
     window = MainWindow()
     try:
+        original_lexer = window.ui.editor.lexer()
+        original_file_type = window.ui.fileTypeCombo.currentIndex()
         dialog = window.optionsDlg
         dialog.load_values()
         dialog.ui.fileTypeCombo.setCurrentIndex(2)
         dialog.accept()
+        assert window.defaultFileType == 2
+        assert window.ui.fileTypeCombo.currentIndex() == original_file_type
+        assert window.ui.editor.lexer() is original_lexer
+        window.newFile()
+        assert window.ui.fileTypeCombo.currentIndex() == 2
         assert window.ui.editor.lexer() is window.heidenhainLexer
         window.uiTheme = "dark" if dark else "light"
         window.editorRapidColor = "#ab1234"

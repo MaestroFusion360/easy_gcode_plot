@@ -19,6 +19,35 @@ from app.ui.support.hotkeys import menu_commands
 from app.ui.windows.main_window_execution import playback_interval_ms, playback_speed_level
 
 
+def test_itnc_options_lock_comments_and_arcs_without_overwriting_iso_defaults(qt_app):
+    window = MainWindow()
+    try:
+        window.autoUpdateEnabled = False
+        original_comments = window.commentStyle
+        original_arc_detection = window.autodetectArcType
+        window.ui.fileTypeCombo.setCurrentIndex(2)
+        dialog = window.optionsDlg
+        dialog.load_values()
+        assert dialog.ui.commentStyleCombo.currentIndex() == 1
+        assert not dialog.ui.commentStyleCombo.isEnabled()
+        assert not dialog.ui.autodetectArcTypeCheck.isEnabled()
+        dialog.restore_defaults()
+        assert dialog.ui.commentStyleCombo.currentIndex() == 1
+        dialog.accept()
+        assert window.commentStyle == original_comments
+        assert window.autodetectArcType == original_arc_detection
+        assert window.ui.fileTypeCombo.currentIndex() == 2
+        assert window._document_comment_style == "semicolon"
+        window.ui.fileTypeCombo.setCurrentIndex(1)
+        dialog.load_values()
+        assert dialog.ui.commentStyleCombo.isEnabled()
+        assert dialog.ui.autodetectArcTypeCheck.isEnabled()
+        assert dialog.ui.commentStyleCombo.currentIndex() == 0
+    finally:
+        window.deleteLater()
+        qt_app.processEvents()
+
+
 def test_general_groups_controls_and_persists_optional_cimco_picking(qt_app):
     window = MainWindow()
     try:
@@ -741,8 +770,8 @@ def test_options_default_file_type_is_not_taken_from_current_editor_mode(qt_app,
     monkeypatch.setattr(window, "refreshPlotView", lambda: None)
     dialog.accept()
     assert window.defaultFileType == default_type
-    assert window.ui.fileTypeCombo.currentIndex() == default_type
-    assert applied == [default_type]
+    assert window.ui.fileTypeCombo.currentIndex() == 0
+    assert applied == [0]
     window.deleteLater()
 
 

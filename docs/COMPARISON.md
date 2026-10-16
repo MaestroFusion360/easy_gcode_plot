@@ -1,23 +1,28 @@
-# CIMCO Edit 8 vs Easy G-Code Plot 2.5.0
+# CIMCO Edit 8 vs Easy G-Code Plot 2.6.0
 
 Comparison of document editing, text comparison, FANUC milling, FANUC turning, native SINUMERIK 840D milling and native HEIDENHAIN iTNC 530 Klartext. [Русская версия](COMPARISON_RU.md).
 
-**Scope:** CIMCO Edit **8 editor and Backplot**, not CIMCO Edit 2022–2026 or the separate CIMCO Machine Simulation product. Easy G-Code Plot describes the 2.5.0 working tree and its regression fixtures. The MDI/Compare update concerns the editor; controller-command rows retain their previously stated evidence. This is a capability comparison, not a measured accuracy or performance ranking.
+**Scope:** CIMCO Edit **8 editor and Backplot**, not CIMCO Edit 2022–2026 or the separate CIMCO Machine Simulation product. Easy G-Code Plot describes the 2.6.0 working tree and its regression fixtures. The MDI/Compare update concerns the editor; controller-command rows retain their previously stated evidence. This is a capability comparison, not a measured accuracy or performance ranking.
 
 **Legend:** ✅ supported within the stated scope; ⚠️ partial or restricted; ❌ explicitly unsupported; **?** not established for CIMCO Edit 8. **Unknown does not mean unsupported.** ≈ means comparable only within the stated scope. A command in a filter is not evidence of correct geometry. Statements marked [N] are historical comparison notes, not vendor certification.
 
-## What's new in 2.5.0: MDI and Compare
+## What's new in 2.6.0: view rotation
 
+- **Rotate view** rotates Top/Front/Left around model X/Y/Z without CNC recalculation, retaining scale and per-document camera state. Available in View, plot context menus, toolbar customization and Hotkeys; disabled in ISO/3D and turning. Grid and ruler follow coordinate planes and are disabled at oblique angles.
+
+## Document and controller features retained from earlier releases
+
+- MDI and Compare were introduced in 2.4.0; native HEIDENHAIN input and three-axis execution in 2.5.0; RND/CHF contour geometry in 2.5.1.
 - MDI keeps multiple NC programs in one workspace. The application starts with one empty milling document. Use **+ / File → New**, the document-list arrow and **× / Ctrl+W** to create, select and close documents. Opening an already open file selects its existing buffer; opening a different file preserves nonempty documents and their unsaved edits. Close All and application exit check each modified document for Save, Discard or Cancel.
 - Each document retains its text and undo history, cursor/selection, encoding, machine mode, source overrides, current-program tools, cached execution, view direction and playback position. Stock settings, STL objects and STL edit history also belong to the document. Shared Options, saved libraries, WCS/Home and rotary selection remain application preferences; changed shared CNC inputs make an inactive cached trace stale on selection. Finish or cancel pending editing dialogs before switching documents.
 - **CNC Functions → Compare** opens two read-only text panes with file selectors, a resizable splitter and synchronized vertical/horizontal scrolling. Sources can be open MDI buffers, including unsaved text, or independently selected disk files decoded through the existing UTF-8/legacy mechanism. Yellow marks changed lines, green added lines and red removed lines; display padding aligns corresponding rows. Refresh reloads selected disk files and rereads MDI buffers without replacing unsaved documents. Copying and both application themes are supported. The command participates in Hotkeys and Customize Toolbars.
 - Easy Compare is an ordinary line diff: spacing, block numbers and comments remain significant; CRLF/LF line endings are normalized. It does not merge/edit sources, save/print diff reports or compare CNC semantics, geometry or toolpaths. These limits distinguish it from CIMCO's configurable File Compare; they do not change the execution kernel or export capabilities.
-- Menu groups follow the document workflow. **View → STL Objects** opens the scene panel; **CNC Functions → Tokens/Macro Variables** opens the inspector. **Settings → Options** contains editor, plot, hotkey, postprocessor and rotary-profile preferences. Customize Toolbars restores compact default groups while leaving saved button selections intact until an explicit reset; printing, clipboard/formatting buttons and calculators are optional.
-- **iTNC-code** provides Klartext highlighting and a new input dialect. `.h`/`.H` opens with a native immutable AST and three-axis execution for `L/CC/C/CR/CT/LP/CP`, `APPR/DEP`, tools, feeds, spindle, `M91`, Q parameters, label flow and drilling/boring/tapping cycles; Cycle 32 retains smoothing metadata. Rotary axes, tool offsets, `M120`, `RND/CHF` and `PLANE`/TCP remain syntax-only or unsupported. See [the iTNC input coverage in the FAQ](../FAQ.md#heidenhain-itnc-530-input) and section 4 below. The existing Heidenhain export post has separate coverage.
+- Menu groups follow the document workflow. **View → STL Objects** opens the scene panel; **CNC Functions → Tokens/Variables** opens the inspector. **Settings → Options** contains editor, plot, hotkey, postprocessor and rotary-profile preferences. Customize Toolbars restores compact default groups while leaving saved button selections intact until an explicit reset; printing, clipboard/formatting buttons and calculators are optional.
+- **iTNC-code** provides highlighting for native Klartext input. `.h`/`.H` opens with a native immutable AST and three-axis execution for `L/CC/C/CR/CT/LP/CP`, `APPR/DEP`, tools, feeds, spindle, `M91`, Q parameters, label flow and drilling/boring/tapping cycles; Cycle 32 retains smoothing metadata. `RND`/`CHF` construct programmed-contour geometry before existing RL/RR/R0 compensation. Rotary axes, tool offsets DL/DR, `M120` and `PLANE`/TCP remain syntax-only or unsupported. See [the iTNC input coverage in the FAQ](../FAQ.md#heidenhain-itnc-530-input) and section 4 below. The existing Heidenhain export post has separate coverage.
 
 ## Editor and document workflow
 
-| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.5.0 | Assessment |
+| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.6.0 | Assessment |
 | --- | --- | --- | --- |
 | Multiple open programs / MDI | ✅ multiple file windows [C7] | ✅ independent buffers and document scenes; compact controls without visible tabs [E] | Both support multiple programs; window organization differs |
 | Side-by-side text comparison | ✅ two-pane comparison with colored differences [C7] | ✅ read-only aligned line diff; changed/added/removed colors and synchronized scrolling [E] | ≈ feature present; comparison options differ |
@@ -25,19 +30,22 @@ Comparison of document editing, text comparison, FANUC milling, FANUC turning, n
 | Ignore formatting or selected text categories | ✅ optional ignoring of block numbers, spaces, comments, case and numeric formatting [C9] | ❌ no such filters; ordinary text diff with normalized line endings [E] | CIMCO offers additional comparison filters |
 | Editing / synchronizing differences | ✅ editing modes and difference synchronization documented [C9] | ❌ read-only; no merge or synchronization of source text [E] | Different scope; synchronized scrolling is not merging |
 | Print a comparison report | ✅ side-by-side/differences printing [C8, C9] | ❌ no diff-report printing or saving [E] | Separate from Easy's existing CNC export and plot printing |
+| Token/diagnostic filters | ? equivalent V8 workflow not established here | ✅ All/Warnings/Errors, shown/total count and case-insensitive text search; copying and CSV respect filters. Opening/refreshing reuses the current execution result [E] | [Tokens workflow](../FAQ.md#what-is-the-tokens-tab); filtering does not recalculate; missing/stale results require analysis |
+| Missing/incompatible rotary profile | ? equivalent notification not established here | ✅ persistent plot notice with detected axes and source line; direct profile selection and editor navigation, including zero-angle addresses [E] | [Rotary workflow](../FAQ.md#how-is-indexed-rotary-milling-handled); machine geometry is not inferred from axis letters |
+| Controller variable inspector | ? equivalent snapshot coverage not established here | ✅ Variables: FANUC numbered/named, SINUMERIK R/named and HEIDENHAIN Q/QL/QR snapshots; dialect, source line and occurrence context, numeric ordering and CSV [E] | [Recorded variable state](../FAQ.md#what-is-the-variables-tab); playback reads existing execution snapshots |
 
 Implementation and regressions: [MDI](../app/ui/windows/main_window_documents.py), [MDI tests](../tests/gui/test_documents.py), [Compare](../app/ui/dialogs/compare.py), [Designer dialog](../app/ui/generated/dialogs/compare.ui), [Compare tests](../tests/gui/test_compare.py), [Hotkeys](../app/ui/support/hotkeys.py), [toolbar customization](../app/ui/support/toolbar_settings.py).
 
-## Backplot capabilities retained from 2.3.0
+## Backplot capabilities in the current version
 
 - G0 stock contact is visualized in both machining modes. Milling GPU removal retains a rapid-damage marker in the height field; turning marks the intersection with remaining material without removing it on G0, restores marks on rewind and clips them as later cuts remove the affected material. Neither model checks holders, fixtures or machine components.
 - Settings → Options → Rotary Kinematics contains 24 read-only built-in configurations, named user copies, table/head ownership, signed direction vectors, joint order and visibility. Optional paired Min/Max angular limits on user copies produce nonblocking source-line warnings; they do not alter geometry, wrap angles or select another inverse solution.
 - Milling 3D picking selects sampled lines and arcs by camera depth and synchronizes the editor and playback occurrence. Shift+left-click remains the default. Settings → Options → General → Cimco Like Picking enables left-click selection and right-button panning, with a context menu on a right-click without dragging.
 - Measure provides two-point coordinates and distances in fixed XY/XZ/YZ and turning views. It has priority over trajectory picking while active; turning displays diameter coordinates separately from physical distances. Measure in a free 3D view remains outside its scope.
-- The 2.0 release adds 3D Stock Removal for three-axis FANUC and native SINUMERIK milling, alongside existing 2D turning stock removal; 2.5.0 extends it to native HEIDENHAIN iTNC three-axis Klartext. The current comparison includes the 2.5.0 fixes.
+- The 2.0 release adds 3D Stock Removal for three-axis FANUC and native SINUMERIK milling, alongside existing 2D turning stock removal; 2.5.0 extends it to native HEIDENHAIN iTNC three-axis Klartext. The current comparison includes the 2.6.0 fixes.
 - Milling removal runs on the GPU using configured cutter geometry and a sampled height field. It supports box stock, vertical cutters, playback/rewind, five Accuracy levels and STL export of the current machining stage. OpenGL 4.3 is required; rotary/TCP removal, undercuts and subtraction from imported STL solids are outside this model.
 - Milling and turning use the same Stock Removal button and Stock dialog, with settings for the active machining mode. Imported STL models remain visual references.
-- Language and controller-command support is unchanged. The existing command comparisons below are retained; stock removal is distinct from full machine collision simulation.
+- Previously checked FANUC/SINUMERIK comparison rows retain their recorded evidence; they have not undergone a new paired CIMCO review. This does not imply unchanged language support: native HEIDENHAIN execution was added in 2.5.0 and RND/CHF geometry in 2.5.1. Stock removal is distinct from full machine collision simulation.
 
 ## Language updates retained from 1.9.8
 
@@ -50,7 +58,7 @@ Implementation and regressions: [MDI](../app/ui/windows/main_window_documents.py
 
 ## Visualization and configuration
 
-| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.5.0 | Assessment |
+| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.6.0 | Assessment |
 | --- | --- | --- | --- |
 | Stock contact on G0 | ? exact remaining-stock/damage contract | ✅ milling rapid-damage markers and turning remaining-stock intersections | Present in both Easy modes; no paired accuracy test |
 | Rotary profile editor and limits | ✅ 4/5-axis setup [C2]; exact limit contract unconfirmed | ✅ Options tab, named copies, optional angular warning limits | Settings do not establish physical machine equivalence |
@@ -62,7 +70,7 @@ Implementation and regressions: [navigation](../app/ui/plot/plot_navigation.py),
 
 ## 1. FANUC milling
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.5.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.6.0 | Assessment |
 | --- | --- | --- | --- |
 | G0/G1, modal XYZ | ✅ Backplot [C1] | ✅ execution and motion trace | ≈ |
 | G2/G3, IJK, R | ✅ configurable arcs [C1, C2] | ✅ absolute/incremental IJK and R | ≈; variants not compared |
@@ -120,7 +128,7 @@ Implementation and regressions: [navigation](../app/ui/plot/plot_navigation.py),
 
 ## 2. FANUC turning
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.5.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.6.0 | Assessment |
 | --- | --- | --- | --- |
 | G0/G1 | ✅ turning Backplot [C5] | ✅ X/Z trace | ≈ |
 | G2/G3 I/K, R | ✅ turning examples [C5] | ✅ G18, absolute/incremental I/K and R | ≈ basic arcs |
@@ -163,7 +171,7 @@ Implementation and regressions: [navigation](../app/ui/plot/plot_navigation.py),
 
 SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applies to documented parameter subsets, not every technology option on a Siemens controller.
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.5.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.6.0 | Assessment |
 | --- | --- | --- | --- |
 | G0/G1, modal XYZ | ✅ [N] | ✅ | ≈ |
 | ANG= | ✅ [N] | ❌ unmodeled geometry stops execution | CIMCO in historical comparison notes |
@@ -232,7 +240,7 @@ SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applie
 
 HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. Easy G-Code Plot parses and executes a documented three-axis Klartext subset and stops at unsupported semantics; the comparison below does not rank Klartext backplot accuracy.
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.5.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.6.0 | Assessment |
 | --- | --- | --- | --- |
 | Source detection and highlighting | ? Klartext support in V8 not established here | ✅ `.h`/`.H`, `BEGIN PGM` detection and iTNC-code highlighting [E] | Not established |
 | `BEGIN/END PGM`, `MM/INCH`, BLK FORM | ? | ✅ program/unit metadata and stock bounds; metric conversion | Not established |
@@ -256,7 +264,8 @@ HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. Easy G-Co
 | Cycle 32 smoothing | ? | ⚠️ metadata only; controller smoothing not simulated | Not established |
 | Optional `/` block skip and `LBL 0` | ? | ✅ skip and source block numbers preserved; separate named/numeric label maps and return handling | Not established |
 | Klartext editor calculators and renumber | ? | ✅ native `L`/`CR`, `CC`/`CP` fragments; numeric prefixes without `N`, optional `/` retained | Editor tools, not CNC execution equivalence |
-| `RND`/`CHF`, `M120`, rotary `A/B/C/U/V/W`, `PLANE`, TCP | ? | ❌ parsed as native facts; execution stops | Not established |
+| `RND R… [F…]` / `CHF … [F…]` | ? | ✅ tangent line/arc rounding and straight-line chamfers; neighbor trimming, block-local feed and existing RL/RR/R0 compensation. ⚠️ unique planar local corners with residual neighboring lengths | [References and limits](../FAQ.md#how-is-the-itnc-implementation-verified); no matched CIMCO run |
+| `M120`, rotary `A/B/C/U/V/W`, `PLANE`, TCP | ? | ❌ parsed as native facts; execution stops | Not established |
 | 3D milling stock removal | ✅ Solid Animation [C2]; Klartext scope unverified | ✅ three-axis native Klartext, GPU box stock and STL export [E] | ≈ feature present; dialect scope not compared |
 | EXPANDED iTNC output | ? | ✅ `heidenhain_itnc530` resolved post (`L/FMAX`, `CC`+`C/CP`, `CR`, `CYCL DEF 200/201/202/203/207`); FULL rejected | Different documented contracts |
 | Full machine simulation | ? not established for this Backplot | ❌ | No verified equivalence |
@@ -265,8 +274,8 @@ Input implementation and regression evidence: [HEIDENHAIN FAQ](../FAQ.md#heidenh
 
 ## Sources and verification limits
 
-- **[N]** Historical comparison notes on CIMCO Edit 8 behavior. These are not an exhaustive vendor reference; no new paired CIMCO binary comparison was performed for 2.5.0.
-- **[E]** Current 2.5.0 source: [FAQ](../FAQ.md), [kernel](../app/gcode/kernel/), [export](../app/gcode/export/), [GPU stock removal](../app/ui/plot/milling_stock_gpu.py), [stock replay and STL export](../app/gcode/stock/milling_stock.py), [GPU stock regressions](../tests/stock/test_milling_stock_gpu.py), [full Fusion regressions](../tests/dialects/test_fusion_benchmark.py), [native cycle regressions](../tests/dialects/test_sinumerik_cam_cycles.py) and [export regressions](../tests/export/test_drilling_operations.py).
+- **[N]** Historical comparison notes on CIMCO Edit 8 behavior. These are not an exhaustive vendor reference; no new paired CIMCO binary comparison was performed for 2.6.0.
+- **[E]** Current 2.6.0 source: [FAQ](../FAQ.md), [kernel](../app/gcode/kernel/), [export](../app/gcode/export/), [GPU stock removal](../app/ui/plot/milling_stock_gpu.py), [stock replay and STL export](../app/gcode/stock/milling_stock.py), [GPU stock regressions](../tests/stock/test_milling_stock_gpu.py), [full Fusion regressions](../tests/dialects/test_fusion_benchmark.py), [native cycle regressions](../tests/dialects/test_sinumerik_cam_cycles.py) and [export regressions](../tests/export/test_drilling_operations.py).
 - **[C1]** [CIMCO Edit V8: FANUC G/M codes](https://www.cimco.com/documentation/online/cimco_edit/v8/en/ExercisesMillingFanucGMCodes.html).
 - **[C2]** [CIMCO Edit V8: Backplot setup](https://www.cimco.com/documentation/online/cimco_edit/v8/en/SetupBackplot.html).
 - **[C3]** [CIMCO Edit 8 release notes](https://www.cimco.com/download/releases/?p=edit&v=8.00.30).

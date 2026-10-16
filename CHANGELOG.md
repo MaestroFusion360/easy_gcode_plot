@@ -1,5 +1,20 @@
 # Changelog
 
+## 2.6.0 - 2026-10-16
+
+- Add Rotate view for fixed milling Top/Front/Left views, with signed angles around model X/Y/Z axes and preserved camera center, zoom and per-document orientation; ISO/3D and turning remain disabled.
+- Expose Rotate view in View, plot context menus, the View toolbar, configurable hotkeys and toolbar customization.
+- Keep grid and ruler availability consistent with the rotated coordinate plane; oblique views disable planar grid and measurement.
+- Narrow the Tokens Support column and use controller-neutral motion color labels.
+- Lock iTNC comment style to semicolons and disable ISO arc autodetection in Options without changing ISO document defaults.
+- Preserve the active document's editor mode when applying Options; default file type applies to new documents.
+- Accept symbolic Q253=MAX/FMAX cycle feeds and use rapid pre-positioning in HEIDENHAIN Cycle 204.
+- Refactor Tokens/Variables into a controller-neutral inspector with FANUC, SINUMERIK R/named and HEIDENHAIN Q/QL/QR snapshots; prioritize diagnostics columns and move row counts to the footer.
+- Reuse the current document's execution result when opening or refreshing Tokens, including CRLF sources, avoiding a second CNC calculation after plotting.
+- Show a persistent rotary-kinematics notice with detected axes, the stopping line, profile selection and source navigation when a program cannot resolve rotary addresses.
+- Add All/Warnings/Errors filtering, visible-row counts and text search to Tokens without recalculating the program; copy and CSV export respect the filters.
+- Add native RND tangent rounding and CHF chamfer geometry before existing cutter compensation, with block-local feeds and numeric reference cases.
+
 ## 2.5.0 - 2026-10-15
 
 - Add multi-document editing (MDI) with drag-and-drop, independent document states and preserved camera settings.

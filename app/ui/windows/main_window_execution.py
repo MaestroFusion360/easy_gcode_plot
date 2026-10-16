@@ -618,6 +618,10 @@ class MainWindowExecutionMixin:
         if (completion is not None and completion.cancelled) or source_changed:
             return False
         if result is None or not result.motions:
+            if result is not None:
+                self.clearPlot()
+                self.execution_result = result if not result.ok else None
+                self._plot_source_stale = False
             if hasattr(self, "updateExecutionStatus"):
                 self.updateExecutionStatus(result=result, elapsed_ms=self._last_execution_ms)
             return False
@@ -737,16 +741,21 @@ class MainWindowExecutionMixin:
         if completion.cancelled:
             return False
         if result is None or not result.motions:
-            self.clearPlot()
-            self.execution_result = result if result is not None and not result.ok else None
-            if hasattr(self, "updateExecutionStatus"):
-                self.updateExecutionStatus(result=result, elapsed_ms=self._last_execution_ms)
+            self._publish_empty_result(result)
             return False
         if points is None:
             return False
         self._finishDataUpdate(result, points)
         self._auto_update_deferred = False
         return True
+
+    def _publish_empty_result(self, result):
+        self.clearPlot()
+        self.execution_result = result if result is not None and not result.ok else None
+        if result is not None:
+            self._plot_source_stale = False
+        if hasattr(self, "updateExecutionStatus"):
+            self.updateExecutionStatus(result=result, elapsed_ms=self._last_execution_ms)
 
     def rerenderCurrentResult(self):
         """Resample the current trace without re-executing the CNC program."""

@@ -340,8 +340,7 @@ class HelpDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_HelpDialog()
         self.ui.setupUi(self)
-        if parent is not None:
-            self.setWindowIcon(parent.windowIcon())
+        self.setWindowIcon(QIcon(":/resource/icons/faq.png"))
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowMinimizeButtonHint

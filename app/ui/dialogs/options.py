@@ -138,9 +138,11 @@ def _apply_cnc_options(window, ui):
     window.maximumCircularRadius = ui.maximumCircularRadiusSpin.value()
     window.minimumCircularRadius = min(ui.minimumCircularRadiusSpin.value(), window.maximumCircularRadius)
     window.minimumChordLength = ui.minimumChordLengthSpin.value()
-    window.autodetectArcType = ui.autodetectArcTypeCheck.isChecked()
+    if ui.autodetectArcTypeCheck.isEnabled():
+        window.autodetectArcType = ui.autodetectArcTypeCheck.isChecked()
     window.ignoreBlockSkip = ui.ignoreBlockSkipCheck.isChecked()
-    window.commentStyle = SEMICOLON if ui.commentStyleCombo.currentIndex() else DEFAULT_COMMENT_STYLE
+    if ui.commentStyleCombo.isEnabled():
+        window.commentStyle = SEMICOLON if ui.commentStyleCombo.currentIndex() else DEFAULT_COMMENT_STYLE
     window.co, window.ci = comment_markers(window.commentStyle)
     window.lexer.set_comment_style(getattr(window, "_document_comment_style", None) or window.commentStyle)
 
@@ -205,9 +207,15 @@ class OptionsDialog(QDialog):
         self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type A", "A")
         self.ui.latheGcodeSystemCombo.addItem("FANUC Lathe Type B", "B")
         self.ui.latheGcodeSystemCombo.setToolTip(
-            "Dialect of the source program. Select the output controller in Export / Target CNC."
+            QCoreApplication.translate(
+                "OptionsDlg", "Dialect of the source program. Select the output controller in Export / Target CNC."
+            )
         )
-        self.ui.generalForm.insertRow(6, QLabel("Source lathe G-code system", self), self.ui.latheGcodeSystemCombo)
+        self.ui.generalForm.insertRow(
+            6,
+            QLabel(QCoreApplication.translate("OptionsDlg", "Source lathe G-code system"), self),
+            self.ui.latheGcodeSystemCombo,
+        )
         self._configure_sinumerik_cycles_control()
         self.rotarySettings = RotaryKinematicsSettings(self)
         self._configure_caret_line_color()
@@ -247,12 +255,14 @@ class OptionsDialog(QDialog):
         self.ui.caretLineDarkColorButton, self.ui.caretLineDarkColorEdit = self._editor_color_row(
             "caretLineDarkColor", QCoreApplication.translate("OptionsDlg", "Current line (dark theme)")
         )
-        self.ui.editorRapidColorButton, self.ui.editorRapidColorEdit = self._editor_color_row("editorRapidColor", "G0")
+        self.ui.editorRapidColorButton, self.ui.editorRapidColorEdit = self._editor_color_row(
+            "editorRapidColor", QCoreApplication.translate("OptionsDlg", "Rapid move")
+        )
         self.ui.editorLinearColorButton, self.ui.editorLinearColorEdit = self._editor_color_row(
-            "editorLinearColor", "G1"
+            "editorLinearColor", QCoreApplication.translate("OptionsDlg", "Linear move")
         )
         self.ui.editorCircularColorButton, self.ui.editorCircularColorEdit = self._editor_color_row(
-            "editorCircularColor", "G2 / G3"
+            "editorCircularColor", QCoreApplication.translate("OptionsDlg", "Circular move")
         )
 
     def _editor_color_row(self, name, label):
@@ -365,6 +375,22 @@ class OptionsDialog(QDialog):
         self.ui.whitespaceCheck.setChecked(window.spaceVisible)
         self.ui.marginCheck.setChecked(window.marginArea)
         self._load_plot_values(window)
+        self._load_source_constraints()
+
+    def _load_source_constraints(self):
+        native = getattr(self.parent(), "_document_source_dialect", "fanuc") == "heidenhain"
+        comment_hint = QCoreApplication.translate("OptionsDlg", "iTNC comments use semicolons (;).") if native else ""
+        self.ui.commentStyleCombo.setEnabled(not native)
+        self.ui.commentStyleCombo.setToolTip(comment_hint)
+        self.ui.autodetectArcTypeCheck.setEnabled(not native)
+        self.ui.autodetectArcTypeCheck.setToolTip(
+            QCoreApplication.translate("OptionsDlg", "iTNC arcs use CC/C/CR/CP; ISO arc detection does not apply.")
+            if native
+            else ""
+        )
+        if native:
+            self.ui.commentStyleCombo.setCurrentIndex(1)
+            self.ui.autodetectArcTypeCheck.setChecked(False)
 
     def _load_plot_values(self, window):
         """Populate plot appearance and playback controls."""
@@ -567,7 +593,7 @@ class OptionsDialog(QDialog):
         window.spaceVisible = self.ui.whitespaceCheck.isChecked()
         window.marginArea = self.ui.marginCheck.isChecked()
         self._apply_plot_options(window, color_edits, previous_theme)
-        target_file_type = window.defaultFileType
+        target_file_type = window.ui.fileTypeCombo.currentIndex()
         signals_blocked = window.ui.fileTypeCombo.blockSignals(True)
         window.ui.fileTypeCombo.setCurrentIndex(target_file_type)
         window.ui.fileTypeCombo.blockSignals(signals_blocked)
@@ -670,7 +696,9 @@ class OptionsDialog(QDialog):
         super().reject()
 
     def pick_color(self, target):
-        color = QColorDialog.getColor(QColor(target.text()), self, "Select color")
+        color = QColorDialog.getColor(
+            QColor(target.text()), self, QCoreApplication.translate("OptionsDlg", "Select color")
+        )
         if color.isValid():
             target.setText(color.name())
 
@@ -736,6 +764,7 @@ class OptionsDialog(QDialog):
         self.ui.dashedRapidCheck.setChecked(True)
         self.ui.colorByToolCheck.setChecked(False)
         self.ui.playbackSpeedSlider.setValue(3)
+        self._load_source_constraints()
 
     def _set_arc_sampling_values(self, preset):
         _preset_id, tolerance, maximum_radius, minimum_radius, minimum_chord = preset

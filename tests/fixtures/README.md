@@ -1,11 +1,21 @@
-# NC fixture inventory after 2.1.0 stabilization
+# NC fixture inventory — 2.5.1
 
-Version 2.5.0 registers the supplied Klartext milling programs as native-input
+Version 2.5.1 registers the supplied Klartext milling programs as native-input
 fixtures. Parser/runtime and GUI regressions are run separately from corpus
-registration. All 11 programs in `milling/heidenhain/` must execute completely
+registration. The 13 contour/drilling programs in `milling/heidenhain/` must execute completely
 and open/plot in the real Qt GUI with configured Home emulation enabled.
 `tests/dialects/test_heidenhain_execution.py` and
-`tests/gui/test_gui_state_lifecycle.py` enforce this for the entire directory.
+`tests/gui/test_gui_state_lifecycle.py` enforce this for these programs.
+The additional `fusion_benchmark.h` CAM sample includes unsupported milling
+cycles 252/262. Its regression requires the supported prefix, including Cycle
+204 with Q253=MAX, to render and stop with an explicit Cycle 252 diagnostic;
+it must not be reported as a complete calculation.
+
+`6bas154.h` is the six-RND reference contour with APPR/DEP LCT. Its reference
+tool is explicitly configured as T4, flat mill, diameter 6 mm (radius 3 mm),
+outside the executable NC text; APPR/DEP R3 does not declare tool geometry.
+`manual_chf.h` is the LINEAR example from iTNC 530 manual 737759-23, p. 244.
+Numeric geometry expectations are in `tests/dialects/test_heidenhain_corners.py`.
 
 The corpus includes CAM contours, drilling/tapping, Cycle 7 datum shifts,
 Cycle 10 planar rotation, Cycle 247 preset selection, FN 6/7 trigonometric
@@ -81,6 +91,8 @@ export/reimport coverage. STL files used by Sandbox remain untouched as well.
 | `milling/fanuc/wcs_test.nc` | 99 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py`, `tests/export/test_mill_full_program.py` |
 | `milling/heidenhain/1001.h` | 128 | Contours, RL/RR/R0, label calls, Cycle 247 and M140 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
 | `milling/heidenhain/arcs.h` | 29 | CC/C circular interpolation in coordinate planes | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
+| `milling/heidenhain/6bas154.h` | 25 | Six RND corners, explicit T4 Ø6, APPR/DEP LCT and RL | - | - | `tests/dialects/test_heidenhain_corners.py`, native corpus regressions |
+| `milling/heidenhain/manual_chf.h` | 17 | Official LINEAR example, CHF 10/20, APPR/DEP LT | - | - | `tests/dialects/test_heidenhain_corners.py`, native corpus regressions |
 | `milling/heidenhain/bore_itnc530.h` | 47 | Multi-turn helical CP boring, Q feeds and RL | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
 | `milling/heidenhain/contour.h` | 597 | L/CC/C contour and machine-coordinate positioning | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
 | `milling/heidenhain/cycles_itnc530.h` | 98 | Cycles 200/203, eight holes and completion at M30 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |

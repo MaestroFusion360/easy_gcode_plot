@@ -24,12 +24,33 @@ from PyQt6.QtWidgets import (
 from app import theme
 from app.gcode.core import format_gcode_number
 from app.gcode.kernel.api.types import ExecutionResult
+from app.gcode.kernel.frontend.heidenhain_syntax import HeidenhainSyntax
 from app.gcode.kernel.frontend.lang import try_literal_int
 from app.ui.generated.dialogs.tokens import Ui_TokensDlg
+from app.ui.support.execution_variables import (
+    step_for_playback,
+    variables_for_playback,
+    variables_for_step,
+)
+from app.ui.support.execution_variables import (
+    variable_name as _variable_name,
+)
+
+__all__ = [
+    "TABLE_HEADINGS",
+    "TABLE_WIDTHS",
+    "TokenRow",
+    "TokensDialog",
+    "rows_from_execution",
+    "variables_for_playback",
+]
 
 TABLE_HEADINGS = (
     "Ln",
     "Raw",
+    "Support",
+    "Action",
+    "Valid",
     "Words",
     "Opt",
     "N",
@@ -43,12 +64,9 @@ TABLE_HEADINGS = (
     "Mode G",
     "Spindle G",
     "Flow",
-    "Support",
-    "Action",
-    "Valid",
 )
-TABLE_WIDTHS = (42, 240, 250, 38, 50, 50, 48, 82, 78, 72, 92, 92, 72, 78, 140, 120, 260, 58)
-VARIABLE_HEADINGS = ("#", "Value")
+TABLE_WIDTHS = (42, 240, 90, 260, 58, 250, 38, 50, 50, 48, 82, 78, 72, 92, 92, 72, 78, 140)
+VARIABLE_HEADINGS = ("Variable", "Value")
 _STATUS_COLORS = {
     "light": {
         "OK": QColor("#e7f6e7"),
@@ -105,6 +123,35 @@ def _diagnostic_source_line(diagnostic: object, line_count: int) -> int | None:
     return None
 
 
+def _native_word_text(block):
+    if block is None:
+        return ""
+    syntax = block.native_syntax
+    if isinstance(syntax, HeidenhainSyntax):
+        words = " ".join(word.source for word in syntax.words)
+        if syntax.assignment is not None:
+            name, expression = syntax.assignment
+            words = f"{name}={expression.source}"
+        return " ".join(part for part in (syntax.command, words) if part)
+    if syntax is not None:
+        if syntax.parameter_assignment is not None:
+            number, expression = syntax.parameter_assignment
+            return f"R{number}={expression}"
+        if syntax.named_assignments:
+            return " ".join(f"{name}={expression}" for name, expression in syntax.named_assignments)
+        if syntax.real_declarations:
+            return "DEF REAL " + ", ".join(syntax.real_declarations)
+    return " ".join(f"{word.letter}:{word.expr}" for word in block.parsed_words)
+
+
+def _block_machine_codes(block):
+    if block is None:
+        return ""
+    if isinstance(block.native_syntax, HeidenhainSyntax):
+        return ",".join(function.code.source for function in block.native_syntax.machine_functions)
+    return _code_text(block.parsed_words, "M")
+
+
 def rows_from_execution(source: str, result: ExecutionResult) -> list[TokenRow]:
     """Adapt the kernel's parsed blocks and diagnostics without parsing source again."""
     lines = source.splitlines()
@@ -149,11 +196,14 @@ def rows_from_execution(source: str, result: ExecutionResult) -> list[TokenRow]:
         values = (
             str(index),
             line,
-            " ".join(f"{word.letter}:{word.expr}" for word in words),
+            support,
+            message,
+            "Yes" if status == "OK" else "No",
+            _native_word_text(block),
             "/" if block and block.optional_skip else "",
-            _code_text(words, "N"),
+            str(block.nlabel) if block is not None and block.nlabel is not None else "",
             _code_text(words, "O"),
-            _code_text(words, "M"),
+            _block_machine_codes(block),
             grouped["motion"],
             grouped["plane"],
             grouped["units"],
@@ -162,61 +212,14 @@ def rows_from_execution(source: str, result: ExecutionResult) -> list[TokenRow]:
             grouped["mode"],
             grouped["spindle"],
             flow,
-            support,
-            message,
-            "Yes" if status == "OK" else "No",
         )
         rows.append(TokenRow(values, status))
     return rows
 
 
-def _variable_name(key: str) -> str:
-    name = str(key)
-    if name.startswith("#"):
-        return name
-    return f"#{name}" if name.isdigit() else f"#<{name}>"
-
-
-def _variable_sort_key(item: tuple[str, float]) -> tuple[int, int | str]:
-    key = str(item[0])
-    plain = key[1:] if key.startswith("#") else key
-    if plain.isdigit():
-        return 0, int(plain)
-    if plain.startswith("<") and plain.endswith(">"):
-        plain = plain[1:-1]
-    return 1, plain.casefold()
-
-
-def variables_for_playback(
-    execution_result: ExecutionResult | None,
-    playback_movements,
-    playback_value: int,
-    at_program_end: bool = False,
-) -> tuple[tuple[str, float], ...]:
-    """Return the captured Macro B state for one logical playback position."""
-    if execution_result is None or playback_value <= 0:
-        return ()
-    steps = execution_result.execution_steps
-    if not steps:
-        return ()
-    if at_program_end:
-        return tuple(sorted(steps[-1].variables, key=_variable_sort_key))
-    movements = tuple(playback_movements)
-    if not movements:
-        return ()
-    playback_index = min(int(playback_value), len(movements)) - 1
-    target_motion = movements[playback_index].motion_end - 1
-    emitted_end = 0
-    for step in steps:
-        emitted_end += step.emitted_count
-        if step.emitted_count and target_motion < emitted_end:
-            return tuple(sorted(step.variables, key=_variable_sort_key))
-    return ()
-
-
 def _translated_variable_headings() -> tuple[str, str]:
     return (
-        QCoreApplication.translate("TokensDlg", "#"),
+        QCoreApplication.translate("TokensDlg", "Variable"),
         QCoreApplication.translate("TokensDlg", "Value"),
     )
 
@@ -251,6 +254,13 @@ class TokensDialog(QDialog):
         self.model = QStandardItemModel(0, len(TABLE_HEADINGS), self)
         self.model.setHorizontalHeaderLabels(TABLE_HEADINGS)
         self.ui.tokenTable.setModel(self.model)
+        self._token_rows: list[TokenRow] = []
+        self._searchable_rows: list[str] = []
+        self._displayed_source: str | None = None
+        for index, status in enumerate(("ALL", "WARNING", "ERROR")):
+            self.ui.filterCombo.setItemData(index, status)
+        self.ui.filterCombo.currentIndexChanged.connect(self._apply_filters)
+        self.ui.searchEdit.textChanged.connect(self._apply_filters)
         self.variables_model = QStandardItemModel(0, len(VARIABLE_HEADINGS), self)
         self.variables_model.setHorizontalHeaderLabels(_translated_variable_headings())
         self.ui.macroVariablesTable.setModel(self.variables_model)
@@ -270,6 +280,7 @@ class TokensDialog(QDialog):
         self.ui.tabWidget.currentChanged.connect(self._tab_changed)
         self.reset_columns()
         self._update_footer_state()
+        self._apply_filters()
 
     def showEvent(self, event):
         self._refresh_current_tab()
@@ -299,11 +310,11 @@ class TokensDialog(QDialog):
     def refresh_macro_variables(self):
         """Refresh the read-only inspector from existing execution snapshots."""
         self.variables_model.removeRows(0, self.variables_model.rowCount())
+        self.ui.variablesContextLabel.clear()
+        self._set_row_count(0, 0)
         if self._stale_provider():
             self.ui.macroVariablesStatusLabel.setText(
-                QCoreApplication.translate(
-                    "TokensDlg", "Execution is stale. Update the toolpath to inspect Macro Variables."
-                )
+                QCoreApplication.translate("TokensDlg", "Execution is stale. Update the toolpath to inspect Variables.")
             )
             return
         result = self._execution_provider()
@@ -311,24 +322,52 @@ class TokensDialog(QDialog):
             self.ui.macroVariablesStatusLabel.setText(QCoreApplication.translate("TokensDlg", "No execution data."))
             return
         movements, playback_value = self._playback_provider()
-        variables = variables_for_playback(
-            result,
-            movements,
-            playback_value,
-            self._program_end_provider(),
+        step = step_for_playback(result, movements, playback_value, self._program_end_provider())
+        variables = variables_for_step(step, result.source_dialect)
+        self._update_variable_context(result, step)
+        self.ui.macroVariablesStatusLabel.setText(
+            "" if variables else QCoreApplication.translate("TokensDlg", "No variables recorded at this position.")
         )
-        self.ui.macroVariablesStatusLabel.clear()
         for key, value in variables:
-            name_item = QStandardItem(_variable_name(key))
-            value_item = QStandardItem(format_gcode_number(value))
+            name_item = QStandardItem(_variable_name(key, result.source_dialect))
+            text = (
+                format_gcode_number(value)
+                if value is not None
+                else QCoreApplication.translate("TokensDlg", "Undefined")
+            )
+            value_item = QStandardItem(text)
             name_item.setEditable(False)
             value_item.setEditable(False)
             value_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.variables_model.appendRow((name_item, value_item))
+        self._set_row_count(len(variables), len(variables))
+
+    def _update_variable_context(self, result, step):
+        dialect = {"heidenhain": "HEIDENHAIN iTNC 530", "sinumerik": "SINUMERIK"}.get(result.source_dialect)
+        if dialect is None:
+            dialect = (
+                QCoreApplication.translate("TokensDlg", "FANUC Lathe")
+                if result.language == "fanuc_turn"
+                else QCoreApplication.translate("TokensDlg", "FANUC Mill")
+            )
+        context = dialect
+        if step is not None:
+            context = QCoreApplication.translate("TokensDlg", "{0} — Line {1} — Occurrence {2}").format(
+                dialect, step.source_block + 1, step.occurrence + 1
+            )
+        self.ui.variablesContextLabel.setText(context)
 
     def refresh(self):
         source = self._source_provider()
-        rows = rows_from_execution(source, self._analysis_provider())
+        result = None if self._stale_provider() else self._execution_provider()
+        if result is not None and result.program is not None:
+            if [block.raw.rstrip("\r\n") for block in result.program.blocks] != source.splitlines():
+                result = None
+        if result is None and not getattr(self.parent(), "_kernel_execution_active", False):
+            result = self._analysis_provider()
+        if result is None and source == self._displayed_source:
+            return  # The editor may already be calculating; keep its current table usable.
+        rows = rows_from_execution(source, result) if result is not None else []
         self.model.removeRows(0, self.model.rowCount())
         theme_name = theme.normalize_theme(getattr(self.parent(), "uiTheme", "light"))
         status_colors = _STATUS_COLORS[theme_name]
@@ -341,9 +380,43 @@ class TokensDialog(QDialog):
                 item.setBackground(color)
                 item.setForeground(foreground)
             self.model.appendRow(items)
+        self._token_rows = rows
+        self._displayed_source = source
+        self._searchable_rows = [" ".join(" ".join(row.values).split()).casefold() for row in rows]
+        self._apply_filters()
+
+    def _apply_filters(self, _value=None):
+        """Filter existing rows only; never invoke the source or analysis providers."""
+        status = self.ui.filterCombo.currentData()
+        query = " ".join(self.ui.searchEdit.text().split()).casefold()
+        table = self.ui.tokenTable
+        visible_count = 0
+        table.setUpdatesEnabled(False)
+        try:
+            for index, row in enumerate(self._token_rows):
+                visible = (status == "ALL" or row.status == status) and query in self._searchable_rows[index]
+                hidden = not visible
+                if table.isRowHidden(index) != hidden:
+                    table.setRowHidden(index, hidden)
+                visible_count += visible
+        finally:
+            table.setUpdatesEnabled(True)
+        if self.ui.tabWidget.currentWidget() is self.ui.tokensTab:
+            self._set_row_count(visible_count, len(self._token_rows))
+
+    def _set_row_count(self, visible_count, total_count):
+        self.ui.filterCountLabel.setText(
+            QCoreApplication.translate("TokensDlg", "Rows: {0} / {1}").format(visible_count, total_count)
+        )
 
     def selected_rows_text(self) -> str:
-        rows = sorted({index.row() for index in self.ui.tokenTable.selectionModel().selectedRows()})
+        rows = sorted(
+            {
+                index.row()
+                for index in self.ui.tokenTable.selectionModel().selectedRows()
+                if not self.ui.tokenTable.isRowHidden(index.row())
+            }
+        )
         return "\n".join(
             "\t".join(self.model.item(row, column).text() for column in range(self.model.columnCount())) for row in rows
         )
@@ -387,7 +460,7 @@ class TokensDialog(QDialog):
         variables_tab = self.ui.tabWidget.currentWidget() is self.ui.macroVariablesTab
         model = self.variables_model if variables_tab else self.model
         headings = VARIABLE_HEADINGS if variables_tab else TABLE_HEADINGS
-        default_name = "macro-variables.csv" if variables_tab else "tokens-validation.csv"
+        default_name = "variables.csv" if variables_tab else "tokens-validation.csv"
         filename, _selected_filter = QFileDialog.getSaveFileName(
             self,
             QCoreApplication.translate("TokensDlg", "Export CSV"),
@@ -401,6 +474,8 @@ class TokensDialog(QDialog):
                 writer = csv.writer(stream, delimiter=";")
                 writer.writerow(headings)
                 for row in range(model.rowCount()):
+                    if not variables_tab and self.ui.tokenTable.isRowHidden(row):
+                        continue
                     writer.writerow(model.item(row, column).text() for column in range(model.columnCount()))
         except OSError as exc:
             QMessageBox.critical(
@@ -412,7 +487,7 @@ class TokensDialog(QDialog):
         parent = self.parent()
         if parent is not None and hasattr(parent, "statusBar"):
             message = (
-                QCoreApplication.translate("TokensDlg", "Macro variables exported to {0}")
+                QCoreApplication.translate("TokensDlg", "Variables exported to {0}")
                 if variables_tab
                 else QCoreApplication.translate("TokensDlg", "Token validation exported to {0}")
             )

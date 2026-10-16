@@ -1,6 +1,6 @@
 # GUI Sandbox
 
-Updated for 2.5.0. Run automated checks without showing test windows; use the
+Updated for 2.6.0. Run automated checks without showing test windows; use the
 visible demonstration only when you explicitly want to watch the simulation.
 
 The existing pytest scenario `tests/gui/test_daily_workflow_smoke.py` drives

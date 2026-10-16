@@ -263,6 +263,7 @@
     <addaction name="actionTop"/>
     <addaction name="actionFront"/>
     <addaction name="actionLeft"/>
+    <addaction name="actionRotateView"/>
     <addaction name="separator"/>
     <addaction name="actionGrid"/>
    </widget>
@@ -371,6 +372,7 @@
    <addaction name="actionTop"/>
    <addaction name="actionFront"/>
    <addaction name="actionLeft"/>
+    <addaction name="actionRotateView"/>
    <addaction name="separator"/>
    <addaction name="actionGrid"/>
   </widget>
@@ -676,7 +678,7 @@
   <action name="actionFAQ">
    <property name="icon">
     <iconset resource="../../../resources/files_res.qrc">
-     <normaloff>:/resource/icons/about.png</normaloff>:/resource/icons/about.png</iconset>
+     <normaloff>:/resource/icons/faq.png</normaloff>:/resource/icons/faq.png</iconset>
    </property>
    <property name="text">
     <string>FAQ</string>
@@ -737,6 +739,15 @@
    <property name="toolTip">
     <string>View Left (YZ/G19)</string>
    </property>
+  </action>
+  <action name="actionRotateView">
+   <property name="enabled"><bool>false</bool></property>
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/rotate_views.png</normaloff>:/resource/icons/rotate_views.png</iconset>
+   </property>
+   <property name="text"><string>Rotate view</string></property>
+   <property name="toolTip"><string>Rotate Top/Front/Left around a model axis; unavailable in 3D and turning.</string></property>
   </action>
   <action name="actionRelative_to_start">
    <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/arc_relative.png</normaloff>:/resource/icons/arc_relative.png</iconset></property>
@@ -885,7 +896,7 @@
      <normaloff>:/resource/icons/tokens.png</normaloff>:/resource/icons/tokens.png</iconset>
    </property>
    <property name="text">
-    <string>Tokens/Macro Variables</string>
+    <string>Tokens/Variables</string>
    </property>
   </action>
   <action name="actionGrid">

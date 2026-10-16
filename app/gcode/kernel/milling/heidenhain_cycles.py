@@ -56,6 +56,13 @@ class _Drill:
         feed = self.q(208) * self.state.scale or plunge_feed
         return 1, feed
 
+    def preposition(self, depth, default_feed=0.0):
+        """Q253 MAX/FMAX is rapid positioning, never a zero cutting feed."""
+        if "Q253" in self.state.cycle_rapid_parameters:
+            self.axial(depth, move=0)
+        else:
+            self.axial(depth, move=1, feed=self.q(253, default_feed) * self.state.scale)
+
     def offset(self, point, distance):
         result = list(point)
         axes = [index for index in range(3) if index != self.axis]
@@ -114,17 +121,17 @@ class _Drill:
         shift = abs(self.q(251)) * scale
         self.signal("spindle_orient", self.q(336))
         self.state.linear(self.offset(centered, shift), self.block, cycle=True)
-        self.axial(through, 1, self.q(253, self.state.feed or 0) * scale)
+        self.preposition(through, (self.state.feed or 0) / scale)
         at_depth = list(centered)
         at_depth[self.axis] = through
         self.state.linear(tuple(at_depth), self.block, cycle=True)
         self.signal("spindle_cw")
         self.axial(target, 1, self.q(254, self.state.feed or 0) * scale)
         self.dwell(255)
-        self.axial(through, 1, self.q(253, self.state.feed or 0) * scale)
+        self.preposition(through, (self.state.feed or 0) / scale)
         self.signal("spindle_orient", self.q(336))
         self.state.linear(self.offset(self.state.position, shift), self.block, cycle=True)
-        self.axial(surface + abs(self.q(204, self.q(200))) * scale, 1, self.q(253, 0) * scale)
+        self.preposition(surface + abs(self.q(204, self.q(200))) * scale)
         returned = list(start)
         returned[self.axis] = self.state.position[self.axis]
         self.state.linear(tuple(returned), self.block, cycle=True)

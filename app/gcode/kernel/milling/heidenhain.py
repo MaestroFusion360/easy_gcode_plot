@@ -7,6 +7,7 @@ stop the trace at their source block; no intermediate ISO program is generated.
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass, field, replace
 from typing import Any
 
@@ -20,6 +21,7 @@ from ..geometry.transform import CoordinateTransform
 from ..runtime.diagnostics import diagnostic_from_exception
 from ..runtime.execution import semantic_instructions
 from .heidenhain_contour import approach_departure
+from .heidenhain_corners import guard_corner, queue_corner, resolve_corner
 from .heidenhain_cycles import DRILLING_CYCLES, execute_cycle
 from .heidenhain_values import scalar
 
@@ -73,6 +75,9 @@ class _State:
     cycle_rapid_parameters: set[str] = field(default_factory=set)
     motions: list = field(default_factory=list)
     trace_motions: list = field(default_factory=list)
+    motion_owners: list = field(default_factory=list)
+    pending_corner: Any = None
+    last_contour_block: int | None = None
     steps: list = field(default_factory=list)
     events: list = field(default_factory=list)
     signals: list = field(default_factory=list)
@@ -336,30 +341,37 @@ class _State:
 
     def record_motion(self, motion):
         """Keep contour geometry in work coordinates and publish a machine-space trace."""
+        motion = resolve_corner(self, motion)
+        self.publish_motion(motion, owner=len(self.steps))
+
+    def publish_motion(self, motion, *, owner):
+        transformed = self.machine_motion(motion)
+        self.motions.append(motion)
+        self.trace_motions.append(transformed)
+        self.motion_owners.append(owner)
+
+    def machine_motion(self, motion):
         if motion.arc is not None and motion.plane != 17 and self.rotation_degrees % 360 != 0:
             _unsupported("Cycle 10 rotated circular motion currently supports the XY plane only")
-        self.motions.append(motion)
         start = self.machine((motion.start_x, motion.start_y, motion.start_z))
         end = self.machine((motion.end_x, motion.end_y, motion.end_z))
         arc = replace(motion.arc, center=self.machine(motion.arc.center)) if motion.arc is not None else None
         vector = (motion.i, motion.j, motion.k)
         if arc is not None and any(value is not None for value in vector):
             vector = self.frame.apply_vector(tuple(value or 0.0 for value in vector))
-        self.trace_motions.append(
-            replace(
-                motion,
-                start_x=start[0],
-                start_y=start[1],
-                start_z=start[2],
-                end_x=end[0],
-                end_y=end[1],
-                end_z=end[2],
-                arc=arc,
-                i=vector[0],
-                j=vector[1],
-                k=vector[2],
-                orientation_offset=self.frame.translation,
-            )
+        return replace(
+            motion,
+            start_x=start[0],
+            start_y=start[1],
+            start_z=start[2],
+            end_x=end[0],
+            end_y=end[1],
+            end_z=end[2],
+            arc=arc,
+            i=vector[0],
+            j=vector[1],
+            k=vector[2],
+            orientation_offset=self.frame.translation,
         )
 
     def select_datum(self, number, block):
@@ -523,6 +535,7 @@ class _State:
     def block(self, block, syntax):
         if not isinstance(syntax, HeidenhainSyntax):
             raise SemanticError("INVALID_HEIDENHAIN_AST", "Execution requires a native Klartext AST")
+        guard_corner(self, syntax)
         values = {
             word.address: scalar(word.expression, self.parameters)
             for word in syntax.positioning_words
@@ -533,6 +546,10 @@ class _State:
                 Diagnostic("HEIDENHAIN_PROGRAM_METADATA", warning, "warning", "unverified", block.index + 1, block.raw)
             )
         self.dispatch_block(syntax, values, block)
+        if self.pending_corner is not None and syntax.kind == "motion":
+            self.pending_corner.error("following contour element is degenerate")
+        if syntax.kind == "motion":
+            self.last_contour_block = block.index
         return values
 
     def dispatch_block(self, syntax, values, block):
@@ -561,7 +578,8 @@ class _State:
         if syntax.assignment is not None:
             name, expression = syntax.assignment
             if expression.kind == "cycle_feed":
-                if syntax.cycle_code not in {202, 203}:
+                supported_cycles = {"Q208": {202, 203}, "Q253": {204, 205, 241}}
+                if syntax.cycle_code not in supported_cycles.get(name, set()):
                     _unsupported(f"Cycle {syntax.cycle_code} does not support {name}=MAX")
                 self.cycle_rapid_parameters.add(name)
                 self.parameters.pop(name, None)
@@ -572,6 +590,9 @@ class _State:
                 self.select_datum(self.parameters[name], _block)
 
     def contour_block(self, syntax, values, block):
+        if syntax.command in {"RND", "CHF"}:
+            queue_corner(self, syntax, values, block)
+            return
         if not syntax.command.startswith(("APPR ", "DEP ")):
             _unsupported("Klartext command is parsed but not executable: " + syntax.command)
         entry_move, entry_feed = (0 if self.rapid else 1), self.feed
@@ -807,12 +828,16 @@ def execute_heidenhain(
             if state.ended is not None:
                 break
             pc = flow.advance(pc, syntax)
+        if state.pending_corner is not None:
+            state.pending_corner.error("missing following contour element at end of program")
     except Exception as exc:
         diagnostic = diagnostic_from_exception(exc, program)
         if diagnostic.line is None and block is not None:
             diagnostic = replace(diagnostic, line=block.index + 1, raw=block.raw)
         state.diagnostics.append(diagnostic)
         failed = True
+    counts = Counter(state.motion_owners)
+    steps = tuple(replace(step, emitted_count=counts[index]) for index, step in enumerate(state.steps))
     return ExecutionResult(
         ok=not failed,
         program=program,
@@ -823,7 +848,7 @@ def execute_heidenhain(
         complete=not failed,
         language="fanuc_mill",
         source_dialect="heidenhain",
-        execution_steps=tuple(state.steps),
+        execution_steps=steps,
         events=tuple(state.events),
         signals=tuple(state.signals),
         program_end=state.ended,

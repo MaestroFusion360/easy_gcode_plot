@@ -150,6 +150,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self.cimcoLikePicking = False
         self.latheMode = False
         self._view_mode = "3d"
+        self._fixed_view_rotated = False
         self._toolpath_bounds_source = None
         self._toolpath_bounds_cache = None
 
@@ -722,6 +723,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self.ui.actionTop.triggered.connect(self.viewTop)
         self.ui.actionFront.triggered.connect(self.viewFront)
         self.ui.actionLeft.triggered.connect(self.viewLeft)
+        self.ui.actionRotateView.triggered.connect(self.rotateView)
         self.ui.actionGrid.toggled.connect(self.gridChecked)
         self.ui.graphicsView.orthographicOrbitStarted.connect(self._orthographic_orbit_started)
 
@@ -758,6 +760,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
     def syncGuiCapabilities(self):
         """Synchronize machine-specific actions with the active execution profile."""
         turning = bool(self.latheMode)
+        self.ui.actionRotateView.setEnabled(not turning and self._view_mode in {"top", "front", "left"})
         self.ui.actionStock.setEnabled(True)
         self.ui.actionSaveStockStl.setEnabled(not turning and bool(self._stock_animation_active))
         self.ui.actionInsertStockMesh.setEnabled(self.ui.actionSaveStockStl.isEnabled())

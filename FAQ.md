@@ -1,8 +1,8 @@
 # Easy G-Code Plot FAQ
 
-Updated for **2.5.0**: MDI documents, read-only Compare and refreshed GUI defaults.
+Updated for **2.6.0**: fixed milling-view rotation, controller-neutral inspection and current GUI workflows.
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC and SINUMERIK native/ISO-M semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC, SINUMERIK native/ISO-M and HEIDENHAIN iTNC 530 Klartext semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -215,12 +215,12 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Which tools remove material?](#which-tools-remove-material)
     - [How are threads represented in Stock Removal?](#how-are-threads-represented-in-stock-removal)
     - [Does Stock Removal detect machine collisions?](#does-stock-removal-detect-machine-collisions)
-  - [Statistics and Tokens/Macro Variables](#statistics-and-tokensmacro-variables)
+  - [Statistics and Tokens/Variables](#statistics-and-tokensvariables)
     - [What does Toolpath Statistics contain?](#what-does-toolpath-statistics-contain)
     - [Why can machining time be UNKNOWN?](#why-can-machining-time-be-unknown)
     - [What is the Tokens tab?](#what-is-the-tokens-tab)
-    - [What is the Macro Variables tab?](#what-is-the-macro-variables-tab)
-    - [Why can Macro Variables be unavailable?](#why-can-macro-variables-be-unavailable)
+    - [What is the Variables tab?](#what-is-the-variables-tab)
+    - [Why can Variables be unavailable?](#why-can-variables-be-unavailable)
   - [Export](#export)
     - [Which GUI export families exist?](#which-gui-export-families-exist)
     - [Are exporters separate G-code interpreters?](#are-exporters-separate-g-code-interpreters)
@@ -346,7 +346,9 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
 
 ### What is Easy G-Code Plot?
 
-Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling and SINUMERIK 840D milling programs. Supported native SINUMERIK input includes bounded R expressions and WHILE/GOTO/IF flow, plus CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
+Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling, SINUMERIK 840D milling and HEIDENHAIN iTNC 530 three-axis Klartext programs. Supported native SINUMERIK input includes bounded R expressions and WHILE/GOTO/IF flow, plus CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
+
+Native HEIDENHAIN input covers the documented subset of Klartext contours, Q parameters and drilling cycles; unsupported commands produce explicit diagnostics.
 
 Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 using postprocessors for SINUMERIK 840D and FANUC. Coverage applies to the tested commands and configured kinematics described in this FAQ.
 
@@ -444,21 +446,21 @@ uv run --no-dev python main.py
 5. Inspect the trajectory, playback, diagnostics and statistics.
 6. Export FULL, EXPANDED or DXF when required.
 
-Menu locations in 2.5.0:
+Menu locations in 2.6.0:
 
 | Command | Menu path |
 | --- | --- |
 | Application options | Settings → Options |
 | Stock, WCS and saved tools | Settings → Stock / WCS / Tool Library |
 | STL object panel | View → STL Objects |
-| Compare and execution reports | CNC Functions → Compare / Statistics / Tool List / Tokens/Macro Variables |
+| Compare and execution reports | CNC Functions → Compare / Statistics / Tool List / Tokens/Variables |
 | Measurements and generators | CNC Functions → Measure / Hole Calculator / Pocket Calculator |
 | Document closing | File → Close / Close All |
 | Toolbar button selection | Right-click a toolbar → Customize Toolbars |
 
 ### How do I work with multiple documents?
 
-The application starts with **one empty milling document**, even if the previous session used Lathe Mode. Use **+** or **File → New** to create another document. **Open**, recent files and drag-and-drop open CNC programs without replacing a nonempty active document. Opening into an empty, unmodified unnamed buffer fills that buffer and keeps its selected machine mode. Opening a file that is already open selects its existing document.
+The application starts with **one empty milling document**, even if the previous session used Lathe Mode. Use **+** or **File → New** to create another document. **Open**, recent files and drag-and-drop open CNC programs without replacing a nonempty active document. Opening an ordinary CNC file into an empty, unmodified unnamed buffer fills that buffer and keeps its selected machine mode. HEIDENHAIN `.h`/`.H` files are an exception: they always select native Klartext and milling, even when the empty buffer was in Lathe Mode. Opening a file that is already open selects its existing document.
 
 Use the **document-list arrow** at the upper right of the menu bar to select an open document. The check mark identifies the active document; `*` marks unsaved text. **Save**, **Save As**, editor commands, export and calculation operate on the active document. Save As cannot overwrite a file that is open in another document. Open documents are retained in memory for the current session; the next launch starts with one empty document rather than restoring the list.
 
@@ -470,7 +472,7 @@ Each document keeps its text, undo/redo history, caret, selection, scroll positi
 
 ### What happens to dialogs and playback when I switch documents?
 
-Finish or cancel an open **Export**, **Renumber**, **WCS**, **Options**, **Stock**, **Tool Library**, **Hole/Pocket Calculator** or **Snippets** dialog before creating, switching or closing documents. This prevents pending edits from being applied to a different CNC program. Find/Replace continues to act on the active editor. The visible Tokens/Macro Variables inspector refreshes for the selected document; the previous Statistics report is hidden, and Statistics can be opened again for the active program.
+Finish or cancel an open **Export**, **Renumber**, **WCS**, **Options**, **Stock**, **Tool Library**, **Hole/Pocket Calculator** or **Snippets** dialog before creating, switching or closing documents. This prevents pending edits from being applied to a different CNC program. Find/Replace continues to act on the active editor. The visible Tokens/Variables inspector refreshes for the selected document; the previous Statistics report is hidden, and Statistics can be opened again for the active program.
 
 Switching pauses playback, removes the previous stock simulation and restores the selected document's saved playback position and scene. Start Play again to rebuild stock removal for that document. Switching/closing is blocked during CNC calculation or stock export, and waits for cancelled stock-preparation workers to stop.
 
@@ -484,7 +486,7 @@ Choose **CNC Functions → Compare** or its toolbar button. Select open document
 
 ### What does the iTNC-code source type do?
 
-The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and three-axis runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241. Cycle 32 retains metadata without simulating controller smoothing. Rotary axes, tool offsets, `M120`, `RND`/`CHF` and `PLANE`/TCP remain syntax-only or unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
+The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and three-axis runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241. Cycle 32 retains metadata without simulating controller smoothing. `RND`/`CHF` construct planar rounding/chamfers before existing RL/RR compensation, with block-local feeds. Rotary axes, tool offsets DL/DR, `M120` and `PLANE`/TCP remain syntax-only or unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
 
 ### Which input encodings are supported?
 
@@ -511,6 +513,8 @@ Both common forms are recognized:
 ```
 
 A persistent comment-style option controls generated text exports. Reading source programs is not limited to the selected output style.
+
+Native iTNC uses `;` comments. With an iTNC document active, Options locks comment style to semicolons and disables ISO arc autodetection; ISO preferences are preserved. Changing the default file type affects new documents, while applying Options preserves the current editor mode. In Colors, Rapid move, Linear move and Circular move describe motion types for all controllers.
 
 ### How do optional `/` Block Skip lines work?
 
@@ -849,7 +853,7 @@ Local variables are scoped.
 
 On macro entry, the caller's local variables are saved and replaced by the call arguments. On `M99`, the caller's local values are restored. Common and named variables remain shared.
 
-The Macro Variables inspector reflects the active local scope while playback is inside the macro and shows the restored caller values after return.
+The Variables inspector reflects the active local scope while playback is inside the macro and shows the restored caller values after return.
 
 ### What does `G65 ... L...` do?
 
@@ -892,7 +896,7 @@ No. `M99 P` is controller-profile dependent and currently produces `UNSUPPORTED_
 
 Yes. `ExecutionStep.variables` contains an immutable snapshot of the variable state for that occurrence of a source block. Unchanged snapshots are internally reused rather than copied for every motion.
 
-This is what allows the GUI Macro Variables inspector to follow logical playback without re-running the CNC program.
+This is what allows the GUI Variables inspector to follow logical playback without re-running the CNC program.
 
 ### Does Expanded Execution export keep Macro B statements?
 
@@ -1399,6 +1403,8 @@ Resolved `TraceMotion` is full 3D geometry even though many CNC constructs are p
 
 ### How is indexed rotary milling handled?
 
+If calculation stops because no rotary profile is selected or the selected profile lacks an axis, a persistent notice appears above the plot. It lists detected A/B/C motion addresses, including zero angles, and the stopping source line. **Choose kinematics...** opens the existing profile menu; **Go to line** moves the editor to that block. The failed result remains available after Auto Update even when it produced no motions. The notice follows the active MDI document and disappears after a successful calculation. Address detection excludes comments and G65 macro arguments; it does not infer table/head ownership, rotary order, signs or pivots, so a machine profile is not selected automatically.
+
 Select a profile in **Settings → Rotary kinematics** or pass `--kinematics PROFILE_ID` with `--lang fanuc_mill` in the CLI. The GUI selection is stored as `CNC/ROTARY_KINEMATICS`. The profile maps programmed A/B/C addresses to signed rotary axes. G90 assigns an absolute rotary angle; G91 adds an increment. For the checked table profiles, later XYZ motions, resolved arcs and milling cycles are transformed into the fixed WCS display frame, and playback orients the tool preview at the resolved tool-tip point. WCS axes themselves do not rotate.
 
 G28 reference return and non-modal G53 use machine-axis coordinates first, including repeated returns and G91 increments, then map their trace points into the indexed display frame. The active WCS remains selected after G53. An A/B index records an event and changes subsequent geometry; the kernel does not currently generate a sampled tool-tip sweep during the rotary movement. The plot omits a connector across that position change.
@@ -1411,7 +1417,7 @@ The **4Ax Table A** and **4Ax Table B** profiles have been compared with the pro
 
 The complete installed catalog of 24 configurations is available in **Settings → Options → Rotary Kinematics**. This includes Head A/B/C, orthogonal AC/BC, mixed table/head and angled profiles. **Enabled**, in the profile settings, controls whether a profile appears in **Settings → Rotary kinematics**. Built-in visibility preferences are stored separately in user settings; installed definitions and their historical `enabled` flags remain unchanged. Hidden profiles remain in Options so they can be enabled again. Visibility changes take effect with **OK** and are discarded by **Cancel**. Hiding the active profile clears the active selection and refreshes execution. All built-in profiles are initially visible; user copies retain their own enabled state.
 
-Each rotary joint in a user profile has optional **Min (deg)** and **Max (deg)** travel limits. Enter both finite values with Min <= Max, or leave both blank for an unrestricted (continuous) axis. Installed profiles have no limits; create a copy to add them. An executed angle outside the inclusive range produces a **ROTARY_AXIS_LIMIT_EXCEEDED** warning in Tokens/Macro Variables on the source line, without stopping execution or blocking export. Only changed axes are checked; angles are compared as executed, without wrapping. Limits do not change geometry or select a different TWP/TCP solution.
+Each rotary joint in a user profile has optional **Min (deg)** and **Max (deg)** travel limits. Enter both finite values with Min <= Max, or leave both blank for an unrestricted (continuous) axis. Installed profiles have no limits; create a copy to add them. An executed angle outside the inclusive range produces a **ROTARY_AXIS_LIMIT_EXCEEDED** warning in Tokens/Variables on the source line, without stopping execution or blocking export. Only changed axes are checked; angles are compared as executed, without wrapping. Limits do not change geometry or select a different TWP/TCP solution.
 
 Only the five profiles **4Ax Table A**, **4Ax Table B**, **4-axis Table C**, **5Ax Table AC Angled** and **5Ax Table BC Angled** have the previously documented practical program verification. The other profiles and user copies are available but **unverified**; the Options status label makes this distinction. Synthetic checks of direction vectors and rotation order prove those parameters reach the kernel, not that an arbitrary NC program matches a physical machine. **None** remains the default active selection.
 
@@ -1846,7 +1852,13 @@ Use **File → Print** (`Ctrl+P`) or enable its optional File-toolbar button thr
 
 ### Which fixed views are available?
 
-Top, Front and Left are orthographic views. The ordinary 3D view is perspective. Starting free orbit from a fixed view returns to perspective.
+Top, Front and Left are orthographic views. The milling ISO/3D view also uses parallel projection; free orbit retains it.
+
+**View → Rotate view** rotates the current fixed milling view around model X, Y or Z through the current center of the view. Enter a signed angle (default 90°) and select the model axis. Positive angles follow the right-hand rule. Rotations accumulate; the camera center, scale and calculated trajectory are preserved, without CNC recalculation. For example, 180° around X turns Top into the opposite bottom view; 180° around Z turns Front into Back and Left into Right.
+
+The same command and icon are available in the plot context menu, View toolbar, Hotkeys and Customize Toolbars. Existing saved toolbar choices remain respected; enable the command there if needed. It is disabled in ISO/3D and turning. Top/Front/Left restore their standard orientations. Each MDI document retains its rotated camera.
+
+When the rotated camera faces XY, XZ or YZ, the grid and ruler follow that actual plane. At arbitrary oblique angles, planar grid and measurement are disabled until the camera returns to a coordinate plane. Toolpath selection remains available. Camera rotation does not transform program coordinates, stock, STL objects or machine kinematics.
 
 ### How does playback relate to the kernel?
 
@@ -1875,7 +1887,7 @@ Playback tracks execution occurrence and source ownership separately.
 
 Right-click a toolbar and choose **Customize Toolbars**. Check the buttons you want on each panel; search filters the list without changing your choices. **OK** applies and saves the selection, **Cancel** discards it, and **Restore Defaults** stages the compact default button set. The toolbar context menu also lets you hide whole panels or reset their layout and buttons. Menu commands and shortcuts remain available even when a button is hidden. Static CNC Functions and Tool Library/WCS/Stock/Tokens commands are available; Recent Files and rotary-profile lists remain in menus. Source-type and playback-speed widgets are retained.
 
-The 2.5.0 default keeps grouped file operations, undo/redo/search, view controls, toolchange navigation, Compare/statistics/measurement and playback. Clipboard buttons, case conversion, cleanup, Save As, Print, tool-list export, snippets and calculators are optional. Existing saved choices remain unchanged until you explicitly restore defaults.
+The 2.6.0 default keeps grouped file operations, undo/redo/search, view controls, toolchange navigation, Compare/statistics/measurement and playback. Clipboard buttons, case conversion, cleanup, Save As, Print, tool-list export, snippets and calculators are optional. Existing saved choices remain unchanged until you explicitly restore defaults.
 
 ### How do I locate a plotted move in the editor?
 
@@ -2123,11 +2135,11 @@ This check covers the configured cutting tool and the sampled turning stock sect
 
 ---
 
-## Statistics and Tokens/Macro Variables
+## Statistics and Tokens/Variables
 
 ### What does Toolpath Statistics contain?
 
-Open **CNC Functions → Statistics**. The inspector is under **CNC Functions → Tokens/Macro Variables**; it is no longer in Settings.
+Open **CNC Functions → Statistics**. The inspector is under **CNC Functions → Tokens/Variables**; it is no longer in Settings.
 
 Statistics are derived from the resolved trace and include:
 
@@ -2151,23 +2163,27 @@ The kernel avoids fabricating a physical feed rate. A common case is feed-per-re
 
 Tokens displays parsed/evaluated words, source position, execution status and diagnostics. Warning rows are orange and error rows are red. Double-click a diagnostic row to read the full source block and message in a dialog; rows without diagnostics do not open it. The table can also be exported to CSV.
 
-### What is the Macro Variables tab?
+The leading columns are **Ln, Raw, Support, Action, Valid**; the remaining columns retain their previous order. Support and diagnostics are therefore beside the source instead of beyond the token/address columns. Native Klartext words and Siemens parameter assignments are displayed directly, without converting them into FANUC tokens. CSV follows the same column order.
 
-Macro Variables shows the variable snapshot at the current logical playback position.
+Above the table, **All / Warnings / Errors** selects row severity. The **Rows: shown / total** counter is in the lower-left footer, aligned with the buttons. The search field on the right matches source text, words and diagnostics, for example `T1 M6`, ignoring case and repeated whitespace. It keeps matching rows rather than the entire machining section for that tool. Both filters operate on the loaded table without recalculating the program. Clear the search with its clear button; copying and CSV export include visible rows only. **Refresh** reloads the current document analysis and preserves the chosen filters.
 
-It follows:
+Opening Tokens, switching back to its tab and pressing Refresh reuse the active document's existing execution result when the source and calculation settings are current. A new analysis is requested only when there is no current result or it is stale. Opening the inspector during an active calculation does not start another calculation or cancel the running one. Variables continues to use playback snapshots.
 
-- assignments;
-- loops;
-- G65 local scopes;
-- M98 execution inside a macro;
-- restored caller locals after M99.
+### What is the Variables tab?
 
-It uses existing execution snapshots and does not re-run the CNC program while the playback slider moves.
+Variables displays the captured variable state at the current logical playback position for the active controller:
 
-### Why can Macro Variables be unavailable?
+- **FANUC Lathe/Mill:** numbered `#1` variables and named `#<NAME>` variables, including recorded G65 local scopes and caller restoration after M99.
+- **SINUMERIK:** `R0`, `R1`, etc. and supported declared/named variables; Macro B identifiers in mixed input remain explicitly prefixed with `#`.
+- **HEIDENHAIN iTNC 530:** `Q`, `QL` and `QR` identifiers as captured by native execution, without FANUC prefixes.
 
-If no execution result exists, there is no variable history to show. If the source editor has changed since the displayed execution result, the result is stale and the variable inspector waits for Refresh rather than mixing new source with old runtime state.
+The context above the table identifies the dialect, physical source line and execution occurrence. Numbered families sort numerically, so Q2 precedes Q10. Columns are **Variable / Value**, and CSV uses the displayed controller-specific identifiers. At program end the final captured state is shown; an assignment-only program can show its last executed state even without toolpath motions. Undefined captured values are labeled explicitly. These are recorded values from the supported executor, not live controller memory or a claim of full controller-variable coverage.
+
+The inspector uses existing execution snapshots and does not re-run the CNC program while the playback slider moves.
+
+### Why can Variables be unavailable?
+
+If no execution result exists, there is no variable history to show. If the source or execution settings have changed, update the toolpath first; Refresh only rereads the variable snapshots. A valid position without recorded variables is reported explicitly rather than displaying unrelated values from another dialect or document.
 
 ---
 
@@ -2464,13 +2480,14 @@ The scope is **three-axis CAM contours and bounded parametric programs**. Unsupp
 | `Q/QL/QR`, `FN 0–4/6/7`, expressions | Bounded arithmetic, comparisons, trigonometry and function trees evaluated without `eval`; QL locals are saved across label calls |
 | `LBL`, `CALL LBL`, `REP`, `FN 9–12` | Numeric and named labels, call stack, repeats and conditional `GOTO`; unmatched labels, duplicate definitions and LBL 0 misuse are diagnosed |
 | `CYCL DEF`/`CYCL CALL` | Cycle 32 is metadata only; drilling/boring/tapping cycles 1/2, 200–209 and 240/241 expand to physical geometry; cycle 9 is dwell; unsupported cycle codes stop execution |
-| Q cycle parameters | Physical `Q...=` continuation blocks remain in the AST and are consumed by `CYCL CALL` in execution order; `Q208=MAX` retains a symbolic rapid retraction feed for cycles 202/203 |
+| Q cycle parameters | Physical `Q...=` continuation blocks remain in the AST and are consumed by `CYCL CALL` in execution order. `MAX`/`FMAX` is a symbolic feed for Q208 and Q253, not a numeric expression: Q208 rapid retraction in cycles 202/203; Q253 rapid pre-positioning in Cycle 204. Parsing Q253 does not add execution of unsupported milling cycles |
 | Cycle 247 datum selection | Application mapping: `Q339=1..6` selects the configured G54..G59 offsets in millimetres. The tool's machine position is preserved; other preset numbers are unsupported. This is not an import of a controller's preset table |
 | Cycles 7/10 | Axis-address datum shifts and XY planar rotation (`ROT`) apply immediately without moving the tool; reset with zero values. Coordinate and circle-center transforms are retained in the machine-space trace; datum-table and tilted-plane variants remain unsupported |
 | `M140 MB distance`, `M140 MB MAX` | The current vertical three-axis preview always retracts along machine Z, before positioning, with a separate optional feed. MAX requires enabled Home emulation and uses Z from Home (G28) in WCS, in the positive direction only, with a warning. Tilted tool-axis retraction is not modeled. This approximation blocks NC trace export |
 | `F0`, repeated feed addresses | Geometry is retained; F0 is disclosed as a warning instead of inventing a feed; repeated feeds use the last value |
 | Optional `/` blocks and source numbers | Physical source lines and optional skip markers are retained; block numbers are not treated as `LBL` subprogram labels |
-| `RND/CHF`, `M120`, rotary `A/B/C/U/V/W`, `PLANE`, TCP, tool offsets | Parsed as native facts but not executed; execution stops at the block |
+| `RND R… [F…]`, `CHF … [F…]` | Tangent rounding arcs/chamfers trim adjacent elements before existing RL/RR compensation; feed applies only to the inserted segment. Planar local corners and explicit geometric diagnostics; see the limits below |
+| `M120`, rotary `A/B/C/U/V/W`, `PLANE`, TCP, tool offsets DL/DR | Parsed as native facts but not executed; execution stops at the block |
 | FULL formatting | Rejected for Klartext; EXPANDED and Save Source remain available |
 
 ### How are Klartext source, parameters and diagnostics represented?
@@ -2489,7 +2506,31 @@ Parse errors include a physical line, column, source text and diagnostic code. D
 
 ### How is the iTNC implementation verified?
 
-All 11 programs in `tests/fixtures/milling/heidenhain/` execute completely and open/plot in real Qt regressions with Home emulation enabled. The unchanged `cycles_itnc530.h` reaches M30 and executes eight holes; `itnc530_cycl200macro.h` executes ten holes using FN 6/7 trigonometric assignments; `ellipse.h` completes its 40-step loop using Cycle 7 datum shift and Cycle 10 planar rotation. MAX retraction uses Z from Home (G28) in WCS, emits `HEIDENHAIN_M140_HOME_EMULATION`, and blocks NC trace export. With Home emulation disabled, MAX stops with a source diagnostic. Cycle 247 maps entries 1–6 to G54–G59. Native motions, arc centers and drilling operations use machine coordinates.
+RND/CHF follows iTNC 530 manual 737759-23, sections 5.3, 6.3–6.4, pages 237–238 and 244. Corners are constructed on the programmed contour before the existing RL/RR cutter compensation; APPR/DEP approach and departure construction remains in place.
+
+- `RND R… [F…]` trims the two neighboring contour elements and inserts a tangent rounding arc. Supported combinations are line–line, line–arc, arc–line and arc–arc, provided the local solution is unique.
+- `CHF … [F…]` trims two straight lines and connects them with a chamfer. Its value is the setback along each neighboring line, not the diagonal length. At a right-angle corner, `CHF 10` produces a diagonal of approximately 14.142 mm in an MM program.
+- `F` on RND/CHF applies only to the inserted arc/chamfer; the surrounding contour retains its own feed.
+- R0/RL/RR, XY/XZ/YZ working planes and program units are supported. RND without compensation requires both working-plane coordinates in the preceding contour block.
+
+For example, with compensation off, the following contour rounds the corner at X20 Y0 with a 5 mm radius in an MM program:
+
+```text
+L X0 Y0 R0 F100
+L X20 Y0
+RND R5 F50
+L X20 Y20 F100
+```
+
+The rounding starts at X15 Y0 and ends at X20 Y5; its center is X15 Y5. Only the rounding uses F50. Replacing `RND R5 F50` with `CHF 5 F50` connects X15 Y0 to X20 Y5 with a straight chamfer.
+
+Spatial/helical, full-circle/multi-turn, ambiguous corners and corners consuming an entire neighboring element produce explicit diagnostics. During cutter compensation, an inward rounding/transition radius below the configured cutter radius stops execution; equality collapses the compensated arc to a point. The cutter geometry must therefore be configured correctly.
+
+Numeric regressions check tangent coordinates, radii, continuity, compensation, units, source-block ownership and local feeds. The six-rounding reference `6bas154.h` uses explicitly configured T4 diameter 6 mm; APPR/DEP R3 does not declare cutter geometry. `manual_chf.h` follows the manual's LINEAR example. These checks cover the stated subset, not full controller conformance.
+
+The additional CAM sample `fusion_benchmark.h` renders its supported prefix and stops explicitly at unsupported Cycle 252; Cycle 262 is also unsupported. This is a partial calculation, not successful completion.
+
+The 13 contour/drilling programs in `tests/fixtures/milling/heidenhain/` are registered in execution and Qt open/plot regressions with Home emulation enabled. The `6bas154.h` setup explicitly assigns T4 diameter 6 mm; APPR/DEP R3 does not declare tool geometry. Its six RND corners and the official `manual_chf.h` chamfers have independent numeric expectations. The unchanged `cycles_itnc530.h` reaches M30 and executes eight holes; `itnc530_cycl200macro.h` executes ten holes using FN 6/7 trigonometric assignments; `ellipse.h` completes its 40-step loop using Cycle 7 datum shift and Cycle 10 planar rotation. MAX retraction uses Z from Home (G28) in WCS, emits `HEIDENHAIN_M140_HOME_EMULATION`, and blocks NC trace export. With Home emulation disabled, MAX stops with a source diagnostic. Cycle 247 maps entries 1–6 to G54–G59. Native motions, arc centers and drilling operations use machine coordinates.
 
 The repository retains the real CAM and parametric programs under [`tests/fixtures/milling/heidenhain/`](tests/fixtures/milling/heidenhain/). Regression checks cover AST structure, exact source positions, cycle continuations, portable/native AST equivalence, diagnostics, cancellation and source-to-motion links in [`test_heidenhain_frontend.py`](tests/dialects/test_heidenhain_frontend.py) and [`test_heidenhain_execution.py`](tests/dialects/test_heidenhain_execution.py). Small AST cases are inline test inputs. The full `sample.h` fixture reaches `M30`; Cycle 32 smoothing and `F0` generate explicit warnings. The corpus includes decimal-comma coordinates and `STOP M30` in `sample_cr.h`, plus `arcs.h` cases with repeated feeds and circle planes derived from `CC`. GUI highlighting, calculators, renumbering and the export post have separate tests. These checks are not a claim of full iTNC 530 controller or machine simulation coverage.
 
@@ -2926,7 +2967,7 @@ Inspect the first diagnostic. Common causes include:
 - G65 argument error;
 - call-depth/resource limit.
 
-Use Tokens/Macro Variables to inspect the execution state at the relevant logical occurrence.
+Use Tokens/Variables to inspect the execution state at the relevant logical occurrence.
 
 ### My G65 M/S/T words did not start spindle/coolant/change tool
 
@@ -2981,7 +3022,7 @@ Use Refresh. Auto Update intentionally avoids continuously rebuilding a trace ab
 
 ### The GUI says the current execution is stale
 
-The editor text changed after the displayed `ExecutionResult` was created. Refresh before using execution-dependent information such as Macro Variables or export.
+The editor text changed after the displayed `ExecutionResult` was created. Refresh before using execution-dependent information such as Variables or export.
 
 ---
 

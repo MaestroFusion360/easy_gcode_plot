@@ -236,6 +236,8 @@ def _options(window, app, *, profile=None, appearance=False, stl_edges=None):
     _check_step(app, "Options", 2)
     ui = dialog.ui
     original_width = window.plotLineWidth
+    original_file_type = window.ui.fileTypeCombo.currentIndex()
+    original_lexer = window.ui.editor.lexer()
     if appearance:
         ui.tabs.setCurrentWidget(ui.generalTab)
         ui.fileTypeCombo.setCurrentIndex(1)
@@ -267,8 +269,9 @@ def _options(window, app, *, profile=None, appearance=False, stl_edges=None):
     if stl_edges is not None:
         assert window.stlWireframe == stl_edges
     if appearance:
-        assert window.defaultFileType == window.ui.fileTypeCombo.currentIndex() == 1
-        assert window.ui.editor.lexer() is window.lexer
+        assert window.defaultFileType == 1
+        assert window.ui.fileTypeCombo.currentIndex() == original_file_type
+        assert window.ui.editor.lexer() is original_lexer
         assert window.uiTheme == "dark"
         assert window.plotLineWidth == window._toolpath_item.width == original_width
         assert window.plotLineColor == "#36d9ff" and window.plotArcColor == "#ffb347"

@@ -8,6 +8,9 @@ from PyQt6.QtCore import QCoreApplication, QSignalBlocker
 from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import QLabel, QMenu, QMessageBox
 
+from app.gcode.comments import SEMICOLON
+from app.ui.support.rotary_notice import RotaryKinematicsNotice
+
 LOGGER = logging.getLogger(__name__)
 _TOOLCHANGE_PATTERN = re.compile(r"T\s*\d+", re.IGNORECASE)
 
@@ -59,6 +62,7 @@ class MainWindowEditorMixin:
         previous_dialect = self._document_source_dialect
         if idx == 2:
             self._document_source_dialect = "heidenhain"
+            self._document_comment_style = SEMICOLON
             self._document_arc_type = 1
             if self.latheMode:
                 self._restore_document_mode(False)
@@ -71,6 +75,7 @@ class MainWindowEditorMixin:
             self._document_source_dialect = source_dialect_for_path(None, self.ui.editor.text())
             if self._document_source_dialect != "heidenhain":
                 self._document_arc_type = None
+                self._document_comment_style = None
         if self._document_source_dialect != previous_dialect:
             self._parsed_program_cache = None
             self._deferred_execution_result = None
@@ -131,6 +136,9 @@ class MainWindowEditorMixin:
         self.traceStatusLabel.setToolTip("Executed steps and generated motions")
         self.diagnosticsStatusLabel.setToolTip("No execution diagnostics")
         self.timeStatusLabel.setToolTip("CNC kernel execution time")
+        self.rotaryKinematicsNotice = RotaryKinematicsNotice(self)
+        self.ui.verticalLayout.insertWidget(0, self.rotaryKinematicsNotice)
+        self.ui.verticalLayout.setStretchFactor(self.ui.graphicsView, 1)
         self.updateStatusBar()
 
     def updateExecutionStatus(self, state=None, result=None, elapsed_ms=None):
@@ -162,6 +170,7 @@ class MainWindowEditorMixin:
             "UPDATING": tr("UPDATING"),
         }
         self.executionStatusLabel.setText(state_labels.get(state, state))
+        self._update_rotary_notice(state, result)
         self.modeStatusLabel.setText(tr("LATHE") if self.latheMode else tr("MILLING"))
         steps = () if result is None else getattr(result, "execution_steps", ())
         motions = () if result is None else result.motions
@@ -198,6 +207,11 @@ class MainWindowEditorMixin:
             self.timeStatusLabel.setText(
                 f"Exec: {elapsed_ms / 1000.0:.2f} s" if elapsed_ms >= 1000.0 else f"Exec: {elapsed_ms:.1f} ms"
             )
+
+    def _update_rotary_notice(self, state, result):
+        notice = getattr(self, "rotaryKinematicsNotice", None)
+        if notice is not None:
+            notice.update_result(None if state in {"STALE", "UPDATING"} else result)
 
     def updatePlaybackStatus(self, value):
         """Expose the already-available playback motion position."""

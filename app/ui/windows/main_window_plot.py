@@ -25,6 +25,7 @@ from pyqtgraph.opengl import GLGridItem, GLLinePlotItem, GLScatterPlotItem
 
 from app.gcode.kernel.milling.kinematics import load_catalog
 from app.tools.definitions import DEFAULT_MILLING_TOOL
+from app.ui.dialogs.rotate_view import RotateViewDialog
 from app.ui.panels.stl_objects_panel import StlObjectsPanel
 from app.ui.plot.axis_triad import AxisTriadItem
 from app.ui.plot.geometry_picking import view_projection
@@ -42,6 +43,7 @@ from app.ui.plot.stl_transform import (
 )
 from app.ui.plot.toolpath_vbo import ToolpathVboItem, segments_from_render_points
 from app.ui.plot.trace_picking import TracePicker
+from app.ui.plot.view_rotation import camera_plane, rotate_camera
 
 PICK_DISTANCE_PX = 8.0
 CURSOR_SIZE_PX = 7.0
@@ -166,7 +168,7 @@ class MainWindowPlotMixin:
             viewport,
             show_rapid=getattr(self, "plotShowRapid", True),
             visible_count=visible_count,
-            depth_aware=not self.latheMode and self._view_mode == "3d",
+            depth_aware=not self.latheMode and (self._view_mode == "3d" or getattr(self, "_fixed_view_rotated", False)),
         )
 
     def _configure_stl_panel(self):
@@ -908,12 +910,14 @@ class MainWindowPlotMixin:
             self.valueHandler(self.ui.horizontalSlider.value(), sync_editor=False)
 
     def _grid_available_in_current_view(self):
-        return self.latheMode or self._view_mode in {"top", "front", "left"}
+        return self.latheMode or self._milling_view_plane() is not None
 
     def _sync_grid_view_state(self):
         """Restrict the Grid command and rendered grid to supported views."""
         available = self._grid_available_in_current_view()
         self.ui.actionGrid.setEnabled(available)
+        self.ui.actionRotateView.setEnabled(not self.latheMode and self._view_mode in {"top", "front", "left"})
+        self._ensure_milling_grid()
         if hasattr(self, "_ruler"):
             self._ruler.sync_view()
         grid = getattr(self, "_milling_grid_item", None)
@@ -931,6 +935,7 @@ class MainWindowPlotMixin:
         menu.addAction(self.ui.actionTop)
         menu.addAction(self.ui.actionFront)
         menu.addAction(self.ui.actionLeft)
+        menu.addAction(self.ui.actionRotateView)
         menu.addSeparator()
         menu.addAction(self.ui.actionGrid)
         menu.addSeparator()
@@ -1524,6 +1529,8 @@ class MainWindowPlotMixin:
     def _milling_view_plane(self, view_mode=None):
         """Map a physical milling view name to its fixed world plane."""
         mapping = self._milling_view_mapping(view_mode)
+        if view_mode is None and mapping is not None and getattr(self, "_fixed_view_rotated", False):
+            return camera_plane(self.ui.graphicsView)
         return mapping[0] if mapping is not None else None
 
     def _milling_view_mapping(self, view_mode=None):
@@ -1557,8 +1564,7 @@ class MainWindowPlotMixin:
     def _update_milling_grid(self):
         """Adapt the milling grid in 3D and fixed physical views."""
         grid = getattr(self, "_milling_grid_item", None)
-        view_mode = self._view_mode
-        plane = self._milling_view_plane(view_mode)
+        plane = self._milling_view_plane()
         if grid is None or self.latheMode or not self.plotGrid:
             return
         if plane is None:
@@ -1641,19 +1647,23 @@ class MainWindowPlotMixin:
         self._sync_milling_view_tooltips()
         self._orient_milling_grid()
         self._sync_grid_view_state()
-        if self.plotGrid and not self.latheMode and self._view_mode in {"top", "front", "left"}:
-            if self._milling_grid_item is None:
-                self._milling_grid_item = GLGridItem()
-                self._milling_grid_item.lineplot.setGLOptions(GRID_GL_OPTIONS)
-                self._milling_grid_item.setColor(QColor(self.plotGridColor))
-                self.ui.graphicsView.addItem(self._milling_grid_item)
-                self._orient_milling_grid()
         self.fitToView()
+
+    def _ensure_milling_grid(self):
+        if self.latheMode or not self.plotGrid or self._milling_view_plane() is None:
+            return
+        if self._milling_grid_item is None:
+            self._milling_grid_item = GLGridItem()
+            self._milling_grid_item.lineplot.setGLOptions(GRID_GL_OPTIONS)
+            self._milling_grid_item.setColor(QColor(self.plotGridColor))
+            self.ui.graphicsView.addItem(self._milling_grid_item)
+            self._orient_milling_grid()
 
     def _orthographic_orbit_started(self):
         """Mark a rotated fixed milling view as freely rotatable orthographic 3D."""
         if self.latheMode or self._view_mode == "3d":
             return
+        self._fixed_view_rotated = False
         self._view_mode = "3d"
         self._set_active_view_action("3d")
         self._sync_grid_view_state()
@@ -1662,6 +1672,7 @@ class MainWindowPlotMixin:
 
     def view3d(self):
         """Set the standard CAD angle with a parallel 3D projection."""
+        self._fixed_view_rotated = False
         self._view_mode = "3d"
         self._set_active_view_action("3d")
         self._sync_grid_view_state()
@@ -1684,6 +1695,7 @@ class MainWindowPlotMixin:
 
     def _set_fixed_milling_view(self, view_mode):
         """Apply a physical Top/Front/Left view using the active machine orientation."""
+        self._fixed_view_rotated = False
         self._view_mode = view_mode
         self._set_active_view_action(view_mode)
         self._sync_grid_view_state()
@@ -1716,6 +1728,33 @@ class MainWindowPlotMixin:
         action = actions.get(view_mode)
         if action is not None and action.isCheckable():
             action.setChecked(True)
+
+    def rotateView(self):
+        """Ask for an incremental rotation of the current fixed milling camera."""
+        if self.latheMode or self._view_mode not in {"top", "front", "left"}:
+            return False
+        plane = self._milling_view_plane() or self._milling_view_mapping()[0]
+        dialog = RotateViewDialog(self, {"xy": "Z", "xz": "Y", "yz": "X"}[plane])
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return False
+            return self.applyViewRotation(dialog.angle.value(), dialog.axis.currentText())
+        finally:
+            dialog.deleteLater()
+
+    def applyViewRotation(self, angle, axis):
+        """Rotate only the camera; keep trace, center, zoom and projection intact."""
+        if self.latheMode or self._view_mode not in {"top", "front", "left"}:
+            return False
+        rotate_camera(self.ui.graphicsView, axis, angle)
+        self._fixed_view_rotated = True
+        self._orient_milling_grid()
+        self._sync_grid_view_state()
+        self._plot_camera_changed()
+        item = getattr(self, "_toolpath_item", None)
+        if item is not None:
+            item.update_dashes_for_view()
+        return True
 
     def viewTop(self):
         """Switch to the machine's physical top orthographic view."""

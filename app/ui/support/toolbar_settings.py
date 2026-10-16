@@ -26,6 +26,7 @@ DEFAULT_BUTTONS = frozenset(
         "actionTop",
         "actionFront",
         "actionLeft",
+        "actionRotateView",
         "actionGrid",
         "actionLatheMode",
         "actionPrevToolchange",

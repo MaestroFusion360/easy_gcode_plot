@@ -34,6 +34,7 @@
     <file>icons/left.png</file>
     <file>icons/top.png</file>
     <file>icons/about.png</file>
+    <file>icons/faq.png</file>
     <file>icons/copy.png</file>
     <file>icons/cut.png</file>
     <file>icons/exit.png</file>
@@ -52,6 +53,7 @@
     <file>icons/text.png</file>
     <file>icons/stock.png</file>
     <file>icons/stock_menu.png</file>
+    <file>icons/rotate_views.png</file>
     <file>icons/ruler.png</file>
     <file>icons/toollibrary.png</file>
     <file>icons/wcs.png</file>

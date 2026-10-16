@@ -29,70 +29,70 @@ def qt_app():
 def test_rows_use_kernel_tokens_and_diagnostics():
     source = "G0 X1 Z2\nG999 X3"
     rows = rows_from_execution(source, execute(source))
-    assert rows[0].values[2] == "G:0 X:1 Z:2"
+    assert rows[0].values[TABLE_HEADINGS.index("Words")] == "G:0 X:1 Z:2"
     assert rows[0].status == "OK"
     assert rows[1].status == "ERROR"
-    assert "UNSUPPORTED_G_CODE" in rows[1].values[16]
+    assert "UNSUPPORTED_G_CODE" in rows[1].values[TABLE_HEADINGS.index("Action")]
 
 
 def test_tokens_support_follows_kernel_diagnostics_and_keeps_fractional_g_distinct():
     source = "G54\nG0.6 X1"
     rows = rows_from_execution(source, execute(source))
-    assert rows[0].values[15] == "OK"
-    assert rows[0].values[12] == "G54"
-    assert rows[1].values[7] == ""
-    assert rows[1].values[15] == "UNSUPPORTED"
-    assert "UNSUPPORTED_G_CODE" in rows[1].values[16]
+    assert rows[0].values[TABLE_HEADINGS.index("Support")] == "OK"
+    assert rows[0].values[TABLE_HEADINGS.index("Mode G")] == "G54"
+    assert rows[1].values[TABLE_HEADINGS.index("Motion G")] == ""
+    assert rows[1].values[TABLE_HEADINGS.index("Support")] == "UNSUPPORTED"
+    assert "UNSUPPORTED_G_CODE" in rows[1].values[TABLE_HEADINGS.index("Action")]
 
     milling = rows_from_execution("G85 X1 Z-2 R0 F100", execute("G85 X1 Z-2 R0 F100", language="fanuc_mill"))
-    assert milling[0].values[11] == "G85"
-    assert milling[0].values[15] == "OK"
+    assert milling[0].values[TABLE_HEADINGS.index("Cycle G")] == "G85"
+    assert milling[0].values[TABLE_HEADINGS.index("Support")] == "OK"
 
 
 def test_tokens_groups_macro_flow_and_multiple_g_codes_follow_kernel_program():
     source = "#1=1\nG21 G18 G90 G97\nIF[#1 EQ 1] GOTO10\nN10 G0 X20 Z0\nM30"
     rows = rows_from_execution(source, execute(source, language="fanuc_turn"))
 
-    assert rows[0].values[14] == "assign"
-    assert rows[1].values[8] == "G18"
-    assert rows[1].values[9] == "G21"
-    assert rows[1].values[12] == "G90"
-    assert rows[1].values[13] == "G97"
-    assert rows[2].values[14] == "if_goto"
-    assert all(row.values[15] == "OK" for row in rows)
+    assert rows[0].values[TABLE_HEADINGS.index("Flow")] == "assign"
+    assert rows[1].values[TABLE_HEADINGS.index("Plane G")] == "G18"
+    assert rows[1].values[TABLE_HEADINGS.index("Units G")] == "G21"
+    assert rows[1].values[TABLE_HEADINGS.index("Mode G")] == "G90"
+    assert rows[1].values[TABLE_HEADINGS.index("Spindle G")] == "G97"
+    assert rows[2].values[TABLE_HEADINGS.index("Flow")] == "if_goto"
+    assert all(row.values[TABLE_HEADINGS.index("Support")] == "OK" for row in rows)
 
 
 def test_tokens_show_unverified_milling_diagnostics_without_own_support_table():
     source = "G90 G17\nG64\nM123\nG1 X10 Y0 F100\nM30"
     rows = rows_from_execution(source, execute(source, language="fanuc_mill"))
 
-    assert rows[1].values[15] == "UNVERIFIED"
-    assert "UNSUPPORTED_G_CODE" in rows[1].values[16]
-    assert rows[2].values[15] == "UNVERIFIED"
-    assert "UNSUPPORTED_M_CODE" in rows[2].values[16]
-    assert rows[3].values[15] == "OK"
+    assert rows[1].values[TABLE_HEADINGS.index("Support")] == "UNVERIFIED"
+    assert "UNSUPPORTED_G_CODE" in rows[1].values[TABLE_HEADINGS.index("Action")]
+    assert rows[2].values[TABLE_HEADINGS.index("Support")] == "UNVERIFIED"
+    assert "UNSUPPORTED_M_CODE" in rows[2].values[TABLE_HEADINGS.index("Action")]
+    assert rows[3].values[TABLE_HEADINGS.index("Support")] == "OK"
 
 
 def test_tokens_attach_unverified_cutter_compensation_to_each_affected_block():
     source = "G90 G17\nG0 X0 Y0\nG41 G1 X10 Y0 F100\nG1 X10 Y10\nG40 G1 X20\nM30"
     rows = rows_from_execution(source, execute(source, language="fanuc_mill"))
 
-    assert rows[0].values[15] == "OK"
-    assert rows[1].values[15] == "OK"
+    assert rows[0].values[TABLE_HEADINGS.index("Support")] == "OK"
+    assert rows[1].values[TABLE_HEADINGS.index("Support")] == "OK"
     for row in rows[2:4]:
-        assert row.values[15] == "UNVERIFIED"
-        assert "UNVERIFIED_CUTTER_COMPENSATION" in row.values[16]
-    assert rows[4].values[15] == "OK"
+        assert row.values[TABLE_HEADINGS.index("Support")] == "UNVERIFIED"
+        assert "UNVERIFIED_CUTTER_COMPENSATION" in row.values[TABLE_HEADINGS.index("Action")]
+    assert rows[4].values[TABLE_HEADINGS.index("Support")] == "OK"
 
 
 def test_tokens_preserve_fatal_diagnostics_on_their_source_lines():
     source = "G999\nGOTO999"
     rows = rows_from_execution(source, execute(source, language="fanuc_turn"))
 
-    assert rows[0].values[15] == "UNVERIFIED"
-    assert "UNSUPPORTED_G_CODE" in rows[0].values[16]
+    assert rows[0].values[TABLE_HEADINGS.index("Support")] == "UNVERIFIED"
+    assert "UNSUPPORTED_G_CODE" in rows[0].values[TABLE_HEADINGS.index("Action")]
     assert rows[1].status == "ERROR"
-    assert "FLOW_TARGET_MISSING" in rows[1].values[16]
+    assert "FLOW_TARGET_MISSING" in rows[1].values[TABLE_HEADINGS.index("Action")]
 
 
 def test_tokens_keep_partial_turning_execution_diagnostics_and_later_source_rows():
@@ -101,10 +101,10 @@ def test_tokens_keep_partial_turning_execution_diagnostics_and_later_source_rows
         execute(TURNING_PARTIAL_TRACE, language="fanuc_turn"),
     )
 
-    assert rows[1].values[15] == "UNVERIFIED"
-    assert rows[3].values[15] == "UNSUPPORTED"
-    assert rows[4].values[15] == "OK"
-    assert rows[5].values[15] == "OK"
+    assert rows[1].values[TABLE_HEADINGS.index("Support")] == "UNVERIFIED"
+    assert rows[3].values[TABLE_HEADINGS.index("Support")] == "UNSUPPORTED"
+    assert rows[4].values[TABLE_HEADINGS.index("Support")] == "OK"
+    assert rows[5].values[TABLE_HEADINGS.index("Support")] == "OK"
 
 
 def test_tokens_dialog_refreshes_live_source_and_does_not_change_it(qt_app):
@@ -121,17 +121,63 @@ def test_tokens_dialog_refreshes_live_source_and_does_not_change_it(qt_app):
     qt_app.processEvents()
     assert analyses == ["G0 X1 Z2"]
     assert dialog.model.rowCount() == 1
-    assert dialog.model.item(0, 17).text() == "Yes"
+    assert dialog.model.item(0, TABLE_HEADINGS.index("Valid")).text() == "Yes"
 
     current["source"] = "G0 X1\nG999 X2"
     dialog.refresh()
     assert analyses[-1] == current["source"]
     assert dialog.model.rowCount() == 2
-    assert dialog.model.item(1, 17).text() == "No"
+    assert dialog.model.item(1, TABLE_HEADINGS.index("Valid")).text() == "No"
     assert dialog.model.item(0, 0).background().color().name() == "#e7f6e7"
     assert dialog.model.item(1, 0).background().color().name() == "#ffe6e6"
     assert dialog.model.item(0, 0).foreground().color().name() == "#111111"
     assert current["source"] == "G0 X1\nG999 X2"
+
+
+def test_filters_reuse_crlf_execution_without_calculating(qt_app):
+    source = "T1 M6\r\nG0 X1\r\nG999\r\nGOTO999\r\n"
+    result = execute(source, language="fanuc_mill")
+    analyses = []
+    parent = QMainWindow()
+    dialog = TokensDialog(
+        parent,
+        lambda: source,
+        lambda: analyses.append(True),
+        execution_provider=lambda: result,
+        stale_provider=lambda: False,
+    )
+    dialog.refresh()
+    assert dialog.model.rowCount() == 4
+    dialog.ui.searchEdit.setText("T1 M6")
+    assert not dialog.ui.tokenTable.isRowHidden(0)
+    assert dialog.ui.tokenTable.isRowHidden(1)
+    assert dialog.ui.tokenTable.isRowHidden(2)
+    assert dialog.ui.tokenTable.isRowHidden(3)
+    dialog.ui.searchEdit.clear()
+    dialog.ui.filterCombo.setCurrentIndex(1)
+    assert not dialog.ui.tokenTable.isRowHidden(2)
+    assert dialog.ui.tokenTable.isRowHidden(3)
+    dialog.ui.filterCombo.setCurrentIndex(2)
+    assert dialog.ui.tokenTable.isRowHidden(0)
+    assert dialog.ui.tokenTable.isRowHidden(2)
+    assert not dialog.ui.tokenTable.isRowHidden(3)
+    dialog.refresh()
+    assert analyses == []
+
+
+@pytest.mark.parametrize(
+    "dialect,source,expected",
+    [
+        ("sinumerik", "R2=2\nR10=10\nG1 X1 F100", {"R2": 2, "R10": 10}),
+        ("heidenhain", "Q2=2\nQL3=3\nQR4=4\nL X1 F100", {"Q2": 2, "QL3": 3, "QR4": 4}),
+    ],
+)
+def test_native_variables_use_controller_identifiers(dialect, source, expected):
+    result = execute(source, language="fanuc_mill", source_dialect=dialect)
+    assert result.ok and result.complete, result.diagnostics
+    movements = build_playback_movements(result.motions)[0]
+    values = dict(variables_for_playback(result, movements, 1))
+    assert values.items() >= expected.items()
 
 
 def test_tokens_copy_export_and_reset_columns(qt_app, monkeypatch, tmp_path):
@@ -191,7 +237,7 @@ def test_shared_footer_refreshes_and_exports_macro_variables(qt_app, monkeypatch
     dialog.ui.exportCsvButton.click()
     with output.open(encoding="utf-8", newline="") as stream:
         exported = list(csv.reader(stream, delimiter=";"))
-    assert exported == [["#", "Value"], ["#100", "25.5"]]
+    assert exported == [["Variable", "Value"], ["#100", "25.5"]]
 
     dialog.ui.tabWidget.setCurrentWidget(dialog.ui.tokensTab)
     assert dialog.ui.resetColumnsButton.isEnabled()
@@ -257,7 +303,7 @@ def test_macro_variables_tab_reports_missing_and_stale_execution(qt_app):
     state["stale"] = True
     dialog.refresh_macro_variables()
     assert dialog.ui.macroVariablesStatusLabel.text() == (
-        "Execution is stale. Update the toolpath to inspect Macro Variables."
+        "Execution is stale. Update the toolpath to inspect Variables."
     )
 
 
@@ -269,9 +315,9 @@ def test_main_window_macro_variables_follow_slider_and_hide_stale_snapshots(qt_a
     assert window.updateData()
     result = window.execution_result
 
-    assert window.ui.actionTokens.text() == "Tokens/Macro Variables"
+    assert window.ui.actionTokens.text() == "Tokens/Variables"
     assert window.tokensDlg.ui.tabWidget.tabText(0) == "Tokens"
-    assert window.tokensDlg.ui.tabWidget.tabText(1) == "Macro Variables"
+    assert window.tokensDlg.ui.tabWidget.tabText(1) == "Variables"
     window.tokensDlg.ui.tabWidget.setCurrentWidget(window.tokensDlg.ui.macroVariablesTab)
     window.tokensDlg.show()
     qt_app.processEvents()
@@ -287,6 +333,6 @@ def test_main_window_macro_variables_follow_slider_and_hide_stale_snapshots(qt_a
     qt_app.processEvents()
     assert window.tokensDlg.variables_model.rowCount() == 0
     assert window.tokensDlg.ui.macroVariablesStatusLabel.text() == (
-        "Execution is stale. Update the toolpath to inspect Macro Variables."
+        "Execution is stale. Update the toolpath to inspect Variables."
     )
     window.deleteLater()

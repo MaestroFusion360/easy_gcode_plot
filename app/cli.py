@@ -153,7 +153,7 @@ def _export_request(args: argparse.Namespace, arguments: list[str]) -> tuple[Exp
 def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, ...]]:
     program = Path(sys.argv[0]).name if getattr(sys, "frozen", False) else "python -m app"
     parser = argparse.ArgumentParser(
-        prog=program, description="Parse, analyze and export FANUC G-code and SINUMERIK milling programs"
+        prog=program, description="Parse, analyze and export FANUC, SINUMERIK and HEIDENHAIN iTNC programs"
     )
     sub = parser.add_subparsers(dest="command", required=True)
     command_help = {
@@ -176,7 +176,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
             "--lang",
             choices=("fanuc_turn", "fanuc_mill"),
             default=None,
-            help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
+            help="Machine type (default: milling for MPF/SPF/H, turning for other extensions)",
         )
         command.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
         command.add_argument(
@@ -212,7 +212,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         "--lang",
         choices=("fanuc_turn", "fanuc_mill"),
         default=None,
-        help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
+        help="Machine type (default: milling for MPF/SPF/H, turning for other extensions)",
     )
     batch.add_argument("--html", type=Path, metavar="DIRECTORY", help="Save one HTML statistics/SVG report per NC file")
     batch.add_argument("--inches", action="store_true", help="Display HTML statistics in inches")
@@ -252,7 +252,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         "--lang",
         choices=("fanuc_turn", "fanuc_mill"),
         default=None,
-        help="Machine type (default: milling for MPF/SPF, turning for other extensions)",
+        help="Machine type (default: milling for MPF/SPF/H, turning for other extensions)",
     )
     batch_export.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
     batch_export.add_argument(

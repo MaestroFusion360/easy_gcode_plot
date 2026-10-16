@@ -6,6 +6,7 @@ from dataclasses import dataclass, field, replace
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..geometry import resolve_arc
+from ..milling.heidenhain_corners import prepare_corner_compensation
 from ..milling.kinematics import profile_from_snapshot, transform_vector
 from ..runtime.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
 from .arc_validation import _validate_turning_arc_source
@@ -157,13 +158,29 @@ def _resolve_milling_compensation(result, motions, motion_step_owners, milling_t
         )
     else:
         local_motions = [_compensation_frame(motion, local=True) for motion in motions]
+        corner_diagnostics = ()
+        if result.source_dialect == "heidenhain" and any(
+            motion.source_kind in {"heidenhain_rnd", "heidenhain_chf"} for motion in local_motions
+        ):
+            local_motions, motion_step_owners, corner_diagnostics, failing_owner = prepare_corner_compensation(
+                result.program, local_motions, motion_step_owners, milling_tools
+            )
+            if corner_diagnostics:
+                result = replace(
+                    result,
+                    ok=False,
+                    complete=False,
+                    execution_steps=_partial_steps_after_geometry_failure(
+                        result.execution_steps, motion_step_owners, failing_owner
+                    ),
+                )
         motions, motion_step_owners = apply_milling_cutter_compensation_with_owners(
             local_motions,
             milling_tools or {},
             motion_step_owners,
         )
         motions = [_compensation_frame(motion, local=False) for motion in motions]
-        diagnostics = _compensation_diagnostics(
+        diagnostics = corner_diagnostics + _compensation_diagnostics(
             result,
             motions,
             code="UNVERIFIED_CUTTER_COMPENSATION",

@@ -67,7 +67,16 @@ def _label(source, line, offset):
 
 def _motion(line, command, offset):
     kind, allowed = _COMMANDS[command]
-    words = _words(line.body[offset:], line, offset, allowed, flags=kind == "motion")
+    body = line.body[offset:]
+    # CHF takes a positional side length, unlike the addressed radius in RND.
+    if command == "CHF" and not body.lstrip().upper().startswith("L"):
+        leading = len(body) - len(body.lstrip())
+        expression, length = scalar_prefix(body[leading:], line, line.column + offset + leading)
+        end = leading + length
+        words = (HeidenhainWord("L", body[leading:end], line.column + offset + leading, expression),)
+        words += _words(body[end:], line, offset + end, allowed, flags=False)
+    else:
+        words = _words(body, line, offset, allowed, flags=kind == "motion")
     syntax = _machine_functions(HeidenhainSyntax(kind, command, words), line)
     addresses = {word.address for word in syntax.positioning_words}
     if command not in {"CC", "L"} and not words:
@@ -188,7 +197,7 @@ def _parameter(line):
         raise HeidenhainParseError("Expected Q parameter assignment", line, line.column + offset + 1)
     expression = (
         HeidenhainExpression("cycle_feed", "MAX", source=match[2])
-        if fn is None and match[1].upper() == "Q208" and match[2].strip().upper() == "MAX"
+        if fn is None and match[1].upper() in {"Q208", "Q253"} and match[2].strip().upper() in {"MAX", "FMAX"}
         else _expression(match[2], line, line.column + offset + match.start(2))
     )
     parameter = _expression(match[1], line, line.column + offset + match.start(1))
@@ -381,7 +390,8 @@ class _ProgramParser:
 
     def _cycle_context(self, line, syntax):
         if syntax.assignment is not None and syntax.assignment[1].kind == "cycle_feed" and not self.accept_parameters:
-            raise HeidenhainParseError("Q208=MAX is only valid as a cycle feed parameter", line)
+            name, expression = syntax.assignment
+            raise HeidenhainParseError(f"{name}={expression.source} is only valid as a cycle feed parameter", line)
         if syntax.command == "CYCL DEF":
             previous = self.blocks[self.definition].native_syntax if self.definition is not None else None
             if syntax.cycle_subcode and previous is not None and previous.cycle_code == syntax.cycle_code:

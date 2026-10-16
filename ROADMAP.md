@@ -2,9 +2,9 @@
 
 ## Current direction
 
-Current development baseline: **2.5.0 (2026-10-15)**. This is the current code baseline; publication/release status is tracked separately. Completed work belongs in [CHANGELOG](CHANGELOG.md), not in the list of future features.
+Current development baseline: **2.6.0 (2026-10-16)**. This is the current code baseline; publication/release status is tracked separately. Completed work belongs in [CHANGELOG](CHANGELOG.md), not in the list of future features.
 
-The 2.0.0 GPU milling-stock milestone, the 2.1.x validation and workflow fixes, toolbar customization and MDI in 2.3.x–2.4.0, and the first native Heidenhain iTNC 530 Klartext implementation and GUI stabilization in 2.5.0 are recorded in CHANGELOG.
+The 2.0.0 GPU milling-stock milestone, the 2.1.x validation and workflow fixes, toolbar customization in 2.3.x and MDI/Compare in 2.4.0, and the first native Heidenhain iTNC 530 Klartext implementation and GUI stabilization in 2.5.0 are recorded in CHANGELOG.
 
 Development now focuses on expanding useful NC workflows **without duplicating the execution engine, export formatting, or geometry logic**.
 
@@ -12,7 +12,7 @@ Development now focuses on expanding useful NC workflows **without duplicating t
 
 - **CNC and GUI:** shared kernel/services behind CLI and PyQt6 GUI; multiple NC documents with isolated editor, execution, plot and stock state. The 2.5.0 work made MainWindow state ownership explicit and added real Qt regressions for Options and MDI, including stale-result protection.
 - **Milling stock:** GPU-based three-axis height-field removal (OpenGL 4.3), playback and STL export. It supports the verified three-axis model; undercuts and tilted cutter removal are outside that model. Further geometry types require separate models and reference cases.
-- **Heidenhain iTNC 530 input:** native Klartext lexer/AST and a defined execution subset, including L and supported circular motions, APPR/DEP, tool and spindle state. Q/QL/QR expressions are represented in the AST but this does **not** imply full Q-parameter/macro-flow execution. Preserve explicit limitations and diagnostics for unsupported syntax and cycles.
+- **Heidenhain iTNC 530 input:** native Klartext lexer/AST and a defined execution subset, including L and supported circular motions, APPR/DEP, tool and spindle state. RND tangent arcs and CHF straight-line chamfers are constructed in the programmed contour before the existing RL/RR solver; block-local feeds and geometric errors retain source ownership. See [verified geometry and boundaries in the FAQ](FAQ.md#how-is-the-itnc-implementation-verified). Q/QL/QR expressions are represented in the AST but this does **not** imply full Q-parameter/macro-flow execution. Preserve explicit limitations and diagnostics for unsupported syntax and cycles.
 - **Heidenhain output:** an existing `heidenhain_itnc530` EXPANDED post target, distinct from native-source input coverage. Klartext FULL formatting remains unsupported; `.h` source filenames are preserved where applicable.
 - **Generators:** existing hole/grid and pocket workflows emit **ISO G-code and native iTNC Klartext** where supported. The 2.5.0 work added native L/CR fragments and CC/CP helical output, with shared preview/generation validations. This is **not yet a general post-aware generator framework**.
 - **Rotary kinematics:** configurable profiles and Options editing are implemented. Additional pivot/offset geometry and broader machine-layout verification are future work, not implicit support claims.
@@ -94,6 +94,8 @@ Do not replace or overwrite users' existing snippets when installing or updating
 ## Priority C — Heidenhain iTNC semantics beyond 2.5.0
 
 The initial lexer, native AST, and bounded Klartext executor are already delivered. Future work should be driven by actual reference programs rather than a claim of complete iTNC compatibility.
+
+RND/CHF geometry is implemented in 2.5.1 for planar local corners, including line/arc RND combinations. The reference corpus includes `6bas154.h` (explicit T4 Ø6 in regression setup) and the manual's `LINEAR` chamfer example. Full-circle/multi-turn neighbors, spatial corners, ambiguous tangent solutions and corners that consume an entire neighboring element remain explicitly diagnosed boundaries; broader controller behavior requires independent reference cases.
 
 - Evaluate supported Q/QL/QR expressions and control-flow constructs only after defining their scope, state model, limits and diagnostics.
 - Expand `LBL` calls/returns and native cycle execution only with documented semantics and golden reference programs.

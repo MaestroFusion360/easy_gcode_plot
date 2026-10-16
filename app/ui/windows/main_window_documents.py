@@ -70,6 +70,7 @@ _DOCUMENT_STATE = (
     "_fit_view_after_program_load",
     "latheMode",
     "_view_mode",
+    "_fixed_view_rotated",
     "arc_type",
     "stockConfigured",
     "stockEnabled",
@@ -149,7 +150,7 @@ _RUSSIAN_LABELS = {
 
 
 def _document_tr(source):
-    """Translate 2.5.0 controls even with the pre-existing bundled .qm file."""
+    """Translate dynamically created document controls."""
     text = QCoreApplication.translate("MainWindow", source)
     if text == source and ui_language() == "ru":
         return _RUSSIAN_LABELS.get(source, source)
@@ -430,12 +431,15 @@ class MainWindowDocumentsMixin:
             getattr(self, "view" + desired.title() if desired in ("top", "front", "left") else "view3d")()
         camera = state.get("_camera")
         if camera is not None:
+            self._fixed_view_rotated = state["_fixed_view_rotated"]
             self.ui.graphicsView.opts.update({key: type(value)(value) for key, value in camera.items()})
             view = self.ui.graphicsView
             if state["_projection_mode"] == "orthographic":
                 view.setOrthographicProjection(state["_orthographic_width"], 0.01, 1000.0)
             else:
                 view.setProjectionMode("perspective")
+            self._orient_milling_grid()
+            self._sync_grid_view_state()
             self._plot_camera_changed()
             view.update()
 

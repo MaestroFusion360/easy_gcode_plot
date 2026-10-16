@@ -7,6 +7,9 @@ import gcode_samples
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 EXPECTED_FIXTURES = {
+    "milling/heidenhain/fusion_benchmark.h",
+    "milling/heidenhain/6bas154.h",
+    "milling/heidenhain/manual_chf.h",
     "milling/heidenhain/1001.h",
     "milling/heidenhain/arcs.h",
     "milling/heidenhain/bore_itnc530.h",

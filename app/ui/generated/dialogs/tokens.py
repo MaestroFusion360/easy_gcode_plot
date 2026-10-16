@@ -15,10 +15,10 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QHBoxLayout,
-    QHeaderView, QLabel, QPushButton, QSizePolicy,
-    QSpacerItem, QTabWidget, QTableView, QVBoxLayout,
-    QWidget)
+from PyQt6.QtWidgets import (QAbstractItemView, QApplication, QComboBox, QDialog,
+    QHBoxLayout, QHeaderView, QLabel, QLineEdit,
+    QPushButton, QSizePolicy, QSpacerItem, QTabWidget,
+    QTableView, QVBoxLayout, QWidget)
 
 class Ui_TokensDlg(object):
     def setupUi(self, TokensDlg):
@@ -42,22 +42,25 @@ class Ui_TokensDlg(object):
         self.headerLayout = QHBoxLayout()
         self.headerLayout.setSpacing(6)
         self.headerLayout.setObjectName(u"headerLayout")
-        self.titleLabel = QLabel(self.tokensTab)
-        self.titleLabel.setObjectName(u"titleLabel")
-        font = QFont()
-        font.setBold(True)
-        self.titleLabel.setFont(font)
+        self.filterCombo = QComboBox(self.tokensTab)
+        self.filterCombo.addItem("")
+        self.filterCombo.addItem("")
+        self.filterCombo.addItem("")
+        self.filterCombo.setObjectName(u"filterCombo")
+        self.filterCombo.setMinimumSize(QSize(120, 0))
 
-        self.headerLayout.addWidget(self.titleLabel)
+        self.headerLayout.addWidget(self.filterCombo)
 
-        self.legendLabel = QLabel(self.tokensTab)
-        self.legendLabel.setObjectName(u"legendLabel")
+        self.searchEdit = QLineEdit(self.tokensTab)
+        self.searchEdit.setObjectName(u"searchEdit")
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.searchEdit.sizePolicy().hasHeightForWidth())
+        self.searchEdit.setSizePolicy(sizePolicy)
+        self.searchEdit.setClearButtonEnabled(True)
 
-        self.headerLayout.addWidget(self.legendLabel)
-
-        self.headerSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.headerLayout.addItem(self.headerSpacer)
+        self.headerLayout.addWidget(self.searchEdit)
 
 
         self.tokensLayout.addLayout(self.headerLayout)
@@ -82,6 +85,12 @@ class Ui_TokensDlg(object):
         self.macroVariablesLayout = QVBoxLayout(self.macroVariablesTab)
         self.macroVariablesLayout.setObjectName(u"macroVariablesLayout")
         self.macroVariablesLayout.setContentsMargins(6, 6, 6, 6)
+        self.variablesContextLabel = QLabel(self.macroVariablesTab)
+        self.variablesContextLabel.setObjectName(u"variablesContextLabel")
+        self.variablesContextLabel.setWordWrap(True)
+
+        self.macroVariablesLayout.addWidget(self.variablesContextLabel)
+
         self.macroVariablesStatusLabel = QLabel(self.macroVariablesTab)
         self.macroVariablesStatusLabel.setObjectName(u"macroVariablesStatusLabel")
         self.macroVariablesStatusLabel.setWordWrap(True)
@@ -104,6 +113,11 @@ class Ui_TokensDlg(object):
 
         self.buttonLayout = QHBoxLayout()
         self.buttonLayout.setObjectName(u"buttonLayout")
+        self.filterCountLabel = QLabel(TokensDlg)
+        self.filterCountLabel.setObjectName(u"filterCountLabel")
+
+        self.buttonLayout.addWidget(self.filterCountLabel)
+
         self.buttonSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.buttonLayout.addItem(self.buttonSpacer)
@@ -136,12 +150,20 @@ class Ui_TokensDlg(object):
     # setupUi
 
     def retranslateUi(self, TokensDlg):
-        TokensDlg.setWindowTitle(QCoreApplication.translate("TokensDlg", u"Tokens/Macro Variables", None))
-        self.titleLabel.setText(QCoreApplication.translate("TokensDlg", u"Program Token Validation", None))
-        self.legendLabel.setText(QCoreApplication.translate("TokensDlg", u"Green: parsed, Red: suspicious line", None))
+        TokensDlg.setWindowTitle(QCoreApplication.translate("TokensDlg", u"Tokens/Variables", None))
+        self.filterCombo.setItemText(0, QCoreApplication.translate("TokensDlg", u"All", None))
+        self.filterCombo.setItemText(1, QCoreApplication.translate("TokensDlg", u"Warnings", None))
+        self.filterCombo.setItemText(2, QCoreApplication.translate("TokensDlg", u"Errors", None))
+
+        self.searchEdit.setPlaceholderText(QCoreApplication.translate("TokensDlg", u"Search text...", None))
+#if QT_CONFIG(tooltip)
+        self.searchEdit.setToolTip(QCoreApplication.translate("TokensDlg", u"Search source text, tokens and diagnostics", None))
+#endif // QT_CONFIG(tooltip)
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.tokensTab), QCoreApplication.translate("TokensDlg", u"Tokens", None))
+        self.variablesContextLabel.setText("")
         self.macroVariablesStatusLabel.setText(QCoreApplication.translate("TokensDlg", u"No execution data.", None))
-        self.tabWidget.setTabText(self.tabWidget.indexOf(self.macroVariablesTab), QCoreApplication.translate("TokensDlg", u"Macro Variables", None))
+        self.tabWidget.setTabText(self.tabWidget.indexOf(self.macroVariablesTab), QCoreApplication.translate("TokensDlg", u"Variables", None))
+        self.filterCountLabel.setText(QCoreApplication.translate("TokensDlg", u"Rows: 0 / 0", None))
         self.refreshButton.setText(QCoreApplication.translate("TokensDlg", u"Refresh", None))
         self.exportCsvButton.setText(QCoreApplication.translate("TokensDlg", u"Export CSV", None))
         self.resetColumnsButton.setText(QCoreApplication.translate("TokensDlg", u"Reset Columns", None))

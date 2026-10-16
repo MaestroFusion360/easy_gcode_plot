@@ -4,57 +4,57 @@
 <context>
     <name></name>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="157"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="165"/>
         <source>STALE</source>
         <translation>УСТАРЕЛО</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="158"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="166"/>
         <source>READY</source>
         <translation>ГОТОВО</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="159"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="167"/>
         <source>ERROR</source>
         <translation>ОШИБКА</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="160"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="168"/>
         <source>WARNING</source>
         <translation>ПРЕДУПРЕЖДЕНИЕ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="161"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="169"/>
         <source>OK</source>
         <translation>ОК</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="162"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="170"/>
         <source>UPDATING</source>
         <translation>ОБНОВЛЕНИЕ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="165"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="174"/>
         <source>LATHE</source>
         <translation>ТОКАРНЫЙ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="165"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="174"/>
         <source>MILLING</source>
         <translation>ФРЕЗЕРНЫЙ</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="169"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="178"/>
         <source>Steps: %1 | Motions: %2</source>
         <translation>Шагов: %1 | Перемещений: %2</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="180"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="189"/>
         <source>Errors: %1</source>
         <translation>Ошибок: %1</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="181"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="190"/>
         <source>Warnings: %1</source>
         <translation>Предупреждений: %1</translation>
     </message>
@@ -662,19 +662,19 @@ Select Auto or another valid profile.</source>
         <translation>Лицензия MIT</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/help.py" line="355"/>
+        <location filename="../app/ui/dialogs/help.py" line="354"/>
         <source>Find in FAQ</source>
         <translation>Поиск по FAQ</translation>
     </message>
     <message>
+        <location filename="../app/ui/dialogs/help.py" line="360"/>
         <location filename="../app/ui/dialogs/help.py" line="361"/>
-        <location filename="../app/ui/dialogs/help.py" line="362"/>
         <source>Previous match</source>
         <translation>Предыдущее совпадение</translation>
     </message>
     <message>
+        <location filename="../app/ui/dialogs/help.py" line="365"/>
         <location filename="../app/ui/dialogs/help.py" line="366"/>
-        <location filename="../app/ui/dialogs/help.py" line="367"/>
         <source>Next match</source>
         <translation>Следующее совпадение</translation>
     </message>
@@ -839,19 +839,19 @@ Select Auto or another valid profile.</source>
 <context>
     <name>MainWindow</name>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="209"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="223"/>
         <source>Motion %1 / %2</source>
         <translation>Перемещение %1 / %2</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="629"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="633"/>
         <source>Trajectory exceeds the Auto Update limit of %1 points; press Update.</source>
         <translation>Траектория превышает предел автообновления в %1 точек; нажмите «Обновить».</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="17"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="358"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="365"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="372"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="379"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="513"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="578"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="662"/>
@@ -915,7 +915,7 @@ Select Auto or another valid profile.</source>
     </message>
     <message>
         <location filename="../app/ui/generated/main/main_window.ui" line="230"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="407"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="409"/>
         <source>Settings</source>
         <translation>Настройки</translation>
     </message>
@@ -930,593 +930,603 @@ Select Auto or another valid profile.</source>
         <translation>&amp;Вид</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="271"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="272"/>
         <source>CNC Functions</source>
         <translation>Функции ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="275"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="276"/>
         <source>Block Numbers</source>
         <translation>Номера кадров</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="307"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="308"/>
         <source>File</source>
         <translation>Файл</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="333"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="334"/>
         <source>Edit</source>
         <translation>Правка</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="378"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="380"/>
         <source>CNC</source>
         <translation>ЧПУ</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="361"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="362"/>
         <source>View</source>
         <translation>Вид</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="397"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="399"/>
         <source>Playback</source>
         <translation>Воспроизведение</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="413"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="415"/>
         <source>Help</source>
         <translation>Справка</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="428"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="430"/>
         <source>&amp;New</source>
         <translation>&amp;Создать</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="431"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="433"/>
         <source>Ctrl+N</source>
         <translation>Ctrl+N</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="440"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="442"/>
         <source>&amp;Open</source>
         <translation>&amp;Открыть</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="443"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="445"/>
         <source>Ctrl+O</source>
         <translation>Ctrl+O</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="452"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="454"/>
         <source>&amp;Save</source>
         <translation>&amp;Сохранить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="455"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="457"/>
         <source>Ctrl+S</source>
         <translation>Ctrl+S</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="464"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="466"/>
         <source>Save &amp;As</source>
         <translation>Сохранить &amp;как</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="467"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="469"/>
         <source>Ctrl+Shift+S</source>
         <translation>Ctrl+Shift+S</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="476"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="478"/>
         <source>&amp;Exit</source>
         <translation>В&amp;ыход</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="479"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="481"/>
         <source>Alt+X</source>
         <translation>Alt+X</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="487"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="489"/>
         <source>Print</source>
         <translation>Печать</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="488"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="490"/>
         <source>Print the current plot view</source>
         <translation>Печать текущего вида графика</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="489"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="491"/>
         <source>Ctrl+P</source>
         <translation>Ctrl+P</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="497"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="499"/>
         <source>&amp;Undo</source>
         <translation>&amp;Отменить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="500"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="502"/>
         <source>Ctrl+Z</source>
         <translation>Ctrl+Z</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="509"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="511"/>
         <source>&amp;Redo</source>
         <translation>&amp;Повторить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="512"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="514"/>
         <source>Ctrl+Y</source>
         <translation>Ctrl+Y</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="521"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="523"/>
         <source>Cu&amp;t</source>
         <translation>В&amp;ырезать</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="524"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="526"/>
         <source>Ctrl+X</source>
         <translation>Ctrl+X</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="533"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="535"/>
         <source>&amp;Copy</source>
         <translation>&amp;Копировать</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="536"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="538"/>
         <source>Ctrl+C</source>
         <translation>Ctrl+C</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="545"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="547"/>
         <source>&amp;Paste</source>
         <translation>&amp;Вставить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="548"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="550"/>
         <source>Ctrl+V</source>
         <translation>Ctrl+V</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="557"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="559"/>
         <source>Select &amp;All</source>
         <translation>Выделить &amp;всё</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="560"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="562"/>
         <source>Ctrl+A</source>
         <translation>Ctrl+A</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="568"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="570"/>
         <source>Uppercase</source>
         <translation>В верхний регистр</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="569"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="571"/>
         <source>Convert selection or all text to uppercase</source>
         <translation>Преобразовать выделение или весь текст в верхний регистр</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="570"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="572"/>
         <source>Ctrl+Shift+U</source>
         <translation>Ctrl+Shift+U</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="577"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="579"/>
         <source>Lowercase</source>
         <translation>В нижний регистр</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="578"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="580"/>
         <source>Convert selection or all text to lowercase</source>
         <translation>Преобразовать выделение или весь текст в нижний регистр</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="579"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="581"/>
         <source>Ctrl+U</source>
         <translation>Ctrl+U</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="587"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="589"/>
         <source>&amp;About</source>
         <translation>&amp;О программе</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="590"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="592"/>
         <source>F1</source>
         <translation>F1</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="599"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="601"/>
         <source>&amp;Find and Replace</source>
         <translation>&amp;Поиск и замена</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="602"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="604"/>
         <source>Find and Replace</source>
         <translation>Поиск и замена</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="605"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="607"/>
         <source>Ctrl+F</source>
         <translation>Ctrl+F</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="609"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="611"/>
         <source>F5</source>
         <translation>F5</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="615"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="618"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="617"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="620"/>
         <source>Refresh</source>
         <translation>Обновить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="631"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="633"/>
         <source>Play</source>
         <translation>Пуск</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="643"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="645"/>
         <source>Stop</source>
         <translation>Стоп</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="652"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="654"/>
         <source>Export &amp;Data</source>
         <translation>Экспорт &amp;данных</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="661"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="663"/>
         <source>Import STL</source>
         <translation>Импорт STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="664"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="666"/>
         <source>Import an STL model into the 3D plot</source>
         <translation>Импортировать модель STL в 3D-вид</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="673"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="675"/>
         <source>Clear STL</source>
         <translation>Очистить STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="682"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="684"/>
         <source>FAQ</source>
         <translation>FAQ</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="685"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="687"/>
         <source>Open application help and frequently asked questions</source>
         <translation>Открыть справку и частые вопросы</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="687"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="689"/>
         <source>F3</source>
         <translation>F3</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="690"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="692"/>
         <source>Ctrl+1</source>
         <translation>Ctrl+1</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="696"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="699"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="698"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="701"/>
         <source>View 3D</source>
         <translation>3D-вид</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="703"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="705"/>
         <source>Ctrl+2</source>
         <translation>Ctrl+2</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="709"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="711"/>
         <source>View Top</source>
         <translation>Вид сверху</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="712"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="714"/>
         <source>View Top (XY/G17)</source>
         <translation>Вид сверху (XY/G17)</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="716"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="718"/>
         <source>Ctrl+3</source>
         <translation>Ctrl+3</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="722"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="724"/>
         <source>View Front</source>
         <translation>Вид спереди</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="725"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="727"/>
         <source>View Front (XZ/G18)</source>
         <translation>Вид спереди (XZ/G18)</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="729"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="731"/>
         <source>Ctrl+4</source>
         <translation>Ctrl+4</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="735"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="737"/>
         <source>View Left</source>
         <translation>Вид слева</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="738"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="740"/>
         <source>View Left (YZ/G19)</source>
         <translation>Вид слева (YZ/G19)</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="747"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="749"/>
+        <source>Rotate view</source>
+        <translation>Повернуть вид</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/main/main_window.ui" line="750"/>
+        <source>Rotate Top/Front/Left around a model axis; unavailable in 3D and turning.</source>
+        <translation>Повернуть Top/Front/Left вокруг оси модели; недоступно в 3D и токарном режиме.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/main/main_window.ui" line="758"/>
         <source>Relative to start</source>
         <translation>Относительно начала</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="756"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="767"/>
         <source>Absolute arc center</source>
         <translation>Абсолютный центр дуги</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="765"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="776"/>
         <source>Radius value</source>
         <translation>Значение радиуса</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="774"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="777"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="785"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="788"/>
         <source>Zoom In</source>
         <translation>Приблизить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="780"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="791"/>
         <source>Ctrl++</source>
         <translation>Ctrl++</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="792"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="795"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="803"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="806"/>
         <source>Zoom Out</source>
         <translation>Отдалить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="798"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="809"/>
         <source>Ctrl+-</source>
         <translation>Ctrl+-</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="810"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="813"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="821"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="824"/>
         <source>Step Backward</source>
         <translation>Шаг назад</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="825"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="836"/>
         <source>Step Forward</source>
         <translation>Шаг вперёд</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="834"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="845"/>
         <source>Measure</source>
         <translation>Измерение</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="835"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="846"/>
         <source>Measure between two points in a fixed 2D view</source>
         <translation>Измерение между двумя точками в фиксированном 2D-виде</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="846"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="849"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="857"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="860"/>
         <source>Lathe Mode</source>
         <translation>Токарный режим</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="858"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="869"/>
         <source>WCS</source>
         <translation>WCS</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="867"/>
-        <location filename="../app/main_window.py" line="625"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="878"/>
+        <location filename="../app/main_window.py" line="626"/>
         <source>Tool Library</source>
         <translation>Библиотека инструментов</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="876"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="887"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="879"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="890"/>
         <source>F2</source>
         <translation>F2</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="888"/>
-        <source>Tokens/Macro Variables</source>
-        <translation>Токены/Макропеременные</translation>
+        <location filename="../app/ui/generated/main/main_window.ui" line="899"/>
+        <source>Tokens/Variables</source>
+        <translation>Токены/Переменные</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="900"/>
-        <location filename="../app/ui/generated/main/main_window.ui" line="903"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="911"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="914"/>
         <source>Grid</source>
         <translation>Сетка</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="905"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="916"/>
         <source>F4</source>
         <translation>F4</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="916"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="927"/>
         <source>Fit to View</source>
         <translation>Вписать в окно</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="919"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="930"/>
         <source>Fit the complete toolpath into the plot view</source>
         <translation>Вписать всю траекторию в окно графика</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="928"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="939"/>
         <source>Statistics</source>
         <translation>Статистика</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="937"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="948"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="863"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="886"/>
         <source>Tool List</source>
         <translation>Список инструментов</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="940"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="951"/>
         <source>Export the tools used by the current resolved program</source>
         <translation>Экспорт инструментов, использованных в текущей рассчитанной программе</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="949"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="960"/>
         <source>Prev Toolchange</source>
         <translation>Предыдущая смена инструмента</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="952"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="963"/>
         <source>Go to the previous tool change in the editor</source>
         <translation>Перейти к предыдущей смене инструмента</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="961"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="972"/>
         <source>Next Toolchange</source>
         <translation>Следующая смена инструмента</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="964"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="975"/>
         <source>Go to the next tool change in the editor</source>
         <translation>Перейти к следующей смене инструмента</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="970"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="981"/>
         <source>Renumber</source>
         <translation>Перенумеровать</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="976"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="987"/>
         <source>Remove Block Numbers</source>
         <translation>Удалить номера кадров</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="985"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="996"/>
         <source>Remove Empty Lines</source>
         <translation>Удалить пустые строки</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="994"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="1005"/>
         <source>Remove Spaces</source>
         <translation>Удалить пробелы</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="225"/>
+        <location filename="../app/main_window.py" line="226"/>
         <source>Rotary kinematics</source>
         <translation>Кинематика вращения</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="259"/>
+        <location filename="../app/main_window.py" line="260"/>
         <source>None</source>
         <translation>Нет</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="319"/>
+        <location filename="../app/main_window.py" line="320"/>
         <source>Stock</source>
         <translation>Заготовка</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="342"/>
+        <location filename="../app/main_window.py" line="343"/>
         <source>Insert Mesh into Plot View</source>
         <translation>Вставить mesh в графическое окно</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="365"/>
+        <location filename="../app/main_window.py" line="366"/>
         <source>Hole Calculator</source>
         <translation>Калькулятор отверстий</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="370"/>
+        <location filename="../app/main_window.py" line="371"/>
         <source>Pocket Calculator</source>
         <translation>Калькулятор карманов</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="375"/>
+        <location filename="../app/main_window.py" line="376"/>
         <source>Snippets</source>
         <translation>Шаблоны</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="380"/>
+        <location filename="../app/main_window.py" line="381"/>
         <source>Compare</source>
         <translation>Сравнить</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="437"/>
+        <location filename="../app/main_window.py" line="438"/>
         <source>Text File</source>
         <translation>Текстовый файл</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="438"/>
+        <location filename="../app/main_window.py" line="439"/>
         <source>ISO G-Code</source>
         <translation>ISO G-код</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="439"/>
+        <location filename="../app/main_window.py" line="440"/>
         <source>iTNC-code</source>
         <translation>iTNC-code</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="469"/>
+        <location filename="../app/main_window.py" line="470"/>
         <source>File Type</source>
         <translation>Тип файла</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="567"/>
+        <location filename="../app/main_window.py" line="568"/>
         <source>Reset to Default</source>
         <translation>Восстановить по умолчанию</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="617"/>
+        <location filename="../app/main_window.py" line="618"/>
         <source>Tool Library is unavailable because tools.db could not be read</source>
         <translation>Библиотека инструментов недоступна: не удалось прочитать tools.db</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="646"/>
+        <location filename="../app/main_window.py" line="647"/>
         <source>Cancelling CNC execution; close again when it has stopped.</source>
         <translation>Отмена выполнения ЧПУ; закройте окно ещё раз после остановки.</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="652"/>
+        <location filename="../app/main_window.py" line="653"/>
         <source>Cancelling stock preparation; close again when it has stopped.</source>
         <translation>Идёт отмена подготовки заготовки; закройте снова, когда она завершится.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="242"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="256"/>
         <source>No tool changes found</source>
         <translation>Смены инструмента не найдены</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="359"/>
-        <location filename="../app/ui/windows/main_window_editor_ops.py" line="366"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="373"/>
+        <location filename="../app/ui/windows/main_window_editor_ops.py" line="380"/>
         <source>Cannot find text:
 &apos;%s&apos;</source>
         <translation>Текст не найден:
@@ -1529,7 +1539,7 @@ Select Auto or another valid profile.</source>
     </message>
     <message>
         <location filename="../app/ui/windows/main_window_execution.py" line="506"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="697"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="701"/>
         <source>CNC execution</source>
         <translation>Выполнение ЧПУ</translation>
     </message>
@@ -1544,18 +1554,18 @@ Select Auto or another valid profile.</source>
         <translation>Отмена выполнения ЧПУ…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="699"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="703"/>
         <source>Building toolpath…</source>
         <translation>Построение траектории…</translation>
     </message>
     <message>
         <location filename="../app/ui/windows/main_window_execution.py" line="507"/>
-        <location filename="../app/ui/windows/main_window_execution.py" line="698"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="702"/>
         <source>Updating plot…</source>
         <translation>Обновление графика…</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="700"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="704"/>
         <source>Cancelling toolpath calculation…</source>
         <translation>Отмена расчёта траектории…</translation>
     </message>
@@ -1673,7 +1683,7 @@ Do you want to reload it from disk?</source>
 %s.</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_documents.py" line="552"/>
+        <location filename="../app/ui/windows/main_window_documents.py" line="556"/>
         <location filename="../app/ui/windows/main_window_file_ops.py" line="845"/>
         <source>%s[*] - Easy G-code Plot</source>
         <translation>%s[*] - Easy G-code Plot</translation>
@@ -1750,32 +1760,32 @@ Do you want to reload it from disk?</source>
         <translation>Время экспорта: {0:.3f} мс</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="301"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="303"/>
         <source>Imported STL: {0:,} triangles</source>
         <translation>Импортирован STL: {0:,} треугольников</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="505"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="507"/>
         <source>STL Statistics</source>
         <translation>Статистика STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="512"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="514"/>
         <source>Inches</source>
         <translation>Дюймы</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="639"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="641"/>
         <source>Scale rejected: {0}</source>
         <translation>Масштабирование отклонено: {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="741"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="743"/>
         <source>STL section is empty</source>
         <translation>Сечение STL пустое</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_plot.py" line="784"/>
+        <location filename="../app/ui/windows/main_window_plot.py" line="786"/>
         <source>STL cut created: {0:,} triangles</source>
         <translation>Сечение STL создано: {0:,} треугольников</translation>
     </message>
@@ -2010,18 +2020,18 @@ Do you want to reload it from disk?</source>
         <translation>Введите координаты модели и задайте базовую точку.</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="322"/>
+        <location filename="../app/main_window.py" line="323"/>
         <source>Configure Stock Removal</source>
         <translation>Параметры симуляции съёма материала</translation>
     </message>
     <message>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="265"/>
-        <location filename="../app/main_window.py" line="325"/>
+        <location filename="../app/main_window.py" line="326"/>
         <source>Stock Removal</source>
         <translation>Съём материала</translation>
     </message>
     <message>
-        <location filename="../app/main_window.py" line="330"/>
+        <location filename="../app/main_window.py" line="331"/>
         <source>Toggle stock simulation (3-axis milling or turning)</source>
         <translation>Включить или выключить симуляцию съёма материала (трёхосевое фрезерование или точение)</translation>
     </message>
@@ -2029,7 +2039,7 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="428"/>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="467"/>
         <location filename="../app/ui/windows/main_window_milling_stock.py" line="485"/>
-        <location filename="../app/main_window.py" line="335"/>
+        <location filename="../app/main_window.py" line="336"/>
         <source>Save stock as STL</source>
         <translation>Сохранить заготовку в STL</translation>
     </message>
@@ -2059,9 +2069,39 @@ Do you want to reload it from disk?</source>
         <translation>Дождитесь отмены расчёта заготовки перед экспортом.</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/main/main_window.ui" line="419"/>
+        <location filename="../app/ui/generated/main/main_window.ui" line="421"/>
         <source>Customize Toolbars</source>
         <translation>Настроить панели</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/support/rotary_notice.py" line="45"/>
+        <source>Choose kinematics...</source>
+        <translation>Выбрать кинематику...</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/support/rotary_notice.py" line="69"/>
+        <source>No rotary kinematics selected. Detected axes: {0}.</source>
+        <translation>Кинематика вращения не выбрана. Обнаружены оси: {0}.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/support/rotary_notice.py" line="73"/>
+        <source>The selected kinematics does not cover the detected axes: {0}.</source>
+        <translation>Выбранная кинематика не поддерживает все обнаруженные оси: {0}.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/support/rotary_notice.py" line="83"/>
+        <source>Zero angles also require a profile.</source>
+        <translation>Для нулевых углов тоже требуется профиль.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/support/rotary_notice.py" line="79"/>
+        <source>Calculation stopped at line {0}.</source>
+        <translation>Расчёт остановлен на строке {0}.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/support/rotary_notice.py" line="85"/>
+        <source>Go to line {0}</source>
+        <translation>Перейти к строке {0}</translation>
     </message>
 </context>
 <context>
@@ -2215,9 +2255,9 @@ Do you want to reload it from disk?</source>
     <name>OptionsDlg</name>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="14"/>
-        <location filename="../app/ui/dialogs/options.py" line="442"/>
-        <location filename="../app/ui/dialogs/options.py" line="454"/>
-        <location filename="../app/ui/dialogs/options.py" line="465"/>
+        <location filename="../app/ui/dialogs/options.py" line="468"/>
+        <location filename="../app/ui/dialogs/options.py" line="480"/>
+        <location filename="../app/ui/dialogs/options.py" line="491"/>
         <source>Options</source>
         <translation>Параметры</translation>
     </message>
@@ -2373,6 +2413,24 @@ Do you want to reload it from disk?</source>
         <translation>Редактор</translation>
     </message>
     <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="433"/>
+        <location filename="../app/ui/dialogs/options.py" line="259"/>
+        <source>Rapid move</source>
+        <translation>Быстрое перемещение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="458"/>
+        <location filename="../app/ui/dialogs/options.py" line="262"/>
+        <source>Linear move</source>
+        <translation>Линейное перемещение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="483"/>
+        <location filename="../app/ui/dialogs/options.py" line="265"/>
+        <source>Circular move</source>
+        <translation>Круговое перемещение</translation>
+    </message>
+    <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="618"/>
         <source>Font family</source>
         <translation>Шрифт</translation>
@@ -2386,6 +2444,11 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/generated/dialogs/options.ui" line="648"/>
         <source>Highlight current line</source>
         <translation>Подсвечивать текущую строку</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/options.ui" line="783"/>
+        <source>Show rapid moves</source>
+        <translation>Показывать быстрые перемещения</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="840"/>
@@ -2582,12 +2645,12 @@ Do you want to reload it from disk?</source>
         <translation>Тест</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="245"/>
+        <location filename="../app/ui/dialogs/options.py" line="253"/>
         <source>Current line (light theme)</source>
         <translation>Текущая строка (светлая тема)</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="248"/>
+        <location filename="../app/ui/dialogs/options.py" line="256"/>
         <source>Current line (dark theme)</source>
         <translation>Текущая строка (тёмная тема)</translation>
     </message>
@@ -2613,8 +2676,8 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="235"/>
-        <source>Correction (G41/G42)</source>
-        <translation>Коррекция (G41/G42)</translation>
+        <source>Cutter compensation</source>
+        <translation>Коррекция инструмента</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="259"/>
@@ -2645,11 +2708,6 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/generated/dialogs/options.ui" line="290"/>
         <source>Arc tolerance</source>
         <translation>Допуск дуг</translation>
-    </message>
-    <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="783"/>
-        <source>Show rapid moves (G0)</source>
-        <translation>Показывать быстрые перемещения (G0)</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="788"/>
@@ -2782,7 +2840,7 @@ Do you want to reload it from disk?</source>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="799"/>
-        <location filename="../app/main_window.py" line="498"/>
+        <location filename="../app/main_window.py" line="499"/>
         <source>Playback speed</source>
         <translation>Скорость воспроизведения</translation>
     </message>
@@ -2795,21 +2853,6 @@ Do you want to reload it from disk?</source>
         <location filename="../app/ui/generated/dialogs/options.ui" line="413"/>
         <source>Colors</source>
         <translation>Цвета</translation>
-    </message>
-    <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="433"/>
-        <source>Rapid</source>
-        <translation>Ускоренный ход</translation>
-    </message>
-    <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="458"/>
-        <source>Linear</source>
-        <translation>Линейный</translation>
-    </message>
-    <message>
-        <location filename="../app/ui/generated/dialogs/options.ui" line="483"/>
-        <source>Arc</source>
-        <translation>Дуга</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/options.ui" line="508"/>
@@ -2832,37 +2875,62 @@ Do you want to reload it from disk?</source>
         <translation>STL</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="292"/>
+        <location filename="../app/ui/dialogs/options.py" line="302"/>
         <source>840D Extended cycles</source>
         <translation>840D Расширенные циклы</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="296"/>
+        <location filename="../app/ui/dialogs/options.py" line="306"/>
         <source>Checked: 840D Extended cycles interface (Siemens 03/2009). Unchecked: classic cycle interface (Siemens 01/2008). Applies to native source cycles and native SINUMERIK export.</source>
         <translation>Включено: интерфейс расширенных циклов 840D (Siemens 03/2009). Выключено: классический интерфейс циклов (Siemens 01/2008). Применяется к native-циклам исходной программы и native-экспорту SINUMERIK.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="443"/>
+        <location filename="../app/ui/dialogs/options.py" line="382"/>
+        <source>iTNC comments use semicolons (;).</source>
+        <translation>В iTNC комментарии начинаются с точки с запятой (;).</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="387"/>
+        <source>iTNC arcs use CC/C/CR/CP; ISO arc detection does not apply.</source>
+        <translation>В iTNC дуги задаются CC/C/CR/CP; автоопределение ISO-дуг не применяется.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="469"/>
         <source>The language change will be applied after restarting Easy G-Code Plot.</source>
         <translation>Смена языка применится после перезапуска Easy G-Code Plot.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="455"/>
+        <location filename="../app/ui/dialogs/options.py" line="481"/>
         <source>Hotkeys must be unique.</source>
         <translation>Горячие клавиши не должны повторяться.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="466"/>
+        <location filename="../app/ui/dialogs/options.py" line="492"/>
         <source>Colors must be valid Qt color names, for example #008000.</source>
         <translation>Цвета должны быть корректными именами цветов Qt, например #008000.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="272"/>
+        <location filename="../app/ui/dialogs/options.py" line="700"/>
+        <source>Select color</source>
+        <translation>Выбрать цвет</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="282"/>
         <source>Stock material</source>
         <translation>Заготовка</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/options.py" line="275"/>
+        <location filename="../app/ui/dialogs/options.py" line="210"/>
+        <source>Dialect of the source program. Select the output controller in Export / Target CNC.</source>
+        <translation>Диалект исходной программы. Выберите выходную стойку в «Экспорт / Целевая стойка».</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="216"/>
+        <source>Source lathe G-code system</source>
+        <translation>Система G-кодов токарной программы</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/options.py" line="285"/>
         <source>Removed material</source>
         <translation>Обработанная поверхность</translation>
     </message>
@@ -3321,12 +3389,12 @@ Do you want to reload it from disk?</source>
     <message>
         <location filename="../app/ui/generated/dialogs/post_profile_editor.ui" line="800"/>
         <source>Rapid move</source>
-        <translation>Ускоренное (G0)</translation>
+        <translation>Быстрое перемещение</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/post_profile_editor.ui" line="817"/>
         <source>Linear move</source>
-        <translation>Линейное (G1)</translation>
+        <translation>Линейное перемещение</translation>
     </message>
     <message>
         <location filename="../app/ui/generated/dialogs/post_profile_editor.ui" line="834"/>
@@ -3959,6 +4027,24 @@ Do you want to reload it from disk?</source>
     </message>
 </context>
 <context>
+    <name>RotateViewDialog</name>
+    <message>
+        <location filename="../app/ui/dialogs/rotate_view.py" line="9"/>
+        <source>Rotate view</source>
+        <translation>Повернуть вид</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/rotate_view.py" line="23"/>
+        <source>Angle, deg</source>
+        <translation>Угол, град</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/rotate_view.py" line="24"/>
+        <source>Axis</source>
+        <translation>Ось</translation>
+    </message>
+</context>
+<context>
     <name>SnippetsDialog</name>
     <message>
         <location filename="../app/ui/generated/dialogs/snippets.ui" line="6"/>
@@ -4209,7 +4295,7 @@ Do you want to reload it from disk?</source>
         <translation>Инструмент</translation>
     </message>
     <message>
-        <location filename="../app/ui/windows/main_window_execution.py" line="984"/>
+        <location filename="../app/ui/windows/main_window_execution.py" line="993"/>
         <source>No Data Available</source>
         <translation>Нет данных</translation>
     </message>
@@ -4508,87 +4594,137 @@ Insert the simplified mesh?</source>
 <context>
     <name>TokensDlg</name>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="20"/>
-        <source>Tokens/Macro Variables</source>
-        <translation>Токены/Макропеременные</translation>
-    </message>
-    <message>
         <location filename="../app/ui/generated/dialogs/tokens.ui" line="51"/>
         <source>Tokens</source>
         <translation>Токены</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="79"/>
-        <source>Program Token Validation</source>
-        <translation>Проверка токенов программы</translation>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="152"/>
+        <source>Variables</source>
+        <translation>Переменные</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="86"/>
-        <source>Green: parsed, Red: suspicious line</source>
-        <translation>Зелёный: разобрано, красный: подозрительная строка</translation>
-    </message>
-    <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="206"/>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="235"/>
         <source>Refresh</source>
         <translation>Обновить</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="213"/>
-        <location filename="../app/ui/dialogs/tokens.py" line="393"/>
-        <location filename="../app/ui/dialogs/tokens.py" line="408"/>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="242"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="466"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="483"/>
         <source>Export CSV</source>
         <translation>Экспорт CSV</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="220"/>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="249"/>
         <source>Reset Columns</source>
         <translation>Сбросить столбцы</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="140"/>
-        <source>Macro Variables</source>
-        <translation>Макропеременные</translation>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="81"/>
+        <source>All</source>
+        <translation>Все</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/tokens.ui" line="158"/>
-        <location filename="../app/ui/dialogs/tokens.py" line="311"/>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="86"/>
+        <source>Warnings</source>
+        <translation>Предупреждения</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="91"/>
+        <source>Errors</source>
+        <translation>Ошибки</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="215"/>
+        <source>Rows: 0 / 0</source>
+        <translation>Строки: 0 / 0</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="105"/>
+        <source>Search text...</source>
+        <translation>Поиск по тексту...</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="20"/>
+        <source>Tokens/Variables</source>
+        <translation>Токены/Переменные</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="108"/>
+        <source>Search source text, tokens and diagnostics</source>
+        <translation>Поиск по исходному тексту, токенам и диагностике</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/generated/dialogs/tokens.ui" line="180"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="322"/>
         <source>No execution data.</source>
         <translation>Нет данных выполнения.</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="219"/>
-        <source>#</source>
-        <translation>№</translation>
-    </message>
-    <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="220"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="223"/>
         <source>Value</source>
         <translation>Значение</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="304"/>
-        <source>Execution is stale. Update the toolpath to inspect Macro Variables.</source>
-        <translation>Данные выполнения устарели. Обновите траекторию для просмотра макропеременных.</translation>
+        <location filename="../app/ui/dialogs/tokens.py" line="222"/>
+        <source>Variable</source>
+        <translation>Переменная</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="380"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="317"/>
+        <source>Execution is stale. Update the toolpath to inspect Variables.</source>
+        <translation>Данные выполнения устарели. Обновите траекторию для просмотра переменных.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="329"/>
+        <source>No variables recorded at this position.</source>
+        <translation>В этой позиции нет сохранённых переменных.</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="336"/>
+        <source>Undefined</source>
+        <translation>Не определено</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="349"/>
+        <source>FANUC Lathe</source>
+        <translation>FANUC — точение</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="351"/>
+        <source>FANUC Mill</source>
+        <translation>FANUC — фрезерование</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="355"/>
+        <source>{0} — Line {1} — Occurrence {2}</source>
+        <translation>{0} — Строка {1} — Исполнение {2}</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="409"/>
+        <source>Rows: {0} / {1}</source>
+        <translation>Строки: {0} / {1}</translation>
+    </message>
+    <message>
+        <location filename="../app/ui/dialogs/tokens.py" line="453"/>
         <source>Copy</source>
         <translation>Копировать</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="409"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="484"/>
         <source>Unable to write {0}:
 {1}</source>
         <translation>Не удалось записать {0}:
 {1}</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="415"/>
-        <source>Macro variables exported to {0}</source>
-        <translation>Макропеременные экспортированы в {0}</translation>
+        <location filename="../app/ui/dialogs/tokens.py" line="490"/>
+        <source>Variables exported to {0}</source>
+        <translation>Переменные экспортированы в {0}</translation>
     </message>
     <message>
-        <location filename="../app/ui/dialogs/tokens.py" line="417"/>
+        <location filename="../app/ui/dialogs/tokens.py" line="492"/>
         <source>Token validation exported to {0}</source>
         <translation>Проверка токенов экспортирована в {0}</translation>
     </message>

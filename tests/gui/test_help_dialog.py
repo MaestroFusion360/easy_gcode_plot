@@ -61,7 +61,7 @@ def test_faq_table_of_contents_anchors_navigate_to_headings(qt_app):
     for anchor, heading in (
         ("development-and-architecture", "Development and architecture"),
         ("turning-stock-removal", "Turning Stock Removal"),
-        ("statistics-and-tokensmacro-variables", "Statistics and Tokens/Macro Variables"),
+        ("statistics-and-tokensvariables", "Statistics and Tokens/Variables"),
         ("how-are-milling-arcs-programmed", "How are milling arcs programmed?"),
     ):
         window.helpDlg.navigate_to_anchor(QUrl(f"#{anchor}"))
