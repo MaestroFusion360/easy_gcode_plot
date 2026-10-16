@@ -36,6 +36,7 @@ from ..runtime.execution import resolve_program_tools
 from ..runtime.execution import semantic_instructions as _semantic_instructions
 from ..runtime.trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
 from ..turning.dialect import validate_system
+from ..turning.sinumerik import execute_sinumerik_turning
 from .conversion import trace_motion as _trace_motion
 from .types import Diagnostic, ExecutionResult
 
@@ -50,13 +51,6 @@ def _invalid_execution_request(language: str, source_dialect: str) -> ExecutionR
         diagnostic = Diagnostic(
             code="UNSUPPORTED_SOURCE_DIALECT",
             message=f"Unsupported source dialect: {source_dialect}",
-        )
-    elif source_dialect == "sinumerik" and language != "fanuc_mill":
-        diagnostic = Diagnostic(
-            code="UNSUPPORTED_SINUMERIK_ISO_T",
-            message=("SINUMERIK ISO Dialect T is not modeled yet; G291 currently supports milling ISO Dialect M only"),
-            severity="error",
-            status="unsupported",
         )
     elif source_dialect == "heidenhain" and language != "fanuc_mill":
         diagnostic = Diagnostic(
@@ -120,6 +114,29 @@ def _execute_impl(
     if invalid_request is not None:
         return invalid_request
 
+    if language == "fanuc_mill" and isinstance(kinematics, str):
+        try:
+            kinematics = load_catalog()[kinematics]
+        except (InvalidKinematicsProfile, KeyError):
+            return ExecutionResult(
+                False,
+                None,
+                (),
+                (),
+                (
+                    Diagnostic(
+                        "INVALID_KINEMATICS_PROFILE",
+                        "The selected kinematics profile is missing or invalid.",
+                        "error",
+                        "malformed",
+                    ),
+                ),
+                (),
+                complete=False,
+                language=language,
+                source_dialect=source_dialect,
+            )
+
     if source_dialect == "heidenhain":
         mill_offsets = _mill_wcs_offsets(wcs_offsets)
         mill_offsets.update(_mill_extended_wcs_offsets(extended_wcs_offsets))
@@ -135,33 +152,13 @@ def _execute_impl(
                 tool_resolver=tool_resolver,
                 include_instructions=include_instructions,
                 arc_tolerance=geometry_tolerance,
+                kinematics=kinematics,
             ),
             wcs_offsets=_result_wcs_offsets(mill_offsets),
             extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
         )
 
     if language == "fanuc_mill":
-        if isinstance(kinematics, str):
-            try:
-                kinematics = load_catalog()[kinematics]
-            except (InvalidKinematicsProfile, KeyError):
-                return ExecutionResult(
-                    False,
-                    None,
-                    (),
-                    (),
-                    (
-                        Diagnostic(
-                            "INVALID_KINEMATICS_PROFILE",
-                            "The selected kinematics profile is missing or invalid.",
-                            "error",
-                            "malformed",
-                        ),
-                    ),
-                    (),
-                    complete=False,
-                    language=language,
-                )
         mill_offsets = _mill_wcs_offsets(wcs_offsets)
         mill_offsets.update(_mill_extended_wcs_offsets(extended_wcs_offsets))
         return replace(
@@ -187,12 +184,78 @@ def _execute_impl(
             extended_wcs_offsets=_result_extended_wcs_offsets(mill_offsets),
         )
 
+    return _execute_turning(
+        source,
+        source_dialect=source_dialect,
+        lathe_gcode_system=lathe_gcode_system,
+        x_is_diameter=x_is_diameter,
+        pq_mm_for_g74758384=pq_mm_for_g74758384,
+        supplementary_angles=supplementary_angles,
+        default_unit_scale=default_unit_scale,
+        skip_optional_blocks=skip_optional_blocks,
+        home_x=home_x,
+        home_z=home_z,
+        wcs_offsets=wcs_offsets,
+        extended_wcs_offsets=extended_wcs_offsets,
+        emulate_g28_home=emulate_g28_home,
+        tools=tools,
+        tool_resolver=tool_resolver,
+        parsed_program=parsed_program,
+        include_instructions=include_instructions,
+        geometry_tolerance=geometry_tolerance,
+        sinumerik_840d_sl=sinumerik_840d_sl,
+    )
+
+
+def _execute_turning(
+    source,
+    *,
+    source_dialect,
+    lathe_gcode_system,
+    x_is_diameter,
+    pq_mm_for_g74758384,
+    supplementary_angles,
+    default_unit_scale,
+    skip_optional_blocks,
+    home_x,
+    home_z,
+    wcs_offsets,
+    extended_wcs_offsets,
+    emulate_g28_home,
+    tools,
+    tool_resolver,
+    parsed_program,
+    include_instructions,
+    geometry_tolerance,
+    sinumerik_840d_sl,
+):
     lathe_gcode_system = validate_system(lathe_gcode_system)
     program: Program | None = None
     unsupported: tuple[Diagnostic, ...] = ()
     execution_diagnostics: list[Diagnostic] = []
     turn_offsets = _turn_wcs_offsets(wcs_offsets)
     turn_offsets.update(_turn_extended_wcs_offsets(extended_wcs_offsets))
+    if source_dialect == "sinumerik":
+        return replace(
+            execute_sinumerik_turning(
+                source,
+                parsed_program=parsed_program,
+                tools=tools,
+                tool_resolver=tool_resolver,
+                home=(home_x, home_z),
+                wcs_offsets=turn_offsets,
+                default_unit_scale=default_unit_scale,
+                x_is_diameter=x_is_diameter,
+                iso_system=lathe_gcode_system,
+                skip_optional_blocks=skip_optional_blocks,
+                emulate_home=emulate_g28_home,
+                include_instructions=include_instructions,
+                tolerance=geometry_tolerance,
+                solution_line=sinumerik_840d_sl,
+            ),
+            wcs_offsets=_result_wcs_offsets(turn_offsets),
+            extended_wcs_offsets=_result_extended_wcs_offsets(turn_offsets),
+        )
     try:
         program = parsed_program if parsed_program is not None else parse_program(source)
         tools = resolve_program_tools(program, tools, tool_resolver)

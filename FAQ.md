@@ -1,8 +1,8 @@
 # Easy G-Code Plot FAQ
 
-Updated for **2.6.0**: fixed milling-view rotation, controller-neutral inspection and current GUI workflows.
+Updated for **2.7.0**: native iTNC rotary/TCP input, bounded SINUMERIK XZ turning, controller-neutral inspection and current GUI workflows.
 
-This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC, SINUMERIK native/ISO-M and HEIDENHAIN iTNC 530 Klartext semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
+This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC, SINUMERIK native/ISO-M milling and native/ISO-T turning, and HEIDENHAIN iTNC 530 Klartext semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
 The same FAQ can be packaged for offline use in **Help → FAQ**.
 
@@ -346,7 +346,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
 
 ### What is Easy G-Code Plot?
 
-Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling, SINUMERIK 840D milling and HEIDENHAIN iTNC 530 three-axis Klartext programs. Supported native SINUMERIK input includes bounded R expressions and WHILE/GOTO/IF flow, plus CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
+Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling, SINUMERIK 840D milling and bounded XZ turning, and HEIDENHAIN iTNC 530 Klartext milling programs. Supported native SINUMERIK input includes bounded R expressions and WHILE/GOTO/IF flow, plus CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
 
 Native HEIDENHAIN input covers the documented subset of Klartext contours, Q parameters and drilling cycles; unsupported commands produce explicit diagnostics.
 
@@ -402,7 +402,7 @@ This separation is intentional: the same resolved geometry is used by playback, 
 
 ### Is the program a machine simulator?
 
-No. Easy G-Code Plot models supported FANUC turning/milling and SINUMERIK 840D milling program semantics and toolpath geometry, including the supported native SINUMERIK CAM 3+2/five-axis subset. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
+No. Easy G-Code Plot models supported FANUC turning/milling and SINUMERIK 840D milling/native XZ turning program semantics and toolpath geometry, including the supported native SINUMERIK CAM 3+2/five-axis subset. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
 
 A clean result means the modeled program was executed without a known error inside the supported contract. It is not a substitute for machine verification.
 
@@ -446,7 +446,7 @@ uv run --no-dev python main.py
 5. Inspect the trajectory, playback, diagnostics and statistics.
 6. Export FULL, EXPANDED or DXF when required.
 
-Menu locations in 2.6.0:
+Menu locations in 2.7.0:
 
 | Command | Menu path |
 | --- | --- |
@@ -460,9 +460,11 @@ Menu locations in 2.6.0:
 
 ### How do I work with multiple documents?
 
-The application starts with **one empty milling document**, even if the previous session used Lathe Mode. Use **+** or **File → New** to create another document. **Open**, recent files and drag-and-drop open CNC programs without replacing a nonempty active document. Opening an ordinary CNC file into an empty, unmodified unnamed buffer fills that buffer and keeps its selected machine mode. HEIDENHAIN `.h`/`.H` files are an exception: they always select native Klartext and milling, even when the empty buffer was in Lathe Mode. Opening a file that is already open selects its existing document.
+The application starts with **one empty milling document**, even if the previous session used Lathe Mode. Use **+** or **File → New** to create another document. **Open**, recent files and drag-and-drop open CNC programs without replacing a nonempty active document. Opening an ordinary CNC file into an empty, unmodified unnamed buffer fills that buffer and keeps its selected machine mode. HEIDENHAIN `.h`/`.H` files are an exception: they always select native Klartext and milling, even when the empty buffer was in Lathe Mode. SINUMERIK `.mpf/.spf` with unambiguous native turning signatures also select turning automatically. Opening a file that is already open selects its existing document.
 
 Use the **document-list arrow** at the upper right of the menu bar to select an open document. The check mark identifies the active document; `*` marks unsaved text. **Save**, **Save As**, editor commands, export and calculation operate on the active document. Save As cannot overwrite a file that is open in another document. Open documents are retained in memory for the current session; the next launch starts with one empty document rather than restoring the list.
+
+Save As provides NC, SINUMERIK `.mpf/.spf` and HEIDENHAIN `.h/.H` filters. Existing native filenames select their filter; an extensionless name receives `.mpf` or `.h` for the selected native group. Save/Save As writes source text without controller conversion.
 
 ### Which settings are per document and which are shared?
 
@@ -486,7 +488,7 @@ Choose **CNC Functions → Compare** or its toolbar button. Select open document
 
 ### What does the iTNC-code source type do?
 
-The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and three-axis runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241. Cycle 32 retains metadata without simulating controller smoothing. `RND`/`CHF` construct planar rounding/chamfers before existing RL/RR compensation, with block-local feeds. Rotary axes, tool offsets DL/DR, `M120` and `PLANE`/TCP remain syntax-only or unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
+The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and milling runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241. Cycle 32 retains metadata without simulating controller smoothing. `RND`/`CHF` construct planar rounding/chamfers before existing RL/RR compensation, with block-local feeds. Rotary indexing, PLANE and AC/BC table TCP use configured kinematics; tool offsets DL/DR, auxiliary axes and `M120` remain unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
 
 ### Which input encodings are supported?
 
@@ -564,7 +566,7 @@ Y-axis motion is not modeled in `fanuc_turn` and produces `UNSUPPORTED_AXIS`.
 
 ### What about unsupported M-codes?
 
-The core tracks modeled program-control and machine signals. Unmodeled auxiliary M codes produce non-blocking `UNSUPPORTED_M_CODE` warnings in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. This rule applies to GUI execution and CLI/batch analysis. M2/M30 end programs. FANUC M98/M99 retain modeled call/return behavior; native SINUMERIK M17/M96/M97/M99 stop with unsupported-flow diagnostics. Native M66/M98 produce auxiliary warnings; M98 does not call a FANUC subprogram.
+The core tracks modeled program-control and machine signals. Unmodeled auxiliary M codes produce non-blocking `UNSUPPORTED_M_CODE` warnings in FANUC milling/turning and SINUMERIK native/ISO milling, including mixed motion blocks. SINUMERIK native/ISO-T turning instead rejects unmodeled M functions with an unsupported diagnostic. This rule applies to GUI execution and CLI/batch analysis. M2/M30 end programs. FANUC M98/M99 retain modeled call/return behavior; native SINUMERIK milling M17/M96/M97/M99 stop with unsupported-flow diagnostics. Native milling M66/M98 produce auxiliary warnings; M98 does not call a FANUC subprogram.
 
 ### Are conflicting modal codes detected?
 
@@ -1391,7 +1393,7 @@ This table lists the G codes recognized by the `fanuc_mill` kernel. Details and 
 | M29 | Prepare rigid tapping; S on this block sets spindle RPM for the following G84 |
 | M98 / M99 | Call / return from subprogram |
 
-Unknown auxiliary M codes produce `UNSUPPORTED_M_CODE` warnings and let execution continue in FANUC milling/turning and SINUMERIK native/ISO, including mixed motion blocks. M0/M1 record machine-stop signals without stopping the trace; M2/M30 end programs; FANUC M98/M99 model call/return. Native SINUMERIK M17/M96/M97/M99 stop with unsupported-flow diagnostics, while native M66/M98 produce auxiliary warnings without subprogram dispatch. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
+Unknown auxiliary M codes produce `UNSUPPORTED_M_CODE` warnings and let execution continue in FANUC milling/turning and SINUMERIK native/ISO milling, including mixed motion blocks. SINUMERIK native/ISO-T turning instead rejects unmodeled M functions with an unsupported diagnostic. M0/M1 record machine-stop signals without stopping the trace; M2/M30 end programs; FANUC M98/M99 model call/return. Native SINUMERIK milling M17/M96/M97/M99 stop with unsupported-flow diagnostics, while native milling M66/M98 produce auxiliary warnings without subprogram dispatch. Recognized M codes describe trace signals and program flow; they do not simulate machine hardware.
 
 `M29 S500` followed by `G84` marks rigid tapping in the trace. With `G95`, `F1.5` is 1.5 mm per revolution in metric mode; with `G94`, the equivalent feed at 500 RPM is `F750` mm/min. `G80` clears the rigid-tapping preparation. M29 syntax and whether it is required depend on the machine configuration. The kernel records synchronization semantics but does not simulate an encoder or spindle acceleration.
 
@@ -1413,7 +1415,7 @@ For the checked **4-axis Table C** profile, concurrent X/C feed blocks and C-onl
 
 ### Which rotary profiles have been checked?
 
-The **4Ax Table A** and **4Ax Table B** profiles have been compared with the programs in `tests/fixtures/milling/indexed_table_a.nc` and `tests/fixtures/milling/indexed_table_b.nc`. The **4-axis Table C** profile is checked against `tests/fixtures/milling/indexed_table_c.nc`: its X/C contour overlays the program's first XY contour within 0.05 mm at the sampled endpoints. The fixture files are reference inputs, not definitions of a machine. Automated checks also cover A/B angle signs, G90/G91, and repeated G28/G53 behavior.
+The **4Ax Table A** and **4Ax Table B** profiles have been compared with the programs in `tests/fixtures/milling/fanuc/indexed_table_a.nc` and `tests/fixtures/milling/fanuc/indexed_table_b.nc`. The **4-axis Table C** profile is checked against `tests/fixtures/milling/fanuc/indexed_table_c.nc`: its X/C contour overlays the program's first XY contour within 0.05 mm at the sampled endpoints. The fixture files are reference inputs, not definitions of a machine. Automated checks also cover A/B angle signs, G90/G91, and repeated G28/G53 behavior.
 
 The complete installed catalog of 24 configurations is available in **Settings → Options → Rotary Kinematics**. This includes Head A/B/C, orthogonal AC/BC, mixed table/head and angled profiles. **Enabled**, in the profile settings, controls whether a profile appears in **Settings → Rotary kinematics**. Built-in visibility preferences are stored separately in user settings; installed definitions and their historical `enabled` flags remain unchanged. Hidden profiles remain in Options so they can be enabled again. Visibility changes take effect with **OK** and are discarded by **Cancel**. Hiding the active profile clears the active selection and refreshes execution. All built-in profiles are initially visible; user copies retain their own enabled state.
 
@@ -2211,7 +2213,7 @@ No. FULL uses the exact source together with its authoritative execution map. EX
 
 ### What does Full Program mean?
 
-FULL preserves ordinary source blocks, comments, modal commands, controller dialect and supported cycles. FANUC flow/label-dependent constructs are unfolded from the execution map before renumbering: evaluated Macro B, IF/GOTO/WHILE, G65 and M98/M99 calls, and turning G70–G76. Supported native SINUMERIK expressions and WHILE/GOTO/IF flow remain in the source; numeric jump labels are preserved and sequence renumbering is rejected for programs with native jumps. FULL does not convert the program to another controller.
+FULL preserves ordinary source blocks, comments, modal commands, controller dialect and supported cycles. FANUC flow/label-dependent constructs are unfolded from the execution map before renumbering: evaluated Macro B, IF/GOTO/WHILE, G65 and M98/M99 calls, and turning G70–G76. Supported native SINUMERIK milling expressions and WHILE/GOTO/IF flow remain in the source; numeric jump labels are preserved and sequence renumbering is rejected for programs with native jumps. HEIDENHAIN and SINUMERIK turning FULL normalization are unsupported; use Save/Save As to retain those sources. FULL does not convert the program to another controller.
 
 ### What does Expanded Execution mean?
 
@@ -2223,7 +2225,7 @@ Supported tilted-plane output retains G54–G59 and requires matching target off
 
 ### What does Auto (source controller) mean?
 
-`Auto (source controller)` is not a separate capability mode. It automatically selects the post profile that matches the source controller and dialect: FANUC turning uses the Type A/B lathe profile, FANUC milling uses `fanuc_mill`, SINUMERIK ISO uses `sinumerik_iso` and native SINUMERIK uses `sinumerik_840d`. EXPANDED always re-serializes the resolved execution, so even "Auto" is a conversion; it simply does not require you to name a target.
+`Auto (source controller)` is not a separate capability mode. FANUC turning uses the selected Type A/B lathe profile, FANUC milling uses `fanuc_mill`, SINUMERIK ISO-M milling uses `sinumerik_iso`, native SINUMERIK milling uses `sinumerik_840d`, and HEIDENHAIN uses `heidenhain_itnc530`. SINUMERIK turning currently falls back to the selected FANUC Type A/B lathe post because no Siemens turning output post is bundled; it does not preserve the source controller. EXPANDED always re-serializes the resolved execution and remains subject to export preflight restrictions.
 
 ### How do I manage user postprocessors in the GUI?
 
@@ -2235,7 +2237,7 @@ The editor contains **Source**, **Output**, **Format**, **Sequencing**, **Motion
 
 In **Export Options / EXPANDED EXECUTION**, choose **Target CNC** or use **Add ready…** to import a validated JSON for the current machine type. Import copies it into the configuration directory’s `post-profiles` folder and preserves the original. Profile editing and management stay in Settings; renaming retains the path and controller `id`.
 
-The bundled `heidenhain_itnc530` is an EXPANDED output target, separate from the native input parser and three-axis runtime. It emits `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CR`, `CC` with `C/CP`, cycles 200/201/202/203/207 and rapid XYZ machine returns with `M91`. IPA and DR use matching signs; Q239 is negative for left-hand tapping. G85 uses cycle 201 with feed retraction, while G86 uses cycle 202 with stopped-spindle rapid retraction. Arcs outside the spindle plane in TOOL CALL are linearized at the export tolerance. Numeric sequence prefixes omit `N`. Unsupported rotary/TCP operations and cycles are rejected before writing. Export capabilities do not imply corresponding iTNC input execution coverage; see [the input coverage table](#what-heidenhain-support-is-included).
+The bundled `heidenhain_itnc530` is an EXPANDED output target, separate from the native input parser and milling runtime. It emits `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CR`, `CC` with `C/CP`, cycles 200/201/202/203/207 and rapid XYZ machine returns with `M91`. IPA and DR use matching signs; Q239 is negative for left-hand tapping. G85 uses cycle 201 with feed retraction, while G86 uses cycle 202 with stopped-spindle rapid retraction. Arcs outside the spindle plane in TOOL CALL are linearized at the export tolerance. Numeric sequence prefixes omit `N`. Unsupported rotary/TCP operations and cycles are rejected before writing. Export capabilities do not imply corresponding iTNC input execution coverage; see [the input coverage table](#what-heidenhain-support-is-included).
 
 Export passes the selected JSON path through the same writer as CLI `--post-profile`, including its output extension. Selections persist by identifier/path. Missing, damaged or incompatible profiles require choosing Auto or another valid profile explicitly. Profile selection is disabled for FULL and DXF. Cancel in Export Options discards output options and the temporary selection; separately saved profiles remain available.
 
@@ -2357,7 +2359,9 @@ MPF/SPF documents preserve the selected rotary profile. Settings and Options rem
 
 ### What SINUMERIK support is included?
 
-The application supports a bounded native Siemens milling subset (`G290`, also the initial mode of MPF/SPF files) and ISO Dialect M (`G291`). Both use the shared milling kernel and resolved trace. SINUMERIK ISO Dialect T is not supported.
+The application supports bounded native Siemens milling and turning subsets (`G290`, also the initial mode of MPF/SPF files). `G291` selects ISO Dialect M in milling and a bounded ISO Dialect T subset in turning. Both publish the shared resolved trace; see the turning coverage below.
+
+The table and native/ISO-M transition, cycle and TCP rules below describe **milling**. Turning diameter modes, M-code policy and cycle restrictions are described in [SINUMERIK lathe coverage](#is-sinumerik-lathe-supported); milling capabilities do not carry over automatically.
 
 | Native function | Current behavior |
 | --- | --- |
@@ -2442,7 +2446,7 @@ Yes. Parameters and CYCLE81/82/83/84 have already been executed by the kernel. E
 
 ### How do Full Program and Expanded Execution differ?
 
-**FULL** answers “keep this controller program, but normalize it safely.” It preserves ordinary source structure and the source controller/dialect; FANUC execution-flow constructs that cannot safely survive renumbering are unfolded. Supported native SINUMERIK expressions and WHILE/GOTO/IF remain intact; native jump labels are preserved and sequence renumbering is rejected.
+**FULL** answers “keep this controller program, but normalize it safely” for supported FANUC and SINUMERIK milling sources. HEIDENHAIN and SINUMERIK turning FULL normalization are unsupported. It preserves ordinary source structure and the source controller/dialect; FANUC execution-flow constructs that cannot safely survive renumbering are unfolded. Supported native SINUMERIK expressions and WHILE/GOTO/IF remain intact; native jump labels are preserved and sequence renumbering is rejected.
 
 **EXPANDED** answers “emit this resolved execution for this controller.” It serializes resolved geometry/state through one of the JSON post profiles. Three-axis profiles remain XYZ-only; bundled multiaxis profiles additionally reconstruct the verified rotary/TCP subsets. Ordinary paths use a zero-offset G54 frame; supported tilted-plane programs retain G54–G59 with matching target offsets; supported milling drilling/tapping operations are emitted through the post cycle templates when representable. Other operations retain their resolved motions; macro variables and subprogram calls are not recreated.
 
@@ -2455,15 +2459,37 @@ GUI and CLI use the same FULL / EXPANDED / DXF split. Target-controller selectio
 
 ### Is SINUMERIK lathe supported?
 
-**No. SINUMERIK turning/lathe is not supported yet**, in either native mode or ISO Dialect T. Siemens turning execution and conversion to/from FANUC turning are unavailable. SINUMERIK support described here is milling; the supported FANUC turning kernel is a separate mode.
+**Yes, within the native XZ turning subset.** `.mpf/.spf` select the SINUMERIK container and start in G290. Turning signatures (`DIAMON/DIAMOF/DIAM90`, `CYCLE93/95/97`) select turning automatically; otherwise choose turning in the GUI or `--lang fanuc_turn` in the CLI. Standalone G290/G291 switches preserve the tool, position and WCS. G291 uses the selected A/B turning code system; native syntax is rejected until G290 resumes.
+
+Native coverage includes G0/G1/G2/G3, G18, G33 with I/K lead, CR arcs, IC/AC coordinates, DIAMON/DIAMOF/DIAM90, G70/G71 and G700/G710, G90/G91, G94/G95, G96/G97 with LIMS, numeric T and logical D selection, G40/G41/G42, G53/G153/SUPA, G54–G59/G500, TRANS/ATRANS XZ, scalar expressions and supported WHILE/IF/GOTO flow. Public X coordinates remain diameters; arc I and TRANS X are physical radii. G71 is metric geometry, not a FANUC roughing cycle.
+
+- CYCLE95: local quoted `START:END` contours, including labels after M30, external/internal longitudinal/facing variants, balanced paraxial roughing, X/Z finishing allowances and finishing contour replay. Overhangs, contour-normal allowance, chip breaking and extended G/diameter modes are rejected. Roughing uses the nominal contour and does not model controller-specific automatic nose compensation or exact controller pass optimization.
+- CYCLE93: rectangular axis-aligned grooves, variants 1–8/11–18, with a configured square groove tool, width, active D and zero corner radius. Flank angles, corner radii and chamfers are rejected. D selects a logical edge; controller tool-table offsets are not imported.
+- CYCLE97: longitudinal straight/taper threads with explicit pitch, constant-depth/constant-area infeed, finishing allowance and idle passes. Requires fixed running RPM, IANG=NSP=0 and NUMTH=1. Other infeed/multistart variants are rejected.
+- Centerline drilling: CYCLE81/82/83/84/85/89, using the supported shared axial cycle interfaces. MCALL turning cycles and arbitrary subprogram calls are not implemented.
+- ISO-T: linear/circular motion, feed/spindle modes, WCS and G32/G33 threading in the selected A/B code system. ISO canned turning cycles and G28 reference return remain unsupported.
+
+Both supplied CAM files in `tests/fixtures/turning/sinumerik` execute through M30. Both contain CYCLE95 and CYCLE97; the second expands drilling, so it is not an independent fully expanded turning reference. Numerical cycle tests cover dimensions and infeed separately. FULL turning normalization and a native Siemens turning output post are not implemented; EXPANDED conversion retains its existing preflight restrictions, including native CSS rejection. Save the source document to retain a native program.
+
+Reference interfaces: [Siemens 840D programming guide](https://cache.industry.siemens.com/dl/files/510/28713510/att_53953/v1/PGK_1000_en.pdf) and [Siemens compatibility turning cycles](https://cache.industry.siemens.com/dl/files/300/109751300/att_931853/v1/808D_808D_ADV_turning_op_man_0917_en-US.pdf).
+
+**CYCLE95 verification boundary:** with an active D edge and a configured nonzero tool nose radius, `UNVERIFIED_SINUMERIK_CYCLE95_NOSE_COMPENSATION` marks nominal-contour execution without the controller's automatic correction. Reaching M30 is not a verified controller-equivalent result. The current model scales FALX through the active diameter mode (DIAMON FALX=0.2 adds 0.1 mm to the radius) and distributes paraxial infeed evenly; matching controller allowance and pass-planning behavior still requires independent validation with known tool data. A DXF from another backplotter is comparison evidence, not a normative Siemens reference. It cannot by itself identify which model is correct.
+
+The CYCLE95 nose-compensation warning does not by itself block EXPANDED export. Native CSS and other modeled preflight restrictions can independently reject export; a successful export is not further validation of cycle geometry.
+
+Native/ISO-T turning accepts only the modeled M-function subset; unknown M codes stop execution rather than following the milling auxiliary-warning policy. G0 toolpath contact and turning stock removal consume this same trace; they do not independently certify cycle semantics.
 
 ---
 
 ## HEIDENHAIN iTNC 530 input
 
-HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. `.h`/`.H` files — or unnamed text whose block structure contains `BEGIN PGM ... MM/INCH` — select native three-axis milling execution (`fanuc_mill` with `source_dialect=heidenhain`). The **iTNC-code** source type selects it manually and enables Klartext highlighting. The parser builds an immutable native AST with unevaluated Q/QL/QR expressions, separate numeric/named label maps and physical source locations; the runtime consumes that AST directly and never lowers commands to ISO.
+HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. `.h`/`.H` files — or unnamed text whose block structure contains `BEGIN PGM ... MM/INCH` — select native milling execution (`fanuc_mill` with `source_dialect=heidenhain`). The **iTNC-code** source type selects it manually and enables Klartext highlighting. The parser builds an immutable native AST with unevaluated Q/QL/QR expressions, separate numeric/named label maps and physical source locations; the runtime consumes that AST directly and never lowers commands to ISO.
 
-The scope is **three-axis CAM contours and bounded parametric programs**. Unsupported semantics are not silently skipped: execution stops at the source block with a diagnostic and keeps the valid prefix of the trajectory. Structured results and CLI/batch reports expose `source_dialect=heidenhain` independently of the shared `fanuc_mill` geometry language.
+The scope includes **three-axis CAM contours, bounded parametric programs, indexed 3+2 and table TCP with configured AC/BC kinematics**. Unsupported semantics are not silently skipped: execution stops at the source block with a diagnostic and keeps the valid prefix of the trajectory. Structured results and CLI/batch reports expose `source_dialect=heidenhain` independently of the shared `fanuc_mill` geometry language.
+
+Select the rotary profile before executing A/B/C or PLANE blocks; zero rotary angles also require a profile. `PLANE SPATIAL SPA/SPB/SPC` uses fixed-axis `Rz(SPC) Ry(SPB) Rx(SPA)` rotations. STAY changes coordinates without indexing; TURN solves the tool axis using the configured two-joint profile, with optional SEQ+/SEQ− branch selection. PLANE RESET cancels the tilted frame. MOVE and TABLE COORD are unsupported. `M128/M129` enable/disable logical tool-tip control on AC/BC tables with PLANE reset; the supported FUNCTION form is `FUNCTION TCPM F TCP AXIS POS PATHCTRL AXIS` and `FUNCTION RESET TCPM`. Continuous rotary interpolation requires L blocks and active TCP. `M126/M127` select/cancel shortest-path rotary positioning; `M94` reduces displayed angles. OEM pivot lengths and physical machine travel are not modeled.
+
+The unmodified three-post project is stored in `tests/fixtures/milling/test_5ax/1001.nc`, `1001.mpf` and `1001.h`. All three programs reach M30 using `5ax_table_ac` and Home Z=100. Regression tests compare all 1182 normalized cutting segments, arc centers and intermediate points, feeds, tools and start/end tool axes. The positional tolerance is 0.002 mm to account for postprocessor rounding. Controller-specific rapid/home transitions are tested separately rather than equated to cutting geometry. GPU stock removal remains three-axis.
 
 ### What HEIDENHAIN support is included?
 
@@ -2483,18 +2509,19 @@ The scope is **three-axis CAM contours and bounded parametric programs**. Unsupp
 | Q cycle parameters | Physical `Q...=` continuation blocks remain in the AST and are consumed by `CYCL CALL` in execution order. `MAX`/`FMAX` is a symbolic feed for Q208 and Q253, not a numeric expression: Q208 rapid retraction in cycles 202/203; Q253 rapid pre-positioning in Cycle 204. Parsing Q253 does not add execution of unsupported milling cycles |
 | Cycle 247 datum selection | Application mapping: `Q339=1..6` selects the configured G54..G59 offsets in millimetres. The tool's machine position is preserved; other preset numbers are unsupported. This is not an import of a controller's preset table |
 | Cycles 7/10 | Axis-address datum shifts and XY planar rotation (`ROT`) apply immediately without moving the tool; reset with zero values. Coordinate and circle-center transforms are retained in the machine-space trace; datum-table and tilted-plane variants remain unsupported |
-| `M140 MB distance`, `M140 MB MAX` | The current vertical three-axis preview always retracts along machine Z, before positioning, with a separate optional feed. MAX requires enabled Home emulation and uses Z from Home (G28) in WCS, in the positive direction only, with a warning. Tilted tool-axis retraction is not modeled. This approximation blocks NC trace export |
+| `M140 MB distance`, `M140 MB MAX` | Retraction follows physical machine +Z before positioning, with a separately scoped feed. Configured table kinematics maps this retraction through the table orientation even with a tilted program frame. MAX requires enabled Home emulation and uses Z from Home (G28) in WCS, only in the positive direction, with a warning. Physical travel limits are not modeled; the MAX approximation blocks NC trace export |
 | `F0`, repeated feed addresses | Geometry is retained; F0 is disclosed as a warning instead of inventing a feed; repeated feeds use the last value |
 | Optional `/` blocks and source numbers | Physical source lines and optional skip markers are retained; block numbers are not treated as `LBL` subprogram labels |
 | `RND R… [F…]`, `CHF … [F…]` | Tangent rounding arcs/chamfers trim adjacent elements before existing RL/RR compensation; feed applies only to the inserted segment. Planar local corners and explicit geometric diagnostics; see the limits below |
-| `M120`, rotary `A/B/C/U/V/W`, `PLANE`, TCP, tool offsets DL/DR | Parsed as native facts but not executed; execution stops at the block |
+| Rotary `A/B/C`, PLANE SPATIAL/RESET, M128/M129 | Configured rotary indexing, tilted frames and AC/BC table TCP as described above; unsupported combinations stop at the source block |
+| `M120`, auxiliary `U/V/W`, tool offsets DL/DR/DR2 | Not executed; execution stops at the block |
 | FULL formatting | Rejected for Klartext; EXPANDED and Save Source remain available |
 
 ### How are Klartext source, parameters and diagnostics represented?
 
 The public parser is [`parse_heidenhain_program(source)`](app/gcode/kernel/frontend/heidenhain.py). Each physical line, including comments, empty lines, optional `/` skip and numeric block prefixes, remains a source `Block` with original text and locations. `Block.native_syntax` and the immutable AST share typed Klartext commands, expressions, M-function parameters (including typed `M120 LA`/`M140 MB` parameters and a separately scoped `M140` retraction feed) and cycle-parameter continuation records; no synthetic FANUC G words, ISO motions or Macro B nodes are introduced. The portable and Cython AST builders agree on these native nodes.
 
-Q expressions are parsed into trees **without evaluating them**; the dedicated runtime subsequently evaluates supported arithmetic, functions and assignments without Python `eval`. The accepted ranges are `Q0–Q1999` and `QL/QR0–499`. Program block numbers and numeric/named `LBL` definitions have separate maps; `LBL 0` returns, duplicate or unresolved static labels are diagnosed, and active cycle definitions are resolved in execution order rather than assumed from the lexical `CYCL CALL` reference. The parser does not invent missing cycle parameters; supported runtime defaults are applied only during execution. Unsupported `PLANE` and `FN 18` instructions do not generate motion.
+Q expressions are parsed into trees **without evaluating them**; the dedicated runtime subsequently evaluates supported arithmetic, functions and assignments without Python `eval`. The accepted ranges are `Q0–Q1999` and `QL/QR0–499`. Program block numbers and numeric/named `LBL` definitions have separate maps; `LBL 0` returns, duplicate or unresolved static labels are diagnosed, and active cycle definitions are resolved in execution order rather than assumed from the lexical `CYCL CALL` reference. The parser does not invent missing cycle parameters; supported runtime defaults are applied only during execution. Unsupported PLANE variants and `FN 18` instructions stop execution instead of generating motion.
 
 Parse errors include a physical line, column, source text and diagnostic code. During execution, emitted motions and steps keep source-block provenance; unsupported operations stop on the offending line with the valid prefix preserved. Execution limits and cooperative cancellation also apply to native Klartext. The shared `fanuc_mill` machine contract provides geometry, while `source_dialect=heidenhain` selects the independent interpreter.
 
@@ -2502,7 +2529,7 @@ Parse errors include a physical line, column, source text and diagnostic code. D
 
 **Open Document** includes `.h`/`.H`; the **iTNC-code** selection enables Klartext syntax highlighting with the configured editor font, colors and theme. Hole and pocket calculators generate native signed `L`/`CR` blocks and, where applicable, `CC`/`CP` helical entries instead of an ISO postprocessed fragment. **Renumber** writes numeric prefixes without `N`, allows a start at zero, retains optional `/` markers and supports selected lines; removing numbers also respects Klartext prefixes.
 
-**Save** retains the original source. Klartext **FULL** formatting is rejected; **EXPANDED** uses the distinct `heidenhain_itnc530` output post and resolved trace. It can emit `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CC` with `C/CP`, `CR` and `CYCL DEF 200/201/202/203/207`. This output support is **not** evidence that every emitted native construct can be consumed by the separate input interpreter. Rotary/TCP export remains restricted to the post's supported three-axis geometry.
+**Save** retains the original source. Klartext **FULL** formatting is rejected; **EXPANDED** uses the distinct `heidenhain_itnc530` output post and resolved trace. It can emit `BEGIN/END PGM`, `TOOL CALL`, `L/FMAX`, `CC` with `C/CP`, `CR` and `CYCL DEF 200/201/202/203/207`. This output support is **not** evidence that every emitted native construct can be consumed by the separate input interpreter. The iTNC output post remains restricted to its supported three-axis geometry; native rotary input does not imply five-axis Klartext output support.
 
 ### How is the iTNC implementation verified?
 
@@ -2593,7 +2620,7 @@ The exported HTML report always uses a light theme. The Statistics dialog follow
 
 `batch` analyzes every discovered NC file under a directory and writes JSON/CSV reports.
 
-Add `--html C:\Reports\html` to save a separate statistics report with a tool selector and static XY/XZ SVG for each input, using the same API as single-file `analyze`. Subdirectories and full filenames are preserved; `--inches` changes report units. Without `--lang`, `.mpf/.spf` select milling SINUMERIK and other files keep the turning default. Explicit `--lang` overrides this for the whole batch.
+Add `--html C:\Reports\html` to save a separate statistics report with a tool selector and static XY/XZ SVG for each input, using the same API as single-file `analyze`. Subdirectories and full filenames are preserved; `--inches` changes report units. Without `--lang`, `.mpf/.spf` select SINUMERIK turning when native turning signatures are present, otherwise milling; other files keep the turning default. Explicit `--lang` overrides this for the whole batch.
 
 ```powershell
 .\easy_gcode_plot_cli.exe batch C:\Programs --lang fanuc_mill -o C:\Reports
@@ -2630,7 +2657,7 @@ fanuc_turn
 fanuc_mill
 ```
 
-There is no separate `sinumerik` `--lang` value. SINUMERIK MPF/SPF input is detected from its extension independently of its contents, then the milling kernel is selected with `--lang fanuc_mill`.
+There is no separate `sinumerik` `--lang` value. SINUMERIK MPF/SPF input is detected from its extension independently of its contents. Select geometry with `--lang fanuc_mill` or `--lang fanuc_turn`; without an explicit language, unambiguous native turning signatures select turning and other MPF/SPF files default to milling.
 
 ### What are the exit codes?
 
@@ -3250,8 +3277,8 @@ Both modes execute the same assertions. The scenario opens these existing inputs
 
 - FANUC milling: `tests/fixtures/milling/fanuc/flange_plate_benchmark.nc`, without STL; dark theme, grid/colors and settings persistence, Statistics with a per-tool selector and SVG HTML export, expanded FANUC export and kernel replay. Line width stays unchanged.
 - FANUC turning: `tests/fixtures/turning/lathe_cycles_example.nc`; G71/G76 and real Stock Removal with deterministic rewind/replay. Saved-library geometry takes priority over automatic discovery.
-- SINUMERIK 3+2: `tests/fixtures/milling/sinumerik/5ax_test.mpf` with `stl/test6.stl` and the AC profile. STL Objects: Base Point Origin, Position Z=-100, Move Here.
-- SINUMERIK impeller: `tests/fixtures/milling/sinumerik/impeller.mpf` with `stl/test7.stl` and **5Ax Table BC Angled**. STL Objects: Transform rotates Z by +90 degrees, then Section Y at zero, Apply, Undo, and STL edges only. The sandbox editor uses saved T60 taper-ball-mill geometry with D1. Play briefly, then seek in 10% slider steps through completion. Turning Stock Removal and the flange benchmark retain complete continuous playback.
+- SINUMERIK 3+2: `tests/fixtures/milling/test_5ax/5ax_test.mpf` with `stl/test6.stl` and the AC profile. STL Objects: Base Point Origin, Position Z=-100, Move Here.
+- SINUMERIK impeller: `tests/fixtures/milling/test_5ax/impeller.mpf` with `stl/test7.stl` and **5Ax Table BC Angled**. STL Objects: Transform rotates Z by +90 degrees, then Section Y at zero, Apply, Undo, and STL edges only. The sandbox editor uses saved T60 taper-ball-mill geometry with D1. Play briefly, then seek in 10% slider steps through completion. Turning Stock Removal and the flange benchmark retain complete continuous playback.
 
 Pytest isolates settings, the tool library and all output files in temporary directories. The sandbox's fixed T0303 P2 record is in that temporary library, not the user's configured SQLite. File pickers receive predetermined paths; application dialogs and actions remain real. Unexpected message boxes fail the stage instead of hanging. Assertions inspect widget/model/scene state, not OpenGL pixels. Both modes print stage results; demo mode also displays a timed final summary and identifies the failed stage if an assertion fails.
 

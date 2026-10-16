@@ -1,6 +1,6 @@
 # GUI Sandbox
 
-Updated for 2.6.0. Run automated checks without showing test windows; use the
+Updated for 2.7.0. Run automated checks without showing test windows; use the
 visible demonstration only when you explicitly want to watch the simulation.
 
 The existing pytest scenario `tests/gui/test_daily_workflow_smoke.py` drives
@@ -39,8 +39,8 @@ stock changes and completed scenes. Configuration widgets are still real widgets
 | FANUC milling | `milling/fanuc/flange_plate_benchmark.nc` | Complete M30 execution, installed T2/T4 geometry, render scene and full logical playback. Options persistence, HTML statistics and expanded export/reimport remain regression checks. |
 | 3-axis GPU Stock Removal | Same flange | Only with an actual visible OpenGL 4.3+ widget. Real GPU playback and readback must show a lower remaining material height, allocated GPU buffers and complete replay. The machined stock remains visible before the next stage. |
 | FANUC turning | `turning/lathe_cycles_example.nc` | Saved T0101-T0606 specifications, G71/G76 execution and full Stock Removal playback. The bore grows during internal threading while the outside stock contour stays intact. Rewind/replay restores identical final material intervals. |
-| SINUMERIK 3+2 | `milling/sinumerik/5ax_test.mpf`, `stl/test6.stl` | Angled AC table, changing tool orientations, toolpath/playback and positioned STL. Origin/translation assertions remain. |
-| SINUMERIK impeller | `milling/sinumerik/impeller.mpf`, `stl/test7.stl` | Angled BC table, saved T60 taper-ball geometry, playback in 10% sections and final scene. Rotation/section/undo assertions remain; TRANS warnings are reported. |
+| SINUMERIK 3+2 | `milling/test_5ax/5ax_test.mpf`, `stl/test6.stl` | Angled AC table, changing tool orientations, toolpath/playback and positioned STL. Origin/translation assertions remain. |
+| SINUMERIK impeller | `milling/test_5ax/impeller.mpf`, `stl/test7.stl` | Angled BC table, saved T60 taper-ball geometry, playback in 10% sections and final scene. Rotation/section/undo assertions remain; TRANS warnings are reported. |
 
 All NC paths above are relative to `tests/fixtures`. Large multi-axis examples
 use brief real playback and slider sections to keep the demonstration bounded.

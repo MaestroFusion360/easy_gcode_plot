@@ -301,7 +301,7 @@ def test_expanded_bakes_frames_and_linearizes_noncanonical_arc_plane(target, dia
 
 
 def test_real_impeller_reset_has_no_motion_or_unmodeled_frame_warning(fixture_text):
-    result = native(fixture_text("milling/sinumerik/impeller.mpf"), kinematics="5ax_table_bc_angled", home_z=300)
+    result = native(fixture_text("milling/test_5ax/impeller.mpf"), kinematics="5ax_table_bc_angled", home_z=300)
     assert result.ok and result.complete
     step = next(s for s in result.execution_steps if result.program.blocks[s.source_block].raw.strip() == "N14 TRANS")
     assert step.emitted_count == 0

@@ -32,10 +32,15 @@ from app.gcode.reports.kinematics import kinematics_report_fields
 from app.gcode.trace import format_trace_statistics, trace_statistics
 from app.native import NativeRuntimeError, require_packaged_native
 
+MACHINE_TYPE_HELP = (
+    "Machine type (auto: H milling; MPF/SPF turning with native turning signatures, otherwise milling; "
+    "other extensions turning)"
+)
+
 
 def _add_kinematics_option(command: argparse.ArgumentParser) -> None:
     command.add_argument(
-        "--kinematics", metavar="PROFILE_ID", help="Milling rotary-kinematics profile (FANUC or SINUMERIK)"
+        "--kinematics", metavar="PROFILE_ID", help="Milling rotary-kinematics profile (FANUC, SINUMERIK or HEIDENHAIN)"
     )
 
 
@@ -64,7 +69,7 @@ def _add_export_options(command: argparse.ArgumentParser) -> None:
         "--arc-type",
         choices=("auto", "ijk-relative", "ijk-absolute", "radius", "linearized"),
         default="auto",
-        help="Milling expanded arc representation",
+        help="Expanded arc representation",
     )
     command.add_argument("--coordinates", choices=("absolute", "incremental"), default="absolute")
     for name in (
@@ -176,7 +181,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
             "--lang",
             choices=("fanuc_turn", "fanuc_mill"),
             default=None,
-            help="Machine type (default: milling for MPF/SPF/H, turning for other extensions)",
+            help=MACHINE_TYPE_HELP,
         )
         command.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
         command.add_argument(
@@ -212,7 +217,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         "--lang",
         choices=("fanuc_turn", "fanuc_mill"),
         default=None,
-        help="Machine type (default: milling for MPF/SPF/H, turning for other extensions)",
+        help=MACHINE_TYPE_HELP,
     )
     batch.add_argument("--html", type=Path, metavar="DIRECTORY", help="Save one HTML statistics/SVG report per NC file")
     batch.add_argument("--inches", action="store_true", help="Display HTML statistics in inches")
@@ -252,7 +257,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         "--lang",
         choices=("fanuc_turn", "fanuc_mill"),
         default=None,
-        help="Machine type (default: milling for MPF/SPF/H, turning for other extensions)",
+        help=MACHINE_TYPE_HELP,
     )
     batch_export.add_argument("--lathe-gcode-system", choices=("A", "B"), default="A")
     batch_export.add_argument(

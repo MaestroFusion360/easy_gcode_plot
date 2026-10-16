@@ -17,7 +17,7 @@ _SINUMERIK_SUFFIXES = frozenset({".mpf", ".spf"})
 _MODE_RE = re.compile(r"(?<![A-Z_])G\s*(290|291)(?![0-9.])", re.IGNORECASE)
 _NATIVE_RE = re.compile(
     r"(?<![A-Z_])(?:SUPA|CIP|TRANS|ATRANS|ROT|AROT|RPL|SCALE|ASCALE|MIRROR|AMIRROR|MCALL|"
-    r"TRAORI|TRAFOOF|WORKPIECE|CYCLE\d+|POCKET[1-4]|HOLES[12]|LONGHOLE|SLOT[12])\b",
+    r"TRAORI|TRAFOOF|WORKPIECE|DIAMON|DIAMOF|DIAM90|CYCLE\d+|POCKET[1-4]|HOLES[12]|LONGHOLE|SLOT[12])\b",
     re.I,
 )
 
@@ -51,10 +51,22 @@ def has_sinumerik_signature(source: str) -> bool:
     return False
 
 
+def has_sinumerik_turning_signature(source: str) -> bool:
+    """Recognize unambiguous turning constructs, excluding comments and strings."""
+    for raw in str(source).splitlines():
+        code = strip_comments(re.sub(r'"(?:[^"\n]|"")*"', "", raw))
+        if re.search(r"\b(?:DIAMON|DIAMOF|DIAM90|CYCLE(?:93|95|97))\b", code, re.I):
+            return True
+    return False
+
+
 def language_for_path(path: str | Path, language: str | None = None) -> str:
     """Respect an explicit machine type, otherwise use the source container."""
     if language is not None:
         return language
+    if source_dialect_for_path(path) == SOURCE_DIALECT_SINUMERIK and Path(path).is_file():
+        if has_sinumerik_turning_signature(Path(path).read_text(encoding="utf-8", errors="replace")):
+            return "fanuc_turn"
     return "fanuc_turn" if source_dialect_for_path(path) == SOURCE_DIALECT_FANUC else "fanuc_mill"
 
 

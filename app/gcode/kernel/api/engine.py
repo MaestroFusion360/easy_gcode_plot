@@ -105,7 +105,7 @@ def execute(
         try:
             threading_steps = (
                 _threading_step_flags(result.execution_steps)
-                if language == "fanuc_turn"
+                if language == "fanuc_turn" and result.source_dialect != "sinumerik"
                 else (False,) * len(result.execution_steps)
             )
             for step_index, step in enumerate(result.execution_steps):

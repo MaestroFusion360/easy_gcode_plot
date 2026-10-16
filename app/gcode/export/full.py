@@ -63,6 +63,11 @@ def normalize_full_program(result, source, options=None, *, cancelled=None):
             "Klartext FULL formatting is not modeled; use EXPANDED or save the source document",
             code="UNSUPPORTED_HEIDENHAIN_FULL_EXPORT",
         )
+    if result.source_dialect == "sinumerik" and result.language == "fanuc_turn":
+        raise ExportLimitation(
+            "Native SINUMERIK turning FULL formatting is not modeled; use EXPANDED or save the source document",
+            code="UNSUPPORTED_SINUMERIK_TURNING_FULL_EXPORT",
+        )
     _require_complete_export(result, "FULL requires a valid and complete execution result", cancelled)
     if result.program is None or not result.execution_steps:
         raise ValueError("FULL requires source blocks and a complete execution map")

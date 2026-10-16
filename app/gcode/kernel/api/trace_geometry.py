@@ -63,6 +63,8 @@ def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
 
 
 def _motion_with_step_metadata(motion, step, language, threading):
+    threading = threading or motion.threading
+    feed_mode = motion.feed_mode if motion.threading else step.feed_mode
     x_scale = 0.5 if language == "fanuc_turn" else 1.0
     compensation_status = (
         "APPLIED"
@@ -82,7 +84,7 @@ def _motion_with_step_metadata(motion, step, language, threading):
     )
     expected_metadata = (
         x_scale,
-        step.feed_mode,
+        feed_mode,
         step.spindle_rpm,
         step.spindle_mode,
         step.surface_speed_m_min,
@@ -96,7 +98,7 @@ def _motion_with_step_metadata(motion, step, language, threading):
     return replace(
         motion,
         x_scale=x_scale,
-        feed_mode=step.feed_mode,
+        feed_mode=feed_mode,
         spindle_rpm=step.spindle_rpm,
         spindle_mode=step.spindle_mode,
         surface_speed_m_min=step.surface_speed_m_min,

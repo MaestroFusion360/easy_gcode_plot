@@ -1,7 +1,7 @@
-# NC fixture inventory — 2.5.1
+# NC fixture inventory — 2.7.0
 
-Version 2.5.1 registers the supplied Klartext milling programs as native-input
-fixtures. Parser/runtime and GUI regressions are run separately from corpus
+The inventory includes native Klartext and SINUMERIK turning input alongside
+the FANUC/SINUMERIK milling corpus. Parser/runtime and GUI regressions are run separately from corpus
 registration. The 13 contour/drilling programs in `milling/heidenhain/` must execute completely
 and open/plot in the real Qt GUI with configured Home emulation enabled.
 `tests/dialects/test_heidenhain_execution.py` and
@@ -34,6 +34,13 @@ documentation and CI. The table records literal filename references separately
 from directory consumers: `tests/export/test_batch_export_semantics.py` exports
 and replays every NC/MPF file in its three controller directories. Therefore a
 missing literal reference does **not** establish that a fixture is unused.
+
+The two `turning/sinumerik/*.mpf` CAM files both contain CYCLE95 and CYCLE97;
+`sample_no_cycles.mpf` expands drilling, not all turning cycles. Their regression
+requires completion through M30 and checks source-owned geometry. Independent
+synthetic dimension/infeed expectations check the implemented model, not full
+Siemens controller equivalence; CYCLE95 automatic nose compensation remains
+unverified with a configured nonzero nose radius.
 `tests/meta/test_corpus.py` also guards the exact corpus and normalized uniqueness.
 No normalized duplicates were found. Controller/CAM is a regression role, not a
 claim that undocumented files have verified CAM provenance.
@@ -58,11 +65,10 @@ export/reimport coverage. STL files used by Sandbox remain untouched as well.
 | `milling/fanuc/correction_fanuc.nc` | 50 | Controller/CAM integration | yes | - | directory/corpus checks only |
 | `milling/fanuc/cycles_fanuc.nc` | 184 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cycles.py`, `tests/export/test_drilling_operations.py`, `tests/export/test_multiaxis_audit.py` |
 | `milling/fanuc/flange_plate_benchmark.nc` | 291 | Synthetic simulation/regression | yes | yes | `tests/dialects/test_milling_golden.py`, `tests/export/test_cli_batch_export.py`, `tests/export/test_dxf_exporter.py`, `tests/export/test_multiaxis_audit.py`, `tests/gui/test_daily_workflow_smoke.py` |
-| `milling/fanuc/fusion_benchmark_1001.nc` | 2063 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py` |
 | `milling/fanuc/g68_2_cube.nc` | 123 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py`, `tests/dialects/test_milling_twp.py`, `tests/export/test_multiaxis_audit.py` |
 | `milling/fanuc/helical_bore.nc` | 17 | Synthetic simulation/regression | yes | - | directory/corpus checks only |
-| `milling/fanuc/impeller.ptp` | 3540 | Controller/CAM integration | - | - | `tests/dialects/test_milling.py`, `tests/dialects/test_milling_reference_frames.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_multiaxis_profiles.py` |
-| `milling/fanuc/impeller2.ptp` | 3541 | Controller/CAM integration | - | - | `tests/dialects/test_milling.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_multiaxis_profiles.py` |
+| `milling/test_5ax/impeller.ptp` | 3540 | Controller/CAM integration | - | - | `tests/dialects/test_milling.py`, `tests/dialects/test_milling_reference_frames.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_multiaxis_profiles.py` |
+| `milling/test_5ax/impeller2.ptp` | 3541 | Controller/CAM integration | - | - | `tests/dialects/test_milling.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_multiaxis_profiles.py` |
 | `milling/fanuc/inch_spiral.nc` | 16 | Synthetic simulation/regression | yes | - | directory/corpus checks only |
 | `milling/fanuc/incremental_xyz_raster.nc` | 22 | Synthetic simulation/regression | yes | - | directory/corpus checks only |
 | `milling/fanuc/indexed_table_a.nc` | 498 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py`, `tests/dialects/test_milling_golden.py`, `tests/export/test_multiaxis_audit.py` |
@@ -85,8 +91,8 @@ export/reimport coverage. STL files used by Sandbox remain untouched as well.
 | `milling/fanuc/subprogram.nc` | 46 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py`, `tests/export/test_mill_full_program.py` |
 | `milling/fanuc/tapping_fanuc.nc` | 18 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cycles.py` |
 | `milling/fanuc/terraced_ramp.nc` | 24 | Synthetic simulation/regression | yes | - | directory/corpus checks only |
-| `milling/fanuc/test_5ax_ac_fanuc.nc` | 65 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py` |
-| `milling/fanuc/test_5ax_bc_fanuc.nc` | 65 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py` |
+| `milling/test_5ax/test_5ax_ac_fanuc.nc` | 65 | Controller/CAM integration | - | - | `tests/dialects/test_milling.py` |
+| `milling/test_5ax/test_5ax_bc_fanuc.nc` | 65 | Controller/CAM integration | - | - | `tests/dialects/test_milling.py` |
 | `milling/fanuc/toolchange.nc` | 788 | Controller/CAM integration | yes | - | `tests/export/test_drilling_operations.py`, `tests/stock/test_milling_stock_gpu.py`, `tests/stock/test_milling_stock_gui.py`, `tests/tooling/test_tool_discovery.py` |
 | `milling/fanuc/wcs_test.nc` | 99 | Controller/CAM integration | yes | - | `tests/dialects/test_milling.py`, `tests/export/test_mill_full_program.py` |
 | `milling/heidenhain/1001.h` | 128 | Contours, RL/RR/R0, label calls, Cycle 247 and M140 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
@@ -102,25 +108,29 @@ export/reimport coverage. STL files used by Sandbox remain untouched as well.
 | `milling/heidenhain/itnc530_cycl200macro.h` | 38 | FN 6/7 trigonometry and ten-hole Cycle 200 macro | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
 | `milling/heidenhain/sample.h` | 5605 | Large CAM contour, Cycle 32 and F0 diagnostics | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
 | `milling/heidenhain/sample_cr.h` | 2256 | CR arcs, decimal-comma input and STOP M30 | - | - | `tests/dialects/test_heidenhain_execution.py`, `tests/gui/test_gui_state_lifecycle.py` |
-| `milling/sinumerik/5ax_test.mpf` | 5232 | Controller/CAM integration | yes | yes | `tests/dialects/test_sinumerik_cam_setup.py`, `tests/export/test_multiaxis_audit.py`, `tests/gui/test_daily_workflow_smoke.py` |
+| `milling/test_5ax/1001.h` | 1429 | Three-post 3+2/5-axis geometry comparison | - | - | `tests/dialects/test_heidenhain_rotary.py` |
+| `milling/test_5ax/1001.mpf` | 1387 | Three-post 3+2/5-axis geometry comparison | - | - | `tests/dialects/test_heidenhain_rotary.py` |
+| `milling/test_5ax/1001.nc` | 1384 | Three-post 3+2/5-axis geometry comparison | - | - | `tests/dialects/test_heidenhain_rotary.py` |
+| `milling/test_5ax/fusion_benchmark_1001.mpf` | 2207 | CAM drilling/boring/TCP regression | - | - | `tests/dialects/test_fusion_benchmark.py` |
+| `milling/test_5ax/fusion_benchmark_1001.nc` | 2063 | CAM drilling/boring/TCP regression | - | - | `tests/dialects/test_fusion_benchmark.py` |
+| `milling/test_5ax/5ax_test.mpf` | 5232 | Controller/CAM integration | - | yes | `tests/dialects/test_sinumerik_cam_setup.py`, `tests/export/test_multiaxis_audit.py`, `tests/gui/test_daily_workflow_smoke.py` |
 | `milling/sinumerik/contur_2d_sin840d.mpf` | 99 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_native.py`, `tests/export/test_multiaxis_audit.py` |
 | `milling/sinumerik/correction_ijk_sin840d.mpf` | 50 | Controller/CAM integration | yes | - | directory/corpus checks only |
 | `milling/sinumerik/correction_sin840d.mpf` | 51 | Controller/CAM integration | yes | - | directory/corpus checks only |
 | `milling/sinumerik/cycles_sin840d.mpf` | 188 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cycles.py`, `tests/export/test_drilling_operations.py`, `tests/export/test_multiaxis_audit.py` |
 | `milling/sinumerik/ext_cycles.mpf` | 548 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cam_cycles.py` |
-| `milling/sinumerik/fusion_benchmark_1001.mpf` | 2207 | Controller/CAM integration | yes | - | directory/corpus checks only |
-| `milling/sinumerik/impeller.mpf` | 5504 | Controller/CAM integration | yes | yes | `tests/dialects/test_milling_reference_frames.py`, `tests/dialects/test_sinumerik_cam_setup.py`, `tests/dialects/test_sinumerik_frames.py`, `tests/export/test_multiaxis_audit.py`, `tests/gui/test_daily_workflow_smoke.py` |
+| `milling/test_5ax/impeller.mpf` | 5504 | Controller/CAM integration | - | yes | `tests/dialects/test_milling_reference_frames.py`, `tests/dialects/test_sinumerik_cam_setup.py`, `tests/dialects/test_sinumerik_frames.py`, `tests/export/test_multiaxis_audit.py`, `tests/gui/test_daily_workflow_smoke.py` |
 | `milling/sinumerik/macro_drilling.mpf` | 29 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_macro_flow.py` |
 | `milling/sinumerik/no_ext_cycles.mpf` | 548 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cam_cycles.py` |
 | `milling/sinumerik/sinumerik_cam_setup.mpf` | 37 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cam_setup.py` |
 | `milling/sinumerik/sinumerik_cut3dc_unsupported.mpf` | 4 | Compact warning golden; batch input retained | yes | - | directory/corpus checks only |
-| `milling/sinumerik/sinumerik_cycle800.mpf` | 10 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_swivel.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_native_source_formatting.py` |
+| `milling/test_5ax/sinumerik_cycle800.mpf` | 10 | Controller/CAM integration | - | - | `tests/dialects/test_sinumerik_swivel.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_native_source_formatting.py` |
 | `milling/sinumerik/sinumerik_guide_radius.mpf` | 41 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_diameter_rounding.py` |
-| `milling/sinumerik/sinumerik_traori_ac.mpf` | 9 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_tcp.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_native_source_formatting.py` |
-| `milling/sinumerik/smpl_sim08_5ax_sinumerik_mm.mpf` | 639 | Controller/CAM integration | yes | - | `tests/export/test_sim08_conversion.py`, `tests/gui/test_export_file_safety.py`, `tests/gui/test_gui_files.py` |
+| `milling/test_5ax/sinumerik_traori_ac.mpf` | 9 | Controller/CAM integration | - | - | `tests/dialects/test_sinumerik_tcp.py`, `tests/export/test_multiaxis_audit.py`, `tests/export/test_native_source_formatting.py` |
+| `milling/test_5ax/smpl_sim08_5ax_sinumerik_mm.mpf` | 639 | Controller/CAM integration | - | - | `tests/export/test_sim08_conversion.py`, `tests/gui/test_export_file_safety.py`, `tests/gui/test_gui_files.py` |
 | `milling/sinumerik/tapping_sin840d.mpf` | 13 | Controller/CAM integration | yes | - | `tests/dialects/test_sinumerik_cycles.py`, `tests/export/test_multiaxis_audit.py` |
-| `milling/sinumerik/test_5ax_ac_sin840d.mpf` | 63 | Controller/CAM integration | yes | - | directory/corpus checks only |
-| `milling/sinumerik/test_5ax_bc_sin840d.mpf` | 63 | Controller/CAM integration | yes | - | directory/corpus checks only |
+| `milling/test_5ax/test_5ax_ac_sin840d.mpf` | 63 | Controller/CAM integration | - | - | directory/corpus checks only |
+| `milling/test_5ax/test_5ax_bc_sin840d.mpf` | 63 | Controller/CAM integration | - | - | directory/corpus checks only |
 | `milling/sinumerik/text_NX.mpf` | 644 | Controller/CAM integration | yes | - | `tests/dialects/test_m_code_continuation.py` |
 | `turning/basic_turning_cycles.NC` | 237 | Controller/CAM integration | yes | - | `tests/core/test_stabilization.py`, `tests/dialects/test_g72_golden.py`, `tests/dialects/test_turning.py`, `tests/dialects/test_turning_arc_geometry.py`, `tests/dialects/test_turning_golden.py`, `tests/export/test_full_normalizer.py`, `tests/tooling/test_tool_discovery.py` |
 | `turning/compensation_control_off.nc` | 102 | Controller/CAM integration | yes | - | `tests/dialects/test_turning.py`, `tests/dialects/test_turning_golden.py` |
@@ -137,3 +147,5 @@ export/reimport coverage. STL files used by Sandbox remain untouched as well.
 | `turning/simple_programming.nc` | 32 | Controller/CAM integration | yes | - | directory/corpus checks only |
 | `turning/taper_thread.nc` | 21 | Synthetic simulation/regression | yes | - | `tests/dialects/test_turning_golden.py` |
 | `turning/thread.nc` | 89 | Controller/CAM integration | yes | - | `tests/dialects/test_turning.py`, `tests/dialects/test_turning_golden.py`, `tests/export/test_full_normalizer.py` |
+| `turning/sinumerik/sample_cycles.mpf` | 365 | Native XZ turning, CYCLE95/CYCLE97 and CYCLE83 | - | - | `tests/dialects/test_sinumerik_turning.py` |
+| `turning/sinumerik/sample_no_cycles.mpf` | 420 | Same turning cycles with expanded drilling | - | - | `tests/dialects/test_sinumerik_turning.py` |

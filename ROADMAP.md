@@ -2,7 +2,7 @@
 
 ## Current direction
 
-Current development baseline: **2.6.0 (2026-10-16)**. This is the current code baseline; publication/release status is tracked separately. Completed work belongs in [CHANGELOG](CHANGELOG.md), not in the list of future features.
+Current development baseline: **2.7.0 (2026-10-16)**. This is the current code baseline; publication/release status is tracked separately. Completed work belongs in [CHANGELOG](CHANGELOG.md), not in the list of future features.
 
 The 2.0.0 GPU milling-stock milestone, the 2.1.x validation and workflow fixes, toolbar customization in 2.3.x and MDI/Compare in 2.4.0, and the first native Heidenhain iTNC 530 Klartext implementation and GUI stabilization in 2.5.0 are recorded in CHANGELOG.
 
@@ -16,6 +16,7 @@ Development now focuses on expanding useful NC workflows **without duplicating t
 - **Heidenhain output:** an existing `heidenhain_itnc530` EXPANDED post target, distinct from native-source input coverage. Klartext FULL formatting remains unsupported; `.h` source filenames are preserved where applicable.
 - **Generators:** existing hole/grid and pocket workflows emit **ISO G-code and native iTNC Klartext** where supported. The 2.5.0 work added native L/CR fragments and CC/CP helical output, with shared preview/generation validations. This is **not yet a general post-aware generator framework**.
 - **Rotary kinematics:** configurable profiles and Options editing are implemented. Additional pivot/offset geometry and broader machine-layout verification are future work, not implicit support claims.
+- **SINUMERIK turning:** bounded native XZ and ISO-T execution, including supported CYCLE93/95/97 and centerline drilling variants. CYCLE95 automatic nose compensation, controller-equivalent pass optimization, ISO turning canned cycles and a native Siemens turning output post remain future work; see [current coverage](FAQ.md#is-sinumerik-lathe-supported).
 
 ---
 
@@ -95,10 +96,10 @@ Do not replace or overwrite users' existing snippets when installing or updating
 
 The initial lexer, native AST, and bounded Klartext executor are already delivered. Future work should be driven by actual reference programs rather than a claim of complete iTNC compatibility.
 
-RND/CHF geometry is implemented in 2.5.1 for planar local corners, including line/arc RND combinations. The reference corpus includes `6bas154.h` (explicit T4 Ø6 in regression setup) and the manual's `LINEAR` chamfer example. Full-circle/multi-turn neighbors, spatial corners, ambiguous tangent solutions and corners that consume an entire neighboring element remain explicitly diagnosed boundaries; broader controller behavior requires independent reference cases.
+RND/CHF geometry is implemented in 2.6.0 for planar local corners, including line/arc RND combinations. The reference corpus includes `6bas154.h` (explicit T4 Ø6 in regression setup) and the manual's `LINEAR` chamfer example. Version 2.7.0 adds the supported PLANE SPATIAL/RESET and AC/BC M128/TCPM input subset. Full-circle/multi-turn neighbors, spatial corners, ambiguous tangent solutions and corners that consume an entire neighboring element remain explicitly diagnosed boundaries; broader controller behavior requires independent reference cases.
 
-- Evaluate supported Q/QL/QR expressions and control-flow constructs only after defining their scope, state model, limits and diagnostics.
-- Expand `LBL` calls/returns and native cycle execution only with documented semantics and golden reference programs.
+- Extend the existing bounded Q/QL/QR expression and control-flow runtime with defined scope, limits and diagnostics.
+- Expand existing `LBL` call/return and native cycle coverage only with documented semantics and golden reference programs.
 - Preserve native constructs in the AST; do not silently reinterpret unknown Klartext as FANUC/ISO.
 - Maintain Python/Cython parity and separate input-support tables from postprocessor output-support tables.
 - Extend GUI syntax/diagnostic integration together with the implementation, not before it.

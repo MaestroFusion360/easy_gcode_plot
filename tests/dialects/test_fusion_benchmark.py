@@ -22,7 +22,7 @@ def native(source, **options):
 @pytest.mark.parametrize("filename,dialect", [("1001.nc", "fanuc"), ("1001.mpf", "sinumerik")])
 @pytest.mark.parametrize("home_z", [0, 500])
 def test_entire_fusion_benchmark_reaches_m30(filename, dialect, home_z):
-    source = (FIXTURES / dialect / f"fusion_benchmark_{filename}").read_text(encoding="utf-8-sig")
+    source = (FIXTURES / "test_5ax" / f"fusion_benchmark_{filename}").read_text(encoding="utf-8-sig")
     result = execute(source, language="fanuc_mill", source_dialect=dialect, kinematics="5ax_table_ac", home_z=home_z)
     assert result.ok and result.complete, result.diagnostics
     assert not any(d.severity == "error" or d.status == "unsupported" for d in result.diagnostics)

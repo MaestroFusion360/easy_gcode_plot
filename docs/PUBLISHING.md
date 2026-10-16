@@ -97,7 +97,7 @@ Edit the fragments rather than the generated `index.html` files:
 - `src/en/index.html` / `src/ru/index.html`: metadata, asset paths and section order.
 - `header.html`, `hero.html`, `footer.html`: navigation, introduction and footer.
 - `capabilities.html`: command section layout; `controllers/` contains separate
-  FANUC turning, FANUC milling, SINUMERIK ISO-M and native tables.
+  FANUC turning, FANUC milling, SINUMERIK ISO-M/native milling, bounded native/ISO-T turning coverage and HEIDENHAIN input.
 - `visualization.html`: MDI, Compare, 3D playback, STL models, turning stock removal and rotary demonstrations.
 - `tools.html` and `generators.html`: tool library/editor screenshots and all four hole/pocket generator screenshots.
 - `export.html`, `execution.html`, `statistics.html`, `automation.html` and `documentation.html`: the corresponding feature sections.

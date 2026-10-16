@@ -29,6 +29,7 @@ from app.gcode.trace import render_trace, sample_motion, trace_statistics
 
 _MILLING_FIXTURE_DIR = Path(__file__).resolve().parents[1] / "fixtures" / "milling" / "fanuc"
 _FIXTURE_KINEMATICS = {
+    "1001.nc": "5ax_table_ac",
     "fusion_benchmark_1001.nc": "5ax_table_ac",
     "smpl_sim08_5ax_fanuc_mm.nc": "5ax_table_ac",
     "test_5ax_ac_fanuc.nc": "5ax_table_ac",
@@ -43,8 +44,8 @@ _FIXTURE_KINEMATICS = {
     "impeller2.ptp": "5ax_table_ac_angled",
 }
 _MILLING_FIXTURE_CASES = tuple(
-    (path.name, _FIXTURE_KINEMATICS.get(path.name))
-    for path in sorted(_MILLING_FIXTURE_DIR.iterdir())
+    (path.relative_to(_MILLING_FIXTURE_DIR.parent).as_posix(), _FIXTURE_KINEMATICS.get(path.name))
+    for path in sorted((*_MILLING_FIXTURE_DIR.iterdir(), *(_MILLING_FIXTURE_DIR.parent / "test_5ax").iterdir()))
     if path.is_file() and path.suffix.lower() in {".nc", ".ptp"}
 )
 
@@ -315,7 +316,7 @@ def test_g43_4_cancel_keeps_reference_move_contiguous_and_uses_home_z(reference,
 @pytest.mark.parametrize("name,kinematics", _MILLING_FIXTURE_CASES)
 def test_fanuc_mill_fixture_motion_trace_never_teleports_between_adjacent_moves(name, kinematics, fixture_text):
     result = execute(
-        fixture_text(f"milling/fanuc/{name}"),
+        fixture_text(f"milling/{name}"),
         language="fanuc_mill",
         kinematics=kinematics,
         home_z=500.0,

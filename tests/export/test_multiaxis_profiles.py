@@ -195,7 +195,7 @@ def test_indexed_rotary_is_emitted_as_a_separate_frame_and_replays():
 )
 def test_full_fanuc_five_axis_fixture_exports_to_sinumerik_multiaxis(fixture_text, fixture, kinematics):
     original = execute(
-        fixture_text(f"milling/fanuc/{fixture}"),
+        fixture_text(f"milling/test_5ax/{fixture}"),
         language="fanuc_mill",
         kinematics=kinematics,
         home_z=500.0,

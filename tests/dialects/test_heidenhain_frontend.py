@@ -276,7 +276,7 @@ def test_malformed_syntax_has_physical_source_diagnostic(source):
     assert error.raw == source.splitlines()[error.line - 1]
 
 
-@pytest.mark.parametrize("source", ["G1 X1", "PLANE SPATIAL SPA0 SPB0 SPC0", "FN 18: SYSREAD Q1=ID1", "FZ0.1"])
+@pytest.mark.parametrize("source", ["G1 X1", "PLANE VECTOR BX0 BY0 BZ1", "FN 18: SYSREAD Q1=ID1", "FZ0.1"])
 def test_unknown_constructs_fail_closed(source):
     with pytest.raises(HeidenhainParseError) as caught:
         parse_heidenhain_program(source)

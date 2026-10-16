@@ -14,6 +14,7 @@ from app.gcode.kernel.frontend.heidenhain import parse_heidenhain_program
 from app.gcode.kernel.frontend.lang import lex_words, strip_comments
 from app.gcode.kernel.frontend.program import parse_program
 from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
+from app.gcode.kernel.frontend.sinumerik_turning import parse_sinumerik_turning_program
 from app.native import extension, native_symbol
 from app.tools.definitions import (
     DEFAULT_AUTO_TIP_ORIENTATION_BY_DIRECTION,
@@ -317,6 +318,8 @@ def _program_operation_hints(program, turning, cancelled):
         syntax = node.native_syntax
         modal_kind = _native_modal_kind(syntax, modal_kind)
         kind = _operation_kind(node.words, True) if turning else _native_node_operation(node, modal_kind)
+        if turning and syntax is not None and syntax.kind == "turning_cycle":
+            kind = {81: "drill", 82: "drill", 83: "drill", 84: "tap", 93: "groove", 97: "thread"}.get(syntax.cycle_code)
         if active_tool is not None and kind is not None:
             operations.setdefault(active_tool, kind)
     return operations
@@ -370,9 +373,7 @@ def discover_tools(
     else:
         headers, occurrences, operations = _scan_source(source, turning, default_unit_scale, cancelled, comment_test)
     if program is None:
-        program = (
-            parse_sinumerik_program(source) if not turning and source_dialect == "sinumerik" else parse_program(source)
-        )
+        program = _discovery_program(source, turning, source_dialect)
     if program is not None:
         operations = _program_operation_hints(program, turning, cancelled)
         if not turning:
@@ -394,6 +395,13 @@ def discover_tools(
             spec["description"] = description
         tools[key] = spec
     return normalized_tools(tools) if turning else normalized_program_milling_tools(tools)
+
+
+def _discovery_program(source, turning, source_dialect):
+    if source_dialect == "sinumerik":
+        parser = parse_sinumerik_turning_program if turning else parse_sinumerik_program
+        return parser(source)
+    return parse_program(source)
 
 
 def _heidenhain_tool_headers(program):

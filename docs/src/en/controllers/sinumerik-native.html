@@ -1,5 +1,24 @@
 <div class="controller-reference">
   <h3>SINUMERIK 840D native — G290</h3>
+  <p>
+    Native XZ turning is also supported in MPF/SPF: DIAMON/DIAMOF/DIAM90, G33,
+    spindle/CSS with LIMS, WCS, and bounded CYCLE93/95/97 and centerline
+    drilling subsets. Standalone G290/G291 switches select native/ISO-T in
+    turning mode. See the
+    <a
+      href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#is-sinumerik-lathe-supported"
+      >turning coverage and limits</a
+    >. Native turning FULL normalization and a Siemens turning output post are
+    not implemented.
+  </p>
+  <p class="note">
+    CYCLE95 uses the nominal contour; automatic tool-nose correction is
+    unverified for configured nonzero nose radii. Completion does not establish
+    controller equivalence. Allowance and pass-planning differences need
+    independent validation with known tool data; another backplotter is not a
+    normative Siemens reference. The table below describes native milling, whose
+    command policy differs from turning.
+  </p>
   <details class="code-table">
     <summary>SINUMERIK native</summary>
     <div

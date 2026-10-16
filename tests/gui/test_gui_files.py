@@ -258,6 +258,7 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     assert "*.ptp" in nc_filter
     assert "*.h" in nc_filter and "*.H" in nc_filter
     assert main_window_file_ops.HEIDENHAIN_FILE_FILTER in main_window_file_ops.NC_FILE_FILTER.split(";;")
+    assert main_window_file_ops.HEIDENHAIN_FILE_FILTER in main_window_file_ops.SAVE_FILE_FILTER.split(";;")
     assert "*.mpf" not in nc_filter and "*.spf" not in nc_filter
     assert "*.mpf" in main_window_file_ops.SINUMERIK_FILE_FILTER
     assert "*.spf" in main_window_file_ops.SINUMERIK_FILE_FILTER
@@ -271,6 +272,22 @@ def test_file_dialog_filters_and_extensions(monkeypatch, tmp_path):
     window = SimpleNamespace(curFile="", saveFile=lambda path: saved.append(path) or True)
     assert MainWindowFileMixin.saveAs(window) is True
     assert saved == [str(save_target) + ".nc"]
+
+
+@pytest.mark.parametrize("name", ["program", "program.H"])
+def test_save_as_heidenhain_filter_uses_h_extension(monkeypatch, tmp_path, name):
+    saved = []
+    calls = []
+    target = tmp_path / name
+    monkeypatch.setattr(
+        main_window_file_ops.QFileDialog,
+        "getSaveFileName",
+        lambda *args: calls.append(args) or (str(target), main_window_file_ops.HEIDENHAIN_FILE_FILTER),
+    )
+    window = SimpleNamespace(curFile="sample.h", saveFile=lambda path: saved.append(path) or True)
+    assert MainWindowFileMixin.saveAs(window)
+    assert saved == [str(target) + (".h" if not target.suffix else "")]
+    assert calls[0][4] == main_window_file_ops.HEIDENHAIN_FILE_FILTER
 
 
 @pytest.mark.parametrize(
@@ -799,6 +816,24 @@ def test_pasted_native_text_selects_dialect_without_saving_and_follows_undo(qt_a
         window.timer.stop()
         window.deleteLater()
         qt_app.processEvents()
+
+
+def test_sinumerik_turning_mpf_selects_lathe_and_calculates(qt_app, monkeypatch):
+    window = main_window.MainWindow()
+    window.autoUpdateEnabled = False
+    monkeypatch.setattr(window, "scheduleAutoUpdate", lambda **_kwargs: None)
+    path = Path(__file__).resolve().parents[1] / "fixtures/turning/sinumerik/sample_cycles.mpf"
+    try:
+        window._restore_document_mode(False)
+        window.loadFile(str(path))
+        assert window.latheMode
+        assert window._document_source_dialect == "sinumerik"
+        window.updateData()
+        assert window.execution_result.ok, window.execution_result.diagnostics
+        assert window.execution_result.language == "fanuc_turn"
+        assert window.execution_result.program_end == "M30"
+    finally:
+        window.deleteLater()
 
 
 def test_sinumerik_mpf_document_defaults_follow_initial_g290_g291_mode(qt_app, tmp_path, monkeypatch):

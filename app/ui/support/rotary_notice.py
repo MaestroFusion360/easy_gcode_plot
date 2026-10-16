@@ -8,10 +8,19 @@ _PROFILE_ERRORS = {"ROTARY_KINEMATICS_REQUIRED", "UNCONFIGURED_ROTARY_AXIS"}
 
 def _rotary_addresses(program):
     """Read parsed motion facts, excluding comments and macro-call arguments."""
+    blocks = () if program is None else program.blocks
+    native = {
+        word.address[-1]
+        for block in blocks
+        if getattr(block.native_syntax, "kind", None) == "motion"
+        for word in block.native_syntax.positioning_words
+        if word.address in {"A", "B", "C", "IA", "IB", "IC"}
+    }
     return sorted(
-        {
+        native
+        | {
             axis
-            for block in (() if program is None else program.blocks)
+            for block in blocks
             if block.motion_node is not None
             for axis in "ABC"
             if getattr(block.motion_node, axis.lower() + "_expr") is not None

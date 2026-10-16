@@ -124,12 +124,12 @@ FIXTURES = (
     ("fanuc/indexed_table_a.nc", "4ax_table_a"),
     ("fanuc/indexed_table_b.nc", "4ax_table_b"),
     ("fanuc/indexed_table_c.nc", "4ax_table_c"),
-    ("fanuc/impeller.ptp", "5ax_table_bc_angled"),
-    ("fanuc/impeller2.ptp", "5ax_table_ac_angled"),
+    ("test_5ax/impeller.ptp", "5ax_table_bc_angled"),
+    ("test_5ax/impeller2.ptp", "5ax_table_ac_angled"),
     ("sinumerik/contur_2d_sin840d.mpf", None),
     ("sinumerik/cycles_sin840d.mpf", None),
     ("sinumerik/tapping_sin840d.mpf", None),
-    ("sinumerik/sinumerik_traori_ac.mpf", "5ax_table_ac_angled"),
+    ("test_5ax/sinumerik_traori_ac.mpf", "5ax_table_ac_angled"),
 )
 
 
@@ -140,7 +140,7 @@ def test_real_fixture_semantic_replay(fixture_text, fixture, kinematics, target,
     original, _tools, _inferred = execute_program(
         fixture_text(f"milling/{fixture}"),
         language="fanuc_mill",
-        source_dialect="sinumerik" if fixture.startswith("sinumerik/") else "fanuc",
+        source_dialect="sinumerik" if fixture.endswith(".mpf") else "fanuc",
         kinematics=kinematics,
         home_z=500,
         autodetect_arc_type=True,
@@ -174,9 +174,9 @@ def test_tcp_cancel_preserves_physical_position(cancel):
     "fixture,profile,dialect",
     (
         ("fanuc/g68_2_cube.nc", "5ax_table_ac_angled", "fanuc"),
-        ("sinumerik/sinumerik_cycle800.mpf", "5ax_table_ac_angled", "sinumerik"),
-        ("sinumerik/5ax_test.mpf", "5ax_table_ac_angled", "sinumerik"),
-        ("sinumerik/impeller.mpf", "5ax_table_bc_angled", "sinumerik"),
+        ("test_5ax/sinumerik_cycle800.mpf", "5ax_table_ac_angled", "sinumerik"),
+        ("test_5ax/5ax_test.mpf", "5ax_table_ac_angled", "sinumerik"),
+        ("test_5ax/impeller.mpf", "5ax_table_bc_angled", "sinumerik"),
     ),
 )
 def test_tilted_plane_real_fixtures_full_and_expanded(fixture_text, fixture, profile, dialect):
@@ -195,7 +195,7 @@ def test_tilted_plane_real_fixtures_full_and_expanded(fixture_text, fixture, pro
     replay = _replay(full, target, profile, home_z=500, autodetect_arc_type=True, milling_tools=tools)
     assert motion_traces_match(original, replay)
     for post in TARGETS:
-        if fixture in {"sinumerik/5ax_test.mpf", "sinumerik/impeller.mpf"}:
+        if fixture in {"test_5ax/5ax_test.mpf", "test_5ax/impeller.mpf"}:
             with pytest.raises(ExportLimitation) as error:
                 convert_resolved_program(original, post)
             expected = (

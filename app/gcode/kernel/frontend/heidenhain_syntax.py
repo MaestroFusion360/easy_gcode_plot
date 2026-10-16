@@ -31,6 +31,13 @@ class HeidenhainMachineFunction:
 
 
 @dataclass(frozen=True, slots=True)
+class HeidenhainPlane:
+    positioning: str
+    sequence: int = 0
+    table_rotation: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class HeidenhainSyntax:
     kind: str
     command: str
@@ -54,6 +61,7 @@ class HeidenhainSyntax:
     cycle_parameters: tuple[HeidenhainCycleParameter, ...] = ()
     machine_functions: tuple[HeidenhainMachineFunction, ...] = ()
     warnings: tuple[str, ...] = ()
+    plane: HeidenhainPlane | None = None
 
     @property
     def positioning_words(self):

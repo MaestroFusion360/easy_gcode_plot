@@ -179,7 +179,7 @@ def test_native_tcp_reaches_cli_batch_and_export_stays_closed(tmp_path):
 
 
 def test_native_compact_tcp_fixture(fixture_text):
-    result = native(fixture_text("milling/sinumerik/sinumerik_traori_ac.mpf"), kinematics="5ax_table_ac_angled")
+    result = native(fixture_text("milling/test_5ax/sinumerik_traori_ac.mpf"), kinematics="5ax_table_ac_angled")
     assert result.ok and result.complete, result.diagnostics
     assert any(m.arc is not None for m in result.motions)
 

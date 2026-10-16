@@ -183,7 +183,7 @@ def test_rotated_reference_reaches_zero_but_rejects_crossing_wcs_centre(referenc
 
 @pytest.mark.parametrize(
     "path,dialect,kind,home_z",
-    [("fanuc/impeller.ptp", "fanuc", "g53", 500), ("sinumerik/impeller.mpf", "sinumerik", "supa", 300)],
+    [("test_5ax/impeller.ptp", "fanuc", "g53", 500), ("test_5ax/impeller.mpf", "sinumerik", "supa", 300)],
 )
 def test_real_bc_impeller_zero_retract_moves_outward_to_configured_return(path, dialect, kind, home_z, fixture_text):
     profile = "5ax_table_bc_angled"

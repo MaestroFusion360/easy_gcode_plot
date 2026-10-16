@@ -40,9 +40,10 @@
           Choose <strong>EXPANDED EXECUTION</strong> and the target controller.
           Kernel geometry and states are emitted through JSON profiles
           fanuc_mill, fanuc_mill_multiaxis, fanuc_lathe_a, fanuc_lathe_b,
-          sinumerik_iso, sinumerik_840d and sinumerik_840d_multiaxis.
-          <strong>Auto (source controller)</strong> picks the profile matching
-          the source; select an external profile with
+          sinumerik_iso, sinumerik_840d, sinumerik_840d_multiaxis and
+          heidenhain_itnc530. <strong>Auto (source controller)</strong> picks
+          the profile matching the source; SINUMERIK turning currently falls
+          back to FANUC lathe A/B. Select an external profile with
           <code>--post-profile path/to/post.json</code>.
         </p>
         <p>
@@ -160,8 +161,9 @@
           </li>
         </ul>
         <p>
-          Without <code>--lang</code>, analysis selects milling for MPF/SPF and
-          turning for other extensions. For a folder of FANUC milling programs,
+          Without <code>--lang</code>, native turning signatures select turning
+          for MPF/SPF; other MPF/SPF and H files select milling. Other
+          extensions default to turning. For a folder of FANUC milling programs,
           explicitly use <code>--lang fanuc_mill</code>.
         </p>
       </div>
@@ -227,7 +229,7 @@
       </details>
       <p class="note">
         <a
-          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/README.md#cli"
+          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#cli"
           >CLI commands and examples →</a
         >
       </p>

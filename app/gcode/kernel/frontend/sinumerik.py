@@ -167,7 +167,7 @@ def _word_tokens(code):
     }
     modes = {"IC": [], "DC": [], "AC": []}
     while position < len(code):
-        assigned = re.match(r"\s*(ANG|CR|TURN|CHF|CHR|RNDM?|FRCM?|[XYZABCIJKFS])\s*=\s*", code[position:], re.I)
+        assigned = re.match(r"\s*(LIMS|ANG|CR|TURN|CHF|CHR|RNDM?|FRCM?|[XYZABCIJKFS])\s*=\s*", code[position:], re.I)
         if assigned and not re.match(r"(?:IC|DC|AC)\s*\(", code[position + assigned.end() :], re.I):
             start = position + assigned.end()
             end = _expression_end(code, start)
@@ -317,7 +317,7 @@ def _swivel_syntax(arguments):
     return NativeMillingSyntax("swivel", cycle_code=800, cycle_args=args + ("",) * (16 - len(args)))
 
 
-def parse_sinumerik_program(source):
+def parse_sinumerik_program(source, *, token_parser=None):
     """Extend parsed blocks with explicit native lexical facts, keeping raw/index."""
     blocks = []
     for _, block in checkpointed(_parse_source_blocks(source)):
@@ -325,7 +325,7 @@ def parse_sinumerik_program(source):
         # A jump operand N99 is a target, never a source sequence label.
         block = replace(block, nlabel=int(label[1]) if label else None)
         try:
-            parsed = _native_tokens(block.raw)
+            parsed = (token_parser or _native_tokens)(block.raw)
         except SemanticError as error:
             parsed = (), NativeMillingSyntax("invalid_expression", syntax_error=str(error))
         if parsed is None:

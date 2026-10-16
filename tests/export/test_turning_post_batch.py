@@ -43,6 +43,8 @@ def test_all_turning_fixtures_batch_a_to_b_and_back(tmp_path):
             [
                 "batch-export",
                 str(FIXTURES),
+                "--extensions",
+                ".nc",
                 "--lang",
                 "fanuc_turn",
                 "--lathe-gcode-system",

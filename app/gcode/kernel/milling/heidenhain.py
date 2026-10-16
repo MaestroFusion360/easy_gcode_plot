@@ -1,4 +1,4 @@
-"""Native Klartext execution for resolved three-axis CAM paths.
+"""Native Klartext execution for resolved milling CAM paths.
 
 The immutable source AST is consumed directly. Unsupported controller features
 stop the trace at their source block; no intermediate ISO program is generated.
@@ -16,21 +16,30 @@ from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionSt
 from ..frontend.heidenhain import parse_heidenhain_program
 from ..frontend.heidenhain_syntax import HeidenhainSyntax
 from ..geometry.arcs import resolve_arc
-from ..geometry.matrix import IDENTITY, rotation, transform_vector, transpose
+from ..geometry.matrix import IDENTITY, multiply, rotation
 from ..geometry.transform import CoordinateTransform
 from ..runtime.diagnostics import diagnostic_from_exception
 from ..runtime.execution import semantic_instructions
 from .heidenhain_contour import approach_departure
 from .heidenhain_corners import guard_corner, queue_corner, resolve_corner
 from .heidenhain_cycles import DRILLING_CYCLES, execute_cycle
+from .heidenhain_rotary import (
+    RotaryContext,
+    machine_control,
+    machine_target,
+    plane_block,
+    position_rotary,
+    rotary_retract,
+)
 from .heidenhain_values import scalar
+from .kinematics import kinematics_snapshot
 
 _PLANES = {"Z": (17, (0, 1)), "Y": (18, (0, 2)), "X": (19, (1, 2))}
 
 # Machine functions with defined native execution semantics. Other M words are
 # parsed as native facts but have no runtime model, so execution stops instead
 # of silently dropping them.
-_MODELED_M_FUNCTIONS = frozenset({0, 1, 2, 3, 4, 5, 6, 8, 9, 13, 14, 30, 89, 90, 91, 99, 140})
+_MODELED_M_FUNCTIONS = frozenset({0, 1, 2, 3, 4, 5, 6, 8, 9, 13, 14, 30, 89, 90, 91, 94, 99, 126, 127, 128, 129, 140})
 
 
 def _unsupported(message):
@@ -82,6 +91,7 @@ class _State:
     events: list = field(default_factory=list)
     signals: list = field(default_factory=list)
     diagnostics: list = field(default_factory=list)
+    rotary: RotaryContext = field(default_factory=RotaryContext)
 
     def controls(self, syntax, values, block):
         codes = tuple(scalar(function.code, self.parameters) for function in syntax.machine_functions)
@@ -109,6 +119,12 @@ class _State:
             "R",
             "LEN",
             "CCA",
+            "A",
+            "B",
+            "C",
+            "IA",
+            "IB",
+            "IC",
         }
         if unsupported:
             _unsupported("Unsupported Klartext addresses: " + ", ".join(sorted(unsupported)))
@@ -161,6 +177,7 @@ class _State:
     def machine_function(self, code, block):
         if code not in _MODELED_M_FUNCTIONS:
             _unsupported(f"Klartext M function is parsed but not executable: M{code}")
+        machine_control(self, code, block)
         if code in {3, 4, 13, 14, 5}:
             self.spindle_running = code != 5
         if code in {2, 30}:
@@ -190,6 +207,8 @@ class _State:
         if machine:
             if any("I" + axis in values for axis in "XYZ"):
                 _unsupported("Incremental coordinates with M91 are not modeled")
+            if self.rotary.profile is not None:
+                return machine_target(self, values)
             target = list(self.machine(self.position))
             for index, axis in enumerate("XYZ"):
                 if axis in values:
@@ -219,7 +238,7 @@ class _State:
         if syntax.command in {"C", "CR", "CP", "CT"}:
             if machine:
                 _unsupported("Circular M91 positioning is not modeled")
-            clockwise = self.clockwise
+            clockwise = self.clockwise != (plane == 18)
             move = 2 if clockwise != (plane == 18) else 3
             if syntax.command == "CR":
                 radius = values["R"] * self.scale
@@ -230,7 +249,7 @@ class _State:
                 if self.center is None:
                     raise SemanticError("MISSING_HEIDENHAIN_CENTER", "C requires an executed CC definition")
                 delta = tuple(self.center[i] - self.position[i] if i in axes else 0.0 for i in range(3))
-        if target == self.position and move not in {2, 3}:
+        if target == self.position and move not in {2, 3} and not (self.rotary.tcp and self.rotary.changed):
             return
         motion = TraceMotion(
             move,
@@ -265,7 +284,8 @@ class _State:
     def polar_target(self, syntax, values, target, axes):
         if self.center is None:
             raise SemanticError("MISSING_HEIDENHAIN_CENTER", "Polar motion requires CC")
-        a, b = axes
+        # Klartext positive polar angles follow XY / ZX / YZ, not XZ.
+        a, b = axes[::-1] if self.plane == 18 else axes
         start_angle = math.degrees(math.atan2(self.position[b] - self.center[b], self.position[a] - self.center[a]))
         if syntax.command == "CP":
             radius = math.hypot(self.position[a] - self.center[a], self.position[b] - self.center[b])
@@ -287,7 +307,7 @@ class _State:
         previous = next(
             (
                 motion
-                for motion in reversed(self.trace_motions)
+                for motion in reversed(self.motions)
                 if motion.arc is not None
                 and motion.arc.plane == self.plane
                 or math.hypot(
@@ -300,8 +320,7 @@ class _State:
         )
         if previous is None:
             raise SemanticError("MISSING_HEIDENHAIN_TANGENT", "CT requires a preceding contour motion")
-        start = self.machine(self.position)
-        target = self.machine(target)
+        start = self.position
         if previous.arc is not None:
             radial = (start[a] - previous.arc.center[a], start[b] - previous.arc.center[b])
             tangent = (radial[1], -radial[0]) if previous.arc.clockwise else (-radial[1], radial[0])
@@ -316,7 +335,7 @@ class _State:
         factor = (chord[0] ** 2 + chord[1] ** 2) / denominator
         delta = [0.0, 0.0, 0.0]
         delta[a], delta[b] = normal[0] * factor, normal[1] * factor
-        return transform_vector(transpose(self.frame.spatial_rotation), tuple(delta)), factor < 0
+        return tuple(delta), factor < 0
 
     def machine(self, point):
         return self.frame.apply(point)
@@ -324,16 +343,20 @@ class _State:
     def programmed(self, point):
         return self.frame.inverse(point)
 
-    def change_frame(self, *, offset=None, shift=None, degrees=None):
+    def change_frame(self, *, offset=None, shift=None, degrees=None, machine_point=None, machine_center=None):
         """Change coordinates while keeping the machine position and CC center fixed."""
-        machine = self.machine(self.position)
+        machine = self.machine(self.position) if machine_point is None else machine_point
         center = self.machine(self.center) if self.center is not None else None
+        if machine_point is not None:
+            center = machine_center
         self.offset = self.offset if offset is None else offset
         self.local_shift = self.local_shift if shift is None else shift
         self.rotation_degrees = self.rotation_degrees if degrees is None else degrees
         self.frame = CoordinateTransform(
             translation=tuple(self.offset[i] + self.local_shift[i] for i in range(3)),
-            spatial_rotation=rotation((0.0, 0.0, 1.0), self.rotation_degrees),
+            spatial_rotation=multiply(
+                self.rotary.coordinate_rotation(), rotation((0.0, 0.0, 1.0), self.rotation_degrees)
+            ),
         )
         self.position = self.programmed(machine)
         if center is not None:
@@ -351,11 +374,12 @@ class _State:
         self.motion_owners.append(owner)
 
     def machine_motion(self, motion):
-        if motion.arc is not None and motion.plane != 17 and self.rotation_degrees % 360 != 0:
-            _unsupported("Cycle 10 rotated circular motion currently supports the XY plane only")
         start = self.machine((motion.start_x, motion.start_y, motion.start_z))
         end = self.machine((motion.end_x, motion.end_y, motion.end_z))
-        arc = replace(motion.arc, center=self.machine(motion.arc.center)) if motion.arc is not None else None
+        arc = motion.arc
+        if arc is not None:
+            normal = arc.normal or {17: (0, 0, 1), 18: (0, 1, 0), 19: (1, 0, 0)}[arc.plane]
+            arc = replace(arc, center=self.machine(arc.center), normal=self.frame.apply_vector(normal))
         vector = (motion.i, motion.j, motion.k)
         if arc is not None and any(value is not None for value in vector):
             vector = self.frame.apply_vector(tuple(value or 0.0 for value in vector))
@@ -372,6 +396,9 @@ class _State:
             j=vector[1],
             k=vector[2],
             orientation_offset=self.frame.translation,
+            orientation=self.frame.spatial_rotation if self.rotary.profile is not None else None,
+            tool_orientation=self.rotary.orientation(),
+            start_tool_orientation=self.rotary.start_orientation,
         )
 
     def select_datum(self, number, block):
@@ -536,6 +563,8 @@ class _State:
         if not isinstance(syntax, HeidenhainSyntax):
             raise SemanticError("INVALID_HEIDENHAIN_AST", "Execution requires a native Klartext AST")
         guard_corner(self, syntax)
+        self.rotary.start_orientation = self.rotary.orientation()
+        self.rotary.changed = False
         values = {
             word.address: scalar(word.expression, self.parameters)
             for word in syntax.positioning_words
@@ -564,11 +593,15 @@ class _State:
             "center": self.position_block,
             "control": self.position_block,
             "tool": self.position_block,
+            "transform": self.transform_block,
         }
         handler = handlers.get(syntax.kind)
         if handler is None:
             _unsupported("Klartext command is parsed but not executable: " + syntax.command)
         handler(syntax, values, block)
+
+    def transform_block(self, syntax, values, block):
+        plane_block(self, syntax, values, block)
 
     def program_block(self, syntax, _values, _block):
         if syntax.units is not None:
@@ -601,6 +634,7 @@ class _State:
 
     def position_block(self, syntax, values, block):
         machine = self.controls(syntax, values, block)
+        position_rotary(self, syntax, values, block)
         self.retract_tool(syntax, block, machine=machine)
         if syntax.kind == "tool":
             self.tool_call(syntax, block)
@@ -633,6 +667,8 @@ class _State:
                 target[axis] += scalar(parameters["MB"].expression, self.parameters) * self.scale
             else:
                 raise SemanticError("INVALID_HEIDENHAIN_RETRACT", "M140 requires MB distance or MB MAX")
+            if self.rotary.profile is not None:
+                target = rotary_retract(self, parameters, block)
             feed = self.retraction_feed(parameters)
             self.linear(tuple(target), block, move=0 if feed is None else 1, feed=feed)
             self.signals.append(MachineSignal("tool_axis_retract", block.index, "M140"))
@@ -655,7 +691,7 @@ class _State:
                 Diagnostic(
                     "HEIDENHAIN_M140_HOME_EMULATION",
                     "M140 MB MAX is previewed using the configured machine Home, not a physical travel limit; "
-                    "only positive machine-Z retraction is modeled for the vertical three-axis machine",
+                    "positive machine-Z retraction is modeled along the physical spindle axis",
                     "warning",
                     "unverified",
                     block.index + 1,
@@ -762,8 +798,9 @@ def execute_heidenhain(
     tool_resolver=None,
     include_instructions=True,
     arc_tolerance=0.01,
+    kinematics=None,
 ):
-    """Publish the native three-axis trace through the shared kernel contracts."""
+    """Publish native milling geometry and rotary poses through shared contracts."""
     offset = tuple((wcs_offsets or {}).get(54, (0.0, 0.0, 0.0)))
     state = _State(
         tuple(home[i] - offset[i] for i in range(3)),
@@ -774,6 +811,7 @@ def execute_heidenhain(
         emulate_home=emulate_home,
         scale=default_unit_scale,
         arc_tolerance=arc_tolerance,
+        rotary=RotaryContext(profile=kinematics),
     )
     program = None
     block = None
@@ -822,6 +860,10 @@ def execute_heidenhain(
                     signals=tuple(state.signals[signal_count:]),
                     occurrence=occurrence.get(block.index, 0),
                     variables=tuple(sorted(state.parameters.items())),
+                    rotary_angles=tuple(sorted(state.rotary.angles.items())) if kinematics else (),
+                    twp_origin=state.frame.translation if state.rotary.plane is not None else None,
+                    twp_orientation=state.rotary.plane,
+                    tool_axis_control=state.rotary.tcp or state.rotary.plane is not None,
                 )
             )
             occurrence[block.index] = occurrence.get(block.index, 0) + 1
@@ -838,6 +880,7 @@ def execute_heidenhain(
         failed = True
     counts = Counter(state.motion_owners)
     steps = tuple(replace(step, emitted_count=counts[index]) for index, step in enumerate(state.steps))
+    definition, fingerprint = kinematics_snapshot(kinematics)
     return ExecutionResult(
         ok=not failed,
         program=program,
@@ -852,4 +895,9 @@ def execute_heidenhain(
         events=tuple(state.events),
         signals=tuple(state.signals),
         program_end=state.ended,
+        rotary_angles=tuple(sorted(state.rotary.angles.items())) if kinematics else (),
+        rotary_axes=tuple(sorted(kinematics.addresses)) if kinematics else (),
+        kinematics_profile=kinematics.id if kinematics else None,
+        kinematics_definition=definition,
+        kinematics_fingerprint=fingerprint,
     )

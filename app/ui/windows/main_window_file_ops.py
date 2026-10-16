@@ -15,6 +15,7 @@ from app.gcode.execution.source import (
     SOURCE_DIALECT_FANUC,
     SOURCE_DIALECT_HEIDENHAIN,
     SOURCE_DIALECT_SINUMERIK,
+    has_sinumerik_turning_signature,
     sinumerik_initial_mode,
     source_dialect_for_path,
 )
@@ -41,8 +42,8 @@ from app.ui.windows.execution_worker import run_execution
 LOGGER = logging.getLogger(__name__)
 NC_PROGRAM_FILTER = "NC Programs (*.nc *.cnc *.ptp *.tap *.txt)"
 SINUMERIK_FILE_FILTER = "SINUMERIK (*.mpf *.spf)"
-SAVE_FILE_FILTER = f"{NC_PROGRAM_FILTER};;{SINUMERIK_FILE_FILTER};;All files (*)"
 HEIDENHAIN_FILE_FILTER = "HEIDENHAIN iTNC (*.h *.H)"
+SAVE_FILE_FILTER = f"{NC_PROGRAM_FILTER};;{SINUMERIK_FILE_FILTER};;{HEIDENHAIN_FILE_FILTER};;All files (*)"
 NC_FILE_FILTER = (
     "NC Programs (*.nc *.cnc *.ptp *.tap *.txt *.h *.H);;"
     f"{SINUMERIK_FILE_FILTER};;{HEIDENHAIN_FILE_FILTER};;STL models (*.stl);;All files (*)"
@@ -81,6 +82,8 @@ def _configure_document_source_mode(owner, file_name: str, source: str, *, diale
     if dialect == SOURCE_DIALECT_SINUMERIK and mode == SINUMERIK_MODE_SIEMENS:
         setattr(owner, "_document_arc_type", 1)
         setattr(owner, "_document_comment_style", SEMICOLON)
+    if dialect == SOURCE_DIALECT_SINUMERIK and has_sinumerik_turning_signature(source):
+        owner._restore_document_mode(True)  # pylint: disable=protected-access
     comment_style = getattr(owner, "_document_comment_style")
     arc_type = getattr(owner, "_document_arc_type")
     owner.lexer.set_comment_style(comment_style or owner.commentStyle)
@@ -212,7 +215,9 @@ def _export_target(owner):
         path += (
             suffix
             if custom and owner.exportMode == EXPANDED_EXECUTION_MODE
-            else {NC_PROGRAM_FILTER: ".nc", SINUMERIK_FILE_FILTER: ".mpf"}.get(selected_filter, suffix)
+            else {NC_PROGRAM_FILTER: ".nc", SINUMERIK_FILE_FILTER: ".mpf", HEIDENHAIN_FILE_FILTER: ".h"}.get(
+                selected_filter, suffix
+            )
         )
     try:
         protect_source(path, getattr(owner, "curFile", None))
@@ -650,10 +655,21 @@ class MainWindowFileMixin:
 
     def saveAs(self):
         """Prompt for a file path and save the document there."""
-        fileName, selected_filter = QFileDialog.getSaveFileName(self, "Save As", self.curFile or "", SAVE_FILE_FILTER)
+        initial_filter = {
+            ".h": HEIDENHAIN_FILE_FILTER,
+            ".mpf": SINUMERIK_FILE_FILTER,
+            ".spf": SINUMERIK_FILE_FILTER,
+        }.get(Path(self.curFile or "").suffix.casefold(), NC_PROGRAM_FILTER)
+        fileName, selected_filter = QFileDialog.getSaveFileName(
+            self,
+            "Save As",
+            self.curFile or "",
+            SAVE_FILE_FILTER,
+            initial_filter,
+        )
         if fileName:
             if not Path(fileName).suffix:
-                fileName += ".mpf" if selected_filter == SINUMERIK_FILE_FILTER else ".nc"
+                fileName += {SINUMERIK_FILE_FILTER: ".mpf", HEIDENHAIN_FILE_FILTER: ".h"}.get(selected_filter, ".nc")
             if hasattr(self, "_documents"):
                 other = self._document_index_for_path(fileName)
                 if other is not None and other != self._active_document_index:

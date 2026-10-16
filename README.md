@@ -1,20 +1,16 @@
 # Easy G-Code Plot
 
-Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling, SINUMERIK 840D milling (native and ISO-M) and HEIDENHAIN iTNC 530 three-axis Klartext. FANUC/SINUMERIK multi-axis support is described in the [FAQ](FAQ.md).
+Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling, SINUMERIK 840D milling (native and ISO-M), native SINUMERIK XZ turning with bounded ISO-T input, and HEIDENHAIN iTNC 530 Klartext milling. Controller coverage and configured kinematics are described in the [FAQ](FAQ.md).
 
-**New in 2.6.0: rotate fixed milling views around model X/Y/Z axes.** Use **View → Rotate view**, the plot context menu or the View toolbar to enter an angle. Top/Front/Left are supported; ISO/3D and turning are disabled. Camera rotation preserves the toolpath and scale without CNC recalculation.
+**New in 2.7.0: native HEIDENHAIN iTNC 530 indexed 3+2 and continuous five-axis input.** Execute `PLANE SPATIAL/RESET` and rotary positioning with configured kinematics; use `M128/M129` or the supported `FUNCTION TCPM` form for continuous `L` motion on AC/BC tables. Opening `.h`/`.H` selects native Klartext milling automatically. Regression tests compare the supplied FANUC, SINUMERIK and HEIDENHAIN CAM programs across 1182 normalized cutting segments, including arc geometry and tool-axis directions. See the [iTNC input coverage and limits](FAQ.md#heidenhain-itnc-530-input). GPU milling stock removal remains three-axis.
 
-**Also available: MDI and Compare (since 2.4.0), and native HEIDENHAIN iTNC Klartext input (since 2.5.0).** Start with one empty milling document; use **+**, the document list and **×** to manage independent programs. **CNC Functions → Compare** shows aligned, read-only text differences between open buffers or disk files, with synchronized scrolling and Refresh. The **iTNC-code** editor mode highlights Klartext; `.h`/`.H` files automatically select native three-axis milling execution. See the [iTNC input coverage and limits](FAQ.md#heidenhain-itnc-530-input) for executable commands and syntax-only features.
+2.7.0 also adds [native SINUMERIK XZ turning and bounded ISO-T input](FAQ.md#is-sinumerik-lathe-supported): G290/G291 switching, diameter modes and supported CYCLE93/95/97 subsets. CYCLE95 uses nominal-contour geometry and reports unverified automatic nose compensation when applicable; completion is not full controller-equivalence validation. Save As includes the HEIDENHAIN `.h/.H` filter.
 
-**New in 2.3.1: customizable toolbars.** Right-click a toolbar and choose **Customize Toolbars** to choose its buttons. Search and enable static commands such as Tool Library, WCS, Stock, Tokens/Variables and CNC Functions. Choices are saved across restarts; menus and shortcuts stay available. OK applies changes, Cancel discards them, and Restore Defaults restores the compact button set. Recent Files and other dynamic lists are excluded.
-
-**New in 2.3.0: 3D toolpath picking and optional Cimco Like Picking controls.** Click a milling trajectory line or arc to locate its executed movement in the editor and playback slider.
-
-The default controls remain **Shift+left-click to select** and **left-button dragging to pan**. Enable **Options → General → Cimco Like Picking** for **left-click to select** and **right-button dragging to pan**. A right-click without dragging opens the context menu; dragging does not. Middle-button rotation and wheel zoom are available in both modes. The option is off by default, applies on OK and affects milling views; turning controls stay the same.
+**New in 2.6.0: fixed-view rotation, Tokens/Variables and native Klartext contour improvements.** Use **View → Rotate view**, the plot context menu or the View toolbar to rotate Top/Front/Left milling views around model X/Y/Z while preserving the camera center and scale. **Tokens/Variables** inspects FANUC, SINUMERIK and HEIDENHAIN execution state with diagnostic filters and search. Native `RND`/`CHF` construct rounding/chamfers before cutter compensation; a persistent notice helps select missing rotary kinematics.
 
 [3D milling stock removal on the GPU](#3d-milling-stock-removal) follows the remaining material through a three-axis program, lets you inspect the machined surface and saves the current stock as STL. Turning stock removal remains available separately.
 
-Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 with SINUMERIK 840D and FANUC postprocessors. Coverage follows the supported commands and configured kinematics documented below.
+Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312, plus a three-post Fusion project for FANUC, SINUMERIK 840D and HEIDENHAIN iTNC 530. Coverage follows the supported commands and configured kinematics documented below.
 
 [![Build and release](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml/badge.svg)](https://github.com/MaestroFusion360/easy_gcode_plot/actions/workflows/release.yml)
 
@@ -118,7 +114,7 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
 
 ## What it is
 
-Easy G-Code Plot is a desktop workspace for editing CNC programs, inspecting calculated toolpaths, simulating stock removal and exporting NC/DXF geometry. It supports FANUC turning/milling, a documented subset of SINUMERIK 840D native/ISO-M milling and native HEIDENHAIN iTNC 530 three-axis Klartext. Configured 3+2 and five-axis FANUC/SINUMERIK toolpaths have controller-specific limits described in the FAQ.
+Easy G-Code Plot is a desktop workspace for editing CNC programs, inspecting calculated toolpaths, simulating stock removal and exporting NC/DXF geometry. It supports FANUC turning/milling, documented subsets of SINUMERIK 840D native/ISO-M milling and native/ISO-T turning, and native HEIDENHAIN iTNC 530 Klartext milling. Configured 3+2 and five-axis FANUC/SINUMERIK toolpaths have controller-specific limits described in the FAQ.
 
 The GUI and CLI share one CNC execution kernel. Supported behavior, controller limits and diagnostics are described in the [FAQ](FAQ.md). The application does not model a complete physical machine.
 
@@ -223,5 +219,5 @@ MIT License — see [LICENSE.md](LICENSE.md).
 ---
 
 <p align="center">
-  <img src="https://komarev.com/ghpvc/?username=MaestroFusion360-easy-gcode-plot&label=Project+Views&color=blue" alt="Project Views">
+  <img src="https://api.visitorbadge.io/api/VisitorHit?user=MaestroFusion360&repo=easy_gcode_plot&countColor=%230077cc&label=Project%20Views" alt="Project Views">
 </p>

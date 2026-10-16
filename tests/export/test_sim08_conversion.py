@@ -24,7 +24,8 @@ TOLERANCE = 0.000002
 
 def _source(dialect):
     filename = "smpl_sim08_5ax_sinumerik_mm.mpf" if dialect == "sinumerik" else "smpl_sim08_5ax_fanuc_mm.nc"
-    return (FIXTURES / dialect / filename).read_text(encoding="utf-8").replace("_Z_HOME=-10", "_Z_HOME=-200")
+    folder = "test_5ax" if dialect == "sinumerik" else "fanuc"
+    return (FIXTURES / folder / filename).read_text(encoding="utf-8").replace("_Z_HOME=-10", "_Z_HOME=-200")
 
 
 def _geometry(dialect):

@@ -79,8 +79,8 @@ def test_cli_analyze_detects_sinumerik_file_without_lang(tmp_path, capsys, suffi
 def test_cli_explicit_turning_mode_is_not_overridden_by_extension(tmp_path, capsys):
     source = tmp_path / "input.mpf"
     source.write_text("G0 X10\nM30\n")
-    assert main(["analyze", str(source), "--lang", "fanuc_turn"]) == 2
-    assert "UNSUPPORTED_SINUMERIK_ISO_T" in capsys.readouterr().out
+    assert main(["analyze", str(source), "--lang", "fanuc_turn"]) == 0
+    assert "Result: CLEAN" in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

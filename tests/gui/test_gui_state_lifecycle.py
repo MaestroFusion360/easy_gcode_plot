@@ -69,6 +69,32 @@ def test_every_native_fixture_plots_and_exposes_documented_limits(window, name):
     assert window.render_points
 
 
+def test_native_five_axis_cam_program_uses_selected_profile_and_plots(window):
+    fixture = Path(__file__).resolve().parents[1] / "fixtures/milling/test_5ax/1001.h"
+    window.rotaryKinematics = "5ax_table_ac"
+    window.zPosMach = 100
+    window.homeConfigured = True
+    assert window.loadFile(str(fixture))
+    window.autoUpdateTimer.stop()
+    assert window.updateData(show_errors=False)
+    result = window.execution_result
+    assert result.source_dialect == "heidenhain"
+    assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
+    assert result.kinematics_profile == "5ax_table_ac"
+    assert window.render_points
+    assert any(step.tool_axis_control and step.rotary_angles for step in result.execution_steps)
+
+
+def test_native_rotary_notice_identifies_axes_and_offers_profile_selection(window):
+    window.rotaryKinematics = None
+    window.ui.editor.setText("TOOL CALL Z\nL A0 C0 FMAX")
+    window.ui.fileTypeCombo.setCurrentIndex(2)
+    assert not window.updateData(show_errors=False)
+    assert window.execution_result.diagnostics[-1].code == "ROTARY_KINEMATICS_REQUIRED"
+    assert "A, C" in window.rotaryKinematicsNotice.message.text()
+    assert not window.rotaryKinematicsNotice.isHidden()
+
+
 def test_m140_max_uses_z_from_the_real_wcs_g28_dialog(window):
     window.ui.editor.setText("TOOL CALL Z\nL Z-10 FMAX\nL M140 MB MAX")
     window.ui.fileTypeCombo.setCurrentIndex(2)

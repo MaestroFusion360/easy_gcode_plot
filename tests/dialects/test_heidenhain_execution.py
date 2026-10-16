@@ -72,7 +72,7 @@ def test_units_incremental_coordinates_spindle_and_end(unit, scale):
     "axis, plane, point, center, end",
     [
         ("Z", 17, "X1 Y0", "X0 Y0", "X0 Y1"),
-        ("Y", 18, "X1 Z0", "X0 Z0", "X0 Z1"),
+        ("Y", 18, "X1 Z0", "X0 Z0", "X0 Z-1"),
         ("X", 19, "Y1 Z0", "Y0 Z0", "Y0 Z1"),
     ],
 )
@@ -80,7 +80,8 @@ def test_native_circle_direction_plane_and_center(axis, plane, point, center, en
     result = run(f"TOOL CALL 1 {axis}\nL {point} F100\nCC {center}\nC {end} DR+")
     assert result.ok, result.diagnostics
     arc = result.motions[-1].arc
-    assert arc.plane == plane and not arc.clockwise
+    # Positive Klartext rotation follows XY / ZX / YZ around the tool axis.
+    assert arc.plane == plane and arc.clockwise == (plane == 18)
     assert arc.radius == pytest.approx(1) and arc.sweep == pytest.approx(math.pi / 2)
 
 
@@ -102,8 +103,7 @@ def test_machine_move_is_block_local_and_respects_wcs():
 
 _UNSUPPORTED_RUNTIME_FEATURES = frozenset(
     {
-        # Rotary axes, move-back retraction, tool offsets and unmodeled M words
-        # are parsed as native facts but have no runtime semantics.
+        # Retraction without a declared tool axis, tool offsets and unmodeled M words.
         "L X2 A30",
         "L X2 M140 MB MAX",
         "TOOL CALL 1 Z DL1",
@@ -134,7 +134,8 @@ def test_unimplemented_runtime_features_stop_with_source_and_valid_prefix(comman
     if command in _UNSUPPORTED_RUNTIME_FEATURES:
         assert not result.ok and not result.complete
         assert len(result.motions) == 1 and result.motions[0].end_x == 1
-        assert result.diagnostics[-1].code == "UNSUPPORTED_HEIDENHAIN_EXECUTION"
+        expected = "ROTARY_KINEMATICS_REQUIRED" if command == "L X2 A30" else "UNSUPPORTED_HEIDENHAIN_EXECUTION"
+        assert result.diagnostics[-1].code == expected
         assert result.diagnostics[-1].line == 2 and result.diagnostics[-1].raw == command
         return
     # Extended native execution reaches these commands instead of refusing them:

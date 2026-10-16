@@ -106,12 +106,8 @@ def _compare(source, target):
 @pytest.mark.parametrize("kin", ("ac", "bc"))
 @pytest.mark.parametrize("controller", ("fanuc", "sin840d"))
 def test_real_indexed_cli_conversion(kin, controller):
-    folder, extension, target = (
-        ("fanuc", "nc", "sinumerik_840d_multiaxis")
-        if controller == "fanuc"
-        else ("sinumerik", "mpf", "fanuc_mill_multiaxis")
-    )
-    source = FIXTURES / folder / f"test_5ax_{kin}_{controller}.{extension}"
+    extension, target = ("nc", "sinumerik_840d_multiaxis") if controller == "fanuc" else ("mpf", "fanuc_mill_multiaxis")
+    source = FIXTURES / "test_5ax" / f"test_5ax_{kin}_{controller}.{extension}"
     # Keep every trace, export and diagnostic in the requested tmp directory.
     output = ROOT / "tmp/conversion_tests" / f"{kin}_{controller}"
     output.mkdir(parents=True, exist_ok=True)
@@ -157,8 +153,8 @@ def test_real_indexed_cli_conversion(kin, controller):
 def test_original_controller_pair_working_path(kin):
     output = ROOT / "tmp/conversion_tests" / f"pair_{kin}"
     output.mkdir(parents=True, exist_ok=True)
-    a = _trace(FIXTURES / "fanuc" / f"test_5ax_{kin}_fanuc.nc", output / "fanuc.json", f"5ax_table_{kin}")
-    b = _trace(FIXTURES / "sinumerik" / f"test_5ax_{kin}_sin840d.mpf", output / "sinumerik.json", f"5ax_table_{kin}")
+    a = _trace(FIXTURES / "test_5ax" / f"test_5ax_{kin}_fanuc.nc", output / "fanuc.json", f"5ax_table_{kin}")
+    b = _trace(FIXTURES / "test_5ax" / f"test_5ax_{kin}_sin840d.mpf", output / "sinumerik.json", f"5ax_table_{kin}")
     # Both CAM posts share the approach, cut and Z retract. FANUC additionally
     # returns X/Y home, so their complete programs intentionally differ.
     assert len(a["motions"]) == len(b["motions"]) + 1

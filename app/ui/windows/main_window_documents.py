@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PyQt6.Qsci import QsciDocument
 from PyQt6.QtCore import QCoreApplication, QPoint, QSignalBlocker, Qt
-from PyQt6.QtGui import QIcon, QPalette, QPen, QPolygon
+from PyQt6.QtGui import QIcon, QPalette, QPen, QPolygon, QQuaternion
 from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
@@ -393,6 +393,10 @@ class MainWindowDocumentsMixin:
             action.setEnabled(not turning)
         self.ui.actionGrid.setEnabled(turning)
         view.opts["fov"] = 0.01 if turning else 60
+        if turning and "rotation" not in view.opts:
+            view.opts["rotation"] = QQuaternion.fromEulerAngles(
+                view.opts["elevation"] - 90, 0, -view.opts["azimuth"] - 90
+            )
         view.opts["rotationMethod"] = "quaternion" if turning else "euler"
         view.setProjectionMode("perspective" if turning else "orthographic")
         return changed

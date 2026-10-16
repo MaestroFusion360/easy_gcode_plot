@@ -456,7 +456,7 @@ def _position_test6(window, panel, app):
 def _use_impeller_library_tool(window, app):
     """Verify that the unchanged opened source resolves the saved T60 snapshot."""
     opened_lines = window.ui.editor.text().splitlines()
-    fixture_lines = (FIXTURES / "milling/sinumerik/impeller.mpf").read_text(encoding="utf-8").splitlines()
+    fixture_lines = (FIXTURES / "milling/test_5ax/impeller.mpf").read_text(encoding="utf-8").splitlines()
     unchanged = opened_lines == fixture_lines
     assert unchanged, "Sandbox must use the opened fixture without rewriting its source"
     assert window.millingTools["T60"] == IMPELLER_TOOL
@@ -632,7 +632,7 @@ def test_daily_gui_workflow_stays_inside_sandbox(qt_app, monkeypatch, tmp_path):
         _record(results, stage, errors)
         stage = "SINUMERIK 3+2 + test6.stl"
         _new_program(window, qt_app, profile="5ax_table_ac_angled", home=(0, 100))
-        _open_fixture(window, qt_app, paths, FIXTURES / "milling/sinumerik/5ax_test.mpf")
+        _open_fixture(window, qt_app, paths, FIXTURES / "milling/test_5ax/5ax_test.mpf")
         assert window.ui.editor.lexer() is window.lexer
         result = _assert_execution(window, allowed=("UNVERIFIED_CUTTER_COMPENSATION",))
         assert result.kinematics_profile == "5ax_table_ac_angled"
@@ -643,7 +643,7 @@ def test_daily_gui_workflow_stays_inside_sandbox(qt_app, monkeypatch, tmp_path):
         _record(results, stage, errors)
         stage = "SINUMERIK Impeller + test7.stl"
         _new_program(window, qt_app, profile="5ax_table_bc_angled", home=(0, 300))
-        _open_fixture(window, qt_app, paths, FIXTURES / "milling/sinumerik/impeller.mpf")
+        _open_fixture(window, qt_app, paths, FIXTURES / "milling/test_5ax/impeller.mpf")
         _use_impeller_library_tool(window, qt_app)
         result = _assert_execution(window, allowed=("UNMODELED_SINUMERIK_NATIVE",))
         assert result.kinematics_profile == "5ax_table_bc_angled"

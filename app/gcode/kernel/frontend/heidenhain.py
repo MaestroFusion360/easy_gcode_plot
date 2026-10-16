@@ -13,6 +13,7 @@ from ..api.resources import checkpointed
 from .ast import build_program_ast
 from .heidenhain_expression import HeidenhainExpression, HeidenhainExpressionError, compile_heidenhain_expression
 from .heidenhain_lexer import HeidenhainParseError, lex_heidenhain_line, lex_heidenhain_words, scalar_prefix
+from .heidenhain_plane import parse_plane, parse_tcp
 from .heidenhain_syntax import HeidenhainCycleParameter, HeidenhainMachineFunction, HeidenhainSyntax, HeidenhainWord
 from .model import Block, ModalSnapshot, Program
 
@@ -288,6 +289,8 @@ def _syntax(line):
         "QL": _parameter,
         "QR": _parameter,
         "CYCL": _cycle,
+        "PLANE": parse_plane,
+        "FUNCTION": parse_tcp,
     }.get(command)
     if handler is not None:
         return handler(line)

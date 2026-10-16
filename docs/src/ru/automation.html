@@ -40,9 +40,10 @@
           Выберите <strong>EXPANDED EXECUTION</strong> и целевую стойку.
           Геометрия и состояния ядра выводятся через JSON-профили fanuc_mill,
           fanuc_mill_multiaxis, fanuc_lathe_a, fanuc_lathe_b, sinumerik_iso,
-          sinumerik_840d и sinumerik_840d_multiaxis.
+          sinumerik_840d, sinumerik_840d_multiaxis и heidenhain_itnc530.
           <strong>Auto (source controller)</strong> подбирает профиль по
-          источнику; внешний профиль выбирается параметром
+          источнику; для токарного SINUMERIK сейчас выбирается FANUC lathe A/B.
+          Внешний профиль выбирается параметром
           <code>--post-profile path/to/post.json</code>.
         </p>
         <p>
@@ -163,9 +164,10 @@
           </li>
         </ul>
         <p>
-          Без <code>--lang</code> анализ выбирает фрезерный режим для MPF/SPF и
-          токарный для остальных расширений. Для папки фрезерных FANUC-программ
-          явно укажите <code>--lang fanuc_mill</code>.
+          Без <code>--lang</code> нативные токарные команды выбирают токарку для
+          MPF/SPF; остальные MPF/SPF и H выбирают фрезерование. Другие
+          расширения по умолчанию выбирают токарку. Для папки фрезерных
+          FANUC-программ явно укажите <code>--lang fanuc_mill</code>.
         </p>
       </div>
       <div class="workflow" id="batch-export">
@@ -230,7 +232,7 @@
       </details>
       <p class="note">
         <a
-          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/README.md#cli"
+          href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md#cli"
           >Команды CLI и примеры →</a
         >
       </p>

@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.7.0 - 2026-10-16
+
+- Add native SINUMERIK XZ turning input in MPF/SPF with standalone G290/G291 native/ISO-T switching, diameter modes, native units, WCS, spindle/CSS and source-owned execution traces.
+- Expand the supported CYCLE93 rectangular groove, CYCLE95 local-contour rough/finish and CYCLE97 longitudinal thread subsets; reuse centerline drilling cycles and reject unmodeled variants explicitly. Add CAM fixtures and independent dimension/infeed regression tests; document output-post and controller tool-table limitations.
+- Report unverified CYCLE95 automatic tool-nose compensation for configured nonzero nose radii; nominal-contour completion does not establish controller-equivalent cycle geometry.
+- Add the HEIDENHAIN .h/.H Save As filter, select it for existing Klartext documents and append .h when no extension is supplied.
+- Add native HEIDENHAIN iTNC 530 indexed 3+2 execution with PLANE SPATIAL/RESET, STAY/TURN positioning, SEQ branch selection and configured rotary kinematics.
+- Support continuous Klartext L motion with A/B/C under M128/M129 or the supported FUNCTION TCPM form on AC/BC tables; retain start/end tool orientations and rotary state in execution traces.
+- Model M126/M127 shortest-path rotary positioning and M94 angle reduction; report missing profiles, unconfigured axes and unsupported rotary/TCP combinations at their source blocks.
+- Transform native arc centers, normals and IJK vectors into the resolved frame; correct Klartext circular and polar direction handling in the ZX plane.
+- Preserve machine-coordinate M91 positioning and guarded M140 Home retraction with tilted frames and configured WCS offsets.
+- Pass selected kinematics through native HEIDENHAIN execution and extend the GUI rotary notice to detect Klartext axes; add real Qt coverage for loading and calculating the supplied five-axis program.
+- Add an unchanged three-post CAM reference project for FANUC, SINUMERIK 840D and HEIDENHAIN iTNC 530. Compare all 1182 normalized cutting segments, arc geometry, feeds, tools and start/end tool axes, with a 0.002 mm positional tolerance for postprocessor rounding.
+- Consolidate multi-axis regression fixtures under milling/test_5ax and update execution, conversion, export, GUI, corpus and documentation references; preserve the existing reference program contents.
+- Document the supported native rotary/TCP scope and limitations. GPU milling stock removal and the iTNC output post remain restricted to their existing three-axis coverage.
+
 ## 2.6.0 - 2026-10-16
 
 - Add Rotate view for fixed milling Top/Front/Left views, with signed angles around model X/Y/Z axes and preserved camera center, zoom and per-document orientation; ISO/3D and turning remain disabled.

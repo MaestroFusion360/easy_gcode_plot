@@ -246,7 +246,7 @@ def test_documented_compatibility_reset_and_retract_metadata():
 
 @pytest.mark.parametrize("mode", ["expanded", "full", "resolved"])
 def test_fixture_executes_and_export_stays_closed(fixture_text, tmp_path, mode):
-    source = fixture_text("milling/sinumerik/sinumerik_cycle800.mpf")
+    source = fixture_text("milling/test_5ax/sinumerik_cycle800.mpf")
     result = native(source)
     assert result.ok and result.complete, result.diagnostics
     path = tmp_path / "native.mpf"
@@ -287,7 +287,7 @@ def test_incremental_rotary_errors_remain_controlled(command, code):
 
 def test_cycle800_reaches_cli_and_batch_consumers(fixture_text, tmp_path):
     path = tmp_path / "swivel.mpf"
-    path.write_text(fixture_text("milling/sinumerik/sinumerik_cycle800.mpf"), encoding="utf8")
+    path.write_text(fixture_text("milling/test_5ax/sinumerik_cycle800.mpf"), encoding="utf8")
     args = [str(path), "--lang", "fanuc_mill", "--kinematics", "5ax_table_ac_angled"]
     assert main(["trace", *args, "-o", str(tmp_path / "trace.json")]) == 0
     assert main(["analyze", *args]) == 0

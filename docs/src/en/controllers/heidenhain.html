@@ -1,9 +1,10 @@
 <div class="controller-reference">
   <h3>HEIDENHAIN iTNC 530 — native Klartext</h3>
   <p class="prose">
-    Native three-axis milling input in version {{APP_VERSION}}. Opening .h/.H
-    selects Klartext automatically; iTNC-code selects it manually. Unsupported
-    execution stops at the source block with a diagnostic.
+    Native three-axis, indexed 3+2 and AC/BC table TCP input in version
+    {{APP_VERSION}}. Opening .h/.H selects Klartext automatically; iTNC-code
+    selects it manually. Unsupported execution stops at the source block with a
+    diagnostic.
   </p>
   <details class="code-table">
     <summary>HEIDENHAIN iTNC 530 commands and cycles</summary>
@@ -103,10 +104,11 @@
           <tr>
             <td>M140 MB distance / MAX</td>
             <td>
-              Vertical preview retracts along machine Z. MAX uses Z from Home
-              (G28) in WCS with Home emulation enabled, in the positive
-              direction only. The approximation emits a warning and blocks NC
-              trace export; tilted retraction is not modeled.
+              Retraction follows physical machine +Z, mapped through configured
+              table orientation. MAX uses Z from Home (G28) in WCS with Home
+              emulation enabled, in the positive direction only. The
+              approximation emits a warning and blocks NC trace export; physical
+              travel limits are not modeled.
             </td>
           </tr>
           <tr>
@@ -117,10 +119,48 @@
             </td>
           </tr>
           <tr>
-            <td>RND/CHF, M120, rotary axes, PLANE, TCP</td>
+            <td>RND / CHF</td>
             <td>
-              Not executed. Five-axis iTNC processing is outside the current
-              scope.
+              Planar tangent rounding and straight-line chamfers before RL/RR
+              compensation, with block-local feeds.
+            </td>
+          </tr>
+          <tr>
+            <td>A/B/C, IA/IB/IC</td>
+            <td>
+              Rotary indexing requires a matching configured profile, including
+              zero angles. Continuous rotary L motion requires active TCP.
+            </td>
+          </tr>
+          <tr>
+            <td>PLANE SPATIAL SPA/SPB/SPC, PLANE RESET</td>
+            <td>
+              STAY changes the coordinate frame; TURN solves orientation with
+              two rotary joints. SEQ+/SEQ− select the swivel branch. MOVE and
+              TABLE COORD are unsupported.
+            </td>
+          </tr>
+          <tr>
+            <td>M128/M129, FUNCTION TCPM / RESET TCPM</td>
+            <td>
+              Logical tool-tip control on AC/BC tables with PLANE reset. The
+              supported FUNCTION form is F TCP AXIS POS PATHCTRL AXIS. Traces
+              retain start/end tool orientations.
+            </td>
+          </tr>
+          <tr>
+            <td>M126/M127, M94</td>
+            <td>
+              Enable/cancel shortest-path rotary positioning and reduce
+              displayed rotary angles.
+            </td>
+          </tr>
+          <tr>
+            <td>M120, U/V/W, tool offsets DL/DR/DR2</td>
+            <td>
+              Not executed; unsupported operations stop with a source
+              diagnostic. OEM pivot lengths and full machine collision
+              simulation are outside the model.
             </td>
           </tr>
           <tr>
@@ -136,8 +176,10 @@
     </div>
   </details>
   <p class="note">
-    All 11 checked-in Klartext programs have complete execution and Qt plotting
-    regressions with Home emulation enabled. See the
+    The three-post CAM project in milling/test_5ax reaches M30 for FANUC,
+    SINUMERIK and HEIDENHAIN with 5ax_table_ac and Home Z=100. Tests compare
+    1182 normalized cutting segments, arcs and tool axes with a 0.002 mm
+    positional tolerance. GPU stock removal remains three-axis. See the
     <a
       href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md#heidenhain-itnc-530-input"
       >iTNC coverage and parameter limits</a
