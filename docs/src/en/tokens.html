@@ -1,0 +1,77 @@
+<section id="tokens" class="section">
+  <div class="section-heading">
+    <div>
+      <p class="eyebrow">TOKENS AND VARIABLE STATE</p>
+      <h2>Inspect program lines and controller variables</h2>
+    </div>
+    <p class="section-intro">
+      Follow diagnostics and recorded variable values in one inspector for
+      FANUC, SINUMERIK and HEIDENHAIN iTNC.
+    </p>
+  </div>
+  <div class="report-preview">
+    <figure class="screenshot-card">
+      <a
+        href="assets-optimized/tokens_variables.webp"
+        data-gallery="tokens"
+        aria-label="Tokens/Variables inspector with SINUMERIK R assignments"
+        ><img
+          src="assets-optimized/tokens_variables.webp"
+          width="822"
+          height="592"
+          alt="Tokens table showing SINUMERIK R expressions and line diagnostics"
+          loading="lazy"
+          decoding="async"
+      /></a>
+      <figcaption>Tokens/Variables: SINUMERIK R expressions</figcaption>
+    </figure>
+    <div>
+      <h3>Find the relevant blocks</h3>
+      <p>
+        Open <strong>CNC Functions → Tokens/Variables</strong>. The Tokens tab
+        shows source lines, parsed words, support status and diagnostics. Select
+        All, Warnings or Errors and search for text such as <code>T1 M6</code>
+        without recalculating the program. The footer shows the filtered row
+        count; copying and CSV export respect the filters.
+      </p>
+      <h3>Follow values during playback</h3>
+      <p>
+        The Variables tab reads existing execution snapshots at the current
+        playback position. Controller, source line and execution occurrence
+        identify the displayed state, including repeated blocks in loops and
+        subprograms. Inspect values or export them to CSV without running the
+        program again. Stale execution must be updated before viewing its
+        variable state.
+      </p>
+    </div>
+  </div>
+  <div class="feature-grid">
+    <article>
+      <h3>FANUC: <code>#</code></h3>
+      <p>
+        Inspect numbered Macro B variables such as <code>#1</code> and
+        <code>#100</code>, plus named variables such as
+        <code>#&lt;NAME&gt;</code>. Available for turning and milling execution.
+      </p>
+    </article>
+    <article>
+      <h3>SINUMERIK: <code>R</code></h3>
+      <p>
+        Inspect native parameters such as <code>R1</code> and <code>R10</code>,
+        together with recorded named scalar variables. Native identifiers remain
+        distinct from FANUC Macro B identifiers.
+      </p>
+    </article>
+    <article>
+      <h3>HEIDENHAIN iTNC: <code>Q</code></h3>
+      <p>
+        Inspect Klartext <code>Q</code>, <code>QL</code> and <code>QR</code>
+        parameters captured during execution, using their controller names.
+      </p>
+    </article>
+  </div>
+  <p class="note">
+    A clean Tokens table does not guarantee complete execution or a valid
+    toolpath. Check the execution status and diagnostics as well.
+  </p>
+</section>

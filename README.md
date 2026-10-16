@@ -57,7 +57,7 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
         Export
       </td>
       <td align="center" width="50%">
-        <a href="docs/assets-optimized/optons.webp"><img src="docs/assets-optimized/optons.webp" width="400" alt="Options"></a><br>
+        <a href="docs/assets-optimized/options.webp"><img src="docs/assets-optimized/options.webp" width="400" alt="Options"></a><br>
         Options
       </td>
     </tr>
@@ -105,6 +105,10 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
       <td align="center" width="50%">
         <a href="docs/assets-optimized/statistics.html.webp"><img src="docs/assets-optimized/statistics.html.webp" width="400" alt="Toolpath statistics"></a><br>
         Toolpath statistics
+      </td>
+      <td align="center" width="50%">
+        <a href="docs/assets-optimized/tokens_variables.webp"><img src="docs/assets-optimized/tokens_variables.webp" width="400" alt="Tokens/Variables inspector with SINUMERIK R assignments"></a><br>
+        Tokens/Variables · FANUC # / SINUMERIK R / iTNC Q
       </td>
     </tr>
   </table>
