@@ -10,15 +10,18 @@ import math
 import re
 from dataclasses import dataclass, replace
 
-from ...api.resources import SemanticError, checkpoint, require_progress
-from ...api.types import MachineSignal
 from ...frontend.ast import NativeMillingSyntax
-from ...runtime.cycles import CycleOutcome
-from ...runtime.drilling import AxialMove
+from ...machine.cycles import CycleOutcome, apply_cycle_outcome
+from ...machine.drilling import AxialMove
+from ...resources import SemanticError, checkpoint, require_progress
+from ...types import MachineSignal
 from ..sinumerik_parameters import parameter_value
 from ..state import _xyz
 from .drilling import _DRILL_BEHAVIOR, _expand_drilling_cycle, _ResolvedDrillingCycle, boring_path
 from .events import drilling_event
+from .sinumerik_patterns import pattern_positions
+from .sinumerik_pockets import execute_pocket
+from .sinumerik_thread import execute_thread
 
 
 @dataclass(frozen=True)
@@ -267,6 +270,37 @@ def _peck_moves(cycle, scale):
 
 
 def execute_native_cycle(context):
+    syntax = context.block.native_syntax
+    if syntax is not None and syntax.kind == "cycle90":
+        return execute_thread(context, syntax)
+    if syntax is not None and syntax.kind in {"pocket3", "pocket4"}:
+        return execute_pocket(context, syntax)
+    if syntax is not None and syntax.kind in {"holes1", "holes2"}:
+        return _execute_pattern(context, syntax)
+    return _execute_drilling(context)
+
+
+def _execute_pattern(context, syntax):
+    state = replace(context.machine_state, absolute=True)
+    motions, signals, events = [], [], []
+    for x, y in pattern_positions(syntax, state):
+        checkpoint("cycle_iterations")
+        outcome = _execute_drilling(replace(context, machine_state=state, words={"X": x, "Y": y}))
+        apply_cycle_outcome(state, outcome)
+        motions.extend(outcome.motions)
+        signals.extend(outcome.signals)
+        events.extend(outcome.events)
+    return CycleOutcome(
+        True,
+        tuple(motions),
+        tuple(signals),
+        modal_updates=(("spindle_running", state.spindle_running),),
+        position_update=(("x", state.x), ("y", state.y), ("z", state.z)),
+        events=tuple(events),
+    )
+
+
+def _execute_drilling(context):
     state = context.machine_state
     cycle = state.native_cycle
     if cycle is None or not any(axis in context.words for axis in ("X", "Y")):

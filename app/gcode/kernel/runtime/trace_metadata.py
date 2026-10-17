@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from ..api.types import ExecutionStep
-from .execution import CYCLE_CODES, MOTION_CODES
+from ..machine.execution import CYCLE_CODES, MOTION_CODES
+from ..types import ExecutionStep
 
 
 def threading_step_flags(steps: tuple[ExecutionStep, ...]) -> tuple[bool, ...]:

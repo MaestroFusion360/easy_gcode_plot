@@ -2,8 +2,8 @@
 
 import math
 
-from ..api.resources import SemanticError
-from ..api.types import ArcGeometry
+from ..resources import SemanticError
+from ..types import ArcGeometry
 
 
 def cross(a, b):

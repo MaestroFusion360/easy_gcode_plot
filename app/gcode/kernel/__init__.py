@@ -10,20 +10,11 @@ from __future__ import annotations
 
 import sys
 
+from . import conversion as _api_conversion
 from . import geometry as _geometry
-from .api import conversion as _api_conversion
+from . import resources as _api_resources
+from . import types as _api_types
 from .api import execute
-from .api import resources as _api_resources
-from .api import types as _api_types
-from .api.types import (
-    Diagnostic,
-    ExecutionEvent,
-    ExecutionResult,
-    ExecutionStep,
-    MachineSignal,
-    SemanticInstruction,
-    TraceMotion,
-)
 from .compensation import milling as _compensation_milling
 from .compensation import turning as _compensation_turning
 from .frontend import ast as _ast
@@ -53,6 +44,15 @@ from .runtime import trace as _trace
 from .runtime import trace_metadata as _trace_metadata
 from .runtime.interpreter import types as _interpreter_types
 from .turning import cycles as _turning_cycles
+from .types import (
+    Diagnostic,
+    ExecutionEvent,
+    ExecutionResult,
+    ExecutionStep,
+    MachineSignal,
+    SemanticInstruction,
+    TraceMotion,
+)
 
 __all__ = [
     "AstNode",

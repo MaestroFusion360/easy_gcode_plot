@@ -11,8 +11,12 @@ def emit_drilling_operation(lines, step, motions, options, profile, *, direction
     operations = [event.drilling for event in step.events if event.drilling is not None]
     if not operations or not profile.get("cycles"):
         return False
-    if len(operations) != 1 or operations[0].emitted_count != len(motions):
+    if sum(operation.emitted_count for operation in operations) != len(motions):
         raise ValueError("Drilling operation and execution geometry disagree")
+    if len(operations) != 1:
+        # HOLES1/2 owns several complete holes in one executed source block.
+        # Preserve their ordered resolved motions through the regular emitter.
+        return False
     operation = _post_operation(operations[0], options)
     if operation is None:
         return False

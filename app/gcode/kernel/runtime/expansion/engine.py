@@ -5,7 +5,7 @@ from functools import partial
 
 from ...compensation.turning import compensate_profile_segments
 from ...frontend.program import eval_words
-from ..execution import apply_unit_mode, classify_block_codes, retain_modal_turning_cycles
+from ...machine.execution import apply_unit_mode, classify_block_codes, retain_modal_turning_cycles
 from .drilling import _expand_g83, _expand_g84
 from .finishing import _expand_g70
 from .peck import _expand_g74, _expand_g75

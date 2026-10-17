@@ -4,19 +4,20 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from ..frontend.turning_dialect import validate_system
 from ..geometry.coordinates import WcsOffset, WcsOffsets
-from ..runtime.diagnostics import (
+from ..machine.diagnostics import (
     SUPPORTED_TURNING_G_CODES as SUPPORTED_G_CODES,
 )
-from ..runtime.diagnostics import (
+from ..machine.diagnostics import (
     diagnostic_from_exception as _diagnostic_from_exception,
 )
-from ..runtime.events import program_end_code
+from ..machine.events import program_end_code
+from ..resources import ExecutionBudget, ExecutionLimits, active_budget
 from ..runtime.trace_metadata import threading_step_flags as _threading_step_flags
-from ..turning.dialect import validate_system
+from ..types import Diagnostic, ExecutionResult, SemanticInstruction, TraceMotion
 from .arc_source import _effective_arc_type, _invalid_turning_profile_cycles
 from .execution_request import SUPPORTED_LANGUAGES, SUPPORTED_SOURCE_DIALECTS, _execute_impl
-from .resources import ExecutionBudget, ExecutionLimits, active_budget
 from .trace_geometry import (
     ResolvedTrace,
     _motion_with_step_metadata,
@@ -25,7 +26,6 @@ from .trace_geometry import (
     _resolve_milling_compensation,
     _steps_with_emitted_counts,
 )
-from .types import Diagnostic, ExecutionResult, SemanticInstruction, TraceMotion
 
 __all__ = [
     "Diagnostic",
@@ -42,11 +42,11 @@ __all__ = [
 
 
 def _capture_tool_resolver(resolver, resolved_tools):
-    if resolver is None:
+    if resolver is None and resolved_tools["milling_tools"] is None:
         return None
 
     def resolve(program):
-        tools = resolver(program)
+        tools = resolved_tools["milling_tools"] if resolver is None else resolver(program)
         resolved_tools["milling_tools"] = tools
         return tools
 
@@ -121,8 +121,9 @@ def execute(
                     if diagnostic is not None:
                         geometry_diagnostics.append(diagnostic)
                         continue
-                    trace.append(resolved, step_index)
+                    trace.append_resolved(resolved, step_index, result, language)
                 cursor += step.emitted_count
+            trace.finish_contours(result, language)
         except Exception as exc:
             diagnostic = _diagnostic_from_exception(exc, result.program)
             partial_steps = _partial_steps_after_geometry_failure(

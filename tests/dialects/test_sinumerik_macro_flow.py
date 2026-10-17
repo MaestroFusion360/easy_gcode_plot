@@ -47,6 +47,44 @@ def test_while_has_native_ast_and_finishes_at_ten_without_motion():
     assert result.program.ast == _build_program_ast_python(result.program.blocks)
 
 
+@pytest.mark.parametrize("count,expected", [("", 2), (" P=0", 1), (" P=3", 4)])
+@pytest.mark.parametrize("end", ["ENDLABEL:\n", ""])
+def test_repeat_replays_section_then_returns_after_call(count, expected, end):
+    result = native(f"R1=0\nPOSITION:\nR1=R1+1\n{end}REPEAT POSITION{count}\nG0 X=R1\nM30")
+    assert result.ok and result.complete and not result.diagnostics
+    assert parameters(result)[1] == expected
+    assert [m.end_x for m in result.motions] == [expected]
+
+
+def test_repeat_endlabel_does_not_reexecute_intervening_setup():
+    result = native("R1=0\nR2=0\nPOSITION:\nR1=R1+1\nENDLABEL:\nR2=R2+1\nREPEAT POSITION P=2\nM30")
+    assert result.ok and result.complete and parameters(result) == {1: 3, 2: 1}
+
+
+def test_repeat_consumes_shared_iteration_budget():
+    result = native(
+        "POSITION:\nG91 G1 X1 F100\nENDLABEL:\nREPEAT POSITION P=100\nM30", limits=ExecutionLimits(macro_iterations=2)
+    )
+    assert not result.ok and not result.complete and result.program_end is None
+    assert result.diagnostics[-1].code == "RESOURCE_LIMIT"
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "REPEAT MISSING",
+        "POSITION:\nPOSITION:\nREPEAT POSITION",
+        "POSITION:\nENDLABEL:\nREPEAT POSITION P=-1",
+        "POSITION:\nENDLABEL:\nREPEAT POSITION P=1.5",
+        "REPEAT POSITION END_SECTION\nPOSITION:\nENDLABEL:",
+    ],
+)
+def test_repeat_rejects_invalid_or_unmodeled_forms(source):
+    result = native(source + "\nG0 X999")
+    assert not result.ok and not result.complete and not result.motions
+    assert result.diagnostics[0].code in {"FLOW_TARGET_MISSING", "INVALID_SINUMERIK_FLOW", "UNSUPPORTED_SINUMERIK_FLOW"}
+
+
 def test_nested_loops_pair_by_stack_and_skip_zero_iteration_body():
     result = native(
         "R1=0\nR3=0\nWHILE R1<3\nR2=0\nWHILE R2<2\nR3=R3+1\n"

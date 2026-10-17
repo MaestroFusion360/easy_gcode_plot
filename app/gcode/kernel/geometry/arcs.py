@@ -3,8 +3,8 @@
 import math
 from dataclasses import replace
 
-from ..api.resources import SemanticError
-from ..api.types import ArcGeometry
+from ..resources import SemanticError
+from ..types import ArcGeometry, with_motion_endpoints
 
 
 def _resolve_oriented_arc(motion, source_arc_type, tolerance):
@@ -23,14 +23,10 @@ def _resolve_oriented_arc(motion, source_arc_type, tolerance):
     end = inverse((motion.end_x, motion.end_y, motion.end_z))
     delta = inverse((motion.i or 0.0, motion.j or 0.0, motion.k or 0.0), direction=source_arc_type != 2)
     has_ijk = any(v is not None for v in (motion.i, motion.j, motion.k))
-    local = replace(
+    local = with_motion_endpoints(
         motion,
-        start_x=start[0],
-        start_y=start[1],
-        start_z=start[2],
-        end_x=end[0],
-        end_y=end[1],
-        end_z=end[2],
+        start,
+        end,
         i=delta[0] if has_ijk else None,
         j=delta[1] if has_ijk else None,
         k=delta[2] if has_ijk else None,

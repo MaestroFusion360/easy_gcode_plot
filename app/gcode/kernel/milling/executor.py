@@ -6,16 +6,16 @@ from dataclasses import replace
 
 from app.native import native_symbol
 
-from ..api.resources import SemanticError
-from ..api.types import Diagnostic, ExecutionEvent, MachineSignal, TraceMotion
 from ..frontend.ast import SinumerikFlowAstNode
 from ..frontend.program import parse_program
 from ..frontend.sinumerik import parse_sinumerik_program
-from ..runtime.capabilities import controller_capability_gate
-from ..runtime.cycles import CycleContext, apply_cycle_outcome
-from ..runtime.events import main_program_location, program_start_event
-from ..runtime.execution import ProgramRuntime, resolve_program_tools, semantic_instructions
+from ..machine.cycles import CycleContext, apply_cycle_outcome
+from ..machine.events import main_program_location, program_start_event
+from ..machine.execution import ProgramRuntime, resolve_program_tools, semantic_instructions
+from ..resources import SemanticError
+from ..types import Diagnostic, ExecutionEvent, MachineSignal, TraceMotion
 from .block import _BlockAction, _BlockOutcome, _MillingExecutionContext, _PreparedMillingBlock
+from .controller import controller_capability_gate
 from .cycles.sinumerik import execute_native_cycle
 from .diagnostics import _apply_milling_tool_change, _execution_diagnostic
 from .kinematics import MachineKinematics, effective_orientation, kinematics_snapshot, rotary_limit_violations
@@ -31,7 +31,7 @@ from .policy import (
     _validate_milling_block,
 )
 from .result import MillingOutput
-from .sinumerik_flow import build_native_loop_maps, native_flow_destination
+from .sinumerik_flow import build_native_loop_maps, build_native_repeat_maps, native_flow_destination
 from .sinumerik_native import (
     apply_native_declaration,
     apply_native_tcp_edge,
@@ -529,7 +529,7 @@ def _execute_milling_block(ctx: _MillingExecutionContext, block) -> _BlockOutcom
     if early_outcome is not None:
         return early_outcome
 
-    # Phases 3–5 validate and apply state before program-flow transfer.
+    # Phases 3Р Р†Р вЂљРІР‚Сљ5 validate and apply state before program-flow transfer.
     ctx.state.native_spindle_semantics = ctx.runtime.controller_mode == "sinumerik_native"
     early_outcome, prepared = _prepare_milling_block_state(ctx, block, evaluated_block, occurrence_events)
     if early_outcome is not None:
@@ -564,11 +564,12 @@ def execute_milling(
     program = parsed_program
     if program is None:
         program = parse_sinumerik_program(source) if source_dialect == "sinumerik" else parse_program(source)
-    resolve_program_tools(program, None, tool_resolver)
+    tools = resolve_program_tools(program, None, tool_resolver)
     program_start_block, program_number = main_program_location(program)
     ox, oy, oz = _wcs_offset(wcs_offsets, 54)
     state = MillState(
         native_feed_scale=default_unit_scale,
+        tools=tools or {},
         kinematics=kinematics,
         x=home[0] - ox,
         y=home[1] - oy,
@@ -608,6 +609,7 @@ def execute_milling(
         _validate_boring_tapping_configuration(state)
         if source_dialect == "sinumerik":
             state.native_loop_pairs = build_native_loop_maps(program)
+            state.native_repeat_ranges = build_native_repeat_maps(program)
         _validate_g83_clearance(state.g83_clearance)
         while 0 <= runtime.pc < len(program.blocks):
             simple_blocks_available = (

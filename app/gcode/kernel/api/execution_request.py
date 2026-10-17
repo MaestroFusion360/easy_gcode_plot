@@ -4,8 +4,10 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from ..conversion import trace_motion as _trace_motion
 from ..frontend.model import Motion, Point2, Program
 from ..frontend.program import parse_program, try_wcs_from_gcode, x_delta_to_diameter, x_value_to_diameter
+from ..frontend.turning_dialect import validate_system
 from ..geometry.coordinates import (
     WcsOffsets,
 )
@@ -27,18 +29,16 @@ from ..geometry.coordinates import (
 from ..geometry.coordinates import (
     turning_wcs_offsets as _turn_wcs_offsets,
 )
+from ..machine.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
+from ..machine.events import program_end_code
+from ..machine.execution import resolve_program_tools
+from ..machine.execution import semantic_instructions as _semantic_instructions
 from ..milling import execute_milling
 from ..milling.heidenhain import execute_heidenhain
 from ..milling.kinematics import InvalidKinematicsProfile, load_catalog
-from ..runtime.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
-from ..runtime.events import program_end_code
-from ..runtime.execution import resolve_program_tools
-from ..runtime.execution import semantic_instructions as _semantic_instructions
 from ..runtime.trace import build_source_motion_trace_with_steps as _build_source_motion_trace_with_steps
-from ..turning.dialect import validate_system
 from ..turning.sinumerik import execute_sinumerik_turning
-from .conversion import trace_motion as _trace_motion
-from .types import Diagnostic, ExecutionResult
+from ..types import Diagnostic, ExecutionResult
 
 SUPPORTED_SOURCE_DIALECTS = frozenset({"fanuc", "sinumerik", "heidenhain"})
 
@@ -104,6 +104,7 @@ def _execute_impl(
     tool_resolver=None,
     parsed_program=None,
     geometry_tolerance=0.01,
+    turning_correction_enabled=True,
 ) -> ExecutionResult:
     """Parse, compile, and trace a FANUC turning program.
 
@@ -204,6 +205,7 @@ def _execute_impl(
         include_instructions=include_instructions,
         geometry_tolerance=geometry_tolerance,
         sinumerik_840d_sl=sinumerik_840d_sl,
+        turning_correction_enabled=turning_correction_enabled,
     )
 
 
@@ -228,6 +230,7 @@ def _execute_turning(
     include_instructions,
     geometry_tolerance,
     sinumerik_840d_sl,
+    turning_correction_enabled,
 ):
     lathe_gcode_system = validate_system(lathe_gcode_system)
     program: Program | None = None
@@ -252,6 +255,7 @@ def _execute_turning(
                 include_instructions=include_instructions,
                 tolerance=geometry_tolerance,
                 solution_line=sinumerik_840d_sl,
+                correction_enabled=turning_correction_enabled,
             ),
             wcs_offsets=_result_wcs_offsets(turn_offsets),
             extended_wcs_offsets=_result_extended_wcs_offsets(turn_offsets),
@@ -279,7 +283,7 @@ def _execute_turning(
             x_delta_to_diameter_fn=x_delta_to_diameter,
             motion_ctor=Motion,
             point_ctor=Point2,
-            tools=tools,
+            tools=tools if turning_correction_enabled else {},
             diagnostics=execution_diagnostics,
         )
         unsupported += tuple(execution_diagnostics)

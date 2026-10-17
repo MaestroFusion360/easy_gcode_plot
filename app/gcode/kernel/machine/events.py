@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..api.types import ExecutionEvent
+from ..types import ExecutionEvent
 
 PROGRAM_START = "program_start"
 PROGRAM_END = "program_end"

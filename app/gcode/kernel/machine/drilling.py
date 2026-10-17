@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..api.resources import checkpoint, require_progress
+from ..resources import checkpoint, require_progress
 
 
 @dataclass(frozen=True)

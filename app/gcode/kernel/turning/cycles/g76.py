@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 
-from ...api.resources import SemanticError, checkpoint, require_progress
 from ...frontend.model import Motion, Point2
 from ...frontend.program import radius_to_diameter
+from ...resources import SemanticError, checkpoint, require_progress
 from .common import add_motion, add_motion_with_meta
 
 _G76_TOOL_ANGLES = frozenset({0, 29, 30, 55, 60, 80})

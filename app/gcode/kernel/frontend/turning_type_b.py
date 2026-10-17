@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .type_a import TYPE_A_OPERATIONS, TYPE_A_SUPPORTED_G_CODES, TurningOperation
+from .turning_type_a import TYPE_A_OPERATIONS, TYPE_A_SUPPORTED_G_CODES, TurningOperation
 
 # These source codes select existing turning operations. G90/G91 only update
 # Type B distance state, so they have no Type A executor G-code equivalent.

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..frontend.program import EvaluatedWords
-from .type_a import TYPE_A_SUPPORTED_G_CODES, TurningOperation, type_a_operation
-from .type_b import TYPE_B_SUPPORTED_G_CODES, TYPE_B_TO_CANONICAL, type_b_operation
+from .program import EvaluatedWords
+from .turning_type_a import TYPE_A_SUPPORTED_G_CODES, TurningOperation, type_a_operation
+from .turning_type_b import TYPE_B_SUPPORTED_G_CODES, TYPE_B_TO_CANONICAL, type_b_operation
 
 TYPE_A = "A"
 TYPE_B = "B"

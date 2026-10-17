@@ -1,0 +1,11 @@
+{
+  "path": ["app/gcode"],
+  "format": ["python"],
+  "formatsExts": {"python": ["py", "pyx"]},
+  "minLines": 8,
+  "minTokens": 80,
+  "mode": "weak",
+  "ignore": ["**/__pycache__/**"],
+  "reporters": ["json", "markdown"],
+  "output": "tmp/gcode-analysis/exact"
+}

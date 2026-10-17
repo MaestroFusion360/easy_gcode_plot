@@ -1,0 +1,7 @@
+; PRIMER1.NC: isolated classic POCKET4 operation.
+T="SF10"
+M6
+S2800 M3
+G90 G94 G17 G0 X0 Y0 Z2
+POCKET4(2,0,1,-5,15,0,0,0,0,0,800,1300,0,21,5,,,2,0.5)
+M30

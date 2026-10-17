@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ...runtime.cycles import CycleContext, CycleOutcome
+from ...machine.cycles import CycleContext, CycleOutcome
 
 
 def adapt_cycle_emission(context: CycleContext, dispatch, motions) -> CycleOutcome:

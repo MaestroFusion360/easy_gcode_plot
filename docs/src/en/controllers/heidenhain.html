@@ -81,10 +81,29 @@
             </td>
           </tr>
           <tr>
+            <td>CYCL DEF 220/221</td>
+            <td>
+              DEF-active circular/grid patterns execute the previous supported
+              machining cycle at each position. Explicit Q parameters and R0 are
+              required; no extra CYCL CALL triggers the pattern.
+            </td>
+          </tr>
+          <tr>
+            <td>CYCL DEF 251/252/262</td>
+            <td>
+              Rectangular/circular pocket roughing and finishing; internal
+              thread milling with analytic helices. XY/Z, R0, M3/M4 and cutter
+              geometry are required. Helical/reciprocating pocket roughing needs
+              an explicit tool ANGLE. Unsupported variants are diagnosed;
+              internal passes are not independently controller-verified.
+            </td>
+          </tr>
+          <tr>
             <td>Q cycle continuations, Q208=MAX</td>
             <td>
               Cycle parameters are consumed in execution order; symbolic rapid
-              retraction feed is supported for cycles 202/203.
+              retraction feed is supported for cycles 202/203. Q253 MAX/FMAX
+              selects rapid pre-positioning in cycles 204/205/241/262.
             </td>
           </tr>
           <tr>

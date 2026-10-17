@@ -10,12 +10,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..api.resources import ExecutionError, SemanticError, active_budget, checkpoint, checkpointed
-from ..api.types import ExecutionEvent, SemanticInstruction
 from ..frontend.lang import MACRO_NULL, eval_condition, evaluate_expression
 from ..frontend.program import EvaluatedWords, eval_words
-from ..turning.dialect import canonical_words
-from ..turning.type_a import TYPE_A_CYCLES, TYPE_A_MOTION
+from ..frontend.turning_dialect import canonical_words
+from ..frontend.turning_type_a import TYPE_A_CYCLES, TYPE_A_MOTION
+from ..resources import ExecutionError, SemanticError, active_budget, checkpoint, checkpointed
+from ..types import ExecutionEvent, SemanticInstruction
 from .events import g65_call_event, program_flow_events
 from .signals import signals_for_words
 

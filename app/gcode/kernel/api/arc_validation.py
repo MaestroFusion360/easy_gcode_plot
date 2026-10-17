@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import math
 
-from .resources import SemanticError
-from .types import TraceMotion
+from ..resources import SemanticError
+from ..types import TraceMotion
 
 
 def _ijk_radius_mismatch(motion: TraceMotion, source_arc_type: int) -> float | None:

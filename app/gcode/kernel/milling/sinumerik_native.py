@@ -9,12 +9,12 @@ application's configured reference return, shared with FANUC G53.
 import math
 from dataclasses import replace
 
-from ..api.resources import SemanticError
-from ..api.types import Diagnostic, ExecutionEvent
 from ..frontend.lang import WordToken
 from ..frontend.program import EvaluatedWords
-from ..runtime.execution import EvaluatedBlock, classify_block_codes
-from ..runtime.signals import signals_for_words
+from ..machine.execution import EvaluatedBlock, classify_block_codes
+from ..machine.signals import signals_for_words
+from ..resources import SemanticError
+from ..types import Diagnostic, ExecutionEvent
 from .cycles.sinumerik import compile_native_cycle
 from .sinumerik_feed import native_feed_diagnostic
 from .sinumerik_frame import apply_frame, compile_frame
@@ -24,8 +24,8 @@ from .sinumerik_swivel import apply_swivel, compile_swivel
 from .state import _activate_tcp, _cancel_tcp
 
 IGNORED_NATIVE_G_CODES = frozenset(range(505, 600)) | {601, 641, 642, 645}
-NATIVE_G_CODES = IGNORED_NATIVE_G_CODES | frozenset({41, 42, 60, 64, 70, 71, 93, 96, 97, 500, 700, 710, 961, 971})
-IGNORED_CONTOUR_WORDS = frozenset({"CHF", "CHR", "RND", "RNDM", "FRC", "FRCM"})
+NATIVE_G_CODES = IGNORED_NATIVE_G_CODES | frozenset({41, 42, 60, 64, 70, 71, 93, 96, 97, 450, 500, 700, 710, 961, 971})
+IGNORED_CONTOUR_WORDS = frozenset({"CHF", "RNDM", "FRC", "FRCM"})
 
 
 def native_operation_code(block):
@@ -39,8 +39,8 @@ def native_operation_code(block):
         token.letter == "F" for token in block.parsed_words
     ):
         return "DWELL_F"
-    if syntax.supa:
-        return "SUPA"
+    if syntax.supa or syntax.tool_center_feed:
+        return "SUPA" if syntax.supa else "CFTCP"
     for token in block.parsed_words:
         if token.letter in {"CR", "D", "TURN"} or token.letter == "G" and float(token.expr) in NATIVE_G_CODES:
             return token.letter + token.expr
@@ -370,8 +370,10 @@ def _normalize_native_dwell(evaluated, block_index):
 
 
 def _remove_path_control(words):
-    if any(g in {60, 64} | IGNORED_NATIVE_G_CODES for g in words.all("G")):
-        words._all["G"] = [g for g in words.all("G") if g not in {60, 64} | IGNORED_NATIVE_G_CODES]  # pylint: disable=protected-access
+    # G450 selects the circular outside-corner joins already used by the
+    # compensation engine. CFTCP likewise uses its tool-center feed contract.
+    if any(g in {60, 64, 450} | IGNORED_NATIVE_G_CODES for g in words.all("G")):
+        words._all["G"] = [g for g in words.all("G") if g not in {60, 64, 450} | IGNORED_NATIVE_G_CODES]  # pylint: disable=protected-access
         if words.all("G"):
             words["G"] = words.all("G")[-1]
         else:
@@ -410,7 +412,7 @@ def _native_modal_cycle_diagnostic(block, evaluated, state):
 
 
 def _normalize_native_declaration(block, evaluated, state):
-    if block.native_syntax.kind in ("real_declaration", "named_assignment"):
+    if block.native_syntax.kind in ("real_declaration", "integer_declaration", "named_assignment"):
         return replace(evaluated, native_payload=compile_variables(block.native_syntax, state)), None
     if block.native_syntax.kind in ("swivel", "cycle", "programmed_frame"):
         return _compile_native_declaration(block, evaluated, state)
@@ -477,6 +479,7 @@ def apply_native_declaration(block, evaluated, state, events):
         "traori",
         "trafoof",
         "real_declaration",
+        "integer_declaration",
         "named_assignment",
         "hsc_ignored",
         "unmodeled",
@@ -485,7 +488,7 @@ def apply_native_declaration(block, evaluated, state, events):
         "programmed_frame",
     ):
         return False
-    if syntax.kind in ("real_declaration", "named_assignment", "programmed_frame"):
+    if syntax.kind in ("real_declaration", "integer_declaration", "named_assignment", "programmed_frame"):
         _apply_native_data(syntax, evaluated.native_payload, state)
     elif syntax.kind in ("hsc_ignored", "unmodeled", "compof", "main_spindle"):
         pass
@@ -521,3 +524,4 @@ def _apply_native_data(syntax, payload, state):
         apply_frame(payload, state)
     else:
         state.siemens_variables = payload
+        state.siemens_integer_variables.update(syntax.integer_declarations)

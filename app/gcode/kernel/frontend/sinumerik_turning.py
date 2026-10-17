@@ -3,7 +3,7 @@
 import re
 from dataclasses import dataclass
 
-from ..api.resources import SemanticError
+from ..resources import SemanticError
 from .ast import NativeMillingSyntax
 from .sinumerik import _native_tokens, parse_sinumerik_program
 

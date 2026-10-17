@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ...api.resources import SemanticError
 from ...frontend.model import Motion, Point2, ProfileSegment
 from ...geometry import (
     clip_polyline_max_x,
@@ -11,6 +10,7 @@ from ...geometry import (
     try_find_entry_on_profile,
     try_get_arc_geometry,
 )
+from ...resources import SemanticError
 from .common import _append_profile_trace, add_feed_orthogonal, add_motion, add_motion_with_meta, ensure_cycle_return
 from .passes import roughing_passes
 

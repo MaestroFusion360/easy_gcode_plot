@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from ...api.resources import SemanticError, checkpoint, require_progress
 from ...frontend.model import Motion, Point2, ProfileSegment
 from ...geometry import arc_center_from_r, try_compute_signed_arc_radius_from_center
-from ...runtime.drilling import axial_cycle_moves
+from ...machine.drilling import axial_cycle_moves
+from ...resources import SemanticError, checkpoint, require_progress
 
 
 def add_motion(
@@ -164,6 +164,16 @@ def add_rapid_orthogonal(motions: list[Motion], start: Point2, end: Point2, *, f
     add_motion(motions, 0, middle, end)
 
 
+def profile_arc_words(seg):
+    """Return the unchanged source R/I/K encoding for one profile arc."""
+    r = seg.radius if seg.has_radius else None
+    if r is None and seg.has_center:
+        r = try_compute_signed_arc_radius_from_center(seg.move, seg.start, seg.end, seg.center)
+    i = (seg.center.x - seg.start.x) if seg.has_center else None
+    k = (seg.center.z - seg.start.z) if seg.has_center else None
+    return r, i, k
+
+
 def _append_profile_trace(motions: list[Motion], profile: list[ProfileSegment], feed: float) -> None:
     if not profile:
         return
@@ -177,11 +187,7 @@ def _append_profile_trace(motions: list[Motion], profile: list[ProfileSegment], 
     )
     for seg in profile:
         if seg.move in (2, 3):
-            r = seg.radius if seg.has_radius else None
-            if r is None and seg.has_center:
-                r = try_compute_signed_arc_radius_from_center(seg.move, seg.start, seg.end, seg.center)
-            i = (seg.center.x - seg.start.x) if seg.has_center else None
-            k = (seg.center.z - seg.start.z) if seg.has_center else None
+            r, i, k = profile_arc_words(seg)
             add_motion_with_meta(
                 motions,
                 seg.move,

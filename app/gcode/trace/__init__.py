@@ -7,7 +7,7 @@ interpretation after execution.
 
 from __future__ import annotations
 
-from app.gcode.reports.text import format_tool_list, format_trace_statistics
+from app.gcode.formatting import format_tool_list, format_trace_statistics
 from app.gcode.trace.geometry import RenderPoint, arc_geometry, motion_length
 from app.gcode.trace.sampling import RenderLimitExceeded, render_trace, sample_motion
 from app.gcode.trace.statistics import trace_statistics

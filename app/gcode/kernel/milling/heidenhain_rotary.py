@@ -6,10 +6,10 @@ without OEM pivot lengths, travel limits or controller compensation tables.
 
 from dataclasses import dataclass, field
 
-from ..api.resources import SemanticError
-from ..api.types import Diagnostic, ExecutionEvent
 from ..geometry.matrix import IDENTITY, multiply, rotation, transform_vector, transpose
 from ..geometry.transform import CoordinateTransform
+from ..resources import SemanticError
+from ..types import Diagnostic, ExecutionEvent
 from .heidenhain_values import scalar
 from .kinematics import MachineKinematics, effective_orientation, point_orientation, rotary_limit_violations
 from .twp import solve_table_orientation, supports_twp_kinematics

@@ -3,7 +3,7 @@
 import math
 import operator
 
-from ..api.resources import SemanticError, checkpoint
+from ..resources import SemanticError, checkpoint
 
 _BINARY = {
     "+": operator.add,

@@ -4,12 +4,28 @@ import math
 
 import pytest
 
-from app.tools.definitions import MILLING_TOOL_TYPES
+from app.tools.definitions import DEFAULT_MILLING_TOOL, MILLING_TOOL_TYPES
 from app.tools.discovery import discover_tools
 from app.tools.library import KIND_MILLING, ToolLibrary
 from app.tools.milling_geometry import milling_geometry, milling_geometry_key, milling_tool_profile
 from app.tools.milling_lengths import milling_lengths
-from app.tools.validation import normalized_milling_tools, normalized_tools
+from app.tools.validation import normalized_milling_tools, normalized_program_milling_tools, normalized_tools
+
+
+@pytest.mark.parametrize("tool_type", sorted(MILLING_TOOL_TYPES))
+def test_catalogue_without_lengths_uses_unsplit_application_default(tool_type):
+    raw = {"type": tool_type, "diameter": 10}
+    spec = normalized_milling_tools({"T01": raw})["T1"]
+    assert spec["length"] == DEFAULT_MILLING_TOOL["length"]
+    assert "fluteLength" not in spec and "bodyLength" not in spec
+    assert raw == {"type": tool_type, "diameter": 10}
+    assert normalized_milling_tools({"T1": spec}) == {"T1": spec}
+    assert normalized_program_milling_tools({"T1": raw}) == {}
+
+
+@pytest.mark.parametrize("length", [0, -1, None, "unknown", math.nan, math.inf])
+def test_catalogue_explicit_invalid_length_is_not_replaced_by_default(length):
+    assert normalized_milling_tools({"T1": {"type": "mill_flat", "diameter": 10, "length": length}}) == {}
 
 
 @pytest.mark.parametrize("tool_type", sorted(MILLING_TOOL_TYPES))

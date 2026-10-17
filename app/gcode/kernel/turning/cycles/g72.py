@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ...api.resources import SemanticError
 from ...frontend.model import Motion, Point2, ProfileSegment
 from ...frontend.program import radius_to_diameter
+from ...resources import SemanticError
 from .common import _append_profile_trace, add_motion, add_motion_with_meta, add_rapid_orthogonal, ensure_cycle_return
 from .passes import roughing_passes
 from .profile import _distinct_in_profile_order, _profile_intersections_at_z

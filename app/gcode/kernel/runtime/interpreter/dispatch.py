@@ -6,8 +6,8 @@ from __future__ import annotations
 # pylint: disable=too-many-return-statements
 from ...frontend.ast import CycleAstNode, MotionAstNode
 from ...geometry import apply_a_programming
-from ..execution import retain_modal_turning_cycles
-from ..home import reference_return
+from ...machine.execution import retain_modal_turning_cycles
+from ...machine.home import reference_return
 from .types import CycleDispatch, CycleEmissionDispatch, G28Dispatch, MotionDispatch
 
 _X_AXIS_WORDS = ("X", "U")

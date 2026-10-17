@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-Updated for **2.7.0**: native iTNC rotary/TCP input, bounded SINUMERIK XZ turning, controller-neutral inspection and current GUI workflows.
+Updated for **2.8.0** and the current working tree: iTNC position patterns, pocket and thread-milling cycles; classic SINUMERIK milling cycles; native rotary/TCP input and bounded XZ turning.
 
 This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC, SINUMERIK native/ISO-M milling and native/ISO-T turning, and HEIDENHAIN iTNC 530 Klartext semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
@@ -252,6 +252,8 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [Is SINUMERIK lathe supported?](#is-sinumerik-lathe-supported)
   - [HEIDENHAIN iTNC 530 input](#heidenhain-itnc-530-input)
     - [What HEIDENHAIN support is included?](#what-heidenhain-support-is-included)
+    - [Which pocket and thread-milling cycles are supported?](#which-pocket-and-thread-milling-cycles-are-supported)
+    - [How do position-pattern cycles 220 and 221 execute?](#how-do-position-pattern-cycles-220-and-221-execute)
     - [How are Klartext source, parameters and diagnostics represented?](#how-are-klartext-source-parameters-and-diagnostics-represented)
     - [Which iTNC editor tools and exports are available?](#which-itnc-editor-tools-and-exports-are-available)
     - [How is the iTNC implementation verified?](#how-is-the-itnc-implementation-verified)
@@ -348,7 +350,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
 
 Easy G-Code Plot is a CNC editor, deterministic program executor, analyzer, backplotter and exporter for FANUC turning/milling, SINUMERIK 840D milling and bounded XZ turning, and HEIDENHAIN iTNC 530 Klartext milling programs. Supported native SINUMERIK input includes bounded R expressions and WHILE/GOTO/IF flow, plus CAM-oriented indexed 3+2 and continuous five-axis trajectories on configured rotary profiles; ISO Dialect M is also supported within its documented subset.
 
-Native HEIDENHAIN input covers the documented subset of Klartext contours, Q parameters and drilling cycles; unsupported commands produce explicit diagnostics.
+Native HEIDENHAIN input covers the documented subset of Klartext contours, Q parameters, drilling cycles, position patterns 220/221, pocket cycles 251/252 and thread milling 262; unsupported commands produce explicit diagnostics.
 
 Checked CAM examples include programs generated in Autodesk Fusion 360 and Siemens NX 2312 using postprocessors for SINUMERIK 840D and FANUC. Coverage applies to the tested commands and configured kinematics described in this FAQ.
 
@@ -402,7 +404,7 @@ This separation is intentional: the same resolved geometry is used by playback, 
 
 ### Is the program a machine simulator?
 
-No. Easy G-Code Plot models supported FANUC turning/milling and SINUMERIK 840D milling/native XZ turning program semantics and toolpath geometry, including the supported native SINUMERIK CAM 3+2/five-axis subset. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
+No. Easy G-Code Plot models supported FANUC turning/milling, SINUMERIK 840D milling/native XZ turning and HEIDENHAIN iTNC 530 Klartext milling program semantics and toolpath geometry, including the supported native SINUMERIK CAM 3+2/five-axis subset. It does not model a complete physical CNC machine, servo dynamics, acceleration, spindle inertia, fixtures, machine envelopes or all controller parameters.
 
 A clean result means the modeled program was executed without a known error inside the supported contract. It is not a substitute for machine verification.
 
@@ -488,7 +490,7 @@ Choose **CNC Functions → Compare** or its toolbar button. Select open document
 
 ### What does the iTNC-code source type do?
 
-The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and milling runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241. Cycle 32 retains metadata without simulating controller smoothing. `RND`/`CHF` construct planar rounding/chamfers before existing RL/RR compensation, with block-local feeds. Rotary indexing, PLANE and AC/BC table TCP use configured kinematics; tool offsets DL/DR, auxiliary axes and `M120` remain unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
+The toolbar source chooser and **Settings → Options → General → Default file type** offer Text, ISO G-code and **iTNC-code**. The default persists across restarts. iTNC-code highlights native Klartext motions and comments. Opening `.h`/`.H` selects the HEIDENHAIN source dialect and milling mode automatically; unnamed text is recognized by `BEGIN PGM ... MM/INCH`. The native AST and milling runtime execute straight and circular motion, polar/helical `LP/CP`, `CC/C/CR/CT`, `APPR/DEP` transitions, `TOOL CALL`, feeds, spindle controls, `M91`, Q parameters, label flow and drilling/boring/tapping cycles 1/2 and 200–209/240/241, position patterns 220/221, pocket cycles 251/252 and thread milling 262 within the limits described below. Cycle 32 retains metadata without simulating controller smoothing. `RND`/`CHF` construct planar rounding/chamfers before existing RL/RR compensation, with block-local feeds. Rotary indexing, PLANE and AC/BC table TCP use configured kinematics; tool offsets DL/DR, auxiliary axes and `M120` remain unsupported. Unsupported execution stops with a source diagnostic. See [HEIDENHAIN iTNC 530 input and execution coverage](#heidenhain-itnc-530-input) below.
 
 ### Which input encodings are supported?
 
@@ -2391,12 +2393,17 @@ The table and native/ISO-M transition, cycle and TCP rules below describe **mill
 | `CYCLE83` | Modeled first depth, amount degression, minimum peck depth, chip-breaking/full-retract options and reentry clearance |
 | `CYCLE84` | Metric right/left tapping in G94, including VARI=1/2, DAM/VRT and balanced final pecks; explicit PIT and equal SST/SST1 matching S. SDAC=3/4/5 is retained. |
 | `CYCLE85/86/87/89` | Separate reaming feeds; oriented fine-boring clearance; spindle/operator stop; feed-return boring with dwell. |
+| `POCKET3/POCKET4` | Classic 01/2008 positional interface: 17–23 / 14–19 arguments; rectangular/circular pockets, roughing or finishing, allowances and supported VARI entry strategies. Preformed-blank AP1/AP2/AD variants and extended signatures are diagnosed |
+| `HOLES1/HOLES2` | Six positional arguments; row/circle positions execute the active supported MCALL drilling cycle in G17 without TCP. HOLES1 starts from the nearer row end; HOLES2 accepts omitted/zero INDA for equal spacing |
+| `CYCLE90` | Classic 13-argument thread milling; internal/external TYPTH variants, explicit pitch, G2/G3 direction and analytic multi-turn helices |
 | `TRAORI` / `TRAFOOF` | GUI/CLI/kernel TCP via the common angled AC/BC table core; G0/G1/G2/G3 with configured numeric A/B/C and R references; incremental IC supported; `DC` selects the shortest absolute rotary approach, while an exactly 180-degree ambiguity is rejected |
 | `CYCLE800` | GUI/CLI/kernel static frames: modes 57/54/39/27/30/45, ST0/1/200000/200001/220000/220001, DIR-1/0/1; 14/15/16-argument calls and legacy R_DATA setup are accepted; active-frame reset via empty/bare call or TC="0" |
 | `CIP` | Spatial circle through the start, intermediate I1/J1/K1 and end points, independent of G17/G18/G19. G90/G91 and explicit AC/IC intermediate coordinates are supported. Fixed frames and G40 are required; concurrent rotary motion is rejected. Plot/Playback retain the circle; EXPANDED emits G1 chords within the configured linearization tolerance. |
 | `TRANS/ATRANS`, `ROT/AROT`, `RPL=` | Programmable rigid frames: replacement/reset or composition in local axes, preserving physical tool position. Spatial rotation uses RPY (MD10600=1); RPL rotates in the active plane. Combination with active TWP/TCP, polar mode, cycles or cutter compensation is rejected |
 | `G505`–`G599`, `G601/G641/G642/G645` | Parsed with unverified warnings; their controller-specific effects are not simulated |
 | Unknown auxiliary M codes | Non-blocking `UNSUPPORTED_M_CODE` warnings; motion and known commands in the same block still execute. M2/M30 end programs. Native M17/M96/M97/M99 stop with unsupported-flow diagnostics; M66/M98 warn without subprogram dispatch |
+
+POCKET3/4 and CYCLE90 require G17, G40, G80, feed per minute, no active MCALL and a configured milling cutter diameter through `milling_tools`/`tool_resolver`. TCP, polar and CIP combinations are outside this subset. These calls use the classic 01/2008 signatures regardless of the extended drilling-cycle selector; newer signatures are not silently reinterpreted. Short examples are in [`sinumerik/cycles/`](tests/fixtures/milling/sinumerik/cycles/). Their internal pass sequences have not been independently confirmed against a controller trace.
 
 Unsaved editor text selects native SINUMERIK when executable commands such as SUPA, CIP, MCALL, TRANS or CYCLE800 are present. Comments and quoted strings do not select a dialect; Undo/Redo updates the selection. Named files retain their extension-based source contract.
 
@@ -2505,8 +2512,8 @@ The unmodified three-post project is stored in `tests/fixtures/milling/test_5ax/
 | `M91` | Nonmodal absolute machine XYZ using the configured WCS |
 | `Q/QL/QR`, `FN 0–4/6/7`, expressions | Bounded arithmetic, comparisons, trigonometry and function trees evaluated without `eval`; QL locals are saved across label calls |
 | `LBL`, `CALL LBL`, `REP`, `FN 9–12` | Numeric and named labels, call stack, repeats and conditional `GOTO`; unmatched labels, duplicate definitions and LBL 0 misuse are diagnosed |
-| `CYCL DEF`/`CYCL CALL` | Cycle 32 is metadata only; drilling/boring/tapping cycles 1/2, 200–209 and 240/241 expand to physical geometry; cycle 9 is dwell; unsupported cycle codes stop execution |
-| Q cycle parameters | Physical `Q...=` continuation blocks remain in the AST and are consumed by `CYCL CALL` in execution order. `MAX`/`FMAX` is a symbolic feed for Q208 and Q253, not a numeric expression: Q208 rapid retraction in cycles 202/203; Q253 rapid pre-positioning in Cycle 204. Parsing Q253 does not add execution of unsupported milling cycles |
+| `CYCL DEF`/`CYCL CALL` | Cycle 32 is metadata only; drilling/boring/tapping cycles 1/2, 200–209 and 240/241 expand to physical geometry; cycles 251/252 execute pocket milling and 262 thread milling; 220/221 execute position patterns at definition time; cycle 9 is dwell; unsupported cycle codes stop execution |
+| Q cycle parameters | Physical `Q...=` continuation blocks remain in the AST and are consumed by `CYCL CALL` in execution order. `MAX`/`FMAX` is a symbolic feed for Q208 and Q253, not a numeric expression: Q208 rapid retraction in cycles 202/203; Q253 rapid pre-positioning in cycles 204/205/241/262. The required Q parameters of cycles 220/221/251/252/262 must be explicitly defined |
 | Cycle 247 datum selection | Application mapping: `Q339=1..6` selects the configured G54..G59 offsets in millimetres. The tool's machine position is preserved; other preset numbers are unsupported. This is not an import of a controller's preset table |
 | Cycles 7/10 | Axis-address datum shifts and XY planar rotation (`ROT`) apply immediately without moving the tool; reset with zero values. Coordinate and circle-center transforms are retained in the machine-space trace; datum-table and tilted-plane variants remain unsupported |
 | `M140 MB distance`, `M140 MB MAX` | Retraction follows physical machine +Z before positioning, with a separately scoped feed. Configured table kinematics maps this retraction through the table orientation even with a tilted program frame. MAX requires enabled Home emulation and uses Z from Home (G28) in WCS, only in the positive direction, with a warning. Physical travel limits are not modeled; the MAX approximation blocks NC trace export |
@@ -2516,6 +2523,34 @@ The unmodified three-post project is stored in `tests/fixtures/milling/test_5ax/
 | Rotary `A/B/C`, PLANE SPATIAL/RESET, M128/M129 | Configured rotary indexing, tilted frames and AC/BC table TCP as described above; unsupported combinations stop at the source block |
 | `M120`, auxiliary `U/V/W`, tool offsets DL/DR/DR2 | Not executed; execution stops at the block |
 | FULL formatting | Rejected for Klartext; EXPANDED and Save Source remain available |
+
+### Which pocket and thread-milling cycles are supported?
+
+The input interpreter executes documented subsets of **251 RECTANGULAR POCKET**, **252 CIRCULAR POCKET** and **262 THREAD MILLING**. Their geometry is expanded during execution; this does not imply that the export post preserves these cycle definitions.
+
+| Cycle | Supported geometry and parameters |
+| --- | --- |
+| 251 | Rectangular pocket with Q218/Q219 dimensions, Q220 corner radius, Q224 rotation and Q367 reference position |
+| 252 | Circular pocket with Q223 diameter |
+| 262 | Internal thread with Q335 nominal diameter, signed Q239 pitch, Q201 depth, Q355 cutting strategy and Q351 milling direction |
+
+Cycles 251/252 implement Q215=0 roughing and finishing, Q215=1 roughing only and Q215=2 finishing only. Q202 controls roughing depth increments; Q338 controls wall-finishing depth increments. Q368/Q369 are side/floor allowances; Q370 sets the lateral stepover as a multiple of the cutter radius. Q206, Q207 and Q385 specify plunge, milling and finishing feeds. Q351 selects climb/up-cut milling relative to M3/M4.
+
+Q366=0 selects vertical entry, Q366=1 helical entry; Cycle 251 also accepts Q366=2 reciprocating entry when there is sufficient room. Helical/reciprocating roughing requires an explicit cutter `ANGLE` (or `plunge_angle`), in degrees between 0 and 90. No default angle is guessed. Vertical entry and finishing-only execution do not require this angle.
+
+For Cycle 262, Q355=0 produces one full helical revolution for a multirow cutter; Q355=1 produces a continuous helix over the depth; larger integer values produce separate full revolutions with axial offsets of Q355 times the pitch. The sign of Q239 selects right/left-hand thread. Circular entry/exit and multi-turn helices retain analytic arc geometry. The supported cutter diameter is at least one quarter of the nominal diameter and smaller than it; the lateral repositioning strategy for smaller cutters is unsupported. Q253 accepts a positive numeric pre-positioning feed or `MAX`/`FMAX`; Q207 requires a positive numeric cutting feed.
+
+These three cycles require the XY working plane with Z spindle axis, R0, known M3/M4 spindle direction and configured cutter geometry. Use the existing `milling_tools` or `tool_resolver` execution API to supply the tool type and diameter in millimetres; `TOOL CALL` alone does not supply a diameter or entry angle. The controller's external tool table is not imported automatically. NC dimensions follow MM/INCH program units.
+
+All required Q parameters must be explicitly defined. PREDEF, OEM-dependent defaults and symbolic automatic cutting feeds are unsupported here. Q201=0 skips machining; positive depths are diagnosed because their interpretation depends on OEM MP7441 policy. Unsupported parameters, entry strategies and insufficient cutter clearance stop execution with diagnostics. This is a bounded geometric implementation, not a claim of identical internal controller passes.
+
+### How do position-pattern cycles 220 and 221 execute?
+
+**220 CIRCULAR PATTERN** and **221 CARTESIAN PATTERN** are DEF-active: they execute when the last Q-parameter continuation of their definition is reached. First define the machining cycle (supported drilling/boring/tapping, 251, 252 or 262), then define the pattern. No extra `CYCL CALL` is needed to trigger the pattern. The previous machining cycle remains active afterward.
+
+- Cycle 220 uses Q216/Q217 for the center, Q244 for the diameter, Q245/Q246 for the start/end angles, Q247 for the angular step and Q241 for the number of positions. Q247=0 distributes positions over the full circle or partial arc. Q365 selects straight or circular transfer.
+- Cycle 221 uses Q225/Q226 for the start, Q237/Q238 for spacing, Q242/Q243 for column/row counts and Q224 for rotation. Rows are traversed in alternating directions.
+- Q200/Q203/Q204 set the shared clearance and surface coordinates. Q301=0 transfers between operations at setup clearance; Q301=1 uses second clearance. Pattern parameters must be explicit, and R0 is required. The nested machining cycle retains its own plane and tool restrictions.
 
 ### How are Klartext source, parameters and diagnostics represented?
 
@@ -2555,11 +2590,15 @@ Spatial/helical, full-circle/multi-turn, ambiguous corners and corners consuming
 
 Numeric regressions check tangent coordinates, radii, continuity, compensation, units, source-block ownership and local feeds. The six-rounding reference `6bas154.h` uses explicitly configured T4 diameter 6 mm; APPR/DEP R3 does not declare cutter geometry. `manual_chf.h` follows the manual's LINEAR example. These checks cover the stated subset, not full controller conformance.
 
-The additional CAM sample `fusion_benchmark.h` renders its supported prefix and stops explicitly at unsupported Cycle 252; Cycle 262 is also unsupported. This is a partial calculation, not successful completion.
+Cycles 252 and 262 now have the bounded implementations described above. Their presence in `fusion_benchmark.h` does not guarantee completion of the full CAM program: each parameter set, tool configuration and remaining command must satisfy the supported contract. A stopped execution retains only the valid prefix.
+
+Short cycle examples are collected in [`heidenhain/cycles/`](tests/fixtures/milling/heidenhain/cycles/), extracted from machine programs and the cycle manual. These examples are not independently confirmed controller trajectory references.
 
 The 13 contour/drilling programs in `tests/fixtures/milling/heidenhain/` are registered in execution and Qt open/plot regressions with Home emulation enabled. The `6bas154.h` setup explicitly assigns T4 diameter 6 mm; APPR/DEP R3 does not declare tool geometry. Its six RND corners and the official `manual_chf.h` chamfers have independent numeric expectations. The unchanged `cycles_itnc530.h` reaches M30 and executes eight holes; `itnc530_cycl200macro.h` executes ten holes using FN 6/7 trigonometric assignments; `ellipse.h` completes its 40-step loop using Cycle 7 datum shift and Cycle 10 planar rotation. MAX retraction uses Z from Home (G28) in WCS, emits `HEIDENHAIN_M140_HOME_EMULATION`, and blocks NC trace export. With Home emulation disabled, MAX stops with a source diagnostic. Cycle 247 maps entries 1–6 to G54–G59. Native motions, arc centers and drilling operations use machine coordinates.
 
 The repository retains the real CAM and parametric programs under [`tests/fixtures/milling/heidenhain/`](tests/fixtures/milling/heidenhain/). Regression checks cover AST structure, exact source positions, cycle continuations, portable/native AST equivalence, diagnostics, cancellation and source-to-motion links in [`test_heidenhain_frontend.py`](tests/dialects/test_heidenhain_frontend.py) and [`test_heidenhain_execution.py`](tests/dialects/test_heidenhain_execution.py). Small AST cases are inline test inputs. The full `sample.h` fixture reaches `M30`; Cycle 32 smoothing and `F0` generate explicit warnings. The corpus includes decimal-comma coordinates and `STOP M30` in `sample_cr.h`, plus `arcs.h` cases with repeated feeds and circle planes derived from `CC`. GUI highlighting, calculators, renumbering and the export post have separate tests. These checks are not a claim of full iTNC 530 controller or machine simulation coverage.
+
+Cycle reference: [iTNC 530 34049x-06, Cycles, 670388-21](https://content.heidenhain.de/doku/tnc_guide/pdf_files/iTNC530/34049x-06/zyklen/670_388-21.pdf), covering cycles 220/221, 251/252 and 262.
 
 Syntax references: HEIDENHAIN's [Klartext programming manual](https://content.heidenhain.de/doku/tnc_guide/pdf_files/iTNC530/34049x-neu/en/bhb.pdf) and [iTNC 530 60642x-03 manual](https://content.heidenhain.de/doku/tnc_guide/pdf_files/iTNC530/60642x-03/bhb/737759-22.pdf).
 

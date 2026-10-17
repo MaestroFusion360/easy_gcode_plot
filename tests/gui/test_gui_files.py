@@ -962,12 +962,17 @@ def test_fixture_full_native_cam_file_executes_in_gui(qt_app, monkeypatch):
         assert window.updateData()
         result = window.execution_result
         assert result.ok and result.complete, result.diagnostics
-        # G41 adds two short corner joins in the tilted G55 contour.
-        assert len(result.motions) == 5001
+        # The tilted G55 run contains a short line between arcs. Its offset
+        # wraps a short G3 to almost 360 degrees, so clearance validation must
+        # retain the nominal contour rather than certify its two corner joins.
+        assert len(result.motions) == 4999
         for label in (18670, 18680):
             corner = [motion for motion in result.motions if motion.source_nlabel == label]
-            assert [motion.move for motion in corner] == [1, 2]
-            assert all(motion.compensation_applied for motion in corner)
+            assert [motion.move for motion in corner] == [1]
+            assert all(
+                not motion.compensation_applied and motion.compensation_status == "UNVERIFIED" for motion in corner
+            )
+        assert any(d.code == "UNVERIFIED_CUTTER_COMPENSATION" for d in result.diagnostics)
         assert len(result.execution_steps) == 5232
         assert window._document_arc_type == 1
         assert window.optionsDlg.ui.rotaryProfileList.isEnabled()

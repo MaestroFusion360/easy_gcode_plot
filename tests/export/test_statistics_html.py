@@ -7,7 +7,15 @@ import pytest
 from app.cli import main
 from app.gcode.kernel import execute
 from app.gcode.reports.html import LABELS, statistics_html, write_statistics_html
-from app.gcode.trace import trace_statistics
+from app.gcode.trace import format_trace_statistics, trace_statistics
+
+
+def test_html_label_overrides_do_not_change_plain_text_defaults(monkeypatch):
+    stats = trace_statistics(execute("G1 X1 F100", language="fanuc_mill"))
+    before = format_trace_statistics(stats)
+    monkeypatch.setitem(LABELS, "heading", "Custom HTML heading")
+    assert "Custom HTML heading" in statistics_html(stats, LABELS)
+    assert format_trace_statistics(stats) == before
 
 
 def test_portable_statistics_are_escaped_and_contain_all_tool_sections():

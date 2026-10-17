@@ -24,6 +24,17 @@ LEGACY_REEXPORTS = [
     ("app.gcode.kernel.api_types", "ExecutionResult", "app.gcode.kernel.api.types"),
     ("app.gcode.kernel.api_conversion", "trace_motion", "app.gcode.kernel.api.conversion"),
     ("app.gcode.kernel.resources", "SemanticError", "app.gcode.kernel.api.resources"),
+    ("app.gcode.kernel.runtime.cycles", "CycleContext", "app.gcode.kernel.machine.cycles"),
+    ("app.gcode.kernel.runtime.drilling", "axial_cycle_moves", "app.gcode.kernel.machine.drilling"),
+    ("app.gcode.kernel.runtime.home", "reference_return", "app.gcode.kernel.machine.home"),
+    ("app.gcode.kernel.runtime.events", "ExecutionEvent", "app.gcode.kernel.machine.events"),
+    ("app.gcode.kernel.runtime.execution", "ProgramRuntime", "app.gcode.kernel.machine.execution"),
+    ("app.gcode.kernel.runtime.signals", "signals_for_words", "app.gcode.kernel.machine.signals"),
+    ("app.gcode.kernel.runtime.state", "MachineRuntimeState", "app.gcode.kernel.machine.state"),
+    ("app.gcode.kernel.runtime.diagnostics", "diagnostic_from_exception", "app.gcode.kernel.machine.diagnostics"),
+    ("app.gcode.kernel.turning.dialect", "validate_system", "app.gcode.kernel.frontend.turning_dialect"),
+    ("app.gcode.kernel.turning.type_a", "TurningOperation", "app.gcode.kernel.frontend.turning_type_a"),
+    ("app.gcode.kernel.turning.type_b", "type_b_operation", "app.gcode.kernel.frontend.turning_type_b"),
     ("app.gcode.kernel.geometry", "resolve_arc", "app.gcode.kernel.geometry.arcs"),
     ("app.gcode.kernel.profile", "build_profile_segments", "app.gcode.kernel.geometry"),
     ("app.gcode.kernel.coordinates", "milling_wcs_offsets", "app.gcode.kernel.geometry.coordinates"),
@@ -59,9 +70,9 @@ def test_historical_package_root_exports_remain_available():
     assert SUPPORTED_LANGUAGES == frozenset({"fanuc_turn", "fanuc_mill"})
     assert MillState.__module__ == "app.gcode.kernel.milling.state"
     assert expand_cycle_block.__module__ == "app.gcode.kernel.runtime.expansion.engine"
-    assert CycleContext.__module__ == "app.gcode.kernel.runtime.cycles"
-    assert CycleOutcome.__module__ == "app.gcode.kernel.runtime.cycles"
-    assert apply_cycle_outcome.__module__ == "app.gcode.kernel.runtime.cycles"
+    assert CycleContext.__module__ == "app.gcode.kernel.machine.cycles"
+    assert CycleOutcome.__module__ == "app.gcode.kernel.machine.cycles"
+    assert apply_cycle_outcome.__module__ == "app.gcode.kernel.machine.cycles"
     assert add_motion.__module__ == "app.gcode.kernel.turning.cycles.common"
     assert add_motion_with_meta.__module__ == "app.gcode.kernel.turning.cycles.common"
     assert add_feed_orthogonal.__module__ == "app.gcode.kernel.turning.cycles.common"

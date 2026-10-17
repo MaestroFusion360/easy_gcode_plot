@@ -4,20 +4,24 @@ from __future__ import annotations
 # pylint: disable=too-many-return-statements
 from dataclasses import replace
 
-from ...api.types import ExecutionEvent, ExecutionStep
 from ...frontend.program import resolve_cycle_profile_indices
+from ...frontend.turning_dialect import supported_codes
 from ...geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
-from ...turning.cycles import adapt_cycle_emission
-from ...turning.dialect import supported_codes
-from ..cycles import CycleContext, apply_cycle_outcome
-from ..diagnostics import modal_conflict_diagnostics, turning_code_diagnostics, unsupported_g53_motion_diagnostic
-from ..events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
-from ..execution import (
+from ...machine.cycles import CycleContext, apply_cycle_outcome
+from ...machine.diagnostics import (
+    modal_conflict_diagnostics,
+    turning_code_diagnostics,
+    unsupported_g53_motion_diagnostic,
+)
+from ...machine.events import TOOL_CHANGE, home_return_event, main_program_location, program_start_event
+from ...machine.execution import (
     POSITION_NEUTRAL_GCODES,
     ProgramRuntime,
     apply_unit_mode,
     build_program_execution_index,
 )
+from ...turning.cycles import adapt_cycle_emission
+from ...types import ExecutionEvent, ExecutionStep
 from ..expansion import expand_cycle_block
 from .dispatch import (
     _X_AXIS_WORDS,

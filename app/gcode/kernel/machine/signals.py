@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ..api.types import MachineSignal
+from ..types import MachineSignal
 
 
 def signals_for_words(block_index, words):

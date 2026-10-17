@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ...api.types import TraceMotion
+from ...types import TraceMotion
 from .joins import _get_progress
 from .offset import _solve_standalone
 from .projection import (

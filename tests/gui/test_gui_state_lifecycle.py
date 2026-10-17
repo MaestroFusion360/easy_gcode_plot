@@ -43,7 +43,7 @@ def test_required_snapshot_fields_exist_at_startup(window):
     "name",
     sorted(path.name for path in (Path(__file__).resolve().parents[1] / "fixtures/milling/heidenhain").glob("*.h")),
 )
-def test_every_native_fixture_plots_and_exposes_documented_limits(window, name):
+def test_every_native_fixture_completes_and_plots(window, name):
     fixture = Path(__file__).resolve().parents[1] / "fixtures/milling/heidenhain" / name
     window.zPosMach = 100
     window.homeConfigured = True
@@ -54,15 +54,8 @@ def test_every_native_fixture_plots_and_exposes_documented_limits(window, name):
         window.millingTools["T4"] = {"type": "mill_flat", "diameter": 6.0, "length": 50.0}
     assert window.updateData(show_errors=False)
     result = window.execution_result
-    if name == "fusion_benchmark.h":
-        assert not result.ok and not result.complete
-        errors = [d for d in result.diagnostics if d.severity == "error"]
-        assert len(errors) == 1
-        assert errors[0].code == "UNSUPPORTED_HEIDENHAIN_CYCLE"
-        assert errors[0].raw == "456 CYCL DEF 252 CIRCULAR POCKET ~"
-        assert "1" in window.diagnosticsStatusLabel.text()
-    else:
-        assert result.ok and result.complete, result.diagnostics
+    assert result.ok and result.complete, result.diagnostics
+    assert all(d.severity != "error" for d in result.diagnostics)
     if name == "cycles_itnc530.h":
         assert result.program_end == "M30"
         assert sum(event.drilling is not None for event in result.events) == 8

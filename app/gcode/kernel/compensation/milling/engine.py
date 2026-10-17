@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
 
-from ...api.types import TraceMotion
+from ...types import TraceMotion
 from ..common import EPS
 from .entry_exit import (
     _find_entry_reference,
@@ -16,6 +16,7 @@ from .entry_exit import (
 from .joins import _join_steady_motion
 from .offset import _solve_standalone, _tool_radius
 from .projection import _project_motion, _projected_to_motion, _ProjectedMotion, _retarget_start
+from .validation import has_invalid_line_direction, has_planar_gouging
 
 _GEOMETRY_TOLERANCE = 0.01
 
@@ -47,6 +48,8 @@ class _CompensationRun:
     motions: list[TraceMotion]
     tools: dict[str, dict[str, object]]
     geometry_tolerance: float
+    input_owners: list[int]
+    contour_lead_blocks: frozenset[int] = frozenset()
     output: list[TraceMotion] = field(default_factory=list)
     owners: list[int] = field(default_factory=list)
     previous_steady: _ProjectedMotion | None = None
@@ -54,16 +57,45 @@ class _CompensationRun:
     align_entry: bool = False
     radius: float = 0.0
     mode: int = 0
+    source_indices: list[int] = field(default_factory=list)
+    current_index: int = 0
+    start_input: int = 0
+    start_output: int = 0
 
     def append(self, motion, owner):
         self.output.append(motion)
         self.owners.append(owner)
+        self.source_indices.append(self.current_index)
+
+    def finish(self, stop):
+        if self.mode == 0 or self.radius <= EPS:
+            return
+        solved = self.output[self.start_output :]
+        indices = self.source_indices[self.start_output :]
+        nominal = self.motions[self.start_input : stop]
+        invalid = has_invalid_line_direction(self.motions, solved, indices)
+        invalid = invalid or has_planar_gouging(
+            nominal,
+            solved,
+            [self.motions[i] for i in indices],
+            self.radius,
+            self.geometry_tolerance,
+            self.contour_lead_blocks,
+        )
+        if invalid:
+            # Roll back the whole active interval: never mix nominal and
+            # impossible compensated pieces or leave a retargeted G40 lead.
+            self.output[self.start_output :] = [_mark_unverified(m) for m in nominal]
+            self.owners[self.start_output :] = self.input_owners[self.start_input : stop]
+            self.source_indices[self.start_output :] = range(self.start_input, stop)
 
     def reset_steady(self):
         self.previous_steady = None
         self.previous_index = -1
 
     def enter(self, index, current, owner, mode):
+        self.finish(index)
+        self.start_input, self.start_output = index, len(self.output)
         self.mode = mode
         self.radius = _tool_radius(self.tools.get(current.tool or "")) or 0.0
         self.reset_steady()
@@ -81,6 +113,7 @@ class _CompensationRun:
         self.align_entry = True
 
     def exit(self, current, owner):
+        self.finish(self.current_index)
         self.append(
             _solve_exit(current, self.output[-1], self.geometry_tolerance) if self.output else current,
             owner,
@@ -122,6 +155,7 @@ class _CompensationRun:
         self.previous_index = len(self.output) - 1
 
     def process(self, index, current, owner):
+        self.current_index = index
         previous = _normalize_comp_mode(self.motions[index - 1].compensation_mode) if index > 0 else 0
         mode = _normalize_comp_mode(current.compensation_mode)
         if mode != 0 and previous != mode:
@@ -140,15 +174,17 @@ def _apply_milling_cutter_compensation(
     motion_owners: list[int],
     *,
     geometry_tolerance: float = _GEOMETRY_TOLERANCE,
+    contour_lead_blocks: frozenset[int] = frozenset(),
 ) -> tuple[list[TraceMotion], list[int]]:
     """Resolve entry, steady joins and exit with state local to one execution."""
     if len(motion_owners) != len(motions):
         raise ValueError("Each compensated milling motion must have one owner")
     if not motions:
         return motions, []
-    run = _CompensationRun(motions, tools, geometry_tolerance)
+    run = _CompensationRun(motions, tools, geometry_tolerance, motion_owners, contour_lead_blocks)
     for index, (current, owner) in enumerate(zip(motions, motion_owners)):
         run.process(index, current, owner)
+    run.finish(len(motions))
     return run.output, run.owners
 
 
@@ -174,6 +210,7 @@ def apply_milling_cutter_compensation_with_owners(
     motion_owners: list[int],
     *,
     geometry_tolerance: float = _GEOMETRY_TOLERANCE,
+    contour_lead_blocks: frozenset[int] = frozenset(),
 ) -> tuple[list[TraceMotion], list[int]]:
     """Apply compensation and propagate execution-step ownership to inserted motions."""
     return _apply_milling_cutter_compensation(
@@ -181,4 +218,5 @@ def apply_milling_cutter_compensation_with_owners(
         tools,
         motion_owners,
         geometry_tolerance=geometry_tolerance,
+        contour_lead_blocks=contour_lead_blocks,
     )

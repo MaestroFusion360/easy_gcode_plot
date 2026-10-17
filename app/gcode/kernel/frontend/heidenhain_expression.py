@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from ..api.resources import checkpoint
+from ..resources import checkpoint
 
 _TOKEN = re.compile(r"\s*(?:(\d+(?:\.\d*)?|\.\d+)|((?:QL|QR|Q)\d+)|([A-Z]+)|(\*\*|[+*/^(),\[\]-]))", re.I)
 _BINDING = {

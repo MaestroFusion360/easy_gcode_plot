@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 
-from ..api.types import Diagnostic, ExecutionEvent
-from ..runtime.capabilities import COMMON_ISO_M_CODES
-from ..runtime.diagnostics import modal_conflict_diagnostics
+from ..machine.diagnostics import modal_conflict_diagnostics
+from ..milling.controller import COMMON_ISO_M_CODES
+from ..types import Diagnostic, ExecutionEvent
 from .block import _BlockAction, _BlockOutcome
 from .state import MillState, _apply_pre_flow_modal_state
 

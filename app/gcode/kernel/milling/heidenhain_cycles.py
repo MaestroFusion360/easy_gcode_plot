@@ -4,8 +4,10 @@ import math
 from dataclasses import dataclass
 from typing import Any
 
-from ..api.resources import SemanticError, checkpoint, require_progress
-from ..api.types import ExecutionEvent, MachineSignal, ResolvedDrillingOperation
+from ..resources import SemanticError, checkpoint, require_progress
+from ..types import ExecutionEvent, MachineSignal, ResolvedDrillingOperation
+from .heidenhain_pockets import POCKET_CYCLES, execute_pocket
+from .heidenhain_thread import execute_thread
 
 DRILLING_CYCLES = frozenset({1, 2, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 240, 241})
 
@@ -30,6 +32,10 @@ class _Drill:
     code: int
 
     def q(self, number, default=0.0):
+        # Cycle 200 uses fixed Q202 pecks and Q200 re-entry clearance.
+        # Unrelated global Q variables remain available to the part program.
+        if self.code == 200 and number in {205, 212, 258}:
+            return default
         return self.state.parameters.get(f"Q{number}", default)
 
     @property
@@ -301,6 +307,12 @@ class _Drill:
 
 def execute_cycle(state, block):
     code = state.cycle_code
+    if code in POCKET_CYCLES:
+        execute_pocket(state, block)
+        return
+    if code == 262:
+        execute_thread(state, block)
+        return
     if code is None:
         raise SemanticError("MISSING_HEIDENHAIN_CYCLE", "CYCL CALL requires an executed CYCL DEF")
     if code == 9:

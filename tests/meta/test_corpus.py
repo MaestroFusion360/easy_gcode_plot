@@ -7,6 +7,17 @@ import gcode_samples
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 EXPECTED_FIXTURES = {
+    "milling/heidenhain/cycles/cycl220_drilling.h",
+    "milling/heidenhain/cycles/cycl221_newcycles.h",
+    "milling/heidenhain/cycles/cycl251_newcycles.h",
+    "milling/heidenhain/cycles/cycl252_newcycles.h",
+    "milling/heidenhain/cycles/cycl262_manual_34049x06.h",
+    "milling/sinumerik/cycles/cycle90_manual_0108.mpf",
+    "milling/sinumerik/cycles/holes1_ubung14_classic.mpf",
+    "milling/sinumerik/cycles/holes2_drilling.mpf",
+    "milling/sinumerik/cycles/pocket3_manual_0108.mpf",
+    "milling/sinumerik/cycles/pocket4_primer1.mpf",
+    "milling/sinumerik/cycles/primer.mpf",
     "turning/sinumerik/sample_cycles.mpf",
     "turning/sinumerik/sample_no_cycles.mpf",
     "milling/test_5ax/1001.nc",

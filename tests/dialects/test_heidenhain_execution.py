@@ -394,7 +394,7 @@ def test_m140_max_always_uses_g28_home_z_with_wcs(axis, home):
     sorted(path.name for path in (Path(__file__).resolve().parents[1] / "fixtures/milling/heidenhain").glob("*.h")),
 )
 @pytest.mark.parametrize("home_z", [0.0, 100.0])
-def test_every_native_corpus_program_executes_or_reports_its_documented_limit(name, fixture_text, home_z):
+def test_every_native_corpus_program_completes(name, fixture_text, home_z):
     source = fixture_text("milling/heidenhain/" + name)
     # 6BAS154 specifies no TOOL DEF: keep its reference Ø6 geometry outside the NC source.
     tools = {"T4": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}} if name == "6bas154.h" else None
@@ -406,17 +406,8 @@ def test_every_native_corpus_program_executes_or_reports_its_documented_limit(na
         emulate_g28_home=True,
         current_tools=tools,
     )
-    if name == "fusion_benchmark.h":
-        # This new CAM sample also contains unimplemented milling cycles 252/262.
-        # Require its supported prefix (including Q253=MAX) to reach exactly 252.
-        errors = [d for d in result.diagnostics if d.severity == "error"]
-        assert not result.ok and not result.complete
-        assert len(errors) == 1
-        assert errors[0].code == "UNSUPPORTED_HEIDENHAIN_CYCLE"
-        assert errors[0].raw == "456 CYCL DEF 252 CIRCULAR POCKET ~"
-    else:
-        assert result.ok and result.complete, (name, result.diagnostics)
-        assert all(d.severity != "error" for d in result.diagnostics)
+    assert result.ok and result.complete, (name, result.diagnostics)
+    assert all(d.severity != "error" for d in result.diagnostics)
     assert result.motions
     assert all(motion.source_raw == source.splitlines()[motion.source_block] for motion in result.motions)
 

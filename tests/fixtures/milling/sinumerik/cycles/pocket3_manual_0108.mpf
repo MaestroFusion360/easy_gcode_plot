@@ -1,0 +1,6 @@
+; Siemens Cycles 01/2008 p.144: rectangular roughing operation.
+T10 M6
+G17 G90 G94 S600 M4
+G0 X60 Y40 Z5
+POCKET3(5,0,0.5,-17.5,60,40,8,60,40,0,4,0.75,0.2,1000,750,0,11,5)
+M30

@@ -340,6 +340,24 @@
               motion.
             </td>
           </tr>
+          <tr>
+            <td><code>POCKET3 / POCKET4 / CYCLE90</code></td>
+            <td>
+              Classic 01/2008 pocket roughing/finishing and internal/external
+              thread milling. Configured cutter, G17/G40/G80, feed per minute,
+              no active MCALL or TCP. Extended signatures and preformed-blank
+              variants are unsupported; internal passes are not independently
+              controller-verified.
+            </td>
+          </tr>
+          <tr>
+            <td><code>HOLES1 / HOLES2</code></td>
+            <td>
+              Six-argument row/circle patterns invoke the active supported MCALL
+              drilling cycle in G17 without TCP. HOLES1 starts from the nearer
+              row end; omitted/zero HOLES2 INDA gives equal spacing.
+            </td>
+          </tr>
         </tbody>
       </table>
     </div>

@@ -1,14 +1,12 @@
 """Programmed-contour RND/CHF geometry, before the shared cutter compensation.
 
-Normative source: iTNC 530 60642x-04, 737759-23, pp. 237–238.
+Normative source: iTNC 530 60642x-04, 737759-23, pp. 237вЂ“238.
 Offset loci locate tangent-circle centers; they do not compensate the cutter.
 """
 
 import math
 from dataclasses import dataclass, replace
 
-from ..api.resources import SemanticError, checkpoint
-from ..api.types import Diagnostic
 from ..compensation.milling.joins import (
     _arc_arc_intersections,
     _get_progress,
@@ -18,6 +16,8 @@ from ..compensation.milling.joins import (
 from ..compensation.milling.offset import _offset_arc, _offset_line, _tool_radius
 from ..compensation.milling.projection import _project_motion, _projected_to_motion
 from ..frontend.model import Block
+from ..resources import SemanticError, checkpoint
+from ..types import Diagnostic
 from .heidenhain_values import scalar
 
 _TOL = 1e-7

@@ -1,7 +1,7 @@
 """Resolved reference events retain machine targets and each G28 path leg."""
 
-from ..api.types import ExecutionEvent, ReferenceSegment, ResolvedReferenceMove
-from ..runtime.events import HOME_RETURN, MACHINE_COORDINATE_MOVE
+from ..machine.events import HOME_RETURN, MACHINE_COORDINATE_MOVE
+from ..types import ExecutionEvent, ReferenceSegment, ResolvedReferenceMove
 
 
 def append_reference_event(events, *args, code, **kwargs):

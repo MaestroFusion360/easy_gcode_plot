@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from dataclasses import replace
 
-from ..api.types import Diagnostic
 from ..frontend.program import EvaluatedWords
-from ..runtime.execution import EvaluatedBlock, classify_block_codes
+from ..machine.execution import EvaluatedBlock, classify_block_codes
+from ..types import Diagnostic
 
 SINUMERIK_MODE_SIEMENS = "siemens"
 SINUMERIK_MODE_ISO = "iso"

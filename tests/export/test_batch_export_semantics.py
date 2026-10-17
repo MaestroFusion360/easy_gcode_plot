@@ -18,6 +18,8 @@ Release criterion
 
 from __future__ import annotations
 
+import math
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -27,8 +29,11 @@ from app.gcode.batch.export import export_directory
 from app.gcode.execution.program import execute_program
 from app.gcode.execution.source import source_dialect_for_path
 from app.gcode.export.service import ExportRequest
+from app.gcode.export.tool_numbers import target_tool_numbers
 from app.gcode.kernel import execute
 from app.gcode.kernel.frontend.io import read_nc_text
+from app.gcode.kernel.geometry.arc_segments import split_arc
+from app.gcode.post_profiles import load_post_profile
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures"
 
@@ -40,6 +45,19 @@ SCENARIOS = (
     ("milling/sinumerik", "fanuc_mill", "fanuc_mill", "fanuc_mill", "fanuc", None, None, (".mpf",)),
     ("turning", "fanuc_turn", "fanuc_lathe_b", "fanuc_turn", "fanuc", "A", "B", (".nc", ".NC")),
 )
+
+
+def _fanuc_export_geometry(result):
+    """Apply disclosed tool mapping and the post's default analytic arc subdivision."""
+    motions = []
+    tools = target_tool_numbers(result, load_post_profile("fanuc_mill"))
+    for motion in result.motions:
+        motion = replace(motion, tool=tools.get(motion.tool, motion.tool))
+        if motion.arc is not None and motion.arc.sweep > math.tau + 1e-10:
+            motions.extend(split_arc(motion))
+        else:
+            motions.append(motion)
+    return replace(result, motions=tuple(motions))
 
 
 @pytest.mark.parametrize(
@@ -98,7 +116,8 @@ def test_batch_export_preserves_motion_traces(scenario, tmp_path):
             f"{relative_root} -> {target}: {input_path.name} did not re-execute: "
             f"{[diagnostic.code for diagnostic in replay.diagnostics]}"
         )
-        assert motion_traces_match(original, replay, allow_split_cycle_rapids=True), (
+        expected = _fanuc_export_geometry(original) if target == "fanuc_mill" else original
+        assert motion_traces_match(expected, replay, allow_split_cycle_rapids=True), (
             f"{relative_root} -> {target}: semantic trajectory changed for {input_path.name} "
             f"({len(original.motions)} -> {len(replay.motions)} motions)"
         )

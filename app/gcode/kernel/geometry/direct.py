@@ -253,7 +253,7 @@ def build_profile_segments(
     distance_absolute: bool = True,
 ) -> list[ProfileSegment]:
     # Turning imports geometry at package initialization; defer this import to avoid a cycle.
-    from ..turning.dialect import canonical_words  # pylint: disable=import-outside-toplevel
+    from ..frontend.turning_dialect import canonical_words  # pylint: disable=import-outside-toplevel
 
     profile: list[ProfileSegment] = []
     x = start_x

@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
-from ...api.types import TraceMotion
+from ...types import TraceMotion
 from ..common import EPS
 from .projection import _project_motion, _ProjectedMotion
 

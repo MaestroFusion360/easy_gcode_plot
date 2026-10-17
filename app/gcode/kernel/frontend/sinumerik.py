@@ -7,7 +7,7 @@ controller gate can fail closed. Native addresses remain visible in the AST.
 import re
 from dataclasses import replace
 
-from ..api.resources import SemanticError, checkpointed
+from ..resources import SemanticError, checkpointed
 from .ast import NativeMillingSyntax, build_program_ast
 from .lang import WordToken
 from .model import Program
@@ -15,18 +15,21 @@ from .program import _parse_source_blocks
 from .sinumerik_expression import compile_expression
 
 _NUMBER = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)"
-_NAME = r"_[A-Z][A-Z0-9_]{0,30}"
+_NAME = r"(?:_[A-Z][A-Z0-9_]{0,30}|[A-Z][A-Z0-9_]{1,31})"
 _VALUE = rf"(?:{_NUMBER}|R\d+|{_NAME})"
 _TOKEN = re.compile(
     rf"\s*(?:(CR|TURN|CHF|CHR|RND|RNDM|FRC|FRCM)\s*=\s*({_VALUE})|"
     rf"(SUPA|FNORM|DIAMON|DIAMOF|DIAM90|ORIWKS|ORIMKS|ORIAXES|ORIVECT|FFWON|FFWOF|UPATH|SOFT|"
-    rf"COMPCAD|COMPCURV|ORIRESET|CUT3DFF|CUT3DF|CUT3DC)\b|([XYZABCIJKFS])\s*=\s*({_VALUE})|"
+    rf"COMPCAD|COMPCURV|ORIRESET|CUT3DFF|CUT3DF|CUT3DC|CFTCP)\b|([XYZABCIJKFS])\s*=\s*({_VALUE})|"
     rf"([NOGXYZABCIJKRFSTHDPQLM])\s*({_NUMBER}))",
     re.I,
 )
 _PARAMETER = re.compile(r"R(\d+)\s*=\s*(.+)\s*", re.I)
-_REAL = re.compile(rf"DEF\s+REAL\s+({_NAME}(?:\s*,\s*{_NAME})*)\s*", re.I)
-_NAMED_ASSIGNMENT = re.compile(rf"\s*({_NAME})\s*=\s*({_VALUE})", re.I)
+_DECLARATION = re.compile(r"DEF\s+(REAL|INT)\s+(.+)", re.I)
+_RESERVED_NAME = re.compile(
+    r"(?:RPL|CR|TURN|CHF|CHR|RND|RNDM|FRC|FRCM|SPOS|ANG|LIMS|SIN|COS|ABS|SQRT)$|[NOGXYZABCIJKRFSTHDPQLM]\d", re.I
+)
+_NAMED_ASSIGNMENT = re.compile(rf"\s*({_NAME})\s*=\s*(.+?)(?=\s+{_NAME}\s*=|$)", re.I)
 _NAMED_TOOL = re.compile(r'\s*T\s*=\s*"([^"\n]{1,32})"', re.I)
 _HSC = re.compile(r"CYCLE832\s*\(([^()]*)\)\s*", re.I)
 _LABEL = re.compile(r"^\s*(?:N\d+\s*)?", re.I)
@@ -58,6 +61,9 @@ def _native_tokens(raw):
 
 
 def _native_flow(body):
+    section = _native_section_flow(body)
+    if section is not None:
+        return section
     if body.upper() == "ENDWHILE":
         return NativeMillingSyntax("endwhile")
     match = re.fullmatch(r"WHILE\s+(.+)", body, re.I)
@@ -71,17 +77,27 @@ def _native_flow(body):
             flow_target=int(match[3]),
         )
     # Directional jump and subroutine-return semantics are outside this subset.
-    if re.match(r"(?:WHILE|ENDWHILE|IF|GOTO[ FBC]*|RET)\b", body, re.I):
+    if re.match(r"(?:WHILE|ENDWHILE|IF|GOTO[ FBC]*|RET|REPEATB?)\b", body, re.I):
         return NativeMillingSyntax("invalid_flow", syntax_error="Unsupported or malformed native control flow")
     return None
 
 
+def _native_section_flow(body):
+    label = re.fullmatch(r"([A-Z_]{2}[A-Z0-9_]{0,30}):", body, re.I)
+    if label:
+        name = label[1].upper()
+        return NativeMillingSyntax("endlabel" if name == "ENDLABEL" else "label", flow_label=name)
+    repeat = re.fullmatch(r"REPEAT\s+([A-Z_]{2}[A-Z0-9_]{0,30})(?:\s+P\s*=\s*(.+))?", body, re.I)
+    if repeat:
+        count = repeat[2] or "1"
+        return NativeMillingSyntax("repeat", flow_label=repeat[1].upper(), flow_condition=compile_expression(count))
+    return None
+
+
 def _native_declaration(body):
-    real = _REAL.fullmatch(body)
-    if real is not None:
-        return NativeMillingSyntax(
-            "real_declaration", real_declarations=tuple(name.strip().upper() for name in real[1].split(","))
-        )
+    declaration = _numeric_declaration(body)
+    if declaration is not None:
+        return declaration
     assignments = _named_assignments(body)
     if assignments is not None:
         return NativeMillingSyntax("named_assignment", named_assignments=assignments)
@@ -144,11 +160,36 @@ def _named_assignments(body):
         match = _NAMED_ASSIGNMENT.match(body, position)
         if match is None:
             return None
+        if _RESERVED_NAME.match(match[1]):
+            return None
         assignments.append((match[1].upper(), match[2]))
         position = match.end()
         if position < len(body) and not body[position].isspace():
             return None
     return tuple(assignments) if assignments else None
+
+
+def _numeric_declaration(body):
+    match = _DECLARATION.fullmatch(body)
+    if match is None or "[" in match[2] or "]" in match[2]:
+        return None
+    names, assignments = [], []
+    for item in match[2].split(","):
+        name, separator, expression = item.strip().partition("=")
+        name = name.strip().upper()
+        if not re.fullmatch(_NAME, name, re.I) or _RESERVED_NAME.match(name):
+            raise SemanticError("INVALID_SINUMERIK_DECLARATION", "Invalid numeric variable name")
+        names.append(name)
+        if separator:
+            compile_expression(expression)
+            assignments.append((name, expression.strip()))
+    integer = match[1].upper() == "INT"
+    return NativeMillingSyntax(
+        "integer_declaration" if integer else "real_declaration",
+        real_declarations=() if integer else tuple(names),
+        integer_declarations=tuple(names) if integer else (),
+        named_assignments=tuple(assignments),
+    )
 
 
 def _word_tokens(code):
@@ -164,6 +205,7 @@ def _word_tokens(code):
         "cip": False,
         "intermediate_absolute": (),
         "intermediate_incremental": (),
+        "tool_center_feed": False,
     }
     modes = {"IC": [], "DC": [], "AC": []}
     while position < len(code):
@@ -272,6 +314,9 @@ def _scan_other_special_word(code, position, tokens, options, modes):
 
 
 def _apply_marker(marker, options):
+    if marker == "CFTCP":
+        options["tool_center_feed"] = True
+        return True
     if marker not in ("SUPA", "FNORM", "DIAMON", "DIAMOF", "DIAM90"):
         options["ignored_native_commands"] += (marker,)
         return True
@@ -298,6 +343,13 @@ def _cycle_syntax(body):
     swivel = _SWIVEL.fullmatch(body)
     if swivel is not None:
         return _swivel_syntax(swivel[1])
+    pattern = re.fullmatch(r"(HOLES[12]|POCKET[34]|CYCLE90)\s*\((.*)\)", body, re.I)
+    if pattern is not None:
+        args = tuple(arg.strip() for arg in pattern[2].split(","))
+        for arg in args:
+            if arg:
+                compile_expression(arg)
+        return NativeMillingSyntax(pattern[1].lower(), cycle_args=args)
     match = _CYCLE.fullmatch(body)
     if match is None:
         return None
@@ -323,13 +375,13 @@ def parse_sinumerik_program(source, *, token_parser=None):
     for _, block in checkpointed(_parse_source_blocks(source)):
         label = re.match(r"\s*/?\s*N(\d+)", block.raw, re.I)
         # A jump operand N99 is a target, never a source sequence label.
-        block = replace(block, nlabel=int(label[1]) if label else None)
+        nlabel = int(label[1]) if label else None
         try:
             parsed = (token_parser or _native_tokens)(block.raw)
         except SemanticError as error:
             parsed = (), NativeMillingSyntax("invalid_expression", syntax_error=str(error))
         if parsed is None:
-            blocks.append(block)
+            blocks.append(replace(block, nlabel=nlabel))
             continue
         tokens, syntax = parsed
         expressions = [token.expr for token in tokens]
@@ -345,6 +397,8 @@ def parse_sinumerik_program(source, *, token_parser=None):
         if motion is not None:
             radius = next((token.expr for token in tokens if token.letter == "CR"), motion.r_expr)
             motion = replace(motion, r_expr=radius, c_expr=None if radius is not None else motion.c_expr)
-        blocks.append(replace(block, parsed_words=tokens, motion_node=motion, flow_node=None, native_syntax=syntax))
+        blocks.append(
+            replace(block, nlabel=nlabel, parsed_words=tokens, motion_node=motion, flow_node=None, native_syntax=syntax)
+        )
     blocks = tuple(blocks)
     return Program._from_canonical_ast(blocks, build_program_ast(blocks))  # pylint: disable=protected-access

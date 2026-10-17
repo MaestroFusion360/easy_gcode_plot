@@ -9,9 +9,9 @@ import operator
 import re
 from functools import lru_cache
 
-from ..api.resources import SemanticError, checkpoint
+from ..resources import SemanticError, checkpoint
 
-_TOKEN = re.compile(r"\s*(\d+(?:\.\d*)?|\.\d+|R\d+|_[A-Z][A-Z0-9_]*|[A-Z]+|<=|>=|==|<>|!=|[+*/(),<>\-=])", re.I)
+_TOKEN = re.compile(r"\s*(\d+(?:\.\d*)?|\.\d+|[A-Z_][A-Z0-9_]*|<=|>=|==|<>|!=|[+*/(),<>\-=])", re.I)
 _PRECEDENCE = {"=": 1, "==": 1, "<>": 1, "!=": 1, "<": 1, ">": 1, "<=": 1, ">=": 1, "+": 2, "-": 2, "*": 3, "/": 3}
 _FUNCTIONS = {"SIN", "COS", "ABS", "SQRT"}
 _UNARY = {"+": operator.pos, "-": operator.neg}
@@ -79,8 +79,8 @@ class _ExpressionParser:
             return ("unary", token, self.parse(4, depth + 1))
         if token == "(" or token in _FUNCTIONS:
             return self._group(token, depth)
-        if re.fullmatch(r"R\d+|_[A-Z][A-Z0-9_]{0,30}", token):
-            if token.startswith("R") and (len(token) > 6 or int(token[1:]) > 9999):
+        if re.fullmatch(r"[A-Z_][A-Z0-9_]{0,31}", token):
+            if re.fullmatch(r"R\d+", token) and (len(token) > 6 or int(token[1:]) > 9999):
                 raise _invalid("R parameter index must be within 0..9999")
             return ("variable", token)
         try:
@@ -115,7 +115,7 @@ def compile_expression(expression):
 
 
 def _variable_value(name, parameters, variables):
-    if name.startswith("R"):
+    if re.fullmatch(r"R\d+", name):
         index = int(name[1:])
         if index not in parameters:
             raise SemanticError("UNDEFINED_SINUMERIK_PARAMETER", f"R{index} is not assigned", "unsupported")

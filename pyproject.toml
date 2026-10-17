@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "2.7.0"
+version = "2.8.0"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.13"
@@ -56,6 +56,9 @@ dev = [
     "pylint>=3.0",
     "pytest>=8.0",
     "ruff>=0.8",
+    "import-linter>=2.11,<3",
+    "jscpd>=5.4,<6",
+    "pdoc>=16.0.0",
 ]
 
 build = [
@@ -102,6 +105,36 @@ quote-style = "double"
 indent-style = "space"
 line-ending = "auto"
 
+# Run with scripts/analyze_gcode.py; violations remain visible in its reports.
+[tool.importlinter]
+root_package = "app"
+include_external_packages = true
+exclude_type_checking_imports = true
+
+[[tool.importlinter.contracts]]
+id = "kernel-boundaries"
+name = "Kernel must not depend on GUI, settings or result consumers"
+type = "forbidden"
+source_modules = ["app.gcode.kernel"]
+forbidden_modules = [
+    "app.ui",
+    "app.main_window",
+    "app.settings",
+    "app.gcode.batch",
+    "app.gcode.execution",
+    "app.gcode.export",
+    "app.gcode.reports",
+    "app.gcode.stock",
+    "PyQt6",
+    "pyqtgraph",
+]
+
+[[tool.importlinter.contracts]]
+id = "gcode-cycles"
+name = "G-code packages and modules must form acyclic sibling dependencies"
+type = "acyclic_siblings"
+ancestors = ["app.gcode"]
+
 [tool.pylint]
 ignore-paths = [
     "\\.venv",
@@ -144,9 +177,17 @@ disable = [
     "missing-module-docstring",
     "missing-class-docstring",
     "missing-function-docstring",
+    # Enabled explicitly for app/gcode by scripts/analyze_gcode.py.
     "duplicate-code",
     "cyclic-import",
 ]
+
+[tool.pylint.similarities]
+min-similarity-lines = 8
+ignore-comments = true
+ignore-docstrings = true
+ignore-imports = true
+ignore-signatures = true
 
 [tool.pylint.format]
 max-line-length = 120

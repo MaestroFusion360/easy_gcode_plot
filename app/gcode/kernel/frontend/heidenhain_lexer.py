@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, replace
 
-from ..api.resources import SemanticError
+from ..resources import SemanticError
 from .heidenhain_expression import HeidenhainExpressionError, parse_expression_prefix
 from .heidenhain_syntax import HeidenhainWord
 

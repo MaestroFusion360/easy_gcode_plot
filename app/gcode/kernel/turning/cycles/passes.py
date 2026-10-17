@@ -1,6 +1,6 @@
 """Bounded depth progression shared by roughing cycles, without contour policy."""
 
-from ...api.resources import SemanticError, checkpoint
+from ...resources import SemanticError, checkpoint
 
 
 def roughing_passes(start, signed_step, limit, *, tolerance):

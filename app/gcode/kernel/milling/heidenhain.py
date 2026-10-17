@@ -11,18 +11,28 @@ from collections import Counter
 from dataclasses import dataclass, field, replace
 from typing import Any
 
-from ..api.resources import SemanticError, active_budget, checkpoint
-from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, MachineSignal, TraceMotion
 from ..frontend.heidenhain import parse_heidenhain_program
 from ..frontend.heidenhain_syntax import HeidenhainSyntax
 from ..geometry.arcs import resolve_arc
 from ..geometry.matrix import IDENTITY, multiply, rotation
 from ..geometry.transform import CoordinateTransform
-from ..runtime.diagnostics import diagnostic_from_exception
-from ..runtime.execution import semantic_instructions
+from ..machine.diagnostics import diagnostic_from_exception
+from ..machine.execution import semantic_instructions
+from ..resources import SemanticError, active_budget, checkpoint
+from ..types import (
+    Diagnostic,
+    ExecutionEvent,
+    ExecutionResult,
+    ExecutionStep,
+    MachineSignal,
+    TraceMotion,
+    with_motion_endpoints,
+)
 from .heidenhain_contour import approach_departure
 from .heidenhain_corners import guard_corner, queue_corner, resolve_corner
 from .heidenhain_cycles import DRILLING_CYCLES, execute_cycle
+from .heidenhain_patterns import PATTERN_CYCLES, begin_pattern, finish_pattern_definition
+from .heidenhain_pockets import POCKET_CYCLES, validate_pocket_definition
 from .heidenhain_rotary import (
     RotaryContext,
     machine_control,
@@ -31,6 +41,7 @@ from .heidenhain_rotary import (
     position_rotary,
     rotary_retract,
 )
+from .heidenhain_thread import validate_thread_definition
 from .heidenhain_values import scalar
 from .kinematics import kinematics_snapshot
 
@@ -66,6 +77,7 @@ class _State:
     plane: int = 17
     spindle_rpm: float | None = None
     spindle_running: bool = False
+    spindle_direction: int | None = None
     center: tuple[float, float, float] | None = None
     tolerance_warned: bool = False
     arc_tolerance: float = 0.01
@@ -74,6 +86,7 @@ class _State:
     clockwise: bool = False
     cycle_code: int | None = None
     cycle_modal: bool = False
+    pending_pattern: Any = None
     polar_angle: float = 0.0
     polar_radius: float = 0.0
     parameters: dict = field(default_factory=dict)
@@ -180,6 +193,7 @@ class _State:
         machine_control(self, code, block)
         if code in {3, 4, 13, 14, 5}:
             self.spindle_running = code != 5
+            self.spindle_direction = {3: 3, 4: 4, 13: 3, 14: 4, 5: None}[code]
         if code in {2, 30}:
             self.ended = f"M{code}"
             self.events.append(ExecutionEvent("program_end", block.index, self.ended))
@@ -383,14 +397,10 @@ class _State:
         vector = (motion.i, motion.j, motion.k)
         if arc is not None and any(value is not None for value in vector):
             vector = self.frame.apply_vector(tuple(value or 0.0 for value in vector))
-        return replace(
+        return with_motion_endpoints(
             motion,
-            start_x=start[0],
-            start_y=start[1],
-            start_z=start[2],
-            end_x=end[0],
-            end_y=end[1],
-            end_z=end[2],
+            start,
+            end,
             arc=arc,
             i=vector[0],
             j=vector[1],
@@ -438,7 +448,7 @@ class _State:
         )
         self.position = tuple(target)
 
-    def arc_motion(self, target, block, *, move, plane, delta, feed=None, cycle=False):
+    def arc_motion(self, target, block, *, move, plane, delta, feed=None, cycle=False, additional_turns=0):
         motion = TraceMotion(
             move,
             self.position[0],
@@ -459,6 +469,7 @@ class _State:
             source_raw=block.raw,
             source_arc_type=1,
             compensation_mode=self.compensation_mode,
+            additional_turns=additional_turns,
         )
         motion = resolve_arc(motion, source_arc_type=1, tolerance=self.arc_tolerance)
         checkpoint("generated_motions")
@@ -500,7 +511,7 @@ class _State:
             if {parameter.name for parameter in syntax.cycle_parameters} != {"Q339"}:
                 raise SemanticError("INVALID_HEIDENHAIN_DATUM", "Cycle 247 requires only Q339 preset selection")
             return
-        if syntax.cycle_code not in DRILLING_CYCLES | {9, 32}:
+        if syntax.cycle_code not in DRILLING_CYCLES | POCKET_CYCLES | {9, 32, 262}:
             raise SemanticError(
                 "UNSUPPORTED_HEIDENHAIN_CYCLE",
                 f"Cycle {syntax.cycle_code} has no execution implementation; its effect cannot be ignored",
@@ -548,6 +559,8 @@ class _State:
 
     def define_cycle(self, syntax, values):
         """Keep drilling definitions separate from datum selection and smoothing."""
+        validate_thread_definition(syntax)
+        validate_pocket_definition(syntax)
         if syntax.cycle_subcode in {None, 0}:
             self.cycle_code = syntax.cycle_code
             self.cycle_subvalues.clear()
@@ -575,6 +588,7 @@ class _State:
                 Diagnostic("HEIDENHAIN_PROGRAM_METADATA", warning, "warning", "unverified", block.index + 1, block.raw)
             )
         self.dispatch_block(syntax, values, block)
+        finish_pattern_definition(self, block)
         if self.pending_corner is not None and syntax.kind == "motion":
             self.pending_corner.error("following contour element is degenerate")
         if syntax.kind == "motion":
@@ -583,6 +597,9 @@ class _State:
 
     def dispatch_block(self, syntax, values, block):
         if syntax.kind in {"empty", "comment", "stock", "label"} or syntax.command == "TOOL DEF":
+            return
+        if syntax.command == "CYCL DEF" and syntax.cycle_code in PATTERN_CYCLES:
+            begin_pattern(self, syntax)
             return
         handlers = {
             "program": self.program_block,
@@ -611,7 +628,7 @@ class _State:
         if syntax.assignment is not None:
             name, expression = syntax.assignment
             if expression.kind == "cycle_feed":
-                supported_cycles = {"Q208": {202, 203}, "Q253": {204, 205, 241}}
+                supported_cycles = {"Q208": {202, 203}, "Q253": {204, 205, 241, 262}}
                 if syntax.cycle_code not in supported_cycles.get(name, set()):
                     _unsupported(f"Cycle {syntax.cycle_code} does not support {name}=MAX")
                 self.cycle_rapid_parameters.add(name)

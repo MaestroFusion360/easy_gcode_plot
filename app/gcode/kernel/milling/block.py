@@ -5,9 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum, auto
 
-from ..api.types import Diagnostic, ExecutionEvent, TraceMotion
 from ..frontend.program import EvaluatedWords
-from ..runtime.execution import ProgramRuntime
+from ..machine.execution import ProgramRuntime
+from ..types import Diagnostic, ExecutionEvent, TraceMotion
 from .state import MillState
 
 

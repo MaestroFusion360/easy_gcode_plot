@@ -1,4 +1,4 @@
-"""CYCLE800 rigid frames: local Siemens programming manual, pp. 1140–1143.
+"""CYCLE800 rigid frames: local Siemens programming manual, pp. 1140вЂ“1143.
 
 Only axis-by-axis rotations and the fixed AC/BC table profiles are modeled.
 OEM retract trajectories are outside the logical geometry model.
@@ -7,8 +7,8 @@ OEM retract trajectories are outside the logical geometry model.
 import math
 from dataclasses import dataclass
 
-from ..api.resources import SemanticError
-from ..api.types import ExecutionEvent
+from ..resources import SemanticError
+from ..types import ExecutionEvent
 from .kinematics import IDENTITY, _multiply, _rotation, transform_vector
 from .sinumerik_parameters import parameter_value
 from .state import _cancel_twp, _orient_twp_tool_axis, configure_tilted_frame

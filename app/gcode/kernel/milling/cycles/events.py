@@ -1,6 +1,6 @@
 """Keep resolved drilling semantics alongside the plotting geometry."""
 
-from ...api.types import ExecutionEvent, ResolvedDrillingOperation
+from ...types import ExecutionEvent, ResolvedDrillingOperation
 from ..kinematics import point_orientation
 from ..state import _machine
 

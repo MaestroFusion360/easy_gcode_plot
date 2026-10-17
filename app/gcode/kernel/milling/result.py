@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from ..api.types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
-from ..runtime.events import program_end_code
+from ..machine.events import program_end_code
+from ..types import Diagnostic, ExecutionEvent, ExecutionResult, ExecutionStep, TraceMotion
 
 
 @dataclass

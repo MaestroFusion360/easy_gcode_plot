@@ -8,21 +8,10 @@ from dataclasses import replace
 from ...frontend.model import Motion, Point2
 from ...frontend.program import move_for_xz_plot
 from ...geometry import arc_center_from_r
+from ...geometry.tool_orientation import TIP_DIRECTIONS as _TIP_DIRECTIONS
 from ..common import EPS, ToolCompensationError
 from ..geometry import TurningPrimitive, Vec2
 from .joins import join_primitives
-
-_TIP_DIRECTIONS: dict[int, tuple[int, int]] = {
-    1: (1, 1),
-    2: (1, -1),
-    3: (-1, -1),
-    4: (-1, 1),
-    5: (0, 1),
-    6: (1, 0),
-    7: (0, -1),
-    8: (-1, 0),
-    9: (0, 0),
-}
 
 
 def to_vec(point: Point2) -> Vec2:

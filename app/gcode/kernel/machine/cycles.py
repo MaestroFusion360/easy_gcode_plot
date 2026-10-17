@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..api.types import Diagnostic, ExecutionEvent, MachineSignal
+from ..types import Diagnostic, ExecutionEvent, MachineSignal
 
 
 @dataclass(frozen=True, slots=True)

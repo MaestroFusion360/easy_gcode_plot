@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 
+from app.gcode.kernel.geometry.tool_orientation import TIP_DIRECTIONS as _TIP_DIRECTIONS
 from app.tools.definitions import applications_for_orientation, tool_application
 
 EPS = 1e-9
@@ -15,17 +16,7 @@ INSERT_GEOMETRY = {
     "triangle": (60.0, 0.0),
 }
 
-TIP_DIRECTIONS = {
-    1: (1.0, 1.0),
-    2: (1.0, -1.0),
-    3: (-1.0, -1.0),
-    4: (-1.0, 1.0),
-    5: (0.0, 1.0),
-    6: (1.0, 0.0),
-    7: (0.0, -1.0),
-    8: (-1.0, 0.0),
-    9: (0.0, 0.0),
-}
+TIP_DIRECTIONS = {key: tuple(float(value) for value in vector) for key, vector in _TIP_DIRECTIONS.items()}
 
 ORIENTATION_SCREEN_ANGLES = {
     1: -45.0,
@@ -186,6 +177,16 @@ def stock_triangle_points(
     return ((0.0, 0.0), main, other)
 
 
+def _fillet_parameters(before_unit, after_unit, before_length, after_length, radius):
+    corner_angle = math.acos(max(-1.0, min(1.0, before_unit[0] * after_unit[0] + before_unit[1] * after_unit[1])))
+    tangent = radius / max(math.tan(corner_angle * 0.5), EPS)
+    tangent = min(tangent, before_length * 0.45, after_length * 0.45)
+    effective_radius = tangent * math.tan(corner_angle * 0.5)
+    bisector = (before_unit[0] + after_unit[0], before_unit[1] + after_unit[1])
+    bisector_length = math.hypot(*bisector)
+    return corner_angle, effective_radius, bisector, bisector_length, tangent
+
+
 def rounded_polygon(
     points: tuple[tuple[float, float], ...],
     radius: float,
@@ -217,12 +218,9 @@ def rounded_polygon(
             continue
         before_unit = (before[0] / before_length, before[1] / before_length)
         after_unit = (after[0] / after_length, after[1] / after_length)
-        corner_angle = math.acos(max(-1.0, min(1.0, before_unit[0] * after_unit[0] + before_unit[1] * after_unit[1])))
-        tangent = radius / max(math.tan(corner_angle * 0.5), EPS)
-        tangent = min(tangent, before_length * 0.45, after_length * 0.45)
-        effective_radius = tangent * math.tan(corner_angle * 0.5)
-        bisector = (before_unit[0] + after_unit[0], before_unit[1] + after_unit[1])
-        bisector_length = math.hypot(*bisector)
+        corner_angle, effective_radius, bisector, bisector_length, tangent = _fillet_parameters(
+            before_unit, after_unit, before_length, after_length, radius
+        )
         if bisector_length <= EPS:
             rounded.append(point)
             continue
@@ -279,12 +277,9 @@ def tip_fillet_center(
     after_length = math.hypot(*after)
     before_unit = (before[0] / before_length, before[1] / before_length)
     after_unit = (after[0] / after_length, after[1] / after_length)
-    corner_angle = math.acos(max(-1.0, min(1.0, before_unit[0] * after_unit[0] + before_unit[1] * after_unit[1])))
-    tangent = radius / max(math.tan(corner_angle * 0.5), EPS)
-    tangent = min(tangent, before_length * 0.45, after_length * 0.45)
-    effective_radius = tangent * math.tan(corner_angle * 0.5)
-    bisector = (before_unit[0] + after_unit[0], before_unit[1] + after_unit[1])
-    bisector_length = math.hypot(*bisector)
+    corner_angle, effective_radius, bisector, bisector_length, _tangent = _fillet_parameters(
+        before_unit, after_unit, before_length, after_length, radius
+    )
     center_distance = effective_radius / max(math.sin(corner_angle * 0.5), EPS)
     return (
         point[0] + bisector[0] / bisector_length * center_distance,

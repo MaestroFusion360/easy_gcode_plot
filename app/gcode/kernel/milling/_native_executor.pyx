@@ -3,10 +3,10 @@
 
 import math
 
-from ..api.resources import checkpoint
-from ..api.types import ExecutionStep, TraceMotion
+from ..resources import checkpoint
+from ..types import ExecutionStep, TraceMotion
 from ..frontend.program import EvaluatedWords
-from ..runtime.capabilities import common_iso_fast_block
+from .controller import common_iso_fast_block
 
 
 def execute_simple_blocks(program, runtime, state, motions, executed, steps, wcs_offsets):

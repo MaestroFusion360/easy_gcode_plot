@@ -7,9 +7,9 @@ from dataclasses import replace
 
 from ..frontend.program import eval_words, resolve_cycle_profile_indices
 from ..geometry.direct import build_profile_segments
+from ..types import Diagnostic, TraceMotion
 from .arc_validation import _ijk_radius_mismatch
 from .trace_geometry import _compensation_frame
-from .types import Diagnostic, TraceMotion
 
 
 def _autodetect_arc_type(

@@ -5,6 +5,7 @@
 import importlib
 import json
 from copy import deepcopy
+from pathlib import Path
 
 import pytest
 from PyQt6.QtGui import QPalette
@@ -20,6 +21,7 @@ from app.tools.milling_geometry import milling_geometry_key
 from app.tools.program_io import read_program_tools, write_program_tools
 from app.tools.setup import refresh_setup
 from app.ui.dialogs import tool_dialogs, tool_library_dialog
+from app.ui.dialogs.options import OptionsDialog
 
 
 @pytest.fixture
@@ -802,6 +804,55 @@ def test_shared_execution_suppresses_cutter_compensation_warnings_when_correctio
         diagnostic.code in {"UNVERIFIED_CUTTER_COMPENSATION", "UNSUPPORTED_TABLE_C_CUTTER_COMPENSATION"}
         for diagnostic in result.diagnostics
     )
+
+
+@pytest.mark.parametrize("dialect", ["fanuc", "sinumerik"])
+def test_shared_execution_turning_correction_switch_retains_nominal_path(dialect):
+    source = "T0101\nG18 G0 X40 Z5\nG42 G1 X20 Z0 F100\nG1 Z-20\nG40 G1 X40\nM30"
+    tool = {**DEFAULT_TURNING_TOOL, "noseRadius": 1, "tipOrientation": 9}
+    nominal, tools, _ = execute_program(
+        source,
+        language="fanuc_turn",
+        source_dialect=dialect,
+        current_tools={"T0101": tool},
+        correction_enabled=False,
+    )
+    corrected, _, _ = execute_program(
+        source,
+        language="fanuc_turn",
+        source_dialect=dialect,
+        current_tools={"T0101": tool},
+        correction_enabled=True,
+    )
+    assert nominal.ok and nominal.complete and corrected.ok and corrected.complete
+    assert tools["T0101"]["noseRadius"] == 1
+    assert not any(m.compensation_applied for m in nominal.motions)
+    assert any(m.compensation_applied for m in corrected.motions)
+    straight = next(m for m in nominal.motions if m.source_raw == "G1 Z-20")
+    assert (straight.start_x, straight.start_z, straight.end_x, straight.end_z) == (20, 0, 20, -20)
+
+
+def test_gui_primer_correction_checkbox_keeps_pocket_and_both_drilling_passes(window):
+    path = Path(__file__).resolve().parents[1] / "fixtures/milling/sinumerik/cycles/primer.mpf"
+    window.loadFile(str(path))
+    window.ui.actionLatheMode.setChecked(False)
+    for enabled in (False, True, False):
+        dialog = OptionsDialog(window)
+        dialog.show()
+        QApplication.processEvents()
+        dialog.ui.correctionCheck.setChecked(enabled)
+        dialog.accept()
+        assert window.correctionEnabled == enabled
+        assert window.updateData()
+        result = window.execution_result
+        assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
+        assert not result.diagnostics
+        assert len([m for m in result.motions if m.source_raw.startswith("POCKET4")]) == 11
+        assert len([m for m in result.motions if m.cycle_generated and m.tool in {"T3", "T4"} and m.move == 1]) == 12
+        assert any(m.compensation_applied for m in result.motions) == enabled
+        assert window.millingTools["T2"]["diameter"] == 10
+        assert window.ui.horizontalSlider.maximum() > 0
+        dialog.deleteLater()
 
 
 @pytest.mark.parametrize("language", ["fanuc_turn", "fanuc_mill"])

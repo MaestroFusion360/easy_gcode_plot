@@ -15,6 +15,7 @@ from .common import (
     _expanded_word,
     _word,
     _word_required,
+    machine_control_templates,
 )
 from .full import is_native_full_program
 from .motions import _append_expanded_motion, _invalidate_subdivided_feed, _post_motion_geometry
@@ -244,16 +245,7 @@ def _home_lines(step, motions, options, profile, *, next_motion):
 def _step_machine_controls(step, options, turning, profile):
     if any(event.kind == SUBPROGRAM_START and event.code == "G65" for event in step.events):
         return []
-    commands = {
-        0: profile["program"]["stop"],
-        1: profile["program"]["optionalStop"],
-        3: profile["spindle"]["cw"],
-        4: profile["spindle"]["ccw"],
-        5: profile["spindle"]["stop"],
-        7: profile["coolant"]["mist"],
-        8: profile["coolant"]["flood"],
-        9: profile["coolant"]["off"],
-    }
+    commands = machine_control_templates(profile)
     return [
         _expanded_word(letter, value, options) if letter == "S" else _render(commands[value])
         for letter, value in step.words

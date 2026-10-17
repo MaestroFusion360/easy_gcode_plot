@@ -1,5 +1,8 @@
 """Cached native availability, missing DLL policy and parser instrumentation."""
 
+import importlib.util
+import subprocess
+import sys
 from io import StringIO
 from pathlib import Path
 
@@ -89,3 +92,18 @@ def test_frozen_build_collects_dynamic_gateway_extensions(script):
     for module in native.MODULES.values():
         assert module in source
     assert source.count("--hidden-import") >= len(native.MODULES)
+
+
+def test_fresh_kernel_import_keeps_installed_native_executor_available():
+    if importlib.util.find_spec("app.gcode.kernel.milling._native_executor") is None:
+        pytest.skip("Native executor is not installed in this source checkout")
+    code = (
+        "from app.gcode.kernel import execute; "
+        "from app.native import native_status; "
+        "from app.gcode.kernel.milling import executor; "
+        "assert native_status()['executor']['available'], native_status(); "
+        "assert executor._execute_simple_blocks is not None; "
+        "assert execute('G1 X1 F100', language='fanuc_mill').ok"
+    )
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr

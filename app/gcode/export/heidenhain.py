@@ -15,7 +15,14 @@ from app.gcode.trace.sampling import sample_motion
 
 from ..kernel.geometry.arc_segments import split_arc
 from ..kernel.runtime.events import PROGRAM_START, SUBPROGRAM_START, TOOL_CHANGE
-from .common import ExportLimitation, _check_cancelled, _execution_slices, _word, scale_motion
+from .common import (
+    ExportLimitation,
+    _check_cancelled,
+    _execution_slices,
+    _word,
+    machine_control_templates,
+    scale_motion,
+)
 from .tool_numbers import target_tool_numbers, tool_mapping_lines
 
 
@@ -345,16 +352,7 @@ def _control_lines(step, mapping, active_tool, options, profile, *, drilling=Fal
         if active_tool is None:
             _unsupported("Spindle speed output requires an active TOOL CALL")
         lines.append(profile["tool"]["toolChange"].format(tool=active_tool, code=_word("S", speed, options)).strip())
-    controls = {
-        0: profile["program"]["stop"],
-        1: profile["program"]["optionalStop"],
-        3: profile["spindle"]["cw"],
-        4: profile["spindle"]["ccw"],
-        5: profile["spindle"]["stop"],
-        7: profile["coolant"]["mist"],
-        8: profile["coolant"]["flood"],
-        9: profile["coolant"]["off"],
-    }
+    controls = machine_control_templates(profile)
     lines.extend(controls[int(value)] for letter, value in step.words if letter == "M" and value in controls)
     for signal in step.signals:
         if signal.kind == "dwell" and not drilling:

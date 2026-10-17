@@ -6,12 +6,13 @@ from dataclasses import dataclass, field, replace
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..geometry import resolve_arc
+from ..machine.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
 from ..milling.heidenhain_corners import prepare_corner_compensation
 from ..milling.kinematics import profile_from_snapshot, transform_vector
-from ..runtime.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
+from ..milling.sinumerik_corners import append_contour_motion, finish_contour
+from ..resources import SemanticError
+from ..types import Diagnostic, TraceMotion, with_motion_endpoints
 from .arc_validation import _validate_turning_arc_source
-from .resources import SemanticError
-from .types import Diagnostic, TraceMotion
 
 
 def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
@@ -46,14 +47,10 @@ def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
             center=point(arc.center),
             normal=vector(normal) if normal is not None else None,
         )
-    return replace(
+    return with_motion_endpoints(
         motion,
-        start_x=start[0],
-        start_y=start[1],
-        start_z=start[2],
-        end_x=end[0],
-        end_y=end[1],
-        end_z=end[2],
+        start,
+        end,
         i=delta[0] if has_ijk else None,
         j=delta[1] if has_ijk else None,
         k=delta[2] if has_ijk else None,
@@ -180,6 +177,13 @@ def _resolve_milling_compensation(result, motions, motion_step_owners, milling_t
             local_motions,
             milling_tools or {},
             motion_step_owners,
+            contour_lead_blocks=frozenset(
+                block.index
+                for block in result.program.blocks
+                if getattr(block.native_syntax, "command", "").startswith(("APPR ", "DEP "))
+            )
+            if result.program is not None
+            else frozenset(),
         )
         motions = [_compensation_frame(motion, local=False) for motion in motions]
         diagnostics = corner_diagnostics + _compensation_diagnostics(
@@ -190,9 +194,7 @@ def _resolve_milling_compensation(result, motions, motion_step_owners, milling_t
             predicate=lambda motion: motion.compensation_mode in (41, 42) and not motion.compensation_applied,
         )
 
-    emitted_counts = [0] * len(result.execution_steps)
-    for owner in motion_step_owners:
-        emitted_counts[owner] += 1
+    emitted_counts = _emitted_counts_for_owners(result.execution_steps, motion_step_owners)
     result = replace(result, execution_steps=_steps_with_emitted_counts(result.execution_steps, emitted_counts))
     return result, motions, diagnostics
 
@@ -248,6 +250,16 @@ class ResolvedTrace:
     def append(self, motion, owner):
         self.motions.append(motion)
         self.owners.append(owner)
+
+    def append_resolved(self, motion, owner, result, language):
+        if language == "fanuc_mill" and result.source_dialect == "sinumerik":
+            append_contour_motion(self, motion, owner, result.execution_steps)
+        else:
+            self.append(motion, owner)
+
+    def finish_contours(self, result, language):
+        if language == "fanuc_mill" and result.source_dialect == "sinumerik":
+            finish_contour(self, result.execution_steps)
 
     def emitted_counts(self, steps):
         return _emitted_counts_for_owners(steps, self.owners)

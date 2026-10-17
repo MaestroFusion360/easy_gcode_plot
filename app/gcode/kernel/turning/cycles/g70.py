@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 from ...frontend.model import Motion, Point2, ProfileSegment
-from ...geometry import try_compute_signed_arc_radius_from_center
-from .common import add_motion, add_motion_with_meta
+from .common import add_motion, add_motion_with_meta, profile_arc_words
 
 
 def build_finish_contour(
@@ -19,11 +18,7 @@ def build_finish_contour(
     for seg in profile:
         feed = (feeds_by_block or {}).get(seg.block)
         if seg.move in (2, 3):
-            r = seg.radius if seg.has_radius else None
-            if r is None and seg.has_center:
-                r = try_compute_signed_arc_radius_from_center(seg.move, seg.start, seg.end, seg.center)
-            i = (seg.center.x - seg.start.x) if seg.has_center else None
-            k = (seg.center.z - seg.start.z) if seg.has_center else None
+            r, i, k = profile_arc_words(seg)
             add_motion_with_meta(motions, seg.move, seg.start, seg.end, r, feed, i=i, k=k)
         else:
             add_motion_with_meta(motions, 1, seg.start, seg.end, None, feed)

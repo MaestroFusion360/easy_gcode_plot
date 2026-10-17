@@ -3,22 +3,28 @@ set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-targets=(main.py cli_main.py app tests scripts/check_complexity.py)
+targets=(main.py cli_main.py app tests scripts/check_complexity.py scripts/analyze_gcode.py)
 fix=false
 check_resources=false
+no_sync=false
 
 for argument in "$@"; do
     case "$argument" in
         --fix) fix=true ;;
         --check-resources) check_resources=true ;;
+        --no-sync) no_sync=true ;;
         *)
-            printf 'Usage: %s [--fix] [--check-resources]\n' "$0" >&2
+            printf 'Usage: %s [--fix] [--check-resources] [--no-sync]\n' "$0" >&2
             exit 2
             ;;
     esac
 done
 
 uv_run=(uv run)
+if [[ "$no_sync" == true ]]; then
+    uv_run+=(--no-sync)
+    export UV_NO_SYNC=1
+fi
 if [[ -n ${VIRTUAL_ENV:-} ]]; then
     uv_run+=(--active)
 fi
@@ -39,4 +45,5 @@ if [[ "$check_resources" == true ]]; then
 fi
 "${uv_run[@]}" "${qt_check_arguments[@]}"
 "${uv_run[@]}" python scripts/check_complexity.py
+"${uv_run[@]}" lint-imports --contract kernel-boundaries --no-logo --no-cache
 exec "${uv_run[@]}" pylint "${targets[@]}"

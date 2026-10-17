@@ -1,0 +1,7 @@
+; Siemens Cycles 01/2008 p.108: bottom-to-top internal thread.
+G17 G90 G94
+T1 M6
+S300 M3
+G0 X100 Y100 Z8
+CYCLE90(8,-20,0,0,0,46,40,3,800,3,0,50,50)
+M30

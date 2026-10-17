@@ -3,9 +3,9 @@
 import math
 from dataclasses import dataclass
 
-from ..api.resources import SemanticError, checkpoint
-from ..api.types import TraceMotion
 from ..geometry.arcs import resolve_arc
+from ..resources import SemanticError, checkpoint
+from ..types import TraceMotion
 from .heidenhain_values import scalar
 
 _AXES = {17: (0, 1), 18: (0, 2), 19: (1, 2)}

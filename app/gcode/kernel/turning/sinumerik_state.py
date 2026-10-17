@@ -3,11 +3,11 @@
 import math
 from dataclasses import dataclass, field, replace
 
-from ..api.conversion import trace_motion
-from ..api.resources import SemanticError, checkpoint
-from ..api.types import ExecutionEvent, MachineSignal
+from ..conversion import trace_motion
 from ..frontend.model import Motion, Point2
 from ..geometry.arcs import resolve_arc
+from ..resources import SemanticError, checkpoint
+from ..types import ExecutionEvent, MachineSignal
 
 
 def unsupported(message, code="UNSUPPORTED_SINUMERIK_TURNING"):

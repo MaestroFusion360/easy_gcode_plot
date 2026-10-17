@@ -1,0 +1,8 @@
+; UBUNG14.MPF: row geometry adapted to the requested classic six-argument interface.
+G17 G90 G94
+S1200 M3 F100
+G0 Z50
+MCALL CYCLE81(50,0,3,-25,)
+HOLES1(12.5,20,90,0,40,2)
+MCALL
+M30

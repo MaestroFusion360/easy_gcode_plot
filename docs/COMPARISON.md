@@ -1,10 +1,14 @@
-# CIMCO Edit 8 vs Easy G-Code Plot 2.7.0
+# CIMCO Edit 8 vs Easy G-Code Plot 2.8.0
 
 Comparison of document editing, text comparison, FANUC milling, FANUC turning, native SINUMERIK 840D milling/limited XZ turning and native HEIDENHAIN iTNC 530 Klartext. [Русская версия](COMPARISON_RU.md).
 
-**Scope:** CIMCO Edit **8 editor and Backplot**, not CIMCO Edit 2022–2026 or the separate CIMCO Machine Simulation product. Easy G-Code Plot describes the 2.7.0 working tree and its regression fixtures. The MDI/Compare update concerns the editor; controller-command rows retain their previously stated evidence. This is a capability comparison, not a measured accuracy or performance ranking.
+**Scope:** CIMCO Edit **8 editor and Backplot**, not CIMCO Edit 2022–2026 or the separate CIMCO Machine Simulation product. Easy G-Code Plot describes the 2.8.0 working tree and its regression fixtures. The MDI/Compare update concerns the editor; controller-command rows retain their previously stated evidence. This is a capability comparison, not a measured accuracy or performance ranking.
 
 **Legend:** ✅ supported within the stated scope; ⚠️ partial or restricted; ❌ explicitly unsupported; **?** not established for CIMCO Edit 8. **Unknown does not mean unsupported.** ≈ means comparable only within the stated scope. A command in a filter is not evidence of correct geometry. Statements marked [N] are historical comparison notes, not vendor certification.
+
+## Current 2.8.0 working tree: native milling cycles
+
+HEIDENHAIN input now executes bounded 220/221 patterns, 251/252 pockets and 262 thread milling. SINUMERIK input executes classic 01/2008 POCKET3/4, HOLES1/2 with supported MCALL drilling, and CYCLE90. Required tool data and unsupported variants are described in the FAQ. These are implementation capabilities; their internal passes have not been independently confirmed against controller trajectories. No new paired CIMCO measurements or export-cycle capabilities are implied.
 
 ## What's new in 2.7.0: native iTNC rotary execution
 
@@ -28,7 +32,7 @@ Comparison of document editing, text comparison, FANUC milling, FANUC turning, n
 
 ## Editor and document workflow
 
-| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.7.0 | Assessment |
+| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.8.0 | Assessment |
 | --- | --- | --- | --- |
 | Multiple open programs / MDI | ✅ multiple file windows [C7] | ✅ independent buffers and document scenes; compact controls without visible tabs [E] | Both support multiple programs; window organization differs |
 | Side-by-side text comparison | ✅ two-pane comparison with colored differences [C7] | ✅ read-only aligned line diff; changed/added/removed colors and synchronized scrolling [E] | ≈ feature present; comparison options differ |
@@ -64,7 +68,7 @@ Implementation and regressions: [MDI](../app/ui/windows/main_window_documents.py
 
 ## Visualization and configuration
 
-| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.7.0 | Assessment |
+| Feature | CIMCO Edit 8 | Easy G-Code Plot 2.8.0 | Assessment |
 | --- | --- | --- | --- |
 | Stock contact on G0 | ? exact remaining-stock/damage contract | ✅ milling rapid-damage markers and turning remaining-stock intersections | Present in both Easy modes; no paired accuracy test |
 | Rotary profile editor and limits | ✅ 4/5-axis setup [C2]; exact limit contract unconfirmed | ✅ Options tab, named copies, optional angular warning limits | Settings do not establish physical machine equivalence |
@@ -76,7 +80,7 @@ Implementation and regressions: [navigation](../app/ui/plot/plot_navigation.py),
 
 ## 1. FANUC milling
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.7.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.8.0 | Assessment |
 | --- | --- | --- | --- |
 | G0/G1, modal XYZ | ✅ Backplot [C1] | ✅ execution and motion trace | ≈ |
 | G2/G3, IJK, R | ✅ configurable arcs [C1, C2] | ✅ absolute/incremental IJK and R | ≈; variants not compared |
@@ -134,7 +138,7 @@ Implementation and regressions: [navigation](../app/ui/plot/plot_navigation.py),
 
 ## 2. FANUC turning
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.7.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.8.0 | Assessment |
 | --- | --- | --- | --- |
 | G0/G1 | ✅ turning Backplot [C5] | ✅ X/Z trace | ≈ |
 | G2/G3 I/K, R | ✅ turning examples [C5] | ✅ G18, absolute/incremental I/K and R | ≈ basic arcs |
@@ -177,7 +181,7 @@ Implementation and regressions: [navigation](../app/ui/plot/plot_navigation.py),
 
 SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applies to documented parameter subsets, not every technology option on a Siemens controller.
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.7.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.8.0 | Assessment |
 | --- | --- | --- | --- |
 | G0/G1, modal XYZ | ✅ [N] | ✅ | ≈ |
 | ANG= | ✅ [N] | ❌ unmodeled geometry stops execution | CIMCO in historical comparison notes |
@@ -227,9 +231,9 @@ SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applie
 | CYCLE87 | ✅ [N] | ✅ boring with spindle-stop/manual-stop signals and rapid return | ≈ supported subset; no operator simulation |
 | CYCLE88 | ✅ [N] | ❌ | CIMCO in observations |
 | CYCLE89 | ✅ [N] | ✅ bottom dwell and feed withdrawal | ≈ supported subset |
-| CYCLE90 | ✅ [N] | ❌ | CIMCO in observations |
-| POCKET1/2/3/4 | ✅ [N] | ❌ native cycle execution; GUI pocket generator is separate | CIMCO for native cycles |
-| HOLES1/HOLES2 | ✅ [N] | ❌ native cycle execution; GUI hole generator is separate | CIMCO for native cycles |
+| CYCLE90 | ✅ [N] | ⚠️ classic 13-argument internal/external thread milling; configured cutter, G17/G40/G80, no TCP/MCALL | Documented subset; no matched trajectory comparison |
+| POCKET1/2/3/4 | ✅ [N] | ⚠️ POCKET3/4 classic 01/2008 roughing/finishing and supported entry strategies; POCKET1/2 and preformed blanks unsupported | Partial scope; no matched trajectory comparison |
+| HOLES1/HOLES2 | ✅ [N] | ⚠️ six-argument row/circle patterns with active supported MCALL drilling in G17 without TCP | Supported subset; no matched trajectory comparison |
 | LONGHOLE, SLOT1/SLOT2 | ❌ comparison notes [N] | ❌ | Unsupported in this comparison |
 | CYCLE71/72 | ❌ comparison notes [N] | ❌ | Unsupported in this comparison |
 | CYCLE73/74/75/76/77 | ❌ comparison notes [N] | ❌ | Unsupported in this comparison |
@@ -238,7 +242,7 @@ SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applie
 | CYCLE832 | ❌ comparison notes [N] | ⚠️ recognized, ignored setting | Recognition only |
 | MCALL CYCLE81/82/83/84/85/86/87/89 | ✅ [N] | ✅ supported modal drilling/tapping/boring | ≈ subset |
 | MCALL custom SPF | ✅ [N] | ❌ | CIMCO in observations |
-| HOLES2 with MCALL | ✅ [N] | ❌ native hole-pattern execution | CIMCO in observations |
+| HOLES2 with MCALL | ✅ [N] | ⚠️ positions invoke the active supported modal drilling cycle | Supported subset; no matched trajectory comparison |
 | STOPRE | ✅ [N] | ❌ unsupported native command | CIMCO in observations |
 | EXPANDED / native↔FANUC | ? equivalent replay contract not found | ✅ three axes, experimental AC/BC; unsupported cases rejected | Different documented contracts |
 
@@ -246,7 +250,7 @@ SINUMERIK ISO mode is excluded from this comparison. Native-cycle support applie
 
 HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. Easy G-Code Plot parses and executes a documented Klartext subset with three-axis, indexed 3+2 and AC/BC table TCP execution and stops at unsupported semantics; the comparison below does not rank Klartext backplot accuracy.
 
-| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.7.0 | Assessment |
+| Area / command | CIMCO Edit 8 | Easy G-Code Plot 2.8.0 | Assessment |
 | --- | --- | --- | --- |
 | Source detection and highlighting | ? Klartext support in V8 not established here | ✅ `.h`/`.H`, `BEGIN PGM` detection and iTNC-code highlighting [E] | Not established |
 | `BEGIN/END PGM`, `MM/INCH`, BLK FORM | ? | ✅ program/unit metadata and stock bounds; metric conversion | Not established |
@@ -267,6 +271,9 @@ HEIDENHAIN is a separate input dialect, not a FANUC/SINUMERIK variant. Easy G-Co
 | Q ranges and parse diagnostics | ? | ✅ `Q0–Q1999`, `QL/QR0–499`; errors keep source line, column and diagnostic code | No matched CIMCO test |
 | `F0` and repeated feeds | ? | ⚠️ geometry retained, zero-feed timing warned; final repeated feed applies | No matched CIMCO test |
 | `CYCL DEF`/`CYCL CALL` 1/2, 200–209, 240/241 | ? | ✅ expanded drilling/boring/tapping geometry | Not established |
+| Cycles 220/221 | ? | ⚠️ DEF-active circle/grid patterns; invoke the previous supported machining cycle, explicit Q parameters and R0 | No matched CIMCO trajectory comparison |
+| Cycles 251/252 | ? | ⚠️ rectangular/circular pocket roughing/finishing, supported Q366 entries; XY/Z, R0, cutter geometry and explicit ANGLE for helical/reciprocating roughing | Internal passes not independently confirmed |
+| Cycle 262 | ? | ⚠️ internal thread milling, signed pitch, Q355 strategies, analytic multi-turn helices; XY/Z, R0 and supported cutter diameter | Internal passes not independently confirmed |
 | Cycle 32 smoothing | ? | ⚠️ metadata only; controller smoothing not simulated | Not established |
 | Optional `/` block skip and `LBL 0` | ? | ✅ skip and source block numbers preserved; separate named/numeric label maps and return handling | Not established |
 | Klartext editor calculators and renumber | ? | ✅ native `L`/`CR`, `CC`/`CP` fragments; numeric prefixes without `N`, optional `/` retained | Editor tools, not CNC execution equivalence |

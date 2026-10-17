@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from ..api.resources import SemanticError
+from ..resources import SemanticError
 from .kinematics import (
     IDENTITY,
     MachineKinematics,

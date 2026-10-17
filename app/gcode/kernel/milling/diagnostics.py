@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from ..api.types import Diagnostic, ExecutionEvent
-from ..runtime.diagnostics import diagnostic_from_exception
-from ..runtime.events import TOOL_CHANGE
+from ..machine.diagnostics import diagnostic_from_exception
+from ..machine.events import TOOL_CHANGE
+from ..types import Diagnostic, ExecutionEvent
 
 
 def _execution_diagnostic(exc: Exception, program) -> Diagnostic:

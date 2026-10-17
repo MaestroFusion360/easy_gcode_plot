@@ -4,13 +4,14 @@ import math
 import re
 from dataclasses import replace
 
-from ..api.resources import SemanticError, checkpoint
-from ..api.types import Diagnostic
 from ..frontend.model import Point2, ProfileSegment
 from ..geometry.profile_arcs import normalize_sweep, try_get_arc_geometry
+from ..resources import SemanticError, checkpoint
+from ..types import Diagnostic
 from .cycles.profile import build_offset_profile
-from .sinumerik_cycles import arguments, integer, nonnegative, positive
+from .sinumerik_motion import evaluate, position_block
 from .sinumerik_state import unsupported
+from .sinumerik_values import arguments, integer, nonnegative, positive
 
 
 def _label_index(program, name):
@@ -28,8 +29,6 @@ def _label_index(program, name):
 
 
 def contour_profile(state, reference):
-    from .sinumerik import evaluate, position_block  # pylint: disable=import-outside-toplevel
-
     match = re.fullmatch(r'"([A-Z_0-9]+):([A-Z_0-9]+)"', reference, re.I)
     if match is None:
         unsupported("CYCLE95 requires a local quoted START:END contour range", "UNSUPPORTED_SINUMERIK_CYCLE")

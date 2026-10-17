@@ -5,12 +5,12 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, field
 
-from ..api.resources import SemanticError
-from ..api.types import ExecutionStep
 from ..geometry.coordinates import extended_wcs_from_gcode, programmed_wcs_id, rebase_work_position
 from ..geometry.transform import CoordinateTransform, TransformState
-from ..runtime.execution import apply_unit_mode
-from ..runtime.state import MachineRuntimeState
+from ..machine.execution import apply_unit_mode
+from ..machine.state import MachineRuntimeState
+from ..resources import SemanticError
+from ..types import ExecutionStep
 from .kinematics import MachineKinematics, _transpose, point_orientation, transform_point, transform_vector
 from .polar import activate_polar, cancel_polar, resolve_polar_endpoint, select_polar_plane
 from .twp import TiltedWorkPlane, euler_zxz, solve_table_orientation, supports_twp_kinematics
@@ -20,9 +20,12 @@ from .twp import TiltedWorkPlane, euler_zxz, solve_table_orientation, supports_t
 class MillState(MachineRuntimeState):
     native_spindle_semantics: bool = False
     native_loop_pairs: dict[int, int] = field(default_factory=dict)
+    native_repeat_ranges: dict[int, tuple[int, int]] = field(default_factory=dict)
+    native_repeat_stack: list[tuple[int, int]] = field(default_factory=list)
     spindle_mode: str = "rpm"
     surface_speed_m_min: float | None = None
     spindle_running: bool = False
+    spindle_direction: int | None = None
     cip_mode: bool = False
     sinumerik_840d_sl: bool = True
     native_feed_scale: float = 1.0
@@ -41,8 +44,10 @@ class MillState(MachineRuntimeState):
     twp: TiltedWorkPlane = field(default_factory=TiltedWorkPlane)
     cycle: int = 80
     native_cycle: object | None = None
+    tools: dict = field(default_factory=dict)
     siemens_parameters: dict[int, float] = field(default_factory=dict)
     siemens_variables: dict[str, float | None] = field(default_factory=dict)
+    siemens_integer_variables: set[str] = field(default_factory=set)
     selected_tool_unload: bool = False
     cycle_z: float | None = None
     cycle_r: float | None = None
@@ -443,8 +448,10 @@ def _apply_native_spindle_state(state, gcodes, all_m, words):
         state.spindle_rpm = None
     if 3 in all_m or 4 in all_m:
         state.spindle_running = True
+        state.spindle_direction = 3 if 3 in all_m else 4
     if 5 in all_m:
         state.spindle_running = False
+        state.spindle_direction = None
         state.spindle_rpm = None
     if "F" in words:
         state.feed = words["F"] * (1.0 if state.feed_mode == "inverse_time" else state.unit_scale)

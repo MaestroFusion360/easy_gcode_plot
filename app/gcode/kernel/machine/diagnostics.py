@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import re
 
-from ..api.resources import ExecutionError
-from ..api.types import Diagnostic
 from ..frontend.lang import UndefinedMacroVariableError
 from ..frontend.model import Program
+from ..frontend.turning_dialect import supported_codes
+from ..frontend.turning_type_a import TYPE_A_SUPPORTED_G_CODES
 from ..geometry.coordinates import is_extended_wcs_gcode
-from ..turning.dialect import supported_codes
-from ..turning.type_a import TYPE_A_SUPPORTED_G_CODES
+from ..resources import ExecutionError
+from ..types import Diagnostic
 from .execution import modal_group_conflicts
 
 SUPPORTED_TURNING_G_CODES = TYPE_A_SUPPORTED_G_CODES

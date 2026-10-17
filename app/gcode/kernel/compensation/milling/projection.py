@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
-from ...api.types import ArcGeometry, TraceMotion
+from ...types import ArcGeometry, TraceMotion
 from ..common import EPS
 
 _Point2 = tuple[float, float]
@@ -155,7 +155,7 @@ def _projected_to_motion(
     arc = ArcGeometry(
         center=center3,
         radius=projected.radius,
-        sweep=_arc_sweep(projected),
+        sweep=_arc_sweep(projected) + source.additional_turns * 2.0 * math.pi,
         plane=projected.plane,
         clockwise=(source.move == 2) != (projected.plane == 18),
         full_circle=full_circle,

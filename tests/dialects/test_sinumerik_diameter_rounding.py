@@ -58,7 +58,7 @@ def test_ic_linear_addresses_cannot_be_misinterpreted_in_machine_frame():
     assert not result.ok and result.diagnostics[-1].code == "UNSUPPORTED_SINUMERIK_IC_RETURN"
 
 
-@pytest.mark.parametrize("word", ["CHF", "CHR", "RND", "RNDM", "FRC", "FRCM"])
+@pytest.mark.parametrize("word", ["CHF", "RNDM", "FRC", "FRCM"])
 def test_corner_and_feed_words_are_lexical_metadata_only(word):
     source = f"G0 X0\nG1 X10 {word}=R99 F100\nY10\nM30"
     result = native(source)
@@ -69,3 +69,16 @@ def test_corner_and_feed_words_are_lexical_metadata_only(word):
     assert result.program.blocks[1].parsed_words[-2].letter == word
     with pytest.raises(ValueError, match="ignored SINUMERIK"):
         convert_resolved_program(result)
+
+
+@pytest.mark.parametrize("word", ["RND", "CHR"])
+def test_supported_corner_words_evaluate_parameters_and_reject_undefined_values(word):
+    result = native(f"G1 X10 {word}=R99 F100\nY10\nM30")
+    assert not result.ok and not result.complete
+    assert result.diagnostics[0].code == "UNDEFINED_SINUMERIK_PARAMETER"
+    result = native(f"R1=2\nG1 X10 {word}=R1 F100\nY10\nM30")
+    assert result.ok and result.complete and not result.diagnostics
+    corner = result.motions[1]
+    assert (corner.start_x, corner.start_y, corner.end_x, corner.end_y) == pytest.approx((8, 0, 10, 2))
+    assert corner.move == (3 if word == "RND" else 1)
+    assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)

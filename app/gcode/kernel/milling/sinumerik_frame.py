@@ -6,9 +6,9 @@ Spatial angles use MD10600=1 (RPY default), intrinsic Z, Y', X''.
 
 import math
 
-from ..api.resources import SemanticError
 from ..geometry.matrix import IDENTITY, multiply, rotation, transform_vector
 from ..geometry.transform import TransformState
+from ..resources import SemanticError
 from .sinumerik_parameters import parameter_value
 
 

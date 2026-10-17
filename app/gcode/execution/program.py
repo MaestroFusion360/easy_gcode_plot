@@ -42,9 +42,10 @@ def execute_program(
             )
         except InterruptedError as exc:
             raise SemanticError("EXECUTION_CANCELLED", "Tool discovery cancelled", "resource_limit") from exc
-        return deepcopy(tools) if correction_enabled else {}
+        return deepcopy(tools)
 
     kernel_options["milling_correction_enabled"] = bool(correction_enabled)
+    kernel_options["turning_correction_enabled"] = bool(correction_enabled)
     kernel_options.setdefault("autodetect_arc_type", True)
     kernel_options.setdefault("arc_tolerance", 0.01)
     result = execute(

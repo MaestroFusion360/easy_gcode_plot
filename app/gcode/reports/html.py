@@ -6,38 +6,11 @@ from pathlib import Path
 from string import Template
 
 from app.gcode.file_io import atomic_export, same_file
+from app.gcode.formatting import LABELS as DEFAULT_LABELS
 from app.gcode.reports.svg import statistics_svg
 from app.gcode.trace import trace_statistics
 
-LABELS = {
-    "heading": "Toolpath Statistics",
-    "execution": "Execution",
-    "complete": "complete",
-    "partial": "PARTIAL / INVALID",
-    "warnings": "WARNINGS",
-    "movement_group": "Movements",
-    "time_group": "Time",
-    "bounds_group": "Bounds",
-    "motions": "Motions",
-    "executed_steps": "executed steps",
-    "rapid_motions": "Rapid motions",
-    "arc_motions": "arc motions",
-    "cycle_motions": "cycle motions",
-    "estimated_time": "Estimated motion time",
-    "length": "Length",
-    "rapid_length": "Rapid length",
-    "feed_length": "Feed length",
-    "rapid_time": "Rapid time",
-    "feed_time": "Feed time",
-    "known_time": "Known motion time",
-    "average_feed": "Average feed",
-    "unknown": "UNKNOWN",
-    "unknown_time_motions": "Motions with unknown time",
-    "rapid_speed": "Assumed rapid speed",
-    "estimate_note": "Kinematic estimate only; excludes dwell, tool changes and acceleration.",
-    "bounds": "Bounds in programmed coordinates",
-    "tool": "Tool",
-}
+LABELS = dict(DEFAULT_LABELS)
 
 
 def write_statistics_html(path, html, *, source_path=None):

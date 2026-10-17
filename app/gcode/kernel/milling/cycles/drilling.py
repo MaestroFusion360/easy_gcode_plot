@@ -4,10 +4,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from ...api.resources import SemanticError, checkpoint
-from ...api.types import MachineSignal, TraceMotion
-from ...runtime.cycles import CycleContext, CycleOutcome, apply_cycle_outcome
-from ...runtime.drilling import AxialMove, axial_cycle_moves
+from ...machine.cycles import CycleContext, CycleOutcome, apply_cycle_outcome
+from ...machine.drilling import AxialMove, axial_cycle_moves
+from ...resources import SemanticError, checkpoint
+from ...types import MachineSignal, TraceMotion
 from ..state import MillState, _machine, _xyz
 from .events import drilling_event, drilling_orientation
 

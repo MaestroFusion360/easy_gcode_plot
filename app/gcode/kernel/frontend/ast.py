@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-from ..api.resources import checkpoint, checkpointed
+from ..resources import checkpoint, checkpointed
 from .heidenhain_syntax import HeidenhainSyntax
 
 if TYPE_CHECKING:
@@ -36,6 +36,7 @@ class NativeMillingSyntax:
     direct_rotary: tuple[str, ...] = ()
     absolute_center: tuple[str, ...] = ()
     real_declarations: tuple[str, ...] = ()
+    integer_declarations: tuple[str, ...] = ()
     named_assignments: tuple[tuple[str, str], ...] = ()
     named_tool: str | None = None
     feed_normal: bool = False
@@ -51,6 +52,8 @@ class NativeMillingSyntax:
     flow_target: int | None = None
     syntax_error: str | None = None
     scalar_expressions: tuple[tuple[str, tuple], ...] = ()
+    flow_label: str | None = None
+    tool_center_feed: bool = False
 
 
 @dataclass(frozen=True, slots=True)
@@ -244,7 +247,7 @@ def build_ast_node(block: Block, *, _word_cache: dict | None = None) -> AstNode:
     return _build_address_ast_node(block, common, cache)
 
 
-def _build_address_ast_node(block, common, cache):
+def _build_address_ast_node(block, common, cache, *, native_syntax=None):
     words = common[-1]
     flow, cycle, motion = block.flow_node, block.cycle_node, block.motion_node
     if flow is not None:
@@ -257,9 +260,10 @@ def _build_address_ast_node(block, common, cache):
             flow.loop_id,
             flow.var_key,
             flow.value_expr,
+            native_syntax=native_syntax,
         )
     if cycle is not None:
-        return CycleAstNode("cycle", *common, cycle.cycle, words)
+        return CycleAstNode("cycle", *common, cycle.cycle, words, native_syntax=native_syntax)
     if motion is not None:
         return MotionAstNode(
             "motion",
@@ -279,24 +283,22 @@ def _build_address_ast_node(block, common, cache):
             motion.v_expr,
             motion.j_expr,
             motion.b_expr,
+            native_syntax=native_syntax,
         )
-    return _control_or_meta_node(block, words)
+    return _control_or_meta_node(block, words, native_syntax=native_syntax)
 
 
 def _build_native_ast_node(block, common, cache):
     """Retain native declarations and syntax without lowering source commands."""
-    from dataclasses import replace  # pylint: disable=import-outside-toplevel
-
     syntax = block.native_syntax
     if isinstance(syntax, HeidenhainSyntax):
         return _build_heidenhain_ast_node(syntax, common)
-    if syntax.kind in ("while", "endwhile", "goto", "if_goto", "invalid_flow"):
+    if syntax.kind in ("while", "endwhile", "goto", "if_goto", "invalid_flow", "label", "endlabel", "repeat"):
         return SinumerikFlowAstNode("sinumerik_flow", *common, native_syntax=syntax)
     if syntax.kind != "words":
         return SinumerikAstNode("sinumerik", *common, native_syntax=syntax)
     # Reuse the common motion/control builder for shared address semantics.
-    node = _build_address_ast_node(block, common, cache)
-    return replace(node, native_syntax=syntax)
+    return _build_address_ast_node(block, common, cache, native_syntax=syntax)
 
 
 def _build_heidenhain_ast_node(syntax, common):
@@ -315,16 +317,18 @@ def _build_heidenhain_ast_node(syntax, common):
     return node_type("heidenhain_" + syntax.kind, *common, native_syntax=syntax)
 
 
-def _control_or_meta_node(block, words):
+def _control_or_meta_node(block, words, *, native_syntax=None):
     """Reuse parsed integer codes rather than evaluating each control word twice."""
     g_codes = tuple(word.int_code for word in words if word.letter == "G" and word.int_code is not None)
     m_codes = tuple(word.int_code for word in words if word.letter == "M" and word.int_code is not None)
     common = (block.index, block.raw, block.nlabel, block.olabel, words)
     if g_codes or m_codes:
-        return ControlAstNode("control", *common, g_codes, () if 65 in g_codes else m_codes)
+        return ControlAstNode(
+            "control", *common, g_codes, () if 65 in g_codes else m_codes, native_syntax=native_syntax
+        )
     if words:
-        return MetaAstNode("meta", *common, tuple(word.letter for word in words))
-    return AstNode("empty", *common)
+        return MetaAstNode("meta", *common, tuple(word.letter for word in words), native_syntax=native_syntax)
+    return AstNode("empty", *common, native_syntax=native_syntax)
 
 
 def _build_program_ast_python(blocks: tuple[Block, ...]) -> ProgramAst:

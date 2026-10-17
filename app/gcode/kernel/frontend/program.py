@@ -10,7 +10,7 @@ from dataclasses import dataclass
 
 from app.native import native_symbol, require_packaged_native
 
-from ..api.resources import checkpoint, checkpointed
+from ..resources import checkpoint, checkpointed
 from .lang import (
     WordToken,
     evaluate_expression,
@@ -119,8 +119,7 @@ def _parse_blocks(lines: Iterable[str], *, start_index: int = 0):
         g_words = [w for w in words if w.letter.upper() == "G"]
         g_codes = [(w, try_literal_int(w.expr)) for w in g_words]
         motion_g_word = next((w for w, code in reversed(g_codes) if code in motion_codes), None)
-        cycle_g_word = next((w for w, code in reversed(g_codes) if code in cycle_codes), None)
-        cycle_g_lit = try_literal_int(cycle_g_word.expr) if cycle_g_word is not None else None
+        cycle_g_lit = next((code for _word, code in reversed(g_codes) if code in cycle_codes), None)
         g65_call = any(code == 65 for _word, code in g_codes)
 
         modal = ModalSnapshot(

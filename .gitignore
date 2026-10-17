@@ -70,6 +70,7 @@ builds/
 
 # uv / Ruff
 .ruff_cache/
+.import_linter_cache/
 node_modules/
 
 tmp/

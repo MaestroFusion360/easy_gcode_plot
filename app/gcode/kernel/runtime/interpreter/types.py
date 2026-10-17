@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ...api.types import Diagnostic, ExecutionEvent, ExecutionStep
-from ..execution import ProgramRuntime
-from ..state import RuntimeState
+from ...machine.execution import ProgramRuntime
+from ...machine.state import RuntimeState
+from ...types import Diagnostic, ExecutionEvent, ExecutionStep
 
 
 @dataclass

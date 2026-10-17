@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+import shutil
 import sqlite3
 
 import pytest
+from PyQt6.QtWidgets import QApplication
 
 from app import settings as app_settings
+from app.main_window import MainWindow
 from app.tools.definitions import AUTO_TIP_ORIENTATIONS, DEFAULT_MILLING_TOOL, default_turning_library
-from app.tools.library import KIND_MILLING, KIND_TURNING, ToolLibrary
+from app.tools.library import KIND_MILLING, KIND_TURNING, STARTER_TOOLS_META_KEY, ToolLibrary
 from app.ui.dialogs.tool_dialogs import _export_tool_library
 from scripts import generate_turning_tools as generator_script
 from scripts.generate_turning_tools import generate_turning_tools
@@ -15,6 +18,102 @@ from scripts.generate_turning_tools import generate_turning_tools
 TURNING_T1 = {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.4, "tipOrientation": 3}
 TURNING_T1_CHANGED = {"type": "diamond_80", "applications": ["od"], "noseRadius": 0.8, "tipOrientation": 3}
 MILLING_T1 = {"type": "mill_flat", "diameter": 10.0, "cornerRadius": 0.0, "length": 50.0}
+
+
+@pytest.fixture(scope="module")
+def qt_app():
+    return QApplication.instance() or QApplication([])
+
+
+@pytest.fixture
+def replacement_database(tmp_path):
+    """Reproduce the replaced catalogue without depending on a user's live SQLite file."""
+    incoming = tmp_path / "replacement.db"
+    groups = (
+        ("mill_flat", (2, 3, 4, 5, 6, 8, 10, 12, 16, 20)),
+        ("mill_ball", (3, 4, 6, 8, 10, 12)),
+        ("mill_bull", (6, 8, 10, 12)),
+        ("face_mill", (32, 50, 63)),
+        ("slot_mill", (3, 4, 6)),
+        ("chamfer_mill", (6, 10, 12)),
+    )
+    with ToolLibrary(str(incoming)) as library:
+        number = 0
+        for tool_type, diameters in groups:
+            for diameter in diameters:
+                number += 1
+                spec = {"type": tool_type, "diameter": diameter, "description": f"Generic {tool_type} D{diameter}"}
+                if tool_type == "mill_bull":
+                    spec["cornerRadius"] = 0.5
+                if tool_type == "chamfer_mill":
+                    spec["angle"] = 90
+                library.save_tool(KIND_MILLING, f"T{number:02d}", spec)
+        for number in range(1, 12):
+            spec = {**TURNING_T1, "description": f"User tool {number}"}
+            if number <= 5:
+                spec.update(type="groove", width=3)
+            library.save_tool(KIND_TURNING, f"T{number:02d}{number:02d}", spec)
+        library.set_meta(STARTER_TOOLS_META_KEY, "1")
+        records = library.list_tools()
+    shutil.copyfile(incoming, app_settings.tool_library_path())
+    return records
+
+
+def test_settings_loads_replaced_catalogue_without_rewriting_records(replacement_database):
+    library = app_settings.get_tool_library()
+    turning, milling = app_settings.load_tool_libraries()
+
+    assert library.path == app_settings.tool_library_path()
+    assert len(turning) == 11
+    assert set(milling) == {f"T{number}" for number in range(1, 30)}
+    assert all(spec["length"] == DEFAULT_MILLING_TOOL["length"] for spec in milling.values())
+    assert all("fluteLength" not in spec and "bodyLength" not in spec for spec in milling.values())
+    assert milling["T11"]["cornerRadius"] == 1.5
+    assert milling["T17"]["cornerRadius"] == 0.5
+    assert app_settings.load_tool_libraries() == (turning, milling)
+    assert app_settings.get_tool_library() is library
+    assert library.list_tools() == replacement_database
+    assert library.get_meta(STARTER_TOOLS_META_KEY) == "1"
+
+
+def test_replaced_catalogue_is_visible_and_usable_in_gui(replacement_database, qt_app):
+    application = qt_app
+    window = MainWindow()
+    window.autoUpdateEnabled = False
+    try:
+        assert len(window.turningToolLibrary) == 11
+        assert len(window.millingToolLibrary) == 29
+        assert window.ui.actionToolLibrary.isEnabled()
+        window.ui.actionLatheMode.setChecked(False)
+        window.ui.editor.setText("T1 M6\nG0 Z5\nG1 X5 Z-1 F100\nM30")
+        assert window.updateData(show_errors=False)
+        assert window.execution_result.ok and window.execution_result.complete
+        assert window.millingTools["T1"]["diameter"] == 2
+
+        dialog = window.toolLibraryDlg
+        dialog.show()
+        application.processEvents()
+        assert dialog.pages["milling"]["library"].rowCount() == 29
+        assert dialog.pages["turning"]["library"].rowCount() == 11
+        program_table = dialog.pages["milling"]["program"]
+        library_table = dialog.pages["milling"]["library"]
+        program_table.selectRow(0)
+        row = next(row for row in range(29) if library_table.item(row, 0).text() == "T7")
+        library_table.selectRow(row)
+        dialog.assign_from_library("milling")
+        dialog.accept()
+        assert window.millingTools["T1"]["diameter"] == 10
+        assert window.millingTools["T1"]["length"] == DEFAULT_MILLING_TOOL["length"]
+        assert window.updateData(show_errors=False)
+        assert window.execution_result.ok and window.execution_result.complete
+        assert app_settings.get_tool_library().list_tools() == replacement_database
+    finally:
+        window.toolLibraryDlg.reject()
+        window.autoUpdateTimer.stop()
+        window.ui.editor.setModified(False)
+        window.close()
+        window.deleteLater()
+        application.processEvents()
 
 
 @pytest.mark.parametrize("spec", [{"type": "future_type", "future_field": 123}, {"type": "diamond_80"}])

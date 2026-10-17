@@ -5,8 +5,8 @@ from __future__ import annotations
 import math
 from dataclasses import replace
 
-from ...api.types import TraceMotion
 from ...geometry.intersections import line_circle_points
+from ...types import TraceMotion
 from ..common import EPS
 from .projection import (
     _dist2,

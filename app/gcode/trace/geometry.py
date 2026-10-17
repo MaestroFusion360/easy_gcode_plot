@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 
 from app.gcode.kernel import TraceMotion
 from app.gcode.kernel.geometry.spatial_arc import axial_travel, extreme_points
+from app.gcode.kernel.types import with_motion_endpoints
 
 
 @dataclass(frozen=True)
@@ -34,14 +35,10 @@ def _local_oriented_arc(motion: TraceMotion) -> TraceMotion:
     start = inverse((motion.start_x, motion.start_y, motion.start_z))
     end = inverse((motion.end_x, motion.end_y, motion.end_z))
     arc = replace(motion.arc, center=inverse(motion.arc.center))
-    return replace(
+    return with_motion_endpoints(
         motion,
-        start_x=start[0],
-        start_y=start[1],
-        start_z=start[2],
-        end_x=end[0],
-        end_y=end[1],
-        end_z=end[2],
+        start,
+        end,
         arc=arc,
         orientation=None,
     )

@@ -71,9 +71,7 @@ def test_real_variables_default_to_zero_and_can_copy_numeric_r_and_named_values(
         ("DEF REAL _a,_a", "DUPLICATE_SINUMERIK_VARIABLE"),
         ("DEF REAL _a\nDEF REAL _A", "DUPLICATE_SINUMERIK_VARIABLE"),
         ("DEF REAL _a\n_a=R99", "UNDEFINED_SINUMERIK_PARAMETER"),
-        ("DEF REAL _a\n_a=1+2", "UNSUPPORTED_SINUMERIK_MODE"),
         ("DEF REAL _a[2]", "UNSUPPORTED_SINUMERIK_MODE"),
-        ("DEF INT _a", "UNSUPPORTED_SINUMERIK_MODE"),
         ('T="A" T="B" M6', "UNSUPPORTED_SINUMERIK_MODE"),
         ('T="A" T2 M6', "UNSUPPORTED_SINUMERIK_MODE"),
         ("SETMS(2)", "UNSUPPORTED_SINUMERIK_MODE"),
@@ -85,6 +83,20 @@ def test_unsupported_cam_constructs_remain_explicit_errors(source, code):
     assert not result.ok and not result.complete
     assert result.diagnostics[-1].code == code
     assert not result.motions
+
+
+@pytest.mark.parametrize(
+    "source,expected",
+    [
+        ("DEF REAL _a\n_a=1+2\nG0 X=_a", 3),
+        ("DEF INT _a\nG0 X5\nG0 X=_a", 0),
+        ("DEF INT count=2\ncount=count+1\nG0 X=count", 3),
+    ],
+)
+def test_numeric_declarations_and_arithmetic_assignments_execute(source, expected):
+    result = native(source)
+    assert result.ok and result.complete, result.diagnostics
+    assert result.motions[-1].end_x == expected
 
 
 def test_cycle832_is_explicitly_ignored_without_geometry_or_events():

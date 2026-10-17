@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.8.0 - 2026-10-18
+
+- Add native SINUMERIK POCKET3/POCKET4 roughing and finishing, HOLES1/HOLES2 drilling patterns, CYCLE90 thread milling, and DEF REAL/INT variables. Support documented subsets and diagnose unsupported cycle variants explicitly.
+- Add HEIDENHAIN iTNC 530 pocket Cycles 251/252, thread-milling Cycle 262, and circular/grid patterns 220/221, retaining required cutter geometry and entry-parameter checks.
+- Fix milling G41/G42 geometry for narrow contours, degenerate offsets, contour closure and gouging; preserve multi-turn arc sweeps and use nominal geometry with explicit diagnostics when compensation cannot be verified.
+- Fix complete SINUMERIK bearing-plate execution with G450/CFTCP, RND/CHR, named section repetition and both drilling passes. Keep tool geometry available when cutter compensation is disabled and preserve multi-hole patterns in expanded export; retain nominal turning paths when correction is disabled.
+- Fix HEIDENHAIN Cycle 200 inheriting stale peck parameters, preserve explicitly supplied native milling tools, and route named SINUMERIK tool selection through the correct execution path.
+- Fix SQLite Tool Library loading for legacy milling records without length fields, preserving saved records and mixed milling/turning catalogues without resetting the database.
+- Refactor G-code contracts, shared machine services, motion/cycle execution and report formatting to remove cyclic dependencies and confirmed code duplication. Preserve public imports, numerical results and Python/Cython execution; add repeatable Import Linter, Pylint and jscpd analysis with enforced kernel boundaries.
+
 ## 2.7.0 - 2026-10-16
 
 - Add native SINUMERIK XZ turning input in MPF/SPF with standalone G290/G291 native/ISO-T switching, diameter modes, native units, WCS, spindle/CSS and source-owned execution traces.

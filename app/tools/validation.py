@@ -6,6 +6,7 @@ import math
 from app.tools.definitions import (
     AUTO_TIP_ORIENTATIONS_BY_TOOL_DIRECTION,
     DEFAULT_AUTO_TIP_ORIENTATION,
+    DEFAULT_MILLING_TOOL,
     MILLING_TOOL_TYPES,
     TURNING_INSERT_TYPES,
     TURNING_TOOL_TYPES,
@@ -356,6 +357,9 @@ def _normalized_milling_tools(raw, *, program):
         if not isinstance(key, str) or not key.strip():
             continue
 
+        if not program:
+            # Older catalogues can omit total length; never invent a flute/body split.
+            raw_spec = {"length": DEFAULT_MILLING_TOOL["length"], **raw_spec}
         spec = _milling_base_spec(raw_spec)
         if spec is None:
             continue

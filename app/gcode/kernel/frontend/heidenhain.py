@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import replace
 
-from ..api.resources import checkpointed
+from ..resources import checkpointed
 from .ast import build_program_ast
 from .heidenhain_expression import HeidenhainExpression, HeidenhainExpressionError, compile_heidenhain_expression
 from .heidenhain_lexer import HeidenhainParseError, lex_heidenhain_line, lex_heidenhain_words, scalar_prefix

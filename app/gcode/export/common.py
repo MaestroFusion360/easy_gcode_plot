@@ -386,3 +386,17 @@ def scale_motion(motion: TraceMotion, unit_scale: float) -> TraceMotion:
         orientation_offset=tuple(value / unit_scale for value in motion.orientation_offset),
         arc=arc,
     )
+
+
+def machine_control_templates(profile):
+    """Resolve the shared stop/spindle/coolant M-code templates."""
+    return {
+        0: profile["program"]["stop"],
+        1: profile["program"]["optionalStop"],
+        3: profile["spindle"]["cw"],
+        4: profile["spindle"]["ccw"],
+        5: profile["spindle"]["stop"],
+        7: profile["coolant"]["mist"],
+        8: profile["coolant"]["flood"],
+        9: profile["coolant"]["off"],
+    }
