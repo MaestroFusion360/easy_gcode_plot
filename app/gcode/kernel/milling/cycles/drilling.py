@@ -316,7 +316,7 @@ def execute_milling_cycle(context: CycleContext, *, emit_geometry: bool = True) 
     trial_state = replace(state)
     apply_cycle_outcome(trial_state, CycleOutcome(modal_updates=modal_updates))
 
-    explicit_cycle = bool(cycle_codes)
+    explicit_cycle = bool(cycle_codes) and not (80 in cycle_codes and any(g in context.codes for g in (0, 1, 2, 3)))
     should_expand = emit_geometry and trial_state.cycle != 80 and has_position
     handled = emit_geometry and (explicit_cycle or should_expand)
     if not should_expand:

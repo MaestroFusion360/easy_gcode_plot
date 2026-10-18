@@ -151,7 +151,7 @@ def _plan(state, block):
     if q["Q201"] > 0:
         _error("Positive depth depends on the OEM MP7441 policy", unsupported=True)
     _check_parameters(q)
-    tool = _tool_radius(state.tools.get(state.tool))
+    tool = _tool_radius(state.cycle_tool())
     if tool is None:
         _error("Supply a milling cutter diameter through milling_tools/tool_resolver", unsupported=True)
     if state.spindle_direction not in {3, 4}:
@@ -163,7 +163,14 @@ def _plan(state, block):
 
 def _plunge_angle(state):
     tool = state.tools.get(state.tool, {})
-    value = tool.get("ANGLE", tool.get("plunge_angle"))
+    value = tool.get("ANGLE", tool.get("plunge_angle", 3.0))
+    if "ANGLE" not in tool and "plunge_angle" not in tool and not state.plunge_angle_warned:
+        state.warning(
+            "HEIDENHAIN_DEFAULT_PLUNGE_ANGLE",
+            "Pocket insertion uses an assumed plunge angle of 3 degrees",
+            state.program.blocks[state.pc],
+        )
+        state.plunge_angle_warned = True
     try:
         angle = float(value)
     except (TypeError, ValueError):
@@ -231,6 +238,11 @@ def execute_pocket(state, block):
     if state.parameters.get("Q201") == 0:
         return
     if state.parameters.get("Q215") == 2 and state.parameters.get("Q368") == state.parameters.get("Q369") == 0:
+        state.warning(
+            "HEIDENHAIN_POCKET_NO_FINISHING_ALLOWANCE",
+            "Finishing-only pocket has Q368=Q369=0; no cutting passes are generated",
+            block,
+        )
         return
     pocket = _plan(state, block)
     q, scale = pocket.q, state.scale

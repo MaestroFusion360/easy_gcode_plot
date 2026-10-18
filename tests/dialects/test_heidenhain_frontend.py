@@ -276,6 +276,17 @@ def test_malformed_syntax_has_physical_source_diagnostic(source):
     assert error.raw == source.splitlines()[error.line - 1]
 
 
+@pytest.mark.parametrize("units", ["MM", "INCH"])
+def test_unquoted_program_name_with_spaces_preserves_name_and_units(units):
+    name = "KSH610 080.016.00.00.03_FREZ"
+    program = parse_heidenhain_program(f"BEGIN PGM {name} {units}\nL X1 F100\nEND PGM {name} {units}")
+    for index in (0, 2):
+        syntax = program.blocks[index].native_syntax
+        assert syntax.program_name == name
+        assert syntax.units == units
+        assert not syntax.warnings
+
+
 @pytest.mark.parametrize("source", ["G1 X1", "PLANE VECTOR BX0 BY0 BZ1", "FN 18: SYSREAD Q1=ID1", "FZ0.1"])
 def test_unknown_constructs_fail_closed(source):
     with pytest.raises(HeidenhainParseError) as caught:

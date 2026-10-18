@@ -108,7 +108,7 @@ def _contour(line):
 
 
 def _boundary(line):
-    match = re.fullmatch(r'(BEGIN|END)\s+PGM\s+("(?:[^"\n]|"")+"|[^\s"]+)(?:\s+(MM|INCH))?', line.body, re.I)
+    match = re.fullmatch(r'(BEGIN|END)\s+PGM\s+("(?:[^"\n]|"")+"|[^"\n]+?)(?:\s+(MM|INCH))?', line.body, re.I)
     if match is None:
         raise HeidenhainParseError("Expected BEGIN/END PGM name MM/INCH", line)
     name = match[2]

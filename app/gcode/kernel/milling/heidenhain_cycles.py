@@ -145,7 +145,7 @@ class _Drill:
     def bore_milling(self, surface, depth, safety, returned, feed):
         axis = self.axis
         plane, axes = {2: (17, (0, 1)), 1: (18, (0, 2)), 0: (19, (1, 2))}[axis]
-        tool = self.state.tools.get(self.state.tool, {})
+        tool = self.state.cycle_tool() or {}
         diameter = self.q(335) * self.state.scale
         tool_diameter = float(tool.get("diameter", 0))
         radius = (diameter - tool_diameter) / 2

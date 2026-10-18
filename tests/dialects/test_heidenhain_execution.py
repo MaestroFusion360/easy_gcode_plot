@@ -103,10 +103,9 @@ def test_machine_move_is_block_local_and_respects_wcs():
 
 _UNSUPPORTED_RUNTIME_FEATURES = frozenset(
     {
-        # Retraction without a declared tool axis, tool offsets and unmodeled M words.
+        # Retraction without a declared tool axis and unmodeled M words.
         "L X2 A30",
         "L X2 M140 MB MAX",
-        "TOOL CALL 1 Z DL1",
         "L X2 M92",
     }
 )

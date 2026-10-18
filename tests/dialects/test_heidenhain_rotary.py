@@ -137,7 +137,7 @@ def test_malformed_plane_reports_physical_location(source):
         ("L A0 FMAX", None, "ROTARY_KINEMATICS_REQUIRED"),
         ("PLANE RESET STAY", None, "ROTARY_KINEMATICS_REQUIRED"),
         ("L B30 FMAX", PROFILE, "UNCONFIGURED_ROTARY_AXIS"),
-        ("M128", "4ax_table_a", "UNSUPPORTED_HEIDENHAIN_TCP"),
+        ("M128", "4ax_head_a", "UNSUPPORTED_HEIDENHAIN_TCP"),
         ("L A30 X2 F100", PROFILE, "UNSUPPORTED_SIMULTANEOUS_ROTARY_MOTION"),
         ("PLANE RESET MOVE FMAX", PROFILE, "UNSUPPORTED_HEIDENHAIN_PLANE"),
         ("PLANE RESET TURN TABLE COORD", PROFILE, "UNSUPPORTED_HEIDENHAIN_PLANE"),
@@ -173,6 +173,46 @@ def test_tcp_rotary_only_motion_retains_tip_and_captures_both_orientations(contr
     assert axis(motion.start_tool_orientation) == pytest.approx((0, 0, 1))
     assert axis(motion.tool_orientation) == pytest.approx((math.sqrt(0.125), -math.sqrt(0.125), math.sqrt(0.75)))
     assert [e.kind for e in result.events if e.kind.startswith("TCP_CONTROL")] == ["TCP_CONTROL_ON", "TCP_CONTROL_OFF"]
+
+
+@pytest.mark.parametrize("address", ["A", "B", "C"])
+@pytest.mark.parametrize("negative", [False, True])
+def test_single_table_tcp_keeps_tip_and_uses_signed_joint(address, negative):
+    profile = f"4ax_table_{address.lower()}" + ("_negative" if negative else "")
+    result = run(
+        f"TOOL CALL 1 Z\nL X10 Y20 Z30 F100\nM128\nL {address}30 F100\nL X11 Y22 Z33 F100\nM129\nL X0 Y0 Z0 FMAX\nM30",
+        kinematics=profile,
+    )
+    assert result.ok and result.complete, result.diagnostics
+    rotary = next(m for m in result.motions if m.source_raw == f"L {address}30 F100")
+    assert point(rotary, end=False) == point(rotary, end=True) == (10, 20, 30)
+    angle = math.radians(-30 if negative else 30)
+    sine, cosine = math.sin(angle), math.cos(angle)
+    expected_axis = {"A": (0, -sine, cosine), "B": (sine, 0, cosine), "C": (0, 0, 1)}[address]
+    assert axis(rotary.tool_orientation) == pytest.approx(expected_axis)
+    cutting = next(m for m in result.motions if m.source_raw == "L X11 Y22 Z33 F100")
+    assert point(cutting, end=True) == (11, 22, 33)
+    assert [e.kind for e in result.events if e.kind.startswith("TCP_CONTROL")] == ["TCP_CONTROL_ON", "TCP_CONTROL_OFF"]
+
+
+def test_legacy_zero_index_and_repeated_tcp_controls_keep_xyz_geometry():
+    source = (
+        "BEGIN PGM PART 080.016 MM\nA+0\nTOOL CALL 6 Z S2387\nL M126\n"
+        "L M128 F1000\nL X141 Y0 Z150 A0 FMAX M13\nL Z91 FMAX\nL Z88 F239\n"
+        "L X115 Y3\nL M128 F1000\nTOOL CALL Z S1857\nL Z150 FMAX\nM30\nEND PGM PART 080.016 MM"
+    )
+    result = run(source, kinematics="4ax_table_a")
+    assert result.ok and result.complete, result.diagnostics
+    assert not result.diagnostics
+    assert result.program_end == "M30"
+    assert [point(m, end=True) for m in result.motions] == [
+        (141, 0, 150),
+        (141, 0, 91),
+        (141, 0, 88),
+        (115, 3, 88),
+        (115, 3, 150),
+    ]
+    assert sum(e.kind == "TCP_CONTROL_ON" for e in result.events) == 1
 
 
 def test_rotary_profile_error_is_a_structured_native_result():

@@ -181,6 +181,9 @@ def modal_group_conflicts(gcodes: tuple[int | float, ...], language: str) -> tup
     """Return conflicting supported modal codes grouped by machine dialect."""
     groups = _MILLING_MODAL_GROUPS if language == "fanuc_mill" else _TURNING_MODAL_GROUPS
     numeric_codes = {int(code) if float(code).is_integer() else float(code) for code in gcodes}
+    # Cancellation may accompany an explicit ordinary move in a safety block.
+    if language == "fanuc_mill" and numeric_codes & {0, 1, 2, 3}:
+        numeric_codes.discard(80)
     conflicts = []
     for name, members in groups.items():
         present = tuple(sorted(numeric_codes & members))

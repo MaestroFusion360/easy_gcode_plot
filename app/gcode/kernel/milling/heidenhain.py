@@ -80,6 +80,8 @@ class _State:
     spindle_direction: int | None = None
     center: tuple[float, float, float] | None = None
     tolerance_warned: bool = False
+    plunge_angle_warned: bool = False
+    tool_radius_delta: float = 0.0
     arc_tolerance: float = 0.01
     ended: str | None = None
     compensation_mode: int = 40
@@ -139,6 +141,8 @@ class _State:
             "IB",
             "IC",
         }
+        if syntax.command == "TOOL CALL":
+            unsupported -= {"DL", "DR"}
         if unsupported:
             _unsupported("Unsupported Klartext addresses: " + ", ".join(sorted(unsupported)))
         self.feed_controls(syntax, values, block)
@@ -491,11 +495,38 @@ class _State:
                 ExecutionEvent("tool_change", block.index, "TOOL CALL", tool=tool, previous_tool=self.tool)
             )
         self.tool = tool
+        values = {
+            word.address: scalar(word.expression, self.parameters)
+            for word in syntax.positioning_words
+            if word.address in {"DL", "DR"}
+        }
+        self.tool_radius_delta = values.get("DR", 0.0) * self.scale
+        if self.tool_radius_delta:
+            self.warning(
+                "HEIDENHAIN_TOOL_RADIUS_DELTA",
+                "TOOL CALL DR is applied to supported cycle geometry; contour compensation uses the base tool radius",
+                block,
+            )
+        if values.get("DL", 0.0):
+            self.warning("HEIDENHAIN_TOOL_LENGTH_DELTA_IGNORED", "TOOL CALL DL is ignored in the tool-tip path", block)
         if syntax.spindle_axis:
             self.tool_axis_declared = True
             self.spindle_axis = syntax.spindle_axis
             self.plane = _PLANES[self.spindle_axis][0]
             self.center = None
+
+    def warning(self, code, message, block):
+        self.diagnostics.append(Diagnostic(code, message, "warning", "unverified", block.index + 1, block.raw))
+
+    def cycle_tool(self):
+        """Apply the current call's radial delta without changing the tool library."""
+        tool = self.tools.get(self.tool)
+        if not tool or not self.tool_radius_delta:
+            return tool
+        diameter = float(tool.get("diameter", 0.0)) + 2 * self.tool_radius_delta
+        if not math.isfinite(diameter) or diameter <= 0:
+            raise SemanticError("INVALID_TOOL", "TOOL CALL DR must leave a positive effective cutter diameter")
+        return {**tool, "diameter": diameter}
 
     def cycle(self, syntax, values, block):
         if syntax.cycle_code in {7, 10} and syntax.command == "CYCL DEF":

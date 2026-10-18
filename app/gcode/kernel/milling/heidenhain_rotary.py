@@ -57,9 +57,16 @@ def _capture(state):
 def set_tcp(state, enabled, block):
     if enabled:
         profile = _require_profile(state)
-        if not profile.tcp_table_supported or state.rotary.plane is not None or state.spindle_axis != "Z":
+        single_table = not profile.head_rotary_axes and len(profile.table_rotary_axes) == 1
+        if (
+            not (profile.tcp_table_supported or single_table)
+            or state.rotary.plane is not None
+            or state.spindle_axis != "Z"
+        ):
             raise SemanticError(
-                "UNSUPPORTED_HEIDENHAIN_TCP", "M128/TCPM requires an AC/BC table and PLANE RESET", "unsupported"
+                "UNSUPPORTED_HEIDENHAIN_TCP",
+                "M128/TCPM requires a single rotary table or an AC/BC table, Z tool axis and PLANE RESET",
+                "unsupported",
             )
     if state.rotary.tcp == enabled:
         return

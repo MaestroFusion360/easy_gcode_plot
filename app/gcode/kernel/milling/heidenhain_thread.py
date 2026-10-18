@@ -33,7 +33,7 @@ def thread_plan(state):
     if q["Q351"] not in {-1, 1} or state.spindle_direction not in {3, 4}:
         _unsupported("Specify Q351=+1/-1 and spindle direction M3/M4")
     _check_ranges(q, rapid)
-    tool_radius = _tool_radius(state.tools.get(state.tool))
+    tool_radius = _tool_radius(state.cycle_tool())
     diameter = q["Q335"] * state.scale
     if tool_radius is None:
         _unsupported("Cycle 262 requires a milling cutter diameter from milling_tools/tool_resolver")

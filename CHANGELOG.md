@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.8.1 - 2026-10-18
+
+- Unify built-in rotary profile names as 4 Ax / 5 Ax Head / Table while preserving profile IDs and geometry.
+- Accept spaces in unquoted HEIDENHAIN program names and support M128/TCPM with a single rotary table axis, retaining configured axis directions and existing unsupported-configuration diagnostics.
+- Fix milling safety blocks combining G80 with explicit G00/G01 motion: cancel active drilling cycles and execute the programmed move regardless of code order, while retaining diagnostics for conflicting motion commands.
+- Accept HEIDENHAIN TOOL CALL DL/DR offsets. Apply DR to cutter radius in supported pocket, bore-milling and thread-milling cycles without modifying saved tool geometry; warn that contour compensation retains the base radius and DL is ignored in the tool-tip path.
+- Use a 3-degree plunge angle for HEIDENHAIN pocket insertion when no explicit angle is supplied, with a warning identifying the assumption and no additional tool-library fields.
+- Warn when HEIDENHAIN finishing-only pocket cycles have zero side and floor allowances and therefore generate no cutting passes.
+
 ## 2.8.0 - 2026-10-18
 
 - Add native SINUMERIK POCKET3/POCKET4 roughing and finishing, HOLES1/HOLES2 drilling patterns, CYCLE90 thread milling, and DEF REAL/INT variables. Support documented subsets and diagnose unsupported cycle variants explicitly.
