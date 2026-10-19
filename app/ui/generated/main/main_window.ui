@@ -189,6 +189,7 @@
     </property>
     <addaction name="actionNew"/>
     <addaction name="actionOpen"/>
+    <addaction name="actionOpenInCli"/>
     <addaction name="separator"/>
     <addaction name="actionSave"/>
     <addaction name="actionSaveAs"/>
@@ -321,6 +322,7 @@
    </attribute>
    <addaction name="actionNew"/>
    <addaction name="actionOpen"/>
+   <addaction name="actionOpenInCli"/>
    <addaction name="separator"/>
    <addaction name="actionSave"/>
    <addaction name="actionSaveAs"/>
@@ -444,6 +446,15 @@
    <property name="shortcut">
     <string>Ctrl+O</string>
    </property>
+  </action>
+  <action name="actionOpenInCli">
+   <property name="icon">
+    <iconset resource="../../../resources/files_res.qrc">
+     <normaloff>:/resource/icons/console.png</normaloff>:/resource/icons/console.png</iconset>
+   </property>
+   <property name="text"><string>Open in CLI</string></property>
+   <property name="toolTip"><string>Open the current NC file in a separate CLI terminal</string></property>
+   <property name="shortcut"><string>Ctrl+Alt+T</string></property>
   </action>
   <action name="actionSave">
    <property name="icon">

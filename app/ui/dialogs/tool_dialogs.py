@@ -4,7 +4,7 @@ import csv
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QButtonGroup, QComboBox, QDialog, QMessageBox
 
@@ -288,13 +288,12 @@ class _TurningToolEditor(QDialog):
 
     @staticmethod
     def _populate_combo(combo, tool_types, requested_type):
-        combo.blockSignals(True)
-        combo.clear()
-        for tool_type in tool_types:
-            combo.addItem(TURNING_TOOL_LABELS[tool_type], tool_type)
-        selected = combo.findData(requested_type)
-        combo.setCurrentIndex(selected if selected >= 0 else (0 if combo.count() else -1))
-        combo.blockSignals(False)
+        with QSignalBlocker(combo):
+            combo.clear()
+            for tool_type in tool_types:
+                combo.addItem(TURNING_TOOL_LABELS[tool_type], tool_type)
+            selected = combo.findData(requested_type)
+            combo.setCurrentIndex(selected if selected >= 0 else (0 if combo.count() else -1))
 
     def updateTurningFields(self, *_args):
         if self._updating:
@@ -358,12 +357,11 @@ class _TurningToolEditor(QDialog):
         current = self.tipOrientation.currentData()
         requested = self._initial_tip_orientation if self._initial_tip_orientation is not None else current
         orientation = int(requested) if requested is not None and int(requested) in choices else default
-        self.tipOrientation.blockSignals(True)
-        self.tipOrientation.clear()
-        for value in choices:
-            self.tipOrientation.addItem(QIcon(f":/resource/icons/orientation_box/P{value}.png"), f"P{value}", value)
-        self.tipOrientation.setCurrentIndex(self.tipOrientation.findData(orientation))
-        self.tipOrientation.blockSignals(False)
+        with QSignalBlocker(self.tipOrientation):
+            self.tipOrientation.clear()
+            for value in choices:
+                self.tipOrientation.addItem(QIcon(f":/resource/icons/orientation_box/P{value}.png"), f"P{value}", value)
+            self.tipOrientation.setCurrentIndex(self.tipOrientation.findData(orientation))
         self._initial_tip_orientation = None
 
     def validateAndAccept(self):

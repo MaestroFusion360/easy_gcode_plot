@@ -9,16 +9,22 @@ from app.gcode.execution.program import execute_program
 from app.gcode.export.common import ExportOptions
 from app.gcode.export.expanded import convert_resolved_program
 from app.gcode.kernel import execute
+from app.gcode.kernel.milling.kinematics import builtin_profile_ids, load_catalog, point_orientation, transform_vector
+from app.gcode.trace import render_trace, trace_statistics
 
 
 @pytest.mark.parametrize("correction", [False, True])
-def test_complete_primer_retains_pocket_and_repeats_holes_with_either_correction_setting(fixture_text, correction):
+@pytest.mark.parametrize("kinematics", (None, *sorted(builtin_profile_ids())))
+def test_complete_primer_retains_pocket_and_repeats_holes_with_either_correction_setting(
+    fixture_text, correction, kinematics
+):
     source = fixture_text("milling/sinumerik/cycles/primer.mpf")
     result, tools, _ = execute_program(
         source,
         language="fanuc_mill",
         source_dialect="sinumerik",
         correction_enabled=correction,
+        kinematics=kinematics,
     )
     assert result.ok and result.complete and result.program_end == "M30", result.diagnostics
     assert not result.diagnostics
@@ -61,6 +67,82 @@ def test_complete_primer_retains_pocket_and_repeats_holes_with_either_correction
     if not correction:
         chamfer = next(m for m in contour if m.source_kind == "sinumerik_chr")
         assert (chamfer.start_x, chamfer.start_y, chamfer.end_x, chamfer.end_y) == (30, 30, 40, 20)
+
+
+@pytest.mark.parametrize("command", ["CHR", "RND"])
+@pytest.mark.parametrize("angle", [0, 360])
+@pytest.mark.parametrize("kinematics", ["5ax_table_ac", "4ax_table_c"])
+def test_corner_with_selected_profile_and_identity_rotary_frame(command, angle, kinematics):
+    source = f"G0 C{angle}\nG1 X40 Y0 F100\nG1 X40 Y30 {command}=10\nG1 X0 Y30\nM30"
+    result = execute(source, "fanuc_mill", source_dialect="sinumerik", kinematics=kinematics)
+    assert result.ok and result.complete, result.diagnostics
+    corner = next(m for m in result.motions if m.source_kind == "sinumerik_" + command.lower())
+    assert (corner.start_x, corner.start_y, corner.end_x, corner.end_y) == pytest.approx((40, 20, 30, 30))
+    assert corner.move == (1 if command == "CHR" else 3)
+    assert sum(step.emitted_count for step in result.execution_steps) == len(result.motions)
+
+
+@pytest.mark.parametrize("command", ["CHR", "RND"])
+@pytest.mark.parametrize("kinematics", sorted(builtin_profile_ids()))
+def test_corner_supports_any_fixed_profile_orientation(command, kinematics):
+    profile = load_catalog()[kinematics]
+    angles = {axis: 23 + 14 * index for index, axis in enumerate(sorted(profile.addresses))}
+    index = "G0 " + " ".join(f"{axis}{value}" for axis, value in angles.items())
+    source = f"{index}\nG1 X40 Y0 Z0 F100\nG1 X40 Y30 {command}=10\nG1 X0 Y30\nM30"
+    offset = (13, -17, 29)
+    result = execute(source, "fanuc_mill", source_dialect="sinumerik", kinematics=kinematics, wcs_offsets={54: offset})
+    assert result.ok and result.complete, result.diagnostics
+    corner = next(m for m in result.motions if m.source_kind == "sinumerik_" + command.lower())
+    matrix = point_orientation(profile, angles)
+
+    def point(local):
+        rotated = transform_vector(matrix, local)
+        return tuple(rotated[i] + offset[i] for i in range(3))
+
+    assert (corner.start_x, corner.start_y, corner.start_z) == pytest.approx(point((40, 20, 0)))
+    assert (corner.end_x, corner.end_y, corner.end_z) == pytest.approx(point((30, 30, 0)))
+    if command == "RND":
+        assert corner.arc.center == pytest.approx(point((30, 20, 0)))
+        assert corner.arc.radius == pytest.approx(10)
+        assert corner.arc.normal == pytest.approx(transform_vector(matrix, (0, 0, 1)))
+        assert corner.arc.sweep == pytest.approx(math.pi / 2)
+    assert render_trace(result)
+
+
+@pytest.mark.parametrize("kinematics", ["5ax_table_ac", "5ax_table_bc"])
+@pytest.mark.parametrize("angle", [30, -45, 90])
+@pytest.mark.parametrize("correction", [False, True])
+def test_complete_primer_rotates_without_changing_local_contour_or_cycles(fixture_text, kinematics, angle, correction):
+    source = fixture_text("milling/sinumerik/cycles/primer.mpf")
+    baseline, _, _ = execute_program(
+        source, language="fanuc_mill", source_dialect="sinumerik", correction_enabled=correction
+    )
+    profile = load_catalog()[kinematics]
+    tilt = profile.table_rotary_axes[0].address
+    result, _, _ = execute_program(
+        f"G0 {tilt}{angle} C37\n" + source,
+        language="fanuc_mill",
+        source_dialect="sinumerik",
+        correction_enabled=correction,
+        kinematics=kinematics,
+    )
+    assert result.ok and result.complete and not result.diagnostics, result.diagnostics
+    matrix = point_orientation(profile, {tilt: angle, "C": 37})
+    assert len(result.motions) == len(baseline.motions)
+    for got, original in zip(result.motions, baseline.motions, strict=True):
+        assert (got.end_x, got.end_y, got.end_z) == pytest.approx(
+            transform_vector(matrix, (original.end_x, original.end_y, original.end_z))
+        )
+        assert got.source_kind == original.source_kind and got.compensation_applied == original.compensation_applied
+    assert trace_statistics(result)["total_length"] == pytest.approx(trace_statistics(baseline)["total_length"])
+
+
+def test_corner_rejects_adjacent_elements_in_different_working_planes():
+    source = "G0 A30\nG1 X40 Y0 F100\nG1 X40 Y30 CHR=10\nG0 A60\nG1 X0 Y30\nM30"
+    result = execute(source, "fanuc_mill", source_dialect="sinumerik", kinematics="5ax_table_ac")
+    assert not result.ok and not result.complete
+    assert result.diagnostics[-1].code == "INVALID_SINUMERIK_CORNER"
+    assert "share a working plane" in result.diagnostics[-1].message
 
 
 @pytest.mark.parametrize("target", ["fanuc_mill", "sinumerik_840d"])

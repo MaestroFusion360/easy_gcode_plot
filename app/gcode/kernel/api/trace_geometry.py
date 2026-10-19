@@ -6,57 +6,14 @@ from dataclasses import dataclass, field, replace
 
 from ..compensation.milling import apply_milling_cutter_compensation_with_owners
 from ..geometry import resolve_arc
+from ..geometry.motion_frame import motion_frame as _compensation_frame
 from ..machine.diagnostics import diagnostic_from_exception as _diagnostic_from_exception
 from ..milling.heidenhain_corners import prepare_corner_compensation
-from ..milling.kinematics import profile_from_snapshot, transform_vector
+from ..milling.kinematics import profile_from_snapshot
 from ..milling.sinumerik_corners import append_contour_motion, finish_contour
 from ..resources import SemanticError
-from ..types import Diagnostic, TraceMotion, with_motion_endpoints
+from ..types import Diagnostic, TraceMotion
 from .arc_validation import _validate_turning_arc_source
-
-
-def _compensation_frame(motion: TraceMotion, *, local: bool) -> TraceMotion:
-    """Move resolved geometry between fixed WCS display and the local cutter plane."""
-    matrix = motion.orientation
-    if matrix is None:
-        return motion
-    offset = motion.orientation_offset
-    rotation = tuple(tuple(matrix[column][row] for column in range(3)) for row in range(3)) if local else matrix
-
-    def point(value):
-        source = tuple(value[i] - offset[i] for i in range(3)) if local else value
-        transformed = transform_vector(rotation, source)
-        return transformed if local else tuple(transformed[i] + offset[i] for i in range(3))
-
-    def vector(value):
-        return transform_vector(rotation, value)
-
-    start = point((motion.start_x, motion.start_y, motion.start_z))
-    end = point((motion.end_x, motion.end_y, motion.end_z))
-    delta = vector((motion.i or 0.0, motion.j or 0.0, motion.k or 0.0))
-    center_offset = motion.absolute_center_offset or offset
-    center_offset = point(center_offset)
-    has_ijk = any(value is not None for value in (motion.i, motion.j, motion.k))
-    arc = motion.arc
-    if arc is not None:
-        normal = arc.normal
-        if normal is None and not local:
-            normal = {17: (0.0, 0.0, 1.0), 18: (0.0, 1.0, 0.0), 19: (1.0, 0.0, 0.0)}[arc.plane]
-        arc = replace(
-            arc,
-            center=point(arc.center),
-            normal=vector(normal) if normal is not None else None,
-        )
-    return with_motion_endpoints(
-        motion,
-        start,
-        end,
-        i=delta[0] if has_ijk else None,
-        j=delta[1] if has_ijk else None,
-        k=delta[2] if has_ijk else None,
-        absolute_center_offset=center_offset,
-        arc=arc,
-    )
 
 
 def _motion_with_step_metadata(motion, step, language, threading):
@@ -142,7 +99,11 @@ def _compensation_diagnostics(result, motions, *, code, message, predicate):
 def _resolve_milling_compensation(result, motions, motion_step_owners, milling_tools, kinematics):
     """Apply verified local-plane offsets or retain the unverified C-table trace."""
     profile = profile_from_snapshot(result.kinematics_definition)
-    table_c = profile is not None and profile.continuous_c_table
+    table_c = (
+        profile is not None
+        and profile.continuous_c_table
+        and any(event.kind in {"ROTARY_INDEX", "ROTARY_MOTION"} for event in result.events)
+    )
     diagnostics = ()
     if table_c:
         diagnostics = _compensation_diagnostics(

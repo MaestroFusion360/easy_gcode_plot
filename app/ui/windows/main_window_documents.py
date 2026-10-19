@@ -47,6 +47,7 @@ class OpenDocument:
     manual_arc_type_override: bool = False
     untitled_number: int = 1
     cursor: tuple[int, int] = (0, 0)
+    horizontal_scroll: int = 0
     first_visible_line: int = 0
     selection: tuple[int, int, int, int] | None = None
     state: dict = field(default_factory=dict)
@@ -319,6 +320,7 @@ class MainWindowDocumentsMixin:
         item.comment_style = self._document_comment_style
         item.manual_arc_type_override = self._manual_arc_type_override
         item.cursor = editor.getCursorPosition()
+        item.horizontal_scroll = editor.horizontalScrollBar().value()
         item.first_visible_line = editor.firstVisibleLine()
         item.selection = editor.getSelection() if editor.hasSelectedText() else None
         item.state = self._snapshot_runtime()
@@ -450,8 +452,14 @@ class MainWindowDocumentsMixin:
     def _sync_document_consumers(self, item):
         self.ui.editor.setCursorPosition(*item.cursor)
         if item.selection is not None:
-            self.ui.editor.setSelection(*item.selection)
+            start_line, start_index, end_line, end_index = item.selection
+            # getSelection() sorts endpoints; retain the caret's original end.
+            if item.cursor == (start_line, start_index):
+                self.ui.editor.setSelection(end_line, end_index, start_line, start_index)
+            else:
+                self.ui.editor.setSelection(*item.selection)
         self.ui.editor.setFirstVisibleLine(item.first_visible_line)
+        self.ui.editor.horizontalScrollBar().setValue(item.horizontal_scroll)
         self._update_document_title()
         self.documentWasModified()
         self._watch_current_document()
@@ -462,6 +470,7 @@ class MainWindowDocumentsMixin:
         self.wcsDlg.loadValues()
         self.exportDlg.sync_mode_availability(self.latheMode)
         self.syncGuiCapabilities()
+        self.snippetsDock.refresh()
         self.statisticsDlg.hide()
         if self.tokensDlg.isVisible():
             # Refresh the inspector's selected tab after restoring the document.

@@ -509,3 +509,36 @@ def test_switch_during_stock_playback_removes_previous_simulation(window):
     assert window._stock_timeline is not timeline
     assert window._activate_document(1)
     assert window._stock_timeline is None
+
+
+@pytest.mark.parametrize("selected", [None, "forward", "backward"])
+def test_switch_restores_editor_scroll_and_caret(window, selected):
+    window.show()
+    QApplication.processEvents()
+    editor = window.ui.editor
+    editor.setText(("G1 X1 " + "Y2 " * 400 + "\n") * 100)
+    if selected == "forward":
+        editor.setSelection(40, 80, 42, 120)
+    elif selected == "backward":
+        editor.setSelection(42, 120, 40, 80)
+    else:
+        editor.setCursorPosition(42, 120)
+    editor.setFirstVisibleLine(35)
+    editor.horizontalScrollBar().setValue(180)
+    expected = (
+        editor.getCursorPosition(),
+        editor.getSelection(),
+        editor.firstVisibleLine(),
+        editor.horizontalScrollBar().value(),
+    )
+    assert expected[-1] > 0
+    window.newFile()
+    assert window._active_document_index == 1
+    editor.setText("M30")
+    assert window._activate_document(0)
+    assert (
+        editor.getCursorPosition(),
+        editor.getSelection(),
+        editor.firstVisibleLine(),
+        editor.horizontalScrollBar().value(),
+    ) == expected

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import copy
 
-from PyQt6.QtCore import QCoreApplication, QEvent, QMimeData, QPoint, QRect, QSize, Qt
+from PyQt6.QtCore import QCoreApplication, QEvent, QMimeData, QPoint, QRect, QSignalBlocker, QSize, Qt
 from PyQt6.QtGui import QDrag
 from PyQt6.QtWidgets import (
     QApplication,
@@ -642,9 +642,8 @@ class PostProfileEditor(QWidget):
             (self.ui.addressSign, spec.get("sign")),
             (self.ui.addressRequired, spec["required"]),
         ):
-            widget.blockSignals(True)
-            widget.setCurrentIndex(widget.findData(value))
-            widget.blockSignals(False)
+            with QSignalBlocker(widget):
+                widget.setCurrentIndex(widget.findData(value))
         self.ui.addressPrecision.setEnabled(address != "motion")
         self.ui.addressSign.setEnabled(address != "motion")
 
@@ -763,16 +762,14 @@ class PostProfileEditor(QWidget):
             not native and (self.profile.get("supports") or {}).get("absoluteArcCenters", True)
         )
         if native and self.ui.arcs.currentIndex() == 1:
-            self.ui.arcs.blockSignals(True)
-            self.ui.arcs.setCurrentIndex(0)
-            self.ui.arcs.blockSignals(False)
+            with QSignalBlocker(self.ui.arcs):
+                self.ui.arcs.setCurrentIndex(0)
         self.ui.multiTurn.setEnabled(not native and self.ui.arcs.currentIndex() < 2)
         self.ui.centerSplit.setEnabled(self.ui.arcs.currentIndex() < 2 and not self.ui.multiTurn.isChecked())
         self.ui.radiusSplit.setEnabled(self.ui.arcs.currentIndex() == 2)
         if native:
-            self.ui.spaces.blockSignals(True)
-            self.ui.spaces.setChecked(True)
-            self.ui.spaces.blockSignals(False)
+            with QSignalBlocker(self.ui.spaces):
+                self.ui.spaces.setChecked(True)
         self.ui.spaces.setEnabled(not native)
         self.ui.leadingZero.setEnabled(not native)
 

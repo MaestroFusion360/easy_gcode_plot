@@ -17,12 +17,12 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PyQt6.QtWidgets import (QAbstractButton, QAbstractItemView, QApplication, QCheckBox,
     QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox,
-    QFontComboBox, QFormLayout, QFrame, QGroupBox,
-    QHBoxLayout, QHeaderView, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QPlainTextEdit, QPushButton,
-    QSizePolicy, QSlider, QSpacerItem, QSpinBox,
-    QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
-    QVBoxLayout, QWidget)
+    QFontComboBox, QFormLayout, QFrame, QGridLayout,
+    QGroupBox, QHBoxLayout, QHeaderView, QLabel,
+    QLineEdit, QListWidget, QListWidgetItem, QPlainTextEdit,
+    QPushButton, QSizePolicy, QSlider, QSpacerItem,
+    QSpinBox, QSplitter, QTabWidget, QTableWidget,
+    QTableWidgetItem, QVBoxLayout, QWidget)
 
 import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
 
@@ -141,20 +141,40 @@ class Ui_OptionsDlg(object):
 
         self.generalForm.setWidget(7, QFormLayout.ItemRole.FieldRole, self.maxGeneratedMotionsSpin)
 
+        self.cliTerminalLabel = QLabel(self.generalTab)
+        self.cliTerminalLabel.setObjectName(u"cliTerminalLabel")
+
+        self.generalForm.setWidget(8, QFormLayout.ItemRole.LabelRole, self.cliTerminalLabel)
+
+        self.cliTerminalLayout = QHBoxLayout()
+        self.cliTerminalLayout.setObjectName(u"cliTerminalLayout")
+        self.cliTerminalEdit = QLineEdit(self.generalTab)
+        self.cliTerminalEdit.setObjectName(u"cliTerminalEdit")
+
+        self.cliTerminalLayout.addWidget(self.cliTerminalEdit)
+
+        self.cliTerminalBrowseButton = QPushButton(self.generalTab)
+        self.cliTerminalBrowseButton.setObjectName(u"cliTerminalBrowseButton")
+
+        self.cliTerminalLayout.addWidget(self.cliTerminalBrowseButton)
+
+
+        self.generalForm.setLayout(8, QFormLayout.ItemRole.FieldRole, self.cliTerminalLayout)
+
         self.autoUpdateCheck = QCheckBox(self.generalTab)
         self.autoUpdateCheck.setObjectName(u"autoUpdateCheck")
 
-        self.generalForm.setWidget(8, QFormLayout.ItemRole.SpanningRole, self.autoUpdateCheck)
+        self.generalForm.setWidget(9, QFormLayout.ItemRole.SpanningRole, self.autoUpdateCheck)
 
         self.loggingCheck = QCheckBox(self.generalTab)
         self.loggingCheck.setObjectName(u"loggingCheck")
 
-        self.generalForm.setWidget(9, QFormLayout.ItemRole.SpanningRole, self.loggingCheck)
+        self.generalForm.setWidget(10, QFormLayout.ItemRole.SpanningRole, self.loggingCheck)
 
         self.cimcoLikePickingCheck = QCheckBox(self.generalTab)
         self.cimcoLikePickingCheck.setObjectName(u"cimcoLikePickingCheck")
 
-        self.generalForm.setWidget(10, QFormLayout.ItemRole.SpanningRole, self.cimcoLikePickingCheck)
+        self.generalForm.setWidget(11, QFormLayout.ItemRole.SpanningRole, self.cimcoLikePickingCheck)
 
         self.tabs.addTab(self.generalTab, "")
         self.cncTab = QWidget()
@@ -531,50 +551,60 @@ class Ui_OptionsDlg(object):
 
         self.plotForm.setWidget(1, QFormLayout.ItemRole.FieldRole, self.gridStepSpin)
 
+        self.plotChecksLayout = QGridLayout()
+        self.plotChecksLayout.setObjectName(u"plotChecksLayout")
         self.axesCheck = QCheckBox(self.plotTab)
         self.axesCheck.setObjectName(u"axesCheck")
 
-        self.plotForm.setWidget(2, QFormLayout.ItemRole.LabelRole, self.axesCheck)
+        self.plotChecksLayout.addWidget(self.axesCheck, 0, 0, 1, 1)
 
         self.gridCheck = QCheckBox(self.plotTab)
         self.gridCheck.setObjectName(u"gridCheck")
 
-        self.plotForm.setWidget(2, QFormLayout.ItemRole.FieldRole, self.gridCheck)
+        self.plotChecksLayout.addWidget(self.gridCheck, 0, 1, 1, 1)
 
-        self.backgroundGradientCheck = QCheckBox(self.plotTab)
-        self.backgroundGradientCheck.setObjectName(u"backgroundGradientCheck")
+        self.hideToolCheck = QCheckBox(self.plotTab)
+        self.hideToolCheck.setObjectName(u"hideToolCheck")
 
-        self.plotForm.setWidget(5, QFormLayout.ItemRole.LabelRole, self.backgroundGradientCheck)
-
-        self.showStockCheck = QCheckBox(self.plotTab)
-        self.showStockCheck.setObjectName(u"showStockCheck")
-
-        self.plotForm.setWidget(4, QFormLayout.ItemRole.FieldRole, self.showStockCheck)
-
-        self.stlWireframeCheck = QCheckBox(self.plotTab)
-        self.stlWireframeCheck.setObjectName(u"stlWireframeCheck")
-
-        self.plotForm.setWidget(5, QFormLayout.ItemRole.FieldRole, self.stlWireframeCheck)
+        self.plotChecksLayout.addWidget(self.hideToolCheck, 0, 2, 1, 1)
 
         self.showRapidCheck = QCheckBox(self.plotTab)
         self.showRapidCheck.setObjectName(u"showRapidCheck")
 
-        self.plotForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.showRapidCheck)
+        self.plotChecksLayout.addWidget(self.showRapidCheck, 1, 0, 1, 1)
 
         self.dashedRapidCheck = QCheckBox(self.plotTab)
         self.dashedRapidCheck.setObjectName(u"dashedRapidCheck")
 
-        self.plotForm.setWidget(3, QFormLayout.ItemRole.FieldRole, self.dashedRapidCheck)
+        self.plotChecksLayout.addWidget(self.dashedRapidCheck, 1, 1, 1, 1)
 
         self.colorByToolCheck = QCheckBox(self.plotTab)
         self.colorByToolCheck.setObjectName(u"colorByToolCheck")
 
-        self.plotForm.setWidget(4, QFormLayout.ItemRole.LabelRole, self.colorByToolCheck)
+        self.plotChecksLayout.addWidget(self.colorByToolCheck, 1, 2, 1, 1)
+
+        self.showStockCheck = QCheckBox(self.plotTab)
+        self.showStockCheck.setObjectName(u"showStockCheck")
+
+        self.plotChecksLayout.addWidget(self.showStockCheck, 2, 0, 1, 1)
+
+        self.backgroundGradientCheck = QCheckBox(self.plotTab)
+        self.backgroundGradientCheck.setObjectName(u"backgroundGradientCheck")
+
+        self.plotChecksLayout.addWidget(self.backgroundGradientCheck, 2, 1, 1, 1)
+
+        self.stlWireframeCheck = QCheckBox(self.plotTab)
+        self.stlWireframeCheck.setObjectName(u"stlWireframeCheck")
+
+        self.plotChecksLayout.addWidget(self.stlWireframeCheck, 2, 2, 1, 1)
+
+
+        self.plotForm.setLayout(2, QFormLayout.ItemRole.SpanningRole, self.plotChecksLayout)
 
         self.playbackSpeedLabel = QLabel(self.plotTab)
         self.playbackSpeedLabel.setObjectName(u"playbackSpeedLabel")
 
-        self.plotForm.setWidget(6, QFormLayout.ItemRole.LabelRole, self.playbackSpeedLabel)
+        self.plotForm.setWidget(3, QFormLayout.ItemRole.LabelRole, self.playbackSpeedLabel)
 
         self.playbackSpeedLayout = QHBoxLayout()
         self.playbackSpeedLayout.setObjectName(u"playbackSpeedLayout")
@@ -593,7 +623,7 @@ class Ui_OptionsDlg(object):
         self.playbackSpeedLayout.addWidget(self.playbackSpeedValueLabel)
 
 
-        self.plotForm.setLayout(6, QFormLayout.ItemRole.FieldRole, self.playbackSpeedLayout)
+        self.plotForm.setLayout(3, QFormLayout.ItemRole.FieldRole, self.playbackSpeedLayout)
 
         self.tabs.addTab(self.plotTab, "")
         self.postprocessorsTab = QWidget()
@@ -1155,6 +1185,12 @@ class Ui_OptionsDlg(object):
 #if QT_CONFIG(tooltip)
         self.maxGeneratedMotionsSpin.setToolTip(QCoreApplication.translate("OptionsDlg", u"Maximum total number of motions generated by one CNC execution.", None))
 #endif // QT_CONFIG(tooltip)
+        self.cliTerminalLabel.setText(QCoreApplication.translate("OptionsDlg", u"CLI terminal", None))
+        self.cliTerminalEdit.setPlaceholderText(QCoreApplication.translate("OptionsDlg", u"Automatic", None))
+#if QT_CONFIG(tooltip)
+        self.cliTerminalEdit.setToolTip(QCoreApplication.translate("OptionsDlg", u"Terminal executable path. Leave empty to detect an available terminal automatically.", None))
+#endif // QT_CONFIG(tooltip)
+        self.cliTerminalBrowseButton.setText(QCoreApplication.translate("OptionsDlg", u"Browse...", None))
         self.autoUpdateCheck.setText(QCoreApplication.translate("OptionsDlg", u"Auto update plot while editing", None))
         self.loggingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Enable application log", None))
         self.cimcoLikePickingCheck.setText(QCoreApplication.translate("OptionsDlg", u"Cimco Like Picking", None))
@@ -1220,12 +1256,13 @@ class Ui_OptionsDlg(object):
         self.gridStepLabel.setText(QCoreApplication.translate("OptionsDlg", u"Grid step (0 = adaptive)", None))
         self.axesCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show axes", None))
         self.gridCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show grid", None))
-        self.backgroundGradientCheck.setText(QCoreApplication.translate("OptionsDlg", u"Gradient background", None))
-        self.showStockCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show Stock", None))
-        self.stlWireframeCheck.setText(QCoreApplication.translate("OptionsDlg", u"STL edges only", None))
+        self.hideToolCheck.setText(QCoreApplication.translate("OptionsDlg", u"Hide Tool", None))
         self.showRapidCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show rapid moves", None))
         self.dashedRapidCheck.setText(QCoreApplication.translate("OptionsDlg", u"Dashed rapid moves", None))
         self.colorByToolCheck.setText(QCoreApplication.translate("OptionsDlg", u"Color by tool", None))
+        self.showStockCheck.setText(QCoreApplication.translate("OptionsDlg", u"Show Stock", None))
+        self.backgroundGradientCheck.setText(QCoreApplication.translate("OptionsDlg", u"Gradient background", None))
+        self.stlWireframeCheck.setText(QCoreApplication.translate("OptionsDlg", u"STL edges only", None))
         self.playbackSpeedLabel.setText(QCoreApplication.translate("OptionsDlg", u"Playback speed", None))
         self.playbackSpeedValueLabel.setText(QCoreApplication.translate("OptionsDlg", u"3 \u2014 100 ms/step", None))
         self.tabs.setTabText(self.tabs.indexOf(self.plotTab), QCoreApplication.translate("OptionsDlg", u"Plot", None))

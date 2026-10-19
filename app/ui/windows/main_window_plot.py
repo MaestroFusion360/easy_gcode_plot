@@ -528,7 +528,10 @@ class MainWindowPlotMixin:
         controls.addStretch(1)
         controls.addWidget(buttons)
         layout.addLayout(controls)
-        dialog.exec()
+        try:
+            dialog.exec()
+        finally:
+            dialog.deleteLater()
 
     def _replace_selected_stl_object(
         self,
@@ -1304,16 +1307,20 @@ class MainWindowPlotMixin:
             pxMode=True,
         )
 
+        self._show_plot_tool(motion, (point.x, point.y, point.z))
+
+    def _show_plot_tool(self, motion, position):
         tool_item = getattr(self, "_milling_tool_item", None)
-        if tool_item is not None:
-            if self.latheMode:
-                tool_item.hide_tool()
-            else:
-                tool_item.show_tool(
-                    getattr(self, "millingTools", {}).get(motion.tool, DEFAULT_MILLING_TOOL),
-                    (point.x, point.y, point.z),
-                    motion.tool_orientation,
-                )
+        if tool_item is None:
+            return
+        if self.latheMode or (self.plotHideTool and not self._stock_animation_active):
+            tool_item.hide_tool()
+        else:
+            tool_item.show_tool(
+                getattr(self, "millingTools", {}).get(motion.tool, DEFAULT_MILLING_TOOL),
+                position,
+                motion.tool_orientation,
+            )
 
     def valueHandler(self, value, *, sync_editor=True):
         """Display one logical motion and optionally synchronize the editor cursor."""
@@ -1335,7 +1342,7 @@ class MainWindowPlotMixin:
                 self._create_trace_items()
             self._highlight_playback_motion(-1)
             self._cursor_item.setData(
-                pos=[(motion.start_x, motion.start_y, motion.start_z)],
+                pos=[(motion.start_x * (0.5 if self.latheMode else 1.0), motion.start_y, motion.start_z)],
                 color=QColor(self.plotCurrentColor),
                 size=CURSOR_SIZE_PX,
                 pxMode=True,
@@ -1377,16 +1384,7 @@ class MainWindowPlotMixin:
                 size=CURSOR_SIZE_PX,
                 pxMode=True,
             )
-        tool_item = getattr(self, "_milling_tool_item", None)
-        if tool_item is not None:
-            if self.latheMode:
-                tool_item.hide_tool()
-            else:
-                tool_item.show_tool(
-                    getattr(self, "millingTools", {}).get(motion.tool, DEFAULT_MILLING_TOOL),
-                    (motion.end_x, motion.end_y, motion.end_z),
-                    motion.tool_orientation,
-                )
+        self._show_plot_tool(motion, (motion.end_x, motion.end_y, motion.end_z))
         if sync_editor:
             self._sync_editor_to_motion(idx)
 

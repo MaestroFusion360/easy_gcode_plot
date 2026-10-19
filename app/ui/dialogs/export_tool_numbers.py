@@ -52,4 +52,7 @@ def select_tool_numbers(parent, result, target, current):
     if not target_tool_numbers(result, profile):
         return {}
     dialog = ExportToolNumbersDialog(parent, result, profile, current)
-    return dialog.value() if dialog.exec() == QDialog.DialogCode.Accepted else None
+    try:
+        return dialog.value() if dialog.exec() == QDialog.DialogCode.Accepted else None
+    finally:
+        dialog.deleteLater()

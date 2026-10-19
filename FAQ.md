@@ -1,6 +1,6 @@
 # Easy G-Code Plot FAQ
 
-Updated for **2.8.0** and the current working tree: iTNC position patterns, pocket and thread-milling cycles; classic SINUMERIK milling cycles; native rotary/TCP input and bounded XZ turning.
+Updated for **2.9.0**: external CLI integration, alongside iTNC position patterns, pocket and thread-milling cycles, classic SINUMERIK milling cycles, native rotary/TCP input and bounded XZ turning.
 
 This document is the detailed user and developer reference for Easy G-Code Plot. It reflects the current working tree and explains the GUI, the shared CNC execution kernel, supported FANUC, SINUMERIK native/ISO-M milling and native/ISO-T turning, and HEIDENHAIN iTNC 530 Klartext semantics, Macro B runtime, turning and milling cycles, rotary and TCP behavior, diagnostics, CLI, batch analysis and export behavior.
 
@@ -1937,19 +1937,62 @@ The generated fragment is a starting point, not a machine-safety certification.
 
 ### Where are snippets stored?
 
-On Windows, snippets are normally stored in:
+On Windows, the SQLite library is normally stored in:
 
 ```text
 %LOCALAPPDATA%\easy-gcode-plot\snippets.db
 ```
 
-Older text snippets can be imported once while the original files are retained as backup.
+The **Controller** selector separates **Fanuc**, **Sinumerik**, **Heidenhain**, **Fanuc Lathe** and **Sinumerik Lathe**. Each space has independent names, text and ordering. Opening Snippets selects the active document's controller and machine mode; selecting another space changes only the snippet list. Before switching snippets/controllers or closing the manager, unsaved text and picture changes can be saved, discarded or kept by cancelling the action.
 
-An unreadable or invalid UTF-8 legacy snippet is skipped with a log warning; valid files are still imported. The skipped original remains in the backup directory. Invalid ordering metadata falls back to filename order.
+Each space includes **Program Start**, **Toolchange**, **Toolchange (Drill)**, **Program End**, **Retract Home Z**, **Comment**, **Rapid Move**, **Linear Move**, **Circular Move** and **Drilling**. Turning also includes G71/CYCLE95 roughing and G76/CYCLE97 threading. FANUC Lathe examples use G-code system A and diameter X programming.
+
+Milling templates also include FANUC G73/G74/G76/G81–G87/G89, SINUMERIK CYCLE81/82/84–87/89/90, HOLES1/2 and POCKET3/4, and HEIDENHAIN cycles 200–209, 220/221, 240/241, 251/252 and 262. HEIDENHAIN coordinates and numeric Q parameters retain explicit `+`/`-` signs. Patterns 220/221 require a previously defined machining cycle; pockets and thread milling require a configured cutter. POCKET3/4 templates expose VARI=1/2/11/12; other entry strategies need additional parameters. CYCLE84 uses the entered SST for cutting and retraction, matching the project's supported cycle subset.
+
+**Toolchange** collects the tool number, offset, spindle speed/direction and clearance coordinates. Its inserted comment includes the tool type and diameter for milling, or the tool type, insert designation and nose radius for turning. HEIDENHAIN uses the selected tool-table entry. **Toolchange (Drill)** instead collects diameter and point angle, without insert fields. Coordinates, feeds and cycle arguments also have their own input fields; numeric ranges, integers, allowed choices and dependent limits are validated. G76's packed P word is entered as three separate two-digit values: finishing passes, pull-out and tool angle.
+
+Set up units, coordinates, the tool and the starting position in the surrounding program. FANUC uses milling G83 or axial turning G74; SINUMERIK milling uses **MCALL CYCLE83**, so add the required hole-position blocks and cancel with **MCALL** after them. SINUMERIK turning uses CYCLE83; HEIDENHAIN uses CYCL DEF 203 and CYCL CALL. G71/CYCLE95 require an existing contour. Default SINUMERIK drilling uses DAM=0 and VARI=1; HEIDENHAIN Q208 defaults to 500. Circular Move defines an endpoint/radius/feed and assumes a suitable starting point; it does not add clearance moves.
+
+Edit the source directly in the compact manager and use **Insert** to open the parameter form. It contains input fields, an attached read-only picture when present, and OK/Cancel. There is no text preview or Preview tab. Invalid input disables OK; Cancel inserts nothing. The successful insertion is one editor undo action, and the Snippets manager stays open. Templates without input fields insert directly. The **View → Snippets** side panel filters templates by group and name and uses the same insertion workflow.
+
+| Literal | Result |
+| --- | --- |
+| `{{?D=10}}` | Declare input D with default 10; `{{?Name}}` requires a value |
+| `{{?D=10\|number\|gt=0}}` | Require a positive numeric diameter |
+| `{{?Tool=1\|int\|min=0}}` | Require a nonnegative integer tool number |
+| `{{?ReturnMode=98\|int\|choices=98,99}}` | Offer an allowed-value combo |
+| `{{?RPM=\|int\|optional\|min=1\|prefix=S}}` | Optional positive RPM; omit the S address when empty |
+| `{{?Z=-20\|number\|lt=ReturnZ}}` | Check a limit against another parameter |
+| `{{D}}` | Reuse an input without another field |
+| `{{?X=10:+\|number}}`, `{{X:+}}` | Include the plus sign for nonnegative values, as in Klartext |
+| `{{=1000*Vc/(PI*D):0}}` | Calculate RPM with zero decimal places |
+| `{{=(D/2)/TAN(Angle/2):4}}` | Drill-point height with four decimal places |
+| `{{=TO_INCH(D):4}}`, `{{=TO_MM(Inches):3}}` | Convert mm to inches or inches to mm |
+| `{{date}}`, `{{time}}`, `{{datetime}}` | Local date/time captured together for the insertion |
+| `{{date:DD.MM.YYYY}}`, `{{time:HH:mm}}` | Formatted date/time |
+| `{{file.name}}`, `{{file.stem}}` | Current saved document name, with or without extension |
+| `{{file.path}}`, `{{file.dir}}` | Absolute file path or parent folder; the file must exist |
+| `{{selection}}`, `{{cursor}}` | Selected editor text; final cursor position after insertion |
+
+Field metadata follows `|` separators. Types are `text`, `number`, `int` and `contour` (START:END labels). `min`/`max` are inclusive; `gt`/`lt` are strict. Limits may reference other numeric fields. `optional` allows an empty field, `oneof=Other` requires an alternative when it is empty, `width=2` pads integers, and `prefix`/`suffix` apply only to nonempty values. An optional display label can precede the type.
+
+Arithmetic supports `+ - * / % ^`, parentheses and `PI`. Functions: `SIN`, `COS`, `TAN`, `ASIN`, `ACOS`, `ATAN`, `ATAN2(y,x)`, `ABS`, `SQRT`, `ROUND`, `MIN`, `MAX`, `TO_MM`, `TO_INCH`, `TO_RAD`, `TO_DEG`. Trigonometry uses degrees. `:0` through `:12` controls displayed decimals; intermediate calculations retain precision. Numeric fields accept a decimal comma and insert a decimal point. FANUC `#`, SINUMERIK `R` and HEIDENHAIN `Q` retain their ordinary CNC syntax.
+
+Every controller includes **Spindle speed (formula)**, **Drill point (formula)**, **MM to INCHES**, **INCHES to MM**, **Trigonometry (formula)** and **Document header**. Each unit-conversion entry has exactly one input. Formula examples insert their calculated results into the snippet text; the conversion entries produce comments.
+
+In the manager, **Picture → Load Picture... / Paste Picture / Remove Picture** attaches, replaces or removes the selected snippet's PNG/JPEG/BMP/WebP/SVG. **Save** stores text and picture together; editing only text preserves the saved image. The adjacent status reports whether a picture is attached and whether its change is unsaved. Images are limited to 10 MB and 4096 × 4096 pixels. Insert displays the attachment read-only, with click-to-enlarge and zoom; the picture area is hidden when absent. There is no picture editing or drag-and-drop in Insert. Pictures stay in SQLite and are never inserted into NC text. Rapid, Linear and Circular Move and Drill point have bundled diagrams, with separate X/Z motion diagrams for turning.
+
+Defaults come from `app/gcode/snippet_defaults.py` and the formula entries in `app/gcode/snippet_examples.py`. A new library is seeded once; reopening it does not automatically replace text or restore deleted entries. **Update Defaults** restores **all standard snippets for the selected controller**, including deleted entries, and fills missing bundled pictures. It replaces changed standard text, so save personal variants under a different name first. Custom names, existing record order/IDs and attached pictures are retained; other controller spaces are unaffected. The button is disabled when all standard texts and bundled pictures are present and current. Deleting a snippet deletes its picture; restoring a standard snippet restores its bundled diagram, not a previously deleted custom image. Back up `snippets.db` to preserve all five spaces and their pictures.
+
+Older text-file snippets can still be imported once without deleting their originals. Invalid UTF-8 files are skipped with a log warning; valid files are imported. This import is separate from Update Defaults.
 
 ---
 
 ## Options and scene configuration
+
+### How do I hide the tool in Plot?
+
+Enable **Settings → Options → Plot → Hide Tool**. It is off by default and hides the tool only in the regular plot; Stock Removal simulation keeps displaying its tool.
 
 ### Where can I read execution errors and warnings?
 
@@ -2374,7 +2417,8 @@ The table and native/ISO-M transition, cycle and TCP rules below describe **mill
 | `G93` | Inverse-time feed: each cutting motion takes 1/F minutes, including rotary TCP motion; F must be positive. Reprogram F when switching G93/G94/G95. Cycles and cutter compensation are unsupported in G93 |
 | `G40/G41/G42` | Modeled cutter-radius compensation using the configured tool |
 | `DIAMON/DIAMOF/DIAM90` | Warning-only; all coordinates are executed with DIAMOF semantics |
-| `CHF/CHR/RND/RNDM/FRC/FRCM` | Parsed with warnings; no geometry/feed changes. Chamfers, rounding and corner feed are not simulated. RNDM=0 is recognized without geometric effect; resolved NC export is rejected |
+| `CHR/RND` | Nonmodal chamfer side length / rounding radius between continuous planar G1 elements, before cutter compensation. Fixed rotary and tilted working planes use local coordinates; the selected profile alone does not change a three-axis contour. Adjacent elements must share their plane, tool and compensation mode |
+| `CHF/RNDM/FRC/FRCM` | Parsed with warnings without geometry/feed changes. Modal rounding and corner feed are not simulated. RNDM=0 has no geometric effect; ignored-word warnings block resolved NC export |
 | `G60/G64` | Exact-stop / continuous-path metadata; acceleration, stop time and blending are not simulated |
 | `G500` | Modal work-offset deactivation with coordinate rebasing; zero G500/base frame by default, API `wcs_offsets[500]` can supply translation; OEM base-frame rotations, mirroring and scaling are not modeled |
 | R assignments and address/cycle expressions | Bounded `+ - * /`, parentheses, comparisons and `SIN/COS/ABS/SQRT`; trigonometry in degrees; separate Siemens R state |
@@ -2605,6 +2649,12 @@ Syntax references: HEIDENHAIN's [Klartext programming manual](https://content.he
 ---
 
 ## CLI
+
+**Open the current document in a terminal:** choose **File → Open in CLI** or press **Ctrl+Alt+T**. The same command is available on the File toolbar, in Customize Toolbars and in the hotkey editor. Unsaved documents must be saved first; Cancel leaves the document untouched. A separate terminal opens in the NC file's folder and waits for input; no CLI command runs automatically. The `egp` shell shortcut forwards arguments directly to the existing CLI. A colored logo and compact help show `egp --help`, folder analysis with `egp batch` and batch DXF export with `egp batch-export`. The examples use the current folder (`.`) and supported document settings; type or copy a command to run it.
+
+**Settings → Options → General → CLI terminal** accepts a terminal executable path. Leave it empty for automatic detection. Windows supports Windows Terminal, PowerShell and cmd (the session uses PowerShell); Linux supports common terminals such as GNOME Terminal, Konsole, XFCE Terminal and xterm, with Bash for the session. In packaged installations, put `easy_gcode_plot_cli.exe` (Windows) or `easy_gcode_plot_cli` (Linux) beside the GUI, or make it available on PATH. Source installations use their console Python and `cli_main.py`.
+
+The launch forwards the current machine language, encoding, FANUC lathe G-code system, SINUMERIK cycle interface and milling kinematics profile. It passes only options supported by the existing CLI: GUI-only WCS/Home, tool libraries, correction and rendering settings are not copied. CLI file dialect detection and export limitations still apply. Batch commands process the displayed directory, not the list of MDI buffers. The terminal and running commands remain independent when the GUI closes.
 
 ### Does the CLI use the same kernel as the GUI?
 

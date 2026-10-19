@@ -16,6 +16,8 @@
     <file>icons/holeCalc.png</file>
     <file>icons/snippets.png</file>
     <file>icons/compare.png</file>
+    <file>icons/console.png</file>
+    <file>cli_logo.txt</file>
     <file>icons/spiral.png</file>
     <file>icons/lathe.png</file>
     <file>icons/stl.png</file>
@@ -100,5 +102,12 @@
     <file>icons/save_stock_stl.png</file>
     <file>icons/insert_stock_mesh.png</file>
     <file>icons/clear_stl.png</file>
+    <file>snippets/circle.svg</file>
+    <file>snippets/turning_arc.svg</file>
+    <file>snippets/drill_point.svg</file>
+    <file>snippets/rapid.svg</file>
+    <file>snippets/linear.svg</file>
+    <file>snippets/turning_rapid.svg</file>
+    <file>snippets/turning_linear.svg</file>
   </qresource>
 </RCC>

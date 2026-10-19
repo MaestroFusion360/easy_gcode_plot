@@ -6,10 +6,10 @@ script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
 
 usage() {
-    printf 'Usage: %s VERSION [MESSAGE] [--push]\n' "$0" >&2
+    printf 'Usage: %s VERSION [MESSAGE] [--push] [--skip-checks]\n' "$0" >&2
 }
 
-if (( $# < 1 || $# > 3 )); then
+if (( $# < 1 || $# > 4 )); then
     usage
     exit 2
 fi
@@ -19,11 +19,20 @@ shift
 
 message=""
 push=false
+skip_checks=false
 
 for arg in "$@"; do
     case "$arg" in
         --push)
             push=true
+            ;;
+        --skip-checks)
+            skip_checks=true
+            ;;
+        --*)
+            printf 'Unknown option: %s\n' "$arg" >&2
+            usage
+            exit 2
             ;;
         *)
             if [[ -n $message ]]; then
@@ -64,11 +73,15 @@ project_version=$(uv version --short)
     exit 1
 }
 
-printf '\n==> Lint / format\n'
-bash "$script_dir/lint.sh" --fix --check-resources
+if [[ $skip_checks == true ]]; then
+    printf '\nSkipping lint / format and tests (--skip-checks).\n'
+else
+    printf '\n==> Lint / format\n'
+    bash "$script_dir/lint.sh" --fix --check-resources
 
-printf '\n==> Tests\n'
-bash "$script_dir/test.sh"
+    printf '\n==> Tests\n'
+    bash "$script_dir/test.sh"
+fi
 
 printf '\n==> git diff --check\n'
 git diff --check

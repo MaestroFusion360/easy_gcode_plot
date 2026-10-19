@@ -15,9 +15,10 @@ from PyQt6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PyQt6.QtWidgets import (QApplication, QDialog, QHBoxLayout, QListWidget,
-    QListWidgetItem, QPlainTextEdit, QPushButton, QSizePolicy,
-    QSpacerItem, QSplitter, QVBoxLayout, QWidget)
+from PyQt6.QtWidgets import (QApplication, QComboBox, QDialog, QHBoxLayout,
+    QLabel, QListWidget, QListWidgetItem, QPlainTextEdit,
+    QPushButton, QSizePolicy, QSpacerItem, QSplitter,
+    QVBoxLayout, QWidget)
 
 from app.ui.support.snippet_editor import ZoomableSnippetEditor
 
@@ -27,23 +28,92 @@ class Ui_SnippetsDialog(object):
     def setupUi(self, SnippetsDialog):
         if not SnippetsDialog.objectName():
             SnippetsDialog.setObjectName(u"SnippetsDialog")
+        SnippetsDialog.resize(700, 430)
         SnippetsDialog.setMinimumSize(QSize(700, 430))
         self.verticalLayout = QVBoxLayout(SnippetsDialog)
+        self.verticalLayout.setSpacing(8)
         self.verticalLayout.setObjectName(u"verticalLayout")
+        self.verticalLayout.setContentsMargins(10, 10, 10, 10)
+        self.languageLayout = QHBoxLayout()
+        self.languageLayout.setObjectName(u"languageLayout")
+        self.languageLabel = QLabel(SnippetsDialog)
+        self.languageLabel.setObjectName(u"languageLabel")
+
+        self.languageLayout.addWidget(self.languageLabel)
+
+        self.languageCombo = QComboBox(SnippetsDialog)
+        self.languageCombo.setObjectName(u"languageCombo")
+        self.languageCombo.setMinimumSize(QSize(180, 0))
+        self.languageCombo.setMaximumSize(QSize(260, 16777215))
+
+        self.languageLayout.addWidget(self.languageCombo)
+
+        self.controllerSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.languageLayout.addItem(self.controllerSpacer)
+
+
+        self.verticalLayout.addLayout(self.languageLayout)
+
         self.splitter = QSplitter(SnippetsDialog)
         self.splitter.setObjectName(u"splitter")
         self.splitter.setOrientation(Qt.Orientation.Horizontal)
+        self.splitter.setChildrenCollapsible(False)
         self.snippetList = QListWidget(self.splitter)
         self.snippetList.setObjectName(u"snippetList")
+        self.snippetList.setMinimumSize(QSize(200, 0))
+        self.snippetList.setMaximumSize(QSize(270, 16777215))
         self.splitter.addWidget(self.snippetList)
-        self.snippetEditor = ZoomableSnippetEditor(self.splitter)
+        self.templatePane = QWidget(self.splitter)
+        self.templatePane.setObjectName(u"templatePane")
+        self.templateLayout = QVBoxLayout(self.templatePane)
+        self.templateLayout.setSpacing(6)
+        self.templateLayout.setObjectName(u"templateLayout")
+        self.templateLayout.setContentsMargins(4, 0, 0, 0)
+        self.pictureLayout = QHBoxLayout()
+        self.pictureLayout.setObjectName(u"pictureLayout")
+        self.pictureButton = QPushButton(self.templatePane)
+        self.pictureButton.setObjectName(u"pictureButton")
+        self.pictureButton.setMinimumSize(QSize(90, 28))
+        self.pictureButton.setStyleSheet(u"QPushButton#pictureButton {\n"
+"    padding-left: 12px;\n"
+"    padding-right: 24px;\n"
+"}\n"
+"QPushButton#pictureButton::menu-indicator {\n"
+"    subcontrol-origin: padding;\n"
+"    subcontrol-position: center right;\n"
+"    right: 8px;\n"
+"    width: 10px;\n"
+"    height: 10px;\n"
+"}")
+
+        self.pictureLayout.addWidget(self.pictureButton)
+
+        self.pictureStatusLabel = QLabel(self.templatePane)
+        self.pictureStatusLabel.setObjectName(u"pictureStatusLabel")
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.pictureStatusLabel.sizePolicy().hasHeightForWidth())
+        self.pictureStatusLabel.setSizePolicy(sizePolicy)
+        self.pictureStatusLabel.setTextFormat(Qt.TextFormat.PlainText)
+
+        self.pictureLayout.addWidget(self.pictureStatusLabel)
+
+
+        self.templateLayout.addLayout(self.pictureLayout)
+
+        self.snippetEditor = ZoomableSnippetEditor(self.templatePane)
         self.snippetEditor.setObjectName(u"snippetEditor")
         font = QFont()
         font.setFamilies([u"Courier New"])
         font.setPointSize(9)
         self.snippetEditor.setFont(font)
         self.snippetEditor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
-        self.splitter.addWidget(self.snippetEditor)
+
+        self.templateLayout.addWidget(self.snippetEditor)
+
+        self.splitter.addWidget(self.templatePane)
 
         self.verticalLayout.addWidget(self.splitter)
 
@@ -107,19 +177,22 @@ class Ui_SnippetsDialog(object):
 
         self.buttonsLayout.addItem(self.buttonSpacer)
 
+        self.updateDefaultsButton = QPushButton(SnippetsDialog)
+        self.updateDefaultsButton.setObjectName(u"updateDefaultsButton")
+
+        self.buttonsLayout.addWidget(self.updateDefaultsButton)
+
         self.insertButton = QPushButton(SnippetsDialog)
         self.insertButton.setObjectName(u"insertButton")
 
         self.buttonsLayout.addWidget(self.insertButton)
 
-        self.cancelButton = QPushButton(SnippetsDialog)
-        self.cancelButton.setObjectName(u"cancelButton")
-
-        self.buttonsLayout.addWidget(self.cancelButton)
-
 
         self.verticalLayout.addLayout(self.buttonsLayout)
 
+#if QT_CONFIG(shortcut)
+        self.languageLabel.setBuddy(self.languageCombo)
+#endif // QT_CONFIG(shortcut)
 
         self.retranslateUi(SnippetsDialog)
 
@@ -128,6 +201,15 @@ class Ui_SnippetsDialog(object):
 
     def retranslateUi(self, SnippetsDialog):
         SnippetsDialog.setWindowTitle(QCoreApplication.translate("SnippetsDialog", u"Snippets", None))
+        self.languageLabel.setText(QCoreApplication.translate("SnippetsDialog", u"Controller", None))
+#if QT_CONFIG(tooltip)
+        self.pictureButton.setToolTip(QCoreApplication.translate("SnippetsDialog", u"Picture", None))
+#endif // QT_CONFIG(tooltip)
+#if QT_CONFIG(accessibility)
+        self.pictureButton.setAccessibleName(QCoreApplication.translate("SnippetsDialog", u"Picture", None))
+#endif // QT_CONFIG(accessibility)
+        self.pictureButton.setText(QCoreApplication.translate("SnippetsDialog", u"Picture", None))
+        self.pictureStatusLabel.setText(QCoreApplication.translate("SnippetsDialog", u"No picture", None))
 #if QT_CONFIG(tooltip)
         self.upButton.setToolTip(QCoreApplication.translate("SnippetsDialog", u"Up", None))
 #endif // QT_CONFIG(tooltip)
@@ -164,6 +246,9 @@ class Ui_SnippetsDialog(object):
 #if QT_CONFIG(accessibility)
         self.deleteButton.setAccessibleName(QCoreApplication.translate("SnippetsDialog", u"Delete", None))
 #endif // QT_CONFIG(accessibility)
+#if QT_CONFIG(tooltip)
+        self.updateDefaultsButton.setToolTip(QCoreApplication.translate("SnippetsDialog", u"Restore all standard templates for the selected controller. Custom templates and attached pictures are kept.", None))
+#endif // QT_CONFIG(tooltip)
+        self.updateDefaultsButton.setText(QCoreApplication.translate("SnippetsDialog", u"Update Defaults", None))
         self.insertButton.setText(QCoreApplication.translate("SnippetsDialog", u"Insert", None))
-        self.cancelButton.setText(QCoreApplication.translate("SnippetsDialog", u"Cancel", None))
     # retranslateUi

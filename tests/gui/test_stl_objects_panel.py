@@ -61,23 +61,58 @@ def _shown_dock(qt_app):
     return window, dock
 
 
-def test_dock_is_fixed_without_float_or_close_buttons(qt_app):
+def test_dock_has_title_close_button_and_reopens_with_selection_intact(qt_app):
     window, dock = _shown_dock(qt_app)
     try:
-        assert dock.features() == dock.DockWidgetFeature.NoDockWidgetFeatures
+        assert dock.features() == (
+            dock.DockWidgetFeature.DockWidgetClosable
+            | dock.DockWidgetFeature.DockWidgetMovable
+            | dock.DockWidgetFeature.DockWidgetFloatable
+        )
         assert window.dockWidgetArea(dock) == Qt.DockWidgetArea.RightDockWidgetArea
         assert not dock.isFloating()
 
-        for button_name in ("qt_dockwidget_floatbutton", "qt_dockwidget_closebutton"):
-            button = dock.findChild(QAbstractButton, button_name)
-            assert button is None or not button.isVisible()
-
-        dock.hide()
+        float_button = dock.findChild(QAbstractButton, "qt_dockwidget_floatbutton")
+        assert float_button is not None and float_button.isVisible()
+        close_button = dock.findChild(QAbstractButton, "qt_dockwidget_closebutton")
+        assert close_button is not None and close_button.isVisible()
+        assert dock.findChild(QAbstractButton, "closeButton") is None
+        dock.set_objects(["part.stl"], current_row=0)
+        dock.operationCombo.setCurrentIndex(2)
+        close_button.click()
         assert not dock.isVisible()
-        dock.show()
+        assert not dock.toggleViewAction().isChecked()
+        dock.toggleViewAction().trigger()
         assert dock.isVisible()
+        assert dock.objectList.currentRow() == 0
+        assert dock.operationCombo.currentIndex() == 2
         assert window.dockWidgetArea(dock) == Qt.DockWidgetArea.RightDockWidgetArea
         assert not dock.isFloating()
+    finally:
+        window.close()
+        window.deleteLater()
+        qt_app.processEvents()
+
+
+def test_stl_dock_can_float_and_redock_on_the_other_side_without_resetting_controls(qt_app):
+    window, dock = _shown_dock(qt_app)
+    try:
+        dock.set_objects(["part.stl", "fixture.stl"], current_row=1)
+        dock.operationCombo.setCurrentIndex(2)
+        floating = dock.findChild(QAbstractButton, "qt_dockwidget_floatbutton")
+        assert floating is not None
+        floating.click()
+        qt_app.processEvents()
+        assert dock.isFloating()
+        assert dock.objectList.currentRow() == 1
+        assert dock.operationCombo.currentIndex() == 2
+        dock.setFloating(False)
+        window.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, dock)
+        qt_app.processEvents()
+        assert not dock.isFloating()
+        assert window.dockWidgetArea(dock) == Qt.DockWidgetArea.LeftDockWidgetArea
+        assert dock.objectList.currentRow() == 1
+        assert dock.operationCombo.currentIndex() == 2
     finally:
         window.close()
         window.deleteLater()

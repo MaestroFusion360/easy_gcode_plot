@@ -343,6 +343,9 @@ def test_tool_library_cancel_rolls_back_add_edit_delete_and_duplicate(window, mo
         def value(self):
             return self.values.pop(0)
 
+        def deleteLater(self):
+            pass
+
     monkeypatch.setattr(tool_library_dialog, "_MillingToolEditor", _AcceptedEditor)
     monkeypatch.setattr(QMessageBox, "question", lambda *_args: QMessageBox.StandardButton.Yes)
 
@@ -832,7 +835,9 @@ def test_shared_execution_turning_correction_switch_retains_nominal_path(dialect
     assert (straight.start_x, straight.start_z, straight.end_x, straight.end_z) == (20, 0, 20, -20)
 
 
-def test_gui_primer_correction_checkbox_keeps_pocket_and_both_drilling_passes(window):
+@pytest.mark.parametrize("kinematics", [None, "5ax_table_ac"])
+def test_gui_primer_correction_checkbox_keeps_pocket_and_both_drilling_passes(window, kinematics):
+    window.rotaryKinematics = kinematics
     path = Path(__file__).resolve().parents[1] / "fixtures/milling/sinumerik/cycles/primer.mpf"
     window.loadFile(str(path))
     window.ui.actionLatheMode.setChecked(False)

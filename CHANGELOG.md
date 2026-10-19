@@ -1,5 +1,31 @@
 # Changelog
 
+## 2.9.0 - 2026-10-19
+
+- Fix Open in CLI through cmd.exe when the PowerShell executable path contains spaces by preserving cmd's command-line quoting without double escaping.
+- Add `-SkipChecks` to `scripts/ps1/release.ps1` and `--skip-checks` to `scripts/sh/release.sh` to skip lint/format and tests while retaining version and Git checks.
+- Edit the Russian landing-page terminology and technical descriptions; align both landing pages and installer links with 2.9.0, resolving download assets by the page's release tag.
+- Use the same native corner dropdown indicator for Block Numbers (Renumber) as File Type, including after toolbar customization.
+- Add an off-by-default Hide Tool option to Plot, preserving the tool in Stock Removal simulation; arrange Plot checkboxes in three columns and remove the ellipsis from the Snippets panel's Edit Snippets button.
+- Allow moving and floating the STL Objects panel. Default docking places Snippets to the left of the editor and STL Objects to the right of the plot.
+- Give Snippets its own visible section and screenshot on both landing-page languages.
+- Add separate Fanuc, Sinumerik, Heidenhain and Fanuc/Sinumerik Lathe snippet libraries with editable program, XYZ motion, retract, drilling, roughing and threading fragments.
+- Add validated inputs for tools, offsets, coordinates, feeds and cycle arguments, plus date/time/file/selection/cursor literals, arithmetic, degree-based trigonometry and decimal formatting. Split unit conversion into MM to INCHES and INCHES to MM, each with one input; include tool-description comments and a separate drill toolchange.
+- Add a Snippets side panel with controller-aware groups, search and insertion from the shared library. The manager stays open after insertion; parameter fields and an optional zoomable picture use the same insertion flow with one undo action.
+- Manage SQLite picture attachments through Picture (load, paste, remove), with unsaved-change handling and bundled motion/drill-point diagrams. Update Defaults restores all standard entries and missing bundled pictures for the selected controller, preserving custom-named entries and existing pictures. Reopening the library preserves saved edits and deletions.
+- Expand milling cycle templates for FANUC, SINUMERIK and HEIDENHAIN, including hole patterns, pockets and thread milling. Retain MCALL CYCLE83 for SINUMERIK drilling, axial G74 for FANUC turning, separate G76 packed-P inputs and signed HEIDENHAIN coordinates.
+- Preserve external Qt plugin paths when opening a terminal from a packaged application, validate snippet choice defaults without silently replacing them, and report snippet rename/delete failures.
+- Keep POCKET3/4 template strategies within their supplied entry parameters and reuse CYCLE84 spindle speed for retraction.
+- Keep the CLI terminal setting above the General checkboxes, preserving the grouped options layout.
+- Resolve SINUMERIK RND/CHR in their local working plane for any fixed rotary orientation, including tilted frames and zero/full-turn angles, before applying cutter compensation.
+- Keep plain three-axis cutter compensation active when a rotary profile is selected but the program executes no rotary commands.
+- Add Open in CLI to File, the File toolbar, configurable hotkeys and toolbar customization, using the console icon.
+- Open an idle Windows/Linux CLI terminal in the NC folder, with a colored logo, help and compact batch-analysis/DXF-export examples; no CNC commands run automatically.
+- Add persistent terminal-path configuration with automatic detection, save/cancel handling and launch diagnostics; packaged GUI applications locate the standalone CLI beside the GUI or on PATH.
+- Avoid writing unchanged snippets to SQLite before insertion, so an unnecessary write failure cannot block inserting saved text.
+- Place the lathe playback cursor at the correct radial X coordinate when rewinding to the start, while keeping the coordinate readout in diameter values.
+- Rename `scripts/analyze_gcode.py` to `scripts/analyze_project.py`, add `--scope ui` alongside the default G-code analysis, and update both lint scripts and configuration references. UI analysis excludes generated files and writes reports to `tmp/ui-analysis` without running tests.
+
 ## 2.8.1 - 2026-10-18
 
 - Unify built-in rotary profile names as 4 Ax / 5 Ax Head / Table while preserving profile IDs and geometry.

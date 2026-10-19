@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QFileDialog,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -83,6 +84,7 @@ def _option_snapshot(window):
         "show_rapid": getattr(window, "plotShowRapid", True),
         "dashed_rapid": getattr(window, "plotDashedRapid", True),
         "color_by_tool": getattr(window, "plotColorByTool", False),
+        "hide_tool": getattr(window, "plotHideTool", False),
         "plot_grid": getattr(window, "plotGrid", False),
         "plot_axes": getattr(window, "plotAxes", True),
         "grid_step": getattr(window, "plotGridStep", 0.0),
@@ -193,6 +195,7 @@ class OptionsDialog(QDialog):
         super().__init__(parent)
         self.ui = Ui_OptionsDlg()
         self.ui.setupUi(self)
+        self.ui.cliTerminalBrowseButton.clicked.connect(self._browse_cli_terminal)
         tabs = self.ui.tabs
         ordered_pages = sorted(
             (tabs.widget(index) for index in range(tabs.count())),
@@ -328,8 +331,16 @@ class OptionsDialog(QDialog):
         LOGGER.debug("options_opened values=%s", _option_snapshot(self.parent()))
         super().showEvent(event)
 
+    def _browse_cli_terminal(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, QCoreApplication.translate("OptionsDlg", "Select CLI terminal"), self.ui.cliTerminalEdit.text()
+        )
+        if path:
+            self.ui.cliTerminalEdit.setText(path)
+
     def load_values(self):
         window = self.parent()
+        self.ui.cliTerminalEdit.setText(getattr(window, "cliTerminalPath", ""))
         self.discoverySettings.load(getattr(window, "toolDiscovery", default_settings()))
         self.hotkeyEditor.load(window)
         self.ui.encodingCombo.setCurrentIndex(1 if getattr(window, "fileEncoding", "utf-8") == "cp1251" else 0)
@@ -415,6 +426,7 @@ class OptionsDialog(QDialog):
         self.ui.dashedRapidCheck.setChecked(getattr(window, "plotDashedRapid", True))
         self.ui.dashedRapidCheck.setEnabled(self.ui.showRapidCheck.isChecked())
         self.ui.colorByToolCheck.setChecked(getattr(window, "plotColorByTool", False))
+        self.ui.hideToolCheck.setChecked(getattr(window, "plotHideTool", False))
         self.ui.playbackSpeedSlider.setValue(getattr(window, "playbackSpeed", 3))
         self._update_playback_speed_label(self.ui.playbackSpeedSlider.value())
         for button, edit in self._color_controls:
@@ -531,6 +543,7 @@ class OptionsDialog(QDialog):
         window.plotShowRapid = self.ui.showRapidCheck.isChecked()
         window.plotDashedRapid = self.ui.dashedRapidCheck.isChecked()
         window.plotColorByTool = self.ui.colorByToolCheck.isChecked()
+        window.plotHideTool = self.ui.hideToolCheck.isChecked()
         if self.ui.playbackSpeedSlider.value() != window.playbackSpeed:
             window.setPlaybackSpeed(self.ui.playbackSpeedSlider.value(), refresh_stock=False)
 
@@ -575,6 +588,7 @@ class OptionsDialog(QDialog):
         window.toolbarIconSize = TOOLBAR_ICON_SIZES[self.ui.toolpanelIconsCombo.currentIndex()]
         window.applyToolbarIconSize(window.toolbarIconSize)
         window.loggingEnabled = self.ui.loggingCheck.isChecked()
+        window.cliTerminalPath = self.ui.cliTerminalEdit.text().strip()
         window.cimcoLikePicking = self.ui.cimcoLikePickingCheck.isChecked()
         window.autoUpdateEnabled = self.ui.autoUpdateCheck.isChecked()
         window.autoUpdateMaxSegments = self.ui.autoUpdateMaxSegmentsSpin.value()
@@ -673,6 +687,7 @@ class OptionsDialog(QDialog):
             "show_rapid",
             "dashed_rapid",
             "color_by_tool",
+            "hide_tool",
             "plot_grid",
             "plot_axes",
             "grid_step",
@@ -721,6 +736,7 @@ class OptionsDialog(QDialog):
         self.ui.themeCombo.setCurrentIndex(0)
         self.ui.toolpanelIconsCombo.setCurrentIndex(1)
         self.ui.loggingCheck.setChecked(False)
+        self.ui.cliTerminalEdit.clear()
         self.ui.cimcoLikePickingCheck.setChecked(False)
         self.ui.autoUpdateCheck.setChecked(True)
         self.ui.autoUpdateMaxSegmentsSpin.setValue(AUTO_UPDATE_SEGMENTS_DEFAULT)
@@ -763,6 +779,7 @@ class OptionsDialog(QDialog):
         self.ui.showRapidCheck.setChecked(True)
         self.ui.dashedRapidCheck.setChecked(True)
         self.ui.colorByToolCheck.setChecked(False)
+        self.ui.hideToolCheck.setChecked(False)
         self.ui.playbackSpeedSlider.setValue(3)
         self._load_source_constraints()
 

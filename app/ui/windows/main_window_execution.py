@@ -7,7 +7,7 @@ from math import asin, ceil, floor, pi, sqrt
 from threading import Event
 from time import perf_counter
 
-from PyQt6.QtCore import QCoreApplication, QEventLoop
+from PyQt6.QtCore import QCoreApplication, QEventLoop, QSignalBlocker
 
 from app.gcode.comments import format_comment
 from app.gcode.execution.program import execute_program
@@ -348,9 +348,8 @@ class MainWindowExecutionMixin:
         self.step = 0
         if stock_animation:
             maximum = self.ui.horizontalSlider.maximum()
-            self.ui.horizontalSlider.blockSignals(True)
-            self.ui.horizontalSlider.setValue(maximum)
-            self.ui.horizontalSlider.blockSignals(False)
+            with QSignalBlocker(self.ui.horizontalSlider):
+                self.ui.horizontalSlider.setValue(maximum)
             self._leave_stock_animation()
             if self.execution_result is not None and self.execution_result.motions:
                 self.valueHandler(maximum, sync_editor=False)
@@ -810,16 +809,15 @@ class MainWindowExecutionMixin:
         self.ui.actionStep_Forward.setEnabled(enabled)
         self.ui.actionPlay.setEnabled(enabled)
         self.ui.actionStop.setEnabled(enabled)
-        self.ui.horizontalSlider.blockSignals(True)
-        self.ui.horizontalSlider.setMinimum(0)
-        playback_count = len(self._playback_movements)
-        self.ui.horizontalSlider.setMaximum(playback_count)
-        self.ui.horizontalSlider.setPageStep(max(1, playback_count // 10))
-        if self._fit_view_after_program_load or playback_value is None:
-            playback_value = playback_count
-        playback_value = max(0, min(int(playback_value), playback_count))
-        self.ui.horizontalSlider.setValue(playback_value)
-        self.ui.horizontalSlider.blockSignals(False)
+        with QSignalBlocker(self.ui.horizontalSlider):
+            self.ui.horizontalSlider.setMinimum(0)
+            playback_count = len(self._playback_movements)
+            self.ui.horizontalSlider.setMaximum(playback_count)
+            self.ui.horizontalSlider.setPageStep(max(1, playback_count // 10))
+            if self._fit_view_after_program_load or playback_value is None:
+                playback_value = playback_count
+            playback_value = max(0, min(int(playback_value), playback_count))
+            self.ui.horizontalSlider.setValue(playback_value)
         return playback_value
 
     def _publish_plot_scene(self, result, playback_value, cancelled, *, auto_fit_milling=False):

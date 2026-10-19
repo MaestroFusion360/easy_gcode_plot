@@ -1,6 +1,6 @@
 """General application dialogs unrelated to tool-library editing."""
 
-from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker, Qt
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
 from app import get_version
@@ -221,13 +221,12 @@ class Export(PostProfileManagementMixin, QDialog):
         options = self._HEIDENHAIN_ARC_OPTIONS if heidenhain else self._ISO_ARC_OPTIONS
         if heidenhain and selected_mode == 1:
             selected_mode = 0
-        combo.blockSignals(True)
-        combo.clear()
-        for mode, label in options:
-            combo.addItem(self._arc_option_label(label), mode)
-        index = combo.findData(selected_mode)
-        combo.setCurrentIndex(index if index >= 0 else 0)
-        combo.blockSignals(False)
+        with QSignalBlocker(combo):
+            combo.clear()
+            for mode, label in options:
+                combo.addItem(self._arc_option_label(label), mode)
+            index = combo.findData(selected_mode)
+            combo.setCurrentIndex(index if index >= 0 else 0)
         combo.setToolTip(
             QCoreApplication.translate(
                 "ExportOptDlg",

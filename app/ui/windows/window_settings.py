@@ -104,6 +104,7 @@ _PLOT_SETTINGS = (
     _SettingSpec("SHOW_RAPID", "plotShowRapid", True, bool),
     _SettingSpec("DASHED_RAPID", "plotDashedRapid", True, bool),
     _SettingSpec("COLOR_BY_TOOL", "plotColorByTool", False, bool),
+    _SettingSpec("HIDE_TOOL", "plotHideTool", False, bool),
     _SettingSpec(
         "LINE_WIDTH",
         "plotLineWidth",
@@ -160,6 +161,7 @@ _EDITOR_SETTINGS = (
 )
 
 _GENERAL_SETTINGS = (
+    _SettingSpec("CLI_TERMINAL", "cliTerminalPath", "", str),
     _SettingSpec("LANGUAGE", "uiLanguage", "en", str),
     _SettingSpec("LOGGING", "loggingEnabled", False, bool),
     _SettingSpec("CIMCO_LIKE_PICKING", "cimcoLikePicking", False, bool),

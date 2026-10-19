@@ -2,6 +2,8 @@
 
 import json
 
+from PyQt6.QtWidgets import QToolButton
+
 from app.ui.dialogs.toolbar_settings import ToolbarSettingsDialog
 from app.ui.support.hotkeys import ARC_MODE_ACTIONS, menu_commands
 
@@ -14,6 +16,7 @@ DEFAULT_BUTTONS = frozenset(
     {
         "actionNew",
         "actionOpen",
+        "actionOpenInCli",
         "actionSave",
         "actionExportData",
         "actionImportSTL",
@@ -167,6 +170,11 @@ class ToolbarSettings:
                 toolbar.addAction(separator)
             separator = None
             toolbar.addAction(action)
+            menu = action.menu()
+            if menu is not None and menu.objectName() == "menuBlockNumbers":
+                button = toolbar.widgetForAction(action)
+                button.setMenu(menu)
+                button.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
 
     def restore_defaults(self):
         self.apply(self.defaults, order=self.default_order, persist=True)

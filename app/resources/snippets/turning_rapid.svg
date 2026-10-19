@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <rect width="480" height="300" rx="16" fill="#202832"/>
+  <g stroke="#a8b8c8" stroke-width="2" fill="none">
+    <path d="M65 235 H425 M100 265 V45"/>
+    <path d="M415 230 L425 235 L415 240 M95 55 L100 45 L105 55"/>
+  </g>
+  <path d="M150 205 L350 100" stroke="#ffb65c" stroke-width="5" stroke-dasharray="11 7" fill="none"/>
+  <path d="M334 101 L350 100 L342 114" stroke="#ffb65c" stroke-width="4" fill="none"/>
+  <path d="M350 100 V235 M350 100 H100" stroke="#718092" stroke-width="2" stroke-dasharray="4 5" fill="none"/>
+  <circle cx="150" cy="205" r="5" fill="#eef4fa"/><circle cx="350" cy="100" r="6" fill="#ffb65c"/>
+  <g font-family="sans-serif" font-size="22" fill="#eef4fa">
+    <text x="235" y="34" fill="#ffb65c">G0</text><text x="434" y="241">Z</text><text x="92" y="34">X</text>
+    <text x="126" y="187">P0</text><text x="300" y="81">P1 (X, Z)</text>
+  </g>
+</svg>

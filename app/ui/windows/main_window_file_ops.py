@@ -180,7 +180,10 @@ def _show_export_error(owner, error, result) -> None:
     layout = dialog.layout()
     layout.addWidget(details, layout.rowCount(), 0, 1, layout.columnCount())
     dialog.setStandardButtons(QMessageBox.StandardButton.Ok)
-    dialog.exec()
+    try:
+        dialog.exec()
+    finally:
+        dialog.deleteLater()
 
 
 def _export_file_defaults(owner, dxf_export):

@@ -59,8 +59,11 @@ class HotkeyEditor:
         used[BLOCK_SKIP_SHORTCUT] = QCoreApplication.translate("HotkeyAssignmentDlg", "Block skip")
         used[REMOVE_BLOCK_SKIP_SHORTCUT] = QCoreApplication.translate("HotkeyAssignmentDlg", "Remove block skip")
         editor = HotkeyAssignmentDialog(action.text().replace("&", ""), self.values[key], used, self.dialog)
-        if editor.exec() == QDialog.DialogCode.Accepted:
-            self.assign(key, editor.shortcut())
+        try:
+            if editor.exec() == QDialog.DialogCode.Accepted:
+                self.assign(key, editor.shortcut())
+        finally:
+            editor.deleteLater()
 
     def assign(self, key, shortcut):
         """Change one row after validating that no other command uses its key."""

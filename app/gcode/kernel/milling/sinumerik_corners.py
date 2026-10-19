@@ -4,6 +4,8 @@ import math
 from dataclasses import replace
 
 from ..compensation.milling.projection import _project_motion, _projected_to_motion
+from ..geometry.matrix import IDENTITY
+from ..geometry.motion_frame import motion_frame
 from ..resources import SemanticError
 
 
@@ -31,6 +33,24 @@ def _geometry(projected):
 
 
 def _corner(incoming, outgoing, command, size):
+    """Construct in the common local plane, regardless of its rotary angles."""
+    first, second = incoming.orientation or IDENTITY, outgoing.orientation or IDENTITY
+    if any(abs(first[i][j] - second[i][j]) > 1e-9 for i in range(3) for j in range(3)):
+        _error(incoming, "RND/CHR adjacent elements must share a working plane")
+    if incoming.orientation is None and outgoing.orientation is None:
+        return _local_corner(incoming, outgoing, command, size)
+    local = tuple(
+        motion_frame(replace(motion, orientation=motion.orientation or IDENTITY), local=True)
+        for motion in (incoming, outgoing)
+    )
+    result = _local_corner(*local, command, size)
+    return tuple(
+        replace(motion_frame(motion, local=False), orientation=original.orientation)
+        for motion, original in zip(result, (incoming, incoming, outgoing), strict=True)
+    )
+
+
+def _local_corner(incoming, outgoing, command, size):
     a, b = _project_motion(incoming), _project_motion(outgoing)
     if a is None or b is None:
         _error(incoming, "RND/CHR requires nonzero feed contour elements")
@@ -41,8 +61,6 @@ def _corner(incoming, outgoing, command, size):
             a.is_helix,
             b.is_helix,
             a.plane != b.plane,
-            incoming.orientation is not None,
-            outgoing.orientation is not None,
             incoming.orientation_offset != outgoing.orientation_offset,
             incoming.tool != outgoing.tool,
             incoming.compensation_mode != outgoing.compensation_mode,

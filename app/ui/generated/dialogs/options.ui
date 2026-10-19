@@ -198,21 +198,41 @@
                                     </property>
                                 </widget>
                             </item>
-                            <item row="8" column="0" colspan="2">
+                            <item row="8" column="0">
+                                <widget class="QLabel" name="cliTerminalLabel">
+                                    <property name="text"><string>CLI terminal</string></property>
+                                </widget>
+                            </item>
+                            <item row="8" column="1">
+                                <layout class="QHBoxLayout" name="cliTerminalLayout">
+                                    <item>
+                                        <widget class="QLineEdit" name="cliTerminalEdit">
+                                            <property name="placeholderText"><string>Automatic</string></property>
+                                            <property name="toolTip"><string>Terminal executable path. Leave empty to detect an available terminal automatically.</string></property>
+                                        </widget>
+                                    </item>
+                                    <item>
+                                        <widget class="QPushButton" name="cliTerminalBrowseButton">
+                                            <property name="text"><string>Browse...</string></property>
+                                        </widget>
+                                    </item>
+                                </layout>
+                            </item>
+                            <item row="9" column="0" colspan="2">
                                 <widget class="QCheckBox" name="autoUpdateCheck">
                                     <property name="text">
                                         <string>Auto update plot while editing</string>
                                     </property>
                                 </widget>
                             </item>
-                            <item row="9" column="0" colspan="2">
+                            <item row="10" column="0" colspan="2">
                                 <widget class="QCheckBox" name="loggingCheck">
                                     <property name="text">
                                         <string>Enable application log</string>
                                     </property>
                                 </widget>
                             </item>
-                            <item row="10" column="0" colspan="2">
+                            <item row="11" column="0" colspan="2">
                                 <widget class="QCheckBox" name="cimcoLikePickingCheck">
                                     <property name="text">
                                         <string>Cimco Like Picking</string>
@@ -743,64 +763,81 @@
                                     </property>
                                 </widget>
                             </item>
-                            <item row="2" column="0">
-                                <widget class="QCheckBox" name="axesCheck">
-                                    <property name="text">
-                                        <string>Show axes</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="2" column="1">
-                                <widget class="QCheckBox" name="gridCheck">
-                                    <property name="text">
-                                        <string>Show grid</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="5" column="0">
-                                <widget class="QCheckBox" name="backgroundGradientCheck">
-                                    <property name="text">
-                                        <string>Gradient background</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="4" column="1">
-                                <widget class="QCheckBox" name="showStockCheck">
-                                    <property name="text">
-                                        <string>Show Stock</string>
-                                    </property>
-                                </widget>
-                            </item>
-                            <item row="5" column="1">
-                                <widget class="QCheckBox" name="stlWireframeCheck">
-                                    <property name="text">
-                                        <string>STL edges only</string>
-                                    </property>
-                                </widget>
+                            <item row="2" column="0" colspan="2">
+                                <layout class="QGridLayout" name="plotChecksLayout">
+                                    <item row="0" column="0">
+                                        <widget class="QCheckBox" name="axesCheck">
+                                            <property name="text">
+                                                <string>Show axes</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="1">
+                                        <widget class="QCheckBox" name="gridCheck">
+                                            <property name="text">
+                                                <string>Show grid</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="0" column="2">
+                                        <widget class="QCheckBox" name="hideToolCheck">
+                                            <property name="text">
+                                                <string>Hide Tool</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="0">
+                                        <widget class="QCheckBox" name="showRapidCheck">
+                                            <property name="text">
+                                                <string>Show rapid moves</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="1">
+                                        <widget class="QCheckBox" name="dashedRapidCheck">
+                                            <property name="text">
+                                                <string>Dashed rapid moves</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="1" column="2">
+                                        <widget class="QCheckBox" name="colorByToolCheck">
+                                            <property name="text">
+                                                <string>Color by tool</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="0">
+                                        <widget class="QCheckBox" name="showStockCheck">
+                                            <property name="text">
+                                                <string>Show Stock</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="1">
+                                        <widget class="QCheckBox" name="backgroundGradientCheck">
+                                            <property name="text">
+                                                <string>Gradient background</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                    <item row="2" column="2">
+                                        <widget class="QCheckBox" name="stlWireframeCheck">
+                                            <property name="text">
+                                                <string>STL edges only</string>
+                                            </property>
+                                        </widget>
+                                    </item>
+                                </layout>
                             </item>
                             <item row="3" column="0">
-                                <widget class="QCheckBox" name="showRapidCheck">
-                                    <property name="text"><string>Show rapid moves</string></property>
-                                </widget>
-                            </item>
-                            <item row="3" column="1">
-                                <widget class="QCheckBox" name="dashedRapidCheck">
-                                    <property name="text"><string>Dashed rapid moves</string></property>
-                                </widget>
-                            </item>
-                            <item row="4" column="0">
-                                <widget class="QCheckBox" name="colorByToolCheck">
-                                    <property name="text"><string>Color by tool</string></property>
-                                </widget>
-                            </item>
-                            <item row="6" column="0">
                                 <widget class="QLabel" name="playbackSpeedLabel">
                                     <property name="text">
                                         <string>Playback speed</string>
                                     </property>
                                 </widget>
                             </item>
-                            <item row="6" column="1">
+                            <item row="3" column="1">
                                 <layout class="QHBoxLayout" name="playbackSpeedLayout">
                                     <item>
                                         <widget class="QSlider" name="playbackSpeedSlider">

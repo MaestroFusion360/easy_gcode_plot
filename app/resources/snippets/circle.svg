@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <rect width="480" height="300" rx="16" fill="#202832"/>
+  <g stroke="#a8b8c8" stroke-width="2" fill="none">
+    <path d="M60 160 H415 M210 270 V46"/>
+    <path d="M405 155 L415 160 L405 165 M205 56 L210 46 L215 56"/>
+    <circle cx="210" cy="160" r="90" stroke-dasharray="5 7"/>
+    <path d="M210 160 H300 M210 160 V70" stroke-dasharray="4 5"/>
+  </g>
+  <path d="M300 160 A90 90 0 0 0 210 70" fill="none" stroke="#4ed8c5" stroke-width="5"/>
+  <path d="M222 64 L210 70 L220 80" fill="none" stroke="#4ed8c5" stroke-width="4"/>
+  <path d="M210 160 L274 96" stroke="#ffc66d" stroke-width="3"/>
+  <g font-family="sans-serif" font-size="22" fill="#eef4fa">
+    <text x="231" y="112" fill="#ffc66d">R</text>
+    <text x="315" y="151">(R, 0)</text><text x="235" y="55">(0, R)</text>
+    <text x="433" y="167">X</text><text x="202" y="34">Y</text>
+    <text x="350" y="34" fill="#4ed8c5">90&#176;</text>
+  </g>
+</svg>

@@ -6,7 +6,7 @@ from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import QPoint, QPointF, Qt
 from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtTest import QTest
-from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox
+from PyQt6.QtWidgets import QApplication, QComboBox, QMainWindow, QMessageBox
 
 from app.gcode.generators import PocketParameters, hole_circle, hole_grid, pocket_preview_geometry, pocket_program
 from app.ui.dialogs import snippets as snippets_module
@@ -233,7 +233,7 @@ def test_snippet_buttons_use_icons_without_visible_labels(tmp_path, monkeypatch)
         assert button.toolTip() == label
         assert button.accessibleName() == label
     assert dialog.ui.insertButton.text() == "Insert"
-    assert dialog.ui.cancelButton.text() == "Cancel"
+    assert not hasattr(dialog.ui, "cancelButton")
 
 
 def test_snippet_editor_zoom_changes_only_text_size(tmp_path, monkeypatch):
@@ -302,12 +302,72 @@ def test_snippet_selection_change_can_save_before_switching(tmp_path, monkeypatc
 
 def test_snippet_order_survives_dialog_reload(tmp_path, monkeypatch):
     dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
-    assert [item.name for item in dialog.snippets] == ["A", "B"]
+    assert [item.name for item in dialog.snippets[:2]] == ["A", "B"]
 
     dialog.move_current(1)
     reloaded = SnippetsDialog()
 
-    assert [item.name for item in reloaded.snippets] == ["B", "A"]
+    assert [item.name for item in reloaded.snippets[:2]] == ["B", "A"]
+
+
+def test_snippet_language_switch_cancel_then_save_keeps_edits_in_original_space(tmp_path, monkeypatch):
+    dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
+    combo = dialog.ui.languageCombo
+    assert combo.count() == 5
+    dialog.ui.snippetEditor.setPlainText("FANUC EDIT")
+    monkeypatch.setattr(snippets_module.QMessageBox, "question", lambda *a, **kw: QMessageBox.StandardButton.Cancel)
+    combo.setCurrentIndex(combo.findData("heidenhain"))
+    assert combo.currentData() == "fanuc_mill"
+    assert dialog.ui.snippetEditor.toPlainText() == "FANUC EDIT"
+
+    monkeypatch.setattr(snippets_module.QMessageBox, "question", lambda *a, **kw: QMessageBox.StandardButton.Save)
+    combo.setCurrentIndex(combo.findData("heidenhain"))
+    assert dialog.library.list_snippets()[0].body == "FANUC EDIT"
+    assert [item.name for item in dialog.snippets][:2] == ["Program Start", "Toolchange"]
+    assert "BEGIN PGM" in dialog.ui.snippetEditor.toPlainText()
+    dialog.ui.snippetEditor.setPlainText("HEIDENHAIN EDIT")
+    combo.setCurrentIndex(combo.findData("sinumerik_turn"))
+    assert dialog.library.list_snippets("heidenhain")[0].body == "HEIDENHAIN EDIT"
+    assert any("CYCLE95" in item.text for item in dialog.snippets)
+    assert not any("G76" in item.text for item in dialog.snippets)
+
+
+def test_new_snippet_and_reorder_apply_only_to_selected_language(tmp_path, monkeypatch):
+    dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
+    before = dialog.library.list_snippets()
+    dialog.ui.languageCombo.setCurrentIndex(dialog.ui.languageCombo.findData("sinumerik_mill"))
+    dialog.add_snippet()
+    dialog.ui.snippetEditor.setPlainText("R1=100")
+    dialog.save_current()
+    dialog.move_current(-1)
+    assert dialog.library.list_snippets() == before
+    assert dialog.library.list_snippets("sinumerik_mill")[-2].body == "R1=100"
+
+
+def test_snippets_follow_document_mode_and_insert_as_one_undo_action(tmp_path, monkeypatch):
+    dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
+    owner = QMainWindow()
+    owner.ui = SimpleNamespace(fileTypeCombo=QComboBox(), editor=QsciScintilla())
+    owner.ui.fileTypeCombo.addItems(["Text", "ISO G-code", "iTNC-code"])
+    owner.latheMode = True
+    owner._document_source_dialect = "sinumerik"  # pylint: disable=protected-access
+    dialog.setParent(owner, dialog.windowFlags())
+    dialog.show()
+    assert dialog.ui.languageCombo.currentData() == "sinumerik_turn"
+    dialog.hide()
+    owner.latheMode = False
+    owner.ui.fileTypeCombo.setCurrentIndex(2)
+    dialog.show()
+    assert dialog.ui.languageCombo.currentData() == "heidenhain"
+    expected = "; plain snippet\n"
+    dialog.ui.snippetEditor.setPlainText(expected)
+    owner.ui.editor.setText("; existing\n")
+    owner.ui.editor.setCursorPosition(1, 0)
+    dialog.insert_current()
+    assert owner.ui.editor.text() == "; existing\n" + expected
+    owner.ui.editor.undo()
+    assert owner.ui.editor.text() == "; existing\n"
+    owner.deleteLater()
 
 
 @pytest.mark.parametrize(

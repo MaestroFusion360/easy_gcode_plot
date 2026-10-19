@@ -40,10 +40,12 @@ from app.ui.dialogs.stock_dialog import StockDialog
 from app.ui.dialogs.tokens import TokensDialog
 from app.ui.dialogs.tool_library_dialog import ToolLibraryDialog
 from app.ui.generated.main.main_ui import Ui_MainWindow
+from app.ui.panels.snippets_panel import SnippetsPanel
 from app.ui.plot.plot_navigation import PlotNavigation
 from app.ui.plot.ruler import PlotRuler
 from app.ui.support.file_drop import FileDropTarget
 from app.ui.support.toolbar_settings import ToolbarSettings
+from app.ui.windows.cli_integration import open_in_cli
 from app.ui.windows.main_window_documents import MainWindowDocumentsMixin
 from app.ui.windows.main_window_editor_ops import MainWindowEditorMixin
 from app.ui.windows.main_window_execution import (
@@ -122,6 +124,13 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self._configure_document_watcher()
         self._configure_rotary_kinematics_menu()
         self._initialize_runtime_helpers()
+        self.snippetsDock = SnippetsPanel(self)
+        self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.snippetsDock)
+        self.resizeDocks([self.snippetsDock], [280], Qt.Orientation.Horizontal)
+        snippets_toggle = self.snippetsDock.toggleViewAction()
+        snippets_toggle.setObjectName("snippetsDockToggle")
+        snippets_toggle.setIcon(QIcon(":/resource/icons/snippets.png"))
+        self.ui.menu_View.addAction(snippets_toggle)
         self.connectActions()
         self.createLabelStatBar()
         self.clearPlot()
@@ -689,6 +698,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         """Connect UI actions, menu items, and widgets to their handlers."""
         self.ui.actionNew.triggered.connect(self.newFile)
         self.ui.actionOpen.triggered.connect(self.openFile)
+        self.ui.actionOpenInCli.triggered.connect(lambda: open_in_cli(self))
         self._setup_recent_files_menu()
         self._setup_recent_stl_menu()
         self.ui.actionSave.triggered.connect(self.save)
@@ -866,6 +876,8 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
             self.wcsDlg.loadValues()
         if hasattr(self, "exportDlg"):
             self.exportDlg.sync_mode_availability(self.latheMode)
+        if hasattr(self, "snippetsDock"):
+            self.snippetsDock.refresh()
         LOGGER.info(
             "machine_mode_changed mode=%s duration_ms=%.3f motions=%d",
             "lathe" if self.latheMode else "mill",

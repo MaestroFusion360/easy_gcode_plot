@@ -4,7 +4,9 @@ param(
 
     [string]$Message,
 
-    [switch]$Push
+    [switch]$Push,
+
+    [switch]$SkipChecks
 )
 
 $ErrorActionPreference = "Stop"
@@ -75,10 +77,15 @@ if ($ProjectVersion -ne $Version) {
     throw "Requested release $Version does not match pyproject version $ProjectVersion."
 }
 
-Run-Lint
+if ($SkipChecks) {
+    Write-Host "Skipping lint / format and tests (-SkipChecks)." -ForegroundColor Yellow
+}
+else {
+    Run-Lint
 
-Run-Step "Tests" {
-    & (Join-Path $PSScriptRoot 'test.ps1')
+    Run-Step "Tests" {
+        & (Join-Path $PSScriptRoot 'test.ps1')
+    }
 }
 
 Run-Step "git diff --check" {

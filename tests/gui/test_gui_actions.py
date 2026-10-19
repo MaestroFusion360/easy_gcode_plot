@@ -453,6 +453,9 @@ def test_editor_context_menu_contains_edit_then_all_cnc_actions(qt_app, monkeypa
         def exec(self, _point):
             pass
 
+        def deleteLater(self):
+            pass
+
     monkeypatch.setattr("app.ui.windows.main_window_editor_ops.QMenu", Menu)
     window.editorContextMenu(QPoint())
 

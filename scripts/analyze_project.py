@@ -1,7 +1,8 @@
-"""Run installed architecture/clone analyzers without changing production sources.
+"""Run installed static analyzers without importing or executing application code.
 
-Usage: uv run --no-sync python scripts/analyze_gcode.py
-Reports go to tmp/gcode-analysis. Exit 1 means findings need review, not that
+Usage: uv run --no-sync python scripts/analyze_project.py
+GUI:   uv run --no-sync python scripts/analyze_project.py --scope ui
+Reports go to tmp/gcode-analysis or tmp/ui-analysis. Exit 1 means findings need review, not that
 behavior is wrong. Existing findings are not suppressed or accepted as a baseline.
 """
 
@@ -25,14 +26,23 @@ def executable(name):
     return str(path)
 
 
-def analyze(output):
+def analyze(output, scope="gcode"):
     output.mkdir(parents=True, exist_ok=True)
+    config = ROOT / ".jscpd.json"
+    targets = ["app/gcode"]
+    if scope == "ui":
+        targets = ["app/ui", "app/main_window.py"]
+        settings = json.loads(config.read_text(encoding="utf-8"))
+        settings["path"] = [str(ROOT / target) for target in targets]
+        settings["ignore"] += ["**/generated/**", "**/resources/**"]
+        config = output / "jscpd-config.json"
+        config.write_text(json.dumps(settings, indent=2) + "\n", encoding="utf-8")
     for report in ("summary.json", "pylint.json", "exact/jscpd-report.json", "normalized/jscpd-report.json"):
         (output / report).unlink(missing_ok=True)
     clone_command = [
         executable("jscpd"),
         "--config",
-        str(ROOT / ".jscpd.json"),
+        str(config),
         "--no-colors",
         "--no-tips",
         "--fail-on-empty",
@@ -45,8 +55,8 @@ def analyze(output):
             sys.executable,
             "-m",
             "pylint",
-            "app/gcode",
-            "--disable=all",
+            *targets,
+            *(["--disable=all"] if scope == "gcode" else []),
             "--enable=cyclic-import,duplicate-code",
             "--score=n",
             "--reports=n",
@@ -81,7 +91,10 @@ def analyze(output):
         (output / f"{name}.log").write_text(result.stdout + result.stderr, encoding="utf-8")
         summary[name] = {"command": command, "exit_code": result.returncode}
         if name in {"exact", "normalized"}:
-            report = json.loads((output / name / "jscpd-report.json").read_text(encoding="utf-8"))
+            report_path = output / name / "jscpd-report.json"
+            if not report_path.is_file():
+                raise RuntimeError(f"{name} analyzer did not create {report_path}; see {output / (name + '.log')}")
+            report = json.loads(report_path.read_text(encoding="utf-8"))
             summary[name]["statistics"] = report["statistics"]["total"]
             summary[name]["clone_kinds"] = dict(Counter(clone["kind"] for clone in report["duplicates"]))
         elif name == "pylint":
@@ -94,10 +107,12 @@ def analyze(output):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output", type=Path, default=ROOT / "tmp/gcode-analysis")
+    parser.add_argument("--scope", choices=("gcode", "ui"), default="gcode")
+    parser.add_argument("--output", type=Path)
     args = parser.parse_args()
     try:
-        return analyze(args.output.resolve())
+        output = args.output or ROOT / "tmp" / f"{args.scope}-analysis"
+        return analyze(output.resolve(), args.scope)
     except (OSError, ValueError, KeyError, RuntimeError) as error:
         print(f"Analysis failed: {error}", file=sys.stderr)
         return 2

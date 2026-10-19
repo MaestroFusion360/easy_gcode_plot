@@ -73,14 +73,17 @@ class StockStlExportDialog(QDialog):
     @staticmethod
     def get_options(window):
         dialog = StockStlExportDialog(window)
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return None
-        options = dialog.options()
-        window.settings.setValue("STOCK_STL/UNITS", options.units)
-        window.settings.setValue("STOCK_STL/LINEAR", options.linear_deviation)
-        window.settings.setValue("STOCK_STL/ANGULAR", options.angular_deviation)
-        window.settings.setValue("STOCK_STL/EDGE", options.edge_length)
-        return options
+        try:
+            if dialog.exec() != QDialog.DialogCode.Accepted:
+                return None
+            options = dialog.options()
+            window.settings.setValue("STOCK_STL/UNITS", options.units)
+            window.settings.setValue("STOCK_STL/LINEAR", options.linear_deviation)
+            window.settings.setValue("STOCK_STL/ANGULAR", options.angular_deviation)
+            window.settings.setValue("STOCK_STL/EDGE", options.edge_length)
+            return options
+        finally:
+            dialog.deleteLater()
 
     def tr(self, text):
         return QCoreApplication.translate("StockStlExportDialog", text)

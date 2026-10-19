@@ -9,9 +9,12 @@ Both pages share `styles.css`, `site.js`, `downloads.js` and the media in `asset
 Python assembles the HTML locally; there is no JavaScript framework dependency,
 browser-side fragment loading or Jekyll configuration. `.nojekyll` disables Jekyll.
 
-The displayed version, Open Graph title and video cache keys use `{{APP_VERSION}}`
+The displayed version, Open Graph title, installer links and video cache keys use `{{APP_VERSION}}`
 in the HTML fragments. `docs/build.py` replaces it with `[project].version` from
 the repository's `pyproject.toml`; regenerate both pages after a version change.
+The `app-version` meta tag pins `downloads.js` to that release tag. Until the
+release is published, or if the GitHub API is unavailable, the versioned links
+in the generated HTML remain in place; older release assets are not substituted.
 The current version in `COMPARISON.md` / `COMPARISON_RU.md` must also be updated
 when release scope changes; it is not replaced automatically. Historical
 sections and example reports retain their original versions. Building requires
@@ -96,6 +99,7 @@ Edit the fragments rather than the generated `index.html` files:
 
 - `src/en/index.html` / `src/ru/index.html`: metadata, asset paths and section order.
 - `header.html`, `hero.html`, `footer.html`: navigation, introduction and footer.
+- `snippets.html`: the Snippets section and template-manager screenshot.
 - `capabilities.html`: command section layout; `controllers/` contains separate
   FANUC turning, FANUC milling, SINUMERIK ISO-M/native milling, bounded native/ISO-T turning coverage and HEIDENHAIN input.
 - `visualization.html`: MDI, Compare, 3D playback, STL models, turning stock removal and rotary demonstrations.
@@ -116,9 +120,9 @@ Update both languages together. Keep capability descriptions aligned with
 features as current functionality. Controller-specific features should appear in
 the general capability model rather than as separate marketing sections.
 
-Windows download buttons resolve the GUI and CLI asset URLs from the latest
-GitHub release through `downloads.js`. If the API is unavailable, the GUI link
-opens the latest release page; the CLI link uses GitHub's latest-asset redirect. All landing-page screenshots and animations live in
+Download buttons resolve asset URLs from the page's release tag through
+`downloads.js`. If the API is unavailable or that release is not published yet,
+the versioned installer links remain unchanged. All landing-page screenshots and animations live in
 `docs/assets-optimized/`. Keep screenshots next to their related feature, with an accurate caption and actual image dimensions; do not restore a separate mixed gallery. Both pages use the same asset filenames and relative links, including under the GitHub Pages repository path.
 
 ## Local assets

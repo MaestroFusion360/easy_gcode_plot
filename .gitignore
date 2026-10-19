@@ -76,3 +76,4 @@ node_modules/
 tmp/
 .omx/
 .playwright-mcp/
+.grimp_cache/

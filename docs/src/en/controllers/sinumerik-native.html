@@ -89,12 +89,21 @@
             </td>
           </tr>
           <tr>
-            <td><code>CHF / CHR / RND / RNDM / FRC / FRCM</code></td>
+            <td><code>CHR / RND</code></td>
             <td>
-              Parsed with warnings without changing geometry or feed. Chamfers,
-              corner rounding, modal rounding and corner feed are not simulated;
-              RNDM=0 is recognized but has no geometric effect. Reports retain
-              these warnings; resolved NC export is rejected.
+              Nonmodal chamfers and rounding between continuous planar G1
+              elements, before cutter compensation. Fixed rotary and tilted
+              working planes use local coordinates. A selected profile alone
+              does not alter a three-axis contour.
+            </td>
+          </tr>
+          <tr>
+            <td><code>CHF / RNDM / FRC / FRCM</code></td>
+            <td>
+              Parsed with warnings without changing geometry or feed. Modal
+              rounding and corner feed are not simulated; RNDM=0 is recognized
+              but has no geometric effect. Reports retain these warnings;
+              resolved NC export is rejected.
             </td>
           </tr>
           <tr>

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QCoreApplication, QSize, Qt, pyqtSignal
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker, QSize, Qt, pyqtSignal
 from PyQt6.QtGui import QIcon, QPainter, QPalette, QPen
 from PyQt6.QtWidgets import (
     QCheckBox,
@@ -63,7 +63,11 @@ class StlObjectsPanel(QDockWidget):
 
     def __init__(self, parent=None):
         super().__init__(QCoreApplication.translate("StlObjectsPanelForm", "STL Objects"), parent)
-        self.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.setFeatures(
+            QDockWidget.DockWidgetFeature.DockWidgetClosable
+            | QDockWidget.DockWidgetFeature.DockWidgetMovable
+            | QDockWidget.DockWidgetFeature.DockWidgetFloatable
+        )
         self.setObjectName("stlObjectsDock")
         self._section_bounds = None
         self._measurements = None
@@ -282,7 +286,6 @@ class StlObjectsPanel(QDockWidget):
         button.setIconSize(QSize(18, 18))
 
     def _connect_signals(self):
-        self.ui.closeButton.clicked.connect(self.hide)
         self.objectList.currentRowChanged.connect(self._selection_changed)
         self.operationCombo.currentIndexChanged.connect(self.operationStack.setCurrentIndex)
         self.undoButton.clicked.connect(lambda _checked=False: self.undoRequested.emit())
@@ -364,25 +367,21 @@ class StlObjectsPanel(QDockWidget):
         self.rectangularArrayRequested.emit(*counts, *steps)
 
     def set_objects(self, names, current_row=-1):
-        self.objectList.blockSignals(True)
-        try:
+        with QSignalBlocker(self.objectList):
             self.objectList.clear()
             self.objectList.addItems(list(names))
             if self.objectList.count():
                 self.objectList.setCurrentRow(min(max(int(current_row), 0), self.objectList.count() - 1))
             else:
                 self.objectList.setCurrentRow(-1)
-        finally:
-            self.objectList.blockSignals(False)
         self._set_object_controls_enabled(self.objectList.currentRow() >= 0)
         self._sync_custom_pivot_enabled()
 
     def set_object_state(self, *, pivot_mode, pivot, world_pivot):
         index = self.pivotMode.findData(pivot_mode)
         if index >= 0:
-            self.pivotMode.blockSignals(True)
-            self.pivotMode.setCurrentIndex(index)
-            self.pivotMode.blockSignals(False)
+            with QSignalBlocker(self.pivotMode):
+                self.pivotMode.setCurrentIndex(index)
         for widget, value in zip((self.pivotX, self.pivotY, self.pivotZ), pivot):
             widget.setValue(float(value))
         for widget, value in zip((self.positionX, self.positionY, self.positionZ), world_pivot):

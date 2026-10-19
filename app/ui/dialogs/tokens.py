@@ -446,7 +446,10 @@ class TokensDialog(QDialog):
         buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close, dialog)
         buttons.rejected.connect(dialog.reject)
         layout.addWidget(buttons)
-        dialog.exec()
+        try:
+            dialog.exec()
+        finally:
+            dialog.deleteLater()
 
     def _show_context_menu(self, position):
         menu = QMenu(self)
@@ -454,7 +457,10 @@ class TokensDialog(QDialog):
         copy_action.setEnabled(bool(self.ui.tokenTable.selectionModel().selectedRows()))
         copy_action.triggered.connect(self.copy_selected_rows)
         menu.addAction(copy_action)
-        menu.exec(self.ui.tokenTable.viewport().mapToGlobal(position))
+        try:
+            menu.exec(self.ui.tokenTable.viewport().mapToGlobal(position))
+        finally:
+            menu.deleteLater()
 
     def export_csv(self):
         variables_tab = self.ui.tabWidget.currentWidget() is self.ui.macroVariablesTab

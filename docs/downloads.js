@@ -1,27 +1,30 @@
-// Resolve versioned release assets without hard-coding a release tag.
-// The latest release page remains usable if the API is unavailable.
+// Resolve assets for the version described by the page.
+// Preserve its versioned links when the API is unavailable.
 async function resolveDownloads() {
   const links = document.querySelectorAll(
     "[data-windows-download], [data-linux-download]",
   );
   if (!links.length) return;
 
+  const version = document.querySelector('meta[name="app-version"]')?.content;
+  const release = version ? `tags/v${encodeURIComponent(version)}` : "latest";
+
   try {
     const response = await fetch(
-      "https://api.github.com/repos/MaestroFusion360/easy_gcode_plot/releases/latest",
+      `https://api.github.com/repos/MaestroFusion360/easy_gcode_plot/releases/${release}`,
       { headers: { Accept: "application/vnd.github+json" } },
     );
     if (!response.ok) return;
-    const release = await response.json();
-    if (!Array.isArray(release.assets)) return;
+    const releaseData = await response.json();
+    if (!Array.isArray(releaseData.assets)) return;
 
-    const gui = release.assets.find((asset) =>
+    const gui = releaseData.assets.find((asset) =>
       /^Easy-G-Code-Plot-.+-Windows-x64\.exe$/i.test(asset.name),
     );
-    const cli = release.assets.find(
+    const cli = releaseData.assets.find(
       (asset) => asset.name === "easy_gcode_plot_cli.exe",
     );
-    const linux = release.assets.find((asset) =>
+    const linux = releaseData.assets.find((asset) =>
       /^Easy-G-Code-Plot-.+-Linux-x64\.tar\.gz$/i.test(asset.name),
     );
 

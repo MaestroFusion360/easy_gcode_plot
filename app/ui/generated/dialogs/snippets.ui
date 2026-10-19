@@ -1,124 +1,356 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
-    <class>SnippetsDialog</class>
-    <widget class="QDialog" name="SnippetsDialog">
-        <property name="windowTitle">
-            <string>Snippets</string>
-        </property>
-        <property name="minimumSize">
+ <class>SnippetsDialog</class>
+ <widget class="QDialog" name="SnippetsDialog">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>700</width>
+    <height>430</height>
+   </rect>
+  </property>
+  <property name="minimumSize">
+   <size>
+    <width>700</width>
+    <height>430</height>
+   </size>
+  </property>
+  <property name="windowTitle">
+   <string>Snippets</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <property name="spacing">
+    <number>8</number>
+   </property>
+   <property name="leftMargin">
+    <number>10</number>
+   </property>
+   <property name="topMargin">
+    <number>10</number>
+   </property>
+   <property name="rightMargin">
+    <number>10</number>
+   </property>
+   <property name="bottomMargin">
+    <number>10</number>
+   </property>
+   <item>
+    <layout class="QHBoxLayout" name="languageLayout">
+     <item>
+      <widget class="QLabel" name="languageLabel">
+       <property name="text">
+        <string>Controller</string>
+       </property>
+       <property name="buddy">
+        <cstring>languageCombo</cstring>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="languageCombo">
+       <property name="minimumSize">
+        <size>
+         <width>180</width>
+         <height>0</height>
+        </size>
+       </property>
+       <property name="maximumSize">
+        <size>
+         <width>260</width>
+         <height>16777215</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="controllerSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <widget class="QSplitter" name="splitter">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
+     </property>
+     <property name="childrenCollapsible">
+      <bool>false</bool>
+     </property>
+     <widget class="QListWidget" name="snippetList">
+      <property name="minimumSize">
+       <size>
+        <width>200</width>
+        <height>0</height>
+       </size>
+      </property>
+      <property name="maximumSize">
+       <size>
+        <width>270</width>
+        <height>16777215</height>
+       </size>
+      </property>
+     </widget>
+     <widget class="QWidget" name="templatePane">
+      <layout class="QVBoxLayout" name="templateLayout">
+       <property name="spacing">
+        <number>6</number>
+       </property>
+       <property name="leftMargin">
+        <number>4</number>
+       </property>
+       <property name="topMargin">
+        <number>0</number>
+       </property>
+       <property name="rightMargin">
+        <number>0</number>
+       </property>
+       <property name="bottomMargin">
+        <number>0</number>
+       </property>
+       <item>
+        <layout class="QHBoxLayout" name="pictureLayout">
+         <item>
+          <widget class="QPushButton" name="pictureButton">
+           <property name="minimumSize">
             <size>
-                <width>700</width>
-                <height>430</height>
+             <width>90</width>
+             <height>28</height>
             </size>
-        </property>
-        <layout class="QVBoxLayout" name="verticalLayout">
-            <item>
-                <widget class="QSplitter" name="splitter">
-                    <property name="orientation">
-                        <enum>Qt::Orientation::Horizontal</enum>
-                    </property>
-                    <widget class="QListWidget" name="snippetList"/>
-                    <widget class="ZoomableSnippetEditor" name="snippetEditor">
-                        <property name="font">
-                            <font>
-                                <family>Courier New</family>
-                                <pointsize>9</pointsize>
-                            </font>
-                        </property>
-                        <property name="lineWrapMode">
-                            <enum>QPlainTextEdit::LineWrapMode::WidgetWidth</enum>
-                        </property>
-                    </widget>
-                </widget>
-            </item>
-            <item>
-                <layout class="QHBoxLayout" name="buttonsLayout">
-                    <item>
-                        <widget class="QPushButton" name="upButton">
-                            <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/up.png</normaloff></iconset></property>
-                            <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-                            <property name="toolTip"><string>Up</string></property>
-                            <property name="accessibleName"><string>Up</string></property>
-                        </widget>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="downButton">
-                            <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/down.png</normaloff></iconset></property>
-                            <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-                            <property name="toolTip"><string>Down</string></property>
-                            <property name="accessibleName"><string>Down</string></property>
-                        </widget>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="addButton">
-                            <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/add.png</normaloff></iconset></property>
-                            <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-                            <property name="toolTip"><string>Add</string></property>
-                            <property name="accessibleName"><string>Add</string></property>
-                        </widget>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="saveButton">
-                            <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/save.png</normaloff></iconset></property>
-                            <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-                            <property name="toolTip"><string>Save</string></property>
-                            <property name="accessibleName"><string>Save</string></property>
-                        </widget>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="renameButton">
-                            <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/rename.png</normaloff></iconset></property>
-                            <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-                            <property name="toolTip"><string>Rename</string></property>
-                            <property name="accessibleName"><string>Rename</string></property>
-                        </widget>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="deleteButton">
-                            <property name="icon"><iconset resource="../../../resources/files_res.qrc"><normaloff>:/resource/icons/trash.png</normaloff></iconset></property>
-                            <property name="iconSize"><size><width>24</width><height>24</height></size></property>
-                            <property name="toolTip"><string>Delete</string></property>
-                            <property name="accessibleName"><string>Delete</string></property>
-                        </widget>
-                    </item>
-                    <item>
-                        <spacer name="buttonSpacer">
-                            <property name="orientation">
-                                <enum>Qt::Orientation::Horizontal</enum>
-                            </property>
-                            <property name="sizeHint">
-                                <size>
-                                    <width>40</width>
-                                    <height>20</height>
-                                </size>
-                            </property>
-                        </spacer>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="insertButton">
-                            <property name="text">
-                                <string>Insert</string>
-                            </property>
-                        </widget>
-                    </item>
-                    <item>
-                        <widget class="QPushButton" name="cancelButton">
-                            <property name="text">
-                                <string>Cancel</string>
-                            </property>
-                        </widget>
-                    </item>
-                </layout>
-            </item>
+           </property>
+           <property name="toolTip">
+            <string>Picture</string>
+           </property>
+           <property name="accessibleName">
+            <string>Picture</string>
+           </property>
+           <property name="styleSheet">
+            <string notr="true">QPushButton#pictureButton {
+    padding-left: 12px;
+    padding-right: 24px;
+}
+QPushButton#pictureButton::menu-indicator {
+    subcontrol-origin: padding;
+    subcontrol-position: center right;
+    right: 8px;
+    width: 10px;
+    height: 10px;
+}</string>
+           </property>
+           <property name="text">
+            <string>Picture</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="pictureStatusLabel">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="text">
+            <string>No picture</string>
+           </property>
+           <property name="textFormat">
+            <enum>Qt::TextFormat::PlainText</enum>
+           </property>
+          </widget>
+         </item>
         </layout>
+       </item>
+       <item>
+        <widget class="ZoomableSnippetEditor" name="snippetEditor">
+         <property name="font">
+          <font>
+           <family>Courier New</family>
+           <pointsize>9</pointsize>
+          </font>
+         </property>
+         <property name="lineWrapMode">
+          <enum>QPlainTextEdit::LineWrapMode::WidgetWidth</enum>
+         </property>
+        </widget>
+       </item>
+      </layout>
+     </widget>
     </widget>
-    <customwidgets>
-        <customwidget>
-            <class>ZoomableSnippetEditor</class>
-            <extends>QPlainTextEdit</extends>
-            <header>app.ui.support.snippet_editor</header>
-        </customwidget>
-    </customwidgets>
-    <resources><include location="../../../resources/files_res.qrc"/></resources>
-    <connections/>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="buttonsLayout">
+     <item>
+      <widget class="QPushButton" name="upButton">
+       <property name="toolTip">
+        <string>Up</string>
+       </property>
+       <property name="accessibleName">
+        <string>Up</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../../../resources/files_res.qrc">
+         <normaloff>:/resource/icons/up.png</normaloff>:/resource/icons/up.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>24</width>
+         <height>24</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="downButton">
+       <property name="toolTip">
+        <string>Down</string>
+       </property>
+       <property name="accessibleName">
+        <string>Down</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../../../resources/files_res.qrc">
+         <normaloff>:/resource/icons/down.png</normaloff>:/resource/icons/down.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>24</width>
+         <height>24</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="addButton">
+       <property name="toolTip">
+        <string>Add</string>
+       </property>
+       <property name="accessibleName">
+        <string>Add</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../../../resources/files_res.qrc">
+         <normaloff>:/resource/icons/add.png</normaloff>:/resource/icons/add.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>24</width>
+         <height>24</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="saveButton">
+       <property name="toolTip">
+        <string>Save</string>
+       </property>
+       <property name="accessibleName">
+        <string>Save</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../../../resources/files_res.qrc">
+         <normaloff>:/resource/icons/save.png</normaloff>:/resource/icons/save.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>24</width>
+         <height>24</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="renameButton">
+       <property name="toolTip">
+        <string>Rename</string>
+       </property>
+       <property name="accessibleName">
+        <string>Rename</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../../../resources/files_res.qrc">
+         <normaloff>:/resource/icons/rename.png</normaloff>:/resource/icons/rename.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>24</width>
+         <height>24</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="deleteButton">
+       <property name="toolTip">
+        <string>Delete</string>
+       </property>
+       <property name="accessibleName">
+        <string>Delete</string>
+       </property>
+       <property name="icon">
+        <iconset resource="../../../resources/files_res.qrc">
+         <normaloff>:/resource/icons/trash.png</normaloff>:/resource/icons/trash.png</iconset>
+       </property>
+       <property name="iconSize">
+        <size>
+         <width>24</width>
+         <height>24</height>
+        </size>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <spacer name="buttonSpacer">
+       <property name="orientation">
+        <enum>Qt::Orientation::Horizontal</enum>
+       </property>
+       <property name="sizeHint" stdset="0">
+        <size>
+         <width>40</width>
+         <height>20</height>
+        </size>
+       </property>
+      </spacer>
+     </item>
+     <item>
+      <widget class="QPushButton" name="updateDefaultsButton">
+       <property name="toolTip">
+        <string>Restore all standard templates for the selected controller. Custom templates and attached pictures are kept.</string>
+       </property>
+       <property name="text">
+        <string>Update Defaults</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="insertButton">
+       <property name="text">
+        <string>Insert</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <customwidgets>
+  <customwidget>
+   <class>ZoomableSnippetEditor</class>
+   <extends>QPlainTextEdit</extends>
+   <header>app.ui.support.snippet_editor</header>
+  </customwidget>
+ </customwidgets>
+ <resources>
+  <include location="../../../resources/files_res.qrc"/>
+ </resources>
+ <connections/>
 </ui>

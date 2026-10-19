@@ -1,7 +1,7 @@
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
     <p class="eyebrow">
-      <span class="status-dot" aria-hidden="true"></span>OPEN SOURCE · РАБОТА С
+      <span class="status-dot" aria-hidden="true"></span>ОТКРЫТЫЙ ИСХОДНЫЙ КОД ·
       ЧПУ
     </p>
     <h1 id="hero-title">
@@ -13,23 +13,21 @@
       результатов расчёта.
     </p>
     <p class="note">
-      Новое в {{APP_VERSION}}: нативный ввод HEIDENHAIN iTNC 530 для
-      индексирования 3+2 и непрерывной пятиосевой обработки на настроенных
-      столах AC/BC, а также ограниченная нативная токарка SINUMERIK XZ и ввод
-      ISO-T.
+      Новое в {{APP_VERSION}}: шаблоны программ с параметрами для FANUC,
+      SINUMERIK и HEIDENHAIN, а также запуск CLI прямо из редактора.
       <a href="#capabilities">Поддерживаемые команды и ограничения</a>.
     </p>
     <div class="actions" id="download">
       <a
         class="button primary"
         data-windows-download="gui"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v{{APP_VERSION}}/Easy-G-Code-Plot-{{APP_VERSION}}-Windows-x64.exe"
         >Скачать для Windows <span aria-hidden="true">↗</span></a
       >
       <a
         class="button"
         data-linux-download="archive"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v{{APP_VERSION}}/Easy-G-Code-Plot-{{APP_VERSION}}-Linux-x64.tar.gz"
         >Скачать для Linux (.tar.gz)</a
       ><a class="button" href="#visualization"
         >Посмотреть возможности <span aria-hidden="true">↓</span></a
@@ -37,7 +35,7 @@
       <a
         class="button"
         data-windows-download="cli"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v{{APP_VERSION}}/easy_gcode_plot_cli.exe"
         >Скачать CLI для Windows</a
       >
       <a
@@ -53,8 +51,7 @@
     </div>
     <p class="platform-note">
       Windows &amp; Linux <span>·</span> MIT <span>·</span>
-      <a
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+      <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases"
         >Все релизы</a
       >
     </p>

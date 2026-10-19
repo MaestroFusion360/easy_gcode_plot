@@ -3,7 +3,7 @@
 import logging
 from copy import deepcopy
 
-from PyQt6.QtCore import QCoreApplication, Qt
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker, Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QFileDialog,
@@ -197,24 +197,28 @@ class ToolLibraryDialog(QDialog):
 
     def _fill_table(self, kind, source, tools, selected_key=None):
         table = self.pages[kind][source]
-        table.blockSignals(True)
-        table.setRowCount(0)
-        selected_row = -1
-        for row, key in enumerate(sorted(tools)):
-            spec = tools[key]
-            values = (key, self._type_label(kind, spec), self._geometry(kind, spec), str(spec.get("description", "")))
-            table.insertRow(row)
-            for column, value in enumerate(values):
-                table.setItem(row, column, QTableWidgetItem(value))
-            if key == selected_key:
-                selected_row = row
-        table.resizeColumnsToContents()
-        table.horizontalHeader().setStretchLastSection(True)
-        if selected_row >= 0:
-            table.selectRow(selected_row)
-        else:
-            table.clearSelection()
-        table.blockSignals(False)
+        with QSignalBlocker(table):
+            table.setRowCount(0)
+            selected_row = -1
+            for row, key in enumerate(sorted(tools)):
+                spec = tools[key]
+                values = (
+                    key,
+                    self._type_label(kind, spec),
+                    self._geometry(kind, spec),
+                    str(spec.get("description", "")),
+                )
+                table.insertRow(row)
+                for column, value in enumerate(values):
+                    table.setItem(row, column, QTableWidgetItem(value))
+                if key == selected_key:
+                    selected_row = row
+            table.resizeColumnsToContents()
+            table.horizontalHeader().setStretchLastSection(True)
+            if selected_row >= 0:
+                table.selectRow(selected_row)
+            else:
+                table.clearSelection()
 
     def _program_tools(self, kind):
         if kind in self._program_working:
@@ -295,12 +299,15 @@ class ToolLibraryDialog(QDialog):
             return
         tools = self._program_tools(kind)
         editor = self._editor_type(kind)(self, key, tools[key])
-        editor.toolCode.setEnabled(False)
-        if editor.exec() != QDialog.DialogCode.Accepted:
-            return
-        _key, spec = editor.value()
-        self._editable_program_tools(kind)[key] = deepcopy(spec)
-        self.refresh(kind, selected_program=key)
+        try:
+            editor.toolCode.setEnabled(False)
+            if editor.exec() != QDialog.DialogCode.Accepted:
+                return
+            _key, spec = editor.value()
+            self._editable_program_tools(kind)[key] = deepcopy(spec)
+            self.refresh(kind, selected_program=key)
+        finally:
+            editor.deleteLater()
 
     def assign_from_library(self, kind):
         program_key = self._selected_key(kind, "program")
@@ -329,23 +336,29 @@ class ToolLibraryDialog(QDialog):
         if kind == "milling" and not (program_key.startswith("T") and program_key[1:].isdigit()):
             library_key = next((f"T{number}" for number in range(1, 100) if f"T{number}" not in library), "T1")
         editor = self._editor_type(kind)(self, library_key, self._program_tools(kind)[program_key])
-        editor.setWindowTitle(QCoreApplication.translate("ToolLibraryDialog", "Save Tool to Library"))
-        editor.reservedCodes = set(library) - {program_key}
-        if editor.exec() != QDialog.DialogCode.Accepted:
-            return
-        key, spec = editor.value()
-        if key in library and not self._confirm_replace(key):
-            return
-        self._persist_library_change(kind, key, spec)
+        try:
+            editor.setWindowTitle(QCoreApplication.translate("ToolLibraryDialog", "Save Tool to Library"))
+            editor.reservedCodes = set(library) - {program_key}
+            if editor.exec() != QDialog.DialogCode.Accepted:
+                return
+            key, spec = editor.value()
+            if key in library and not self._confirm_replace(key):
+                return
+            self._persist_library_change(kind, key, spec)
+        finally:
+            editor.deleteLater()
 
     def add_library_tool(self, kind):
         library = self.library_tools(kind)
         editor = self._editor_type(kind)(self)
-        editor.reservedCodes = set(library)
-        if editor.exec() != QDialog.DialogCode.Accepted:
-            return
-        key, spec = editor.value()
-        self._persist_library_change(kind, key, spec)
+        try:
+            editor.reservedCodes = set(library)
+            if editor.exec() != QDialog.DialogCode.Accepted:
+                return
+            key, spec = editor.value()
+            self._persist_library_change(kind, key, spec)
+        finally:
+            editor.deleteLater()
 
     def edit_library_tool(self, kind):
         key = self._selected_key(kind, "library")
@@ -353,11 +366,14 @@ class ToolLibraryDialog(QDialog):
             return
         library = self.library_tools(kind)
         editor = self._editor_type(kind)(self, key, library[key])
-        editor.reservedCodes = set(library) - {key}
-        if editor.exec() != QDialog.DialogCode.Accepted:
-            return
-        new_key, spec = editor.value()
-        self._persist_library_change(kind, new_key, spec, previous_key=key)
+        try:
+            editor.reservedCodes = set(library) - {key}
+            if editor.exec() != QDialog.DialogCode.Accepted:
+                return
+            new_key, spec = editor.value()
+            self._persist_library_change(kind, new_key, spec, previous_key=key)
+        finally:
+            editor.deleteLater()
 
     def duplicate_library_tool(self, kind):
         key = self._selected_key(kind, "library")

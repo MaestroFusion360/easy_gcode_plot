@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, QEvent, Qt
+from PyQt6.QtCore import QCoreApplication, QEvent, QSignalBlocker, Qt
 from PyQt6.QtGui import QColor, QIcon, QPalette, QTextCursor
 from PyQt6.QtWidgets import QComboBox, QDialog, QFileDialog, QMessageBox, QPushButton, QTextBrowser
 
@@ -138,12 +138,11 @@ class StatisticsDialog(QDialog):
         self._plot_segments = plot_segments
         self._source_path = source_path
         self._report_title = Path(source_path).name if source_path else self._report_labels()["heading"]
-        self.toolSelect.blockSignals(True)
-        self.toolSelect.clear()
-        self.toolSelect.addItem(self._report_labels()["heading"], None)
-        for tool in statistics["per_tool"]:
-            self.toolSelect.addItem(f"{self._report_labels()['tool']} {tool}", tool)
-        self.toolSelect.blockSignals(False)
+        with QSignalBlocker(self.toolSelect):
+            self.toolSelect.clear()
+            self.toolSelect.addItem(self._report_labels()["heading"], None)
+            for tool in statistics["per_tool"]:
+                self.toolSelect.addItem(f"{self._report_labels()['tool']} {tool}", tool)
         self.toolSelect.setEnabled(True)
         self.exportHtmlButton.setEnabled(True)
         self.inchesCheck.setEnabled(True)

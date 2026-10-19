@@ -108,6 +108,8 @@ class MainWindowEditorMixin:
             self.ui.editor.setLexer(lexer)
         self.applyUiTheme()
         self.syncGuiCapabilities()
+        if hasattr(self, "snippetsDock"):
+            self.snippetsDock.refresh()
         if self._document_source_dialect != previous_dialect and hasattr(self, "autoUpdateTimer"):
             self.scheduleAutoUpdate()
         LOGGER.debug("editor lexer changed index=%d", idx)
@@ -233,7 +235,10 @@ class MainWindowEditorMixin:
         menu.addActions(self.ui.menu_Edit.actions())
         menu.addSeparator()
         menu.addActions(self.ui.menuCNC_Functions.actions())
-        menu.exec(self.ui.editor.mapToGlobal(point))
+        try:
+            menu.exec(self.ui.editor.mapToGlobal(point))
+        finally:
+            menu.deleteLater()
 
     def previousToolchange(self):
         """Move the editor selection to the previous T word, wrapping at the start."""

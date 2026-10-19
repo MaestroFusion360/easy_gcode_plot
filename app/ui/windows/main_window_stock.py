@@ -7,7 +7,7 @@ from time import perf_counter
 from typing import cast
 
 import numpy as np
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker
 from PyQt6.QtGui import QColor
 from pyqtgraph.opengl import GLLinePlotItem
 
@@ -34,9 +34,8 @@ class MainWindowStockMixin(MainWindowMillingStockMixin):
             self._pause_playback()
             if not self._start_stock_animation():
                 action = self.ui.actionStockPlayback
-                action.blockSignals(True)
-                action.setChecked(False)
-                action.blockSignals(False)
+                with QSignalBlocker(action):
+                    action.setChecked(False)
         else:
             self.ui.actionPlay.setChecked(False)
             self.timer.stop()
@@ -286,9 +285,8 @@ class MainWindowStockMixin(MainWindowMillingStockMixin):
         self._stock_animation_active = True
         self._stock_last_render_at = 0.0
         self._stock_last_mesh_seconds = 0.0
-        self.ui.horizontalSlider.blockSignals(True)
-        self.ui.horizontalSlider.setValue(0)
-        self.ui.horizontalSlider.blockSignals(False)
+        with QSignalBlocker(self.ui.horizontalSlider):
+            self.ui.horizontalSlider.setValue(0)
         self._load_stock_animation_plot()
         self.valueHandler(0, sync_editor=False)
         self.fitToView()

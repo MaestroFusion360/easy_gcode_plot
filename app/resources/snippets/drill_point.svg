@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="300" viewBox="0 0 480 300">
+  <rect width="480" height="300" rx="16" fill="#202832"/>
+  <path d="M140 50 V155 L240 220 L340 155 V50" stroke="#4ed8c5" stroke-width="4" fill="#2b444d"/>
+  <g stroke="#a8b8c8" stroke-width="2" fill="none">
+    <path d="M140 155 H400 M240 220 H400 M140 54 V36 M340 54 V36 M140 44 H340"/>
+    <path d="M150 39 L140 44 L150 49 M330 39 L340 44 L330 49 M390 155 V220"/>
+    <path d="M385 165 L390 155 L395 165 M385 210 L390 220 L395 210"/>
+    <path d="M240 50 V235" stroke-dasharray="5 6"/>
+  </g>
+  <path d="M208 199 Q240 166 272 199" stroke="#ffc66d" stroke-width="3" fill="none"/>
+  <g font-family="sans-serif" font-size="22" fill="#eef4fa">
+    <text x="232" y="36">D</text><text x="405" y="193">H</text>
+    <text x="261" y="171" fill="#ffc66d">&#945;</text>
+    <text x="240" y="278" text-anchor="middle">H = (D / 2) / TAN(&#945; / 2)</text>
+  </g>
+</svg>

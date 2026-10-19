@@ -7,7 +7,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$targets = @('main.py', 'cli_main.py', 'app', 'tests', 'scripts/check_complexity.py', 'scripts/check_line_endings.py', 'scripts/analyze_gcode.py')
+$targets = @('main.py', 'cli_main.py', 'app', 'tests', 'scripts/check_complexity.py', 'scripts/check_line_endings.py', 'scripts/analyze_project.py')
 $uvRunArguments = @('run')
 $previousUvNoSync = $env:UV_NO_SYNC
 if ($NoSync) { $uvRunArguments += '--no-sync' }

@@ -2,7 +2,11 @@
 
 Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling, SINUMERIK 840D milling (native and ISO-M), native SINUMERIK XZ turning with bounded ISO-T input, and HEIDENHAIN iTNC 530 Klartext milling. Controller coverage and configured kinematics are described in the [FAQ](FAQ.md).
 
-**Current 2.8.0 working tree: native milling cycles.** HEIDENHAIN iTNC 530 executes documented subsets of position patterns **220/221**, pockets **251/252** and thread milling **262**. Native SINUMERIK executes classic **POCKET3/4**, **HOLES1/2** with modal drilling, and **CYCLE90**. Cutter geometry and, for iTNC helical/reciprocating pocket entry, an explicit tool entry angle are required. Unsupported variants stop with diagnostics. See the [FAQ](FAQ.md#heidenhain-itnc-530-input) for parameters and limits; these additions do not establish controller-identical internal passes or expand the output-post contract.
+**New in 2.9.0: Open in CLI.** Launch the existing CLI in a separate terminal directly from the current document, with commands for analysis, DXF export, conversion and batch processing.
+
+**Write NC programs with parameterized snippets.** Browse controller templates by group and name in the Snippets side panel, or edit them in the manager. Templates support input fields, formulas and attached diagrams; insertion is one undo action. See the [snippet guide](FAQ.md#where-are-snippets-stored) for editing and restoring defaults.
+
+**Native milling cycles introduced in 2.8.0.** HEIDENHAIN iTNC 530 executes documented subsets of position patterns **220/221**, pockets **251/252** and thread milling **262**. Native SINUMERIK executes classic **POCKET3/4**, **HOLES1/2** with modal drilling, and **CYCLE90**. Cutter geometry and, for iTNC helical/reciprocating pocket entry, an explicit tool entry angle are required. Unsupported variants stop with diagnostics. See the [FAQ](FAQ.md#heidenhain-itnc-530-input) for parameters and limits; these additions do not establish controller-identical internal passes or expand the output-post contract.
 
 **New in 2.7.0: native HEIDENHAIN iTNC 530 indexed 3+2 and continuous five-axis input.** Execute `PLANE SPATIAL/RESET` and rotary positioning with configured kinematics; use `M128/M129` or the supported `FUNCTION TCPM` form for continuous `L` motion on AC/BC tables. Opening `.h`/`.H` selects native Klartext milling automatically. Regression tests compare the supplied FANUC, SINUMERIK and HEIDENHAIN CAM programs across 1182 normalized cutting segments, including arc geometry and tool-axis directions. See the [iTNC input coverage and limits](FAQ.md#heidenhain-itnc-530-input). GPU milling stock removal remains three-axis.
 
@@ -119,6 +123,8 @@ Checked CAM examples include programs generated in Autodesk Fusion 360 and Sieme
 Easy G-Code Plot is a desktop workspace for editing CNC programs, inspecting calculated toolpaths, simulating stock removal and exporting NC/DXF geometry. It supports FANUC turning/milling, documented subsets of SINUMERIK 840D native/ISO-M milling and native/ISO-T turning, and native HEIDENHAIN iTNC 530 Klartext milling. Configured 3+2 and five-axis FANUC/SINUMERIK/HEIDENHAIN toolpaths have controller-specific limits described in the FAQ.
 
 The GUI and CLI share one CNC execution kernel. Supported behavior, controller limits and diagnostics are described in the [FAQ](FAQ.md). The application does not model a complete physical machine.
+
+**File → Open in CLI** (`Ctrl+Alt+T`) opens an independent terminal in the NC folder with a colored logo, help and compact batch-analysis/DXF-export examples using supported document settings. Commands run only when entered. Configure the terminal path or automatic detection in **Options → General → CLI terminal**.
 
 ## 3D milling stock removal
 

@@ -3,7 +3,7 @@ set -euo pipefail
 
 script_dir=$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 project_root=$(CDPATH= cd -- "$script_dir/../.." && pwd)
-targets=(main.py cli_main.py app tests scripts/check_complexity.py scripts/analyze_gcode.py)
+targets=(main.py cli_main.py app tests scripts/check_complexity.py scripts/analyze_project.py)
 fix=false
 check_resources=false
 no_sync=false

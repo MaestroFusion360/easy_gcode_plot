@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>SnippetsPanelForm</class>
+ <widget class="QWidget" name="SnippetsPanelForm">
+  <property name="windowTitle"><string>Snippets</string></property>
+  <property name="minimumSize"><size><width>260</width><height>0</height></size></property>
+  <layout class="QVBoxLayout" name="rootLayout">
+   <property name="leftMargin"><number>6</number></property>
+   <property name="topMargin"><number>6</number></property>
+   <property name="rightMargin"><number>6</number></property>
+   <property name="bottomMargin"><number>6</number></property>
+   <property name="spacing"><number>5</number></property>
+   <item><widget class="QLabel" name="controllerLabel"><property name="text"><string>Fanuc</string></property></widget></item>
+   <item>
+    <widget class="QComboBox" name="groupCombo">
+     <property name="accessibleName"><string>Snippet group</string></property>
+     <item><property name="text"><string>All Snippets</string></property></item>
+     <item><property name="text"><string>Program</string></property></item>
+     <item><property name="text"><string>Motion</string></property></item>
+     <item><property name="text"><string>Cycles</string></property></item>
+     <item><property name="text"><string>Formulas</string></property></item>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLineEdit" name="searchEdit">
+     <property name="placeholderText"><string>Find snippet...</string></property>
+     <property name="accessibleName"><string>Find snippet</string></property>
+     <property name="clearButtonEnabled"><bool>true</bool></property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QListWidget" name="snippetList">
+     <property name="accessibleName"><string>Snippets</string></property>
+     <property name="alternatingRowColors"><bool>false</bool></property>
+     <property name="textElideMode"><enum>Qt::TextElideMode::ElideRight</enum></property>
+     <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum></property>
+     <property name="selectionMode"><enum>QAbstractItemView::SelectionMode::SingleSelection</enum></property>
+    </widget>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="actionsLayout">
+     <property name="spacing"><number>3</number></property>
+     <item><widget class="QToolButton" name="insertButton"><property name="text"><string>Insert</string></property></widget></item>
+     <item><widget class="QToolButton" name="editButton"><property name="text"><string>Edit Snippets</string></property></widget></item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

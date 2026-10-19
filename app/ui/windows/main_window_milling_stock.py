@@ -7,7 +7,7 @@ from bisect import bisect_right
 from threading import Event
 from time import perf_counter
 
-from PyQt6.QtCore import QCoreApplication, Qt, QTimer
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker, Qt, QTimer
 from PyQt6.QtGui import QColor
 from PyQt6.QtWidgets import QFileDialog, QMessageBox
 from pyqtgraph.opengl import GLLinePlotItem
@@ -219,9 +219,8 @@ class MainWindowMillingStockMixin:
             self._milling_stock_item.memory_budget,
         )
         getattr(self.ui, "actionSaveStockStl").setEnabled(True)
-        self.ui.horizontalSlider.blockSignals(True)
-        self.ui.horizontalSlider.setValue(0)
-        self.ui.horizontalSlider.blockSignals(False)
+        with QSignalBlocker(self.ui.horizontalSlider):
+            self.ui.horizontalSlider.setValue(0)
         self._load_stock_animation_plot()
         self.valueHandler(0, sync_editor=False)
         self.fitToView()
@@ -377,9 +376,8 @@ class MainWindowMillingStockMixin:
                 logical_count = bisect_right(
                     self._playback_movements, timeline.motion_count, key=lambda m: m.motion_end
                 )
-                self.ui.horizontalSlider.blockSignals(True)
-                self.ui.horizontalSlider.setValue(logical_count)
-                self.ui.horizontalSlider.blockSignals(False)
+                with QSignalBlocker(self.ui.horizontalSlider):
+                    self.ui.horizontalSlider.setValue(logical_count)
                 self._milling_publishing_frame = True
                 try:
                     self.valueHandler(logical_count)

@@ -11,22 +11,21 @@
       reports and exports.
     </p>
     <p class="note">
-      New in {{APP_VERSION}}: native HEIDENHAIN iTNC 530 indexed 3+2 and
-      continuous five-axis input on configured AC/BC tables, plus bounded native
-      SINUMERIK XZ turning and ISO-T input.
+      New in {{APP_VERSION}}: parameterized program templates for FANUC,
+      SINUMERIK and HEIDENHAIN, plus direct CLI launch from the editor.
       <a href="#capabilities">View supported commands and limits</a>.
     </p>
     <div class="actions" id="download">
       <a
         class="button primary"
         data-windows-download="gui"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v{{APP_VERSION}}/Easy-G-Code-Plot-{{APP_VERSION}}-Windows-x64.exe"
         >Download for Windows <span aria-hidden="true">↗</span></a
       >
       <a
         class="button"
         data-linux-download="archive"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v{{APP_VERSION}}/Easy-G-Code-Plot-{{APP_VERSION}}-Linux-x64.tar.gz"
         >Download for Linux (.tar.gz)</a
       ><a class="button" href="#visualization"
         >Explore the app <span aria-hidden="true">↓</span></a
@@ -34,7 +33,7 @@
       <a
         class="button"
         data-windows-download="cli"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest/download/easy_gcode_plot_cli.exe"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v{{APP_VERSION}}/easy_gcode_plot_cli.exe"
         >Download CLI for Windows</a
       >
       <a
@@ -50,8 +49,7 @@
     </div>
     <p class="platform-note">
       Windows &amp; Linux <span>·</span> MIT <span>·</span>
-      <a
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/latest"
+      <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases"
         >All releases</a
       >
     </p>

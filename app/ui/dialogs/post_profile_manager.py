@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication
+from PyQt6.QtCore import QCoreApplication, QSignalBlocker
 from PyQt6.QtWidgets import (
     QFileDialog,
     QMessageBox,
@@ -36,26 +36,28 @@ class PostProfileManagementMixin:
         machine = self._machine_type()
         self._post_machine = machine
         combo = self.targetCncCombo
-        combo.blockSignals(True)
-        combo.clear()
-        combo.addItem(QCoreApplication.translate("ExportOptDlg", "Auto (source controller)"), "auto")
-        for target, label in BUILTIN_LABELS.items():
-            if self.postLibrary.load(target)["machine"] == machine:
-                combo.addItem(QCoreApplication.translate("ExportOptDlg", label), target)
-        errors = []
-        for entry in self.postLibrary.list_profiles():
-            if entry.machine == machine:
-                combo.addItem(QCoreApplication.translate("ExportOptDlg", "User: {0}").format(entry.name), entry.path)
-            elif entry.error:
-                errors.append(f"{entry.name}: {entry.error}")
-        index = combo.findData(selection)
-        if index < 0:
-            combo.addItem(
-                QCoreApplication.translate("ExportOptDlg", "Unavailable: {0}").format(Path(selection).name), selection
-            )
-            index = combo.count() - 1
-        combo.setCurrentIndex(index)
-        combo.blockSignals(False)
+        with QSignalBlocker(combo):
+            combo.clear()
+            combo.addItem(QCoreApplication.translate("ExportOptDlg", "Auto (source controller)"), "auto")
+            for target, label in BUILTIN_LABELS.items():
+                if self.postLibrary.load(target)["machine"] == machine:
+                    combo.addItem(QCoreApplication.translate("ExportOptDlg", label), target)
+            errors = []
+            for entry in self.postLibrary.list_profiles():
+                if entry.machine == machine:
+                    combo.addItem(
+                        QCoreApplication.translate("ExportOptDlg", "User: {0}").format(entry.name), entry.path
+                    )
+                elif entry.error:
+                    errors.append(f"{entry.name}: {entry.error}")
+            index = combo.findData(selection)
+            if index < 0:
+                combo.addItem(
+                    QCoreApplication.translate("ExportOptDlg", "Unavailable: {0}").format(Path(selection).name),
+                    selection,
+                )
+                index = combo.count() - 1
+            combo.setCurrentIndex(index)
         self._post_errors = "\n".join(errors)
         self._update_post_actions()
 

@@ -67,6 +67,12 @@ def test_general_groups_controls_and_persists_optional_cimco_picking(qt_app):
         check_rows = [i for i, widget in enumerate(rows) if isinstance(widget, QCheckBox)]
         assert combo_rows and check_rows and max(combo_rows) < min(check_rows)
         assert all(isinstance(widget, QCheckBox) for widget in rows[min(check_rows) :])
+        assert rows[min(check_rows) :] == [
+            ui.autoUpdateCheck,
+            ui.loggingCheck,
+            ui.cimcoLikePickingCheck,
+            ui.sinumerik840dSlCheck,
+        ]
         ui.cimcoLikePickingCheck.setChecked(True)
         dialog.reject()
         assert not window.cimcoLikePicking
@@ -615,6 +621,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     dialog.ui.showRapidCheck.setChecked(False)
     dialog.ui.dashedRapidCheck.setChecked(False)
     dialog.ui.colorByToolCheck.setChecked(True)
+    dialog.ui.hideToolCheck.setChecked(True)
     dialog.ui.arcToleranceSpin.setValue(0.02)
     dialog.ui.correctionCheck.setChecked(False)
     dialog.ui.ignoreBlockSkipCheck.setChecked(True)
@@ -640,6 +647,7 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     assert window.plotAxes is False
     assert window.plotGrid is True and window.ui.actionGrid.isChecked()
     assert (window.plotShowRapid, window.plotDashedRapid, window.plotColorByTool) == (False, False, True)
+    assert window.plotHideTool is True
     assert window.arcTolerance == 0.02
     assert window.correctionEnabled is False
     assert window.ignoreBlockSkip is True
@@ -655,18 +663,22 @@ def test_options_apply_every_runtime_plot_control(qt_app, monkeypatch):
     window.deleteLater()
 
 
-def test_plot_options_use_two_columns_with_playback_last(qt_app):
+def test_plot_options_use_three_checkbox_columns_with_playback_last(qt_app):
     window = MainWindow()
     dialog = window.optionsDlg
     form = dialog.ui.plotForm
-    assert form.rowCount() == 7  # Rotary profiles have their own Designer tab.
-    for left, right in (
-        (dialog.ui.axesCheck, dialog.ui.gridCheck),
-        (dialog.ui.showRapidCheck, dialog.ui.dashedRapidCheck),
-        (dialog.ui.colorByToolCheck, dialog.ui.showStockCheck),
-        (dialog.ui.backgroundGradientCheck, dialog.ui.stlWireframeCheck),
+    assert form.rowCount() == 4
+    grid = dialog.ui.plotChecksLayout
+    assert grid.columnCount() == 3 and grid.rowCount() == 3
+    for row, names in enumerate(
+        (
+            ("axesCheck", "gridCheck", "hideToolCheck"),
+            ("showRapidCheck", "dashedRapidCheck", "colorByToolCheck"),
+            ("showStockCheck", "backgroundGradientCheck", "stlWireframeCheck"),
+        )
     ):
-        assert form.getWidgetPosition(left)[0] == form.getWidgetPosition(right)[0]
+        for column, name in enumerate(names):
+            assert grid.getItemPosition(grid.indexOf(getattr(dialog.ui, name)))[:2] == (row, column)
     assert form.getWidgetPosition(dialog.ui.playbackSpeedLabel)[0] == form.rowCount() - 1
     assert dialog.height() >= 700
     window.deleteLater()
@@ -683,6 +695,7 @@ def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     window.plotShowRapid = False
     window.plotDashedRapid = False
     window.plotColorByTool = True
+    window.plotHideTool = True
     window.saveSettings()
     window.settings.sync()
 
@@ -694,8 +707,48 @@ def test_stl_and_gradient_plot_options_are_persisted(qt_app):
     assert restored.speedTimer == 40
     assert restored.stlWireframe is True
     assert (restored.plotShowRapid, restored.plotDashedRapid, restored.plotColorByTool) == (False, False, True)
+    assert restored.plotHideTool is True
     window.deleteLater()
     restored.deleteLater()
+
+
+def test_hide_tool_defaults_off_and_cancel_keeps_runtime_setting(qt_app):
+    window = MainWindow()
+    try:
+        dialog = window.optionsDlg
+        dialog.load_values()
+        assert not window.plotHideTool
+        assert not dialog.ui.hideToolCheck.isChecked()
+        dialog.ui.hideToolCheck.setChecked(True)
+        dialog.reject()
+        assert not window.plotHideTool
+        dialog.load_values()
+        assert not dialog.ui.hideToolCheck.isChecked()
+        window.plotHideTool = True
+        dialog.load_values()
+        dialog.restore_defaults()
+        assert not dialog.ui.hideToolCheck.isChecked()
+        assert window.plotHideTool
+    finally:
+        window.deleteLater()
+
+
+def test_hide_tool_apply_refreshes_plot_without_reexecuting_program(qt_app, monkeypatch):
+    window = MainWindow()
+    refreshed, executed = [], []
+    try:
+        monkeypatch.setattr(window, "refreshPlotView", lambda: refreshed.append(True))
+        monkeypatch.setattr(window, "updateData", lambda *_args, **_kwargs: executed.append(True))
+        dialog = window.optionsDlg
+        dialog.load_values()
+        dialog.ui.hideToolCheck.setChecked(True)
+        dialog.accept()
+        assert window.plotHideTool
+        assert refreshed == [True]
+        assert not executed
+        assert window.settings.value("PLOT/HIDE_TOOL", type=bool)
+    finally:
+        window.deleteLater()
 
 
 def test_legacy_grid_color_is_migrated_for_gradient_contrast(qt_app):
