@@ -31,15 +31,17 @@ from app.ui.plot.axis_triad import AxisTriadItem
 from app.ui.plot.geometry_picking import view_projection
 from app.ui.plot.milling_tool_preview import MillingToolPreviewItem
 from app.ui.plot.plot_grid import adaptive_grid_geometry
-from app.ui.plot.stl import StlMesh, mesh_from_triangles, read_stl
+from app.ui.plot.stl import MAX_STL_TRIANGLES, StlMesh, mesh_from_triangles, read_stl
 from app.ui.plot.stl_overlay import StlOverlay
 from app.ui.plot.stl_transform import (
+    MAX_STL_ARRAY_OBJECTS,
     MeshMeasurements,
     StlObject,
     circular_array,
     clip_mesh,
     measure_mesh,
     rectangular_array,
+    validate_array_count,
 )
 from app.ui.plot.toolpath_vbo import ToolpathVboItem, segments_from_render_points
 from app.ui.plot.trace_picking import TracePicker
@@ -49,6 +51,7 @@ PICK_DISTANCE_PX = 8.0
 CURSOR_SIZE_PX = 7.0
 RAPID_COLOR = "#d02020"
 LOGGER = logging.getLogger(__name__)
+MAX_STL_ARRAY_TRIANGLES = MAX_STL_TRIANGLES
 GRID_GL_OPTIONS = {
     GL.GL_DEPTH_TEST: True,
     GL.GL_BLEND: True,
@@ -682,9 +685,27 @@ class MainWindowPlotMixin:
             generation_ms + (perf_counter() - started) * 1000.0,
         )
 
+    def _stl_array_allowed(self, obj: StlObject, count: int) -> bool:
+        try:
+            validate_array_count(count)
+            objects = len(self._stl_entries) + count - 1
+            triangles = sum(entry.obj.mesh.triangle_count for entry in self._stl_entries)
+            triangles += obj.mesh.triangle_count * (count - 1)
+            if objects > MAX_STL_ARRAY_OBJECTS or triangles > MAX_STL_ARRAY_TRIANGLES:
+                raise ValueError("STL scene limit exceeded")
+        except ValueError:
+            self.ui.statusbar.showMessage(
+                QCoreApplication.translate(
+                    "MainWindow", "Array rejected: scene limit is {0:,} objects and {1:,} triangles."
+                ).format(MAX_STL_ARRAY_OBJECTS, MAX_STL_ARRAY_TRIANGLES),
+                10000,
+            )
+            return False
+        return True
+
     def _circular_array_selected_stl(self, count: int, total_angle: float, axis: str, center, rotate_copies: bool):
         _row, entry = self._selected_stl_entry()
-        if entry is None:
+        if entry is None or not self._stl_array_allowed(entry.obj, count):
             return
         started = perf_counter()
         matrices = circular_array(
@@ -700,7 +721,7 @@ class MainWindowPlotMixin:
 
     def _rectangular_array_selected_stl(self, nx: int, ny: int, nz: int, dx: float, dy: float, dz: float):
         _row, entry = self._selected_stl_entry()
-        if entry is not None:
+        if entry is not None and self._stl_array_allowed(entry.obj, nx * ny * nz):
             started = perf_counter()
             matrices = rectangular_array(nx, ny, nz, dx, dy, dz)
             generation_ms = (perf_counter() - started) * 1000.0

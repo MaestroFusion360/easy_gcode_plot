@@ -22,6 +22,7 @@ from app.tools.definitions import (
     TURNING_INSERT_TYPES,
     TURNING_TOOL_LABELS,
 )
+from app.tools.discovery_rules import default_settings
 from app.tools.program_io import read_program_tools, write_program_tools
 from app.tools.setup import refresh_setup
 from app.ui.dialogs.tool_dialogs import _export_tool_library, _MillingToolEditor, _TurningToolEditor
@@ -185,6 +186,7 @@ class ToolLibraryDialog(QDialog):
             library_tools=self.library_tools(kind),
             source_dialect=getattr(parent, "_document_source_dialect", "fanuc"),
             default_unit_scale=25.4 if parent.defaultUnits == "inch" else 1.0,
+            rules=getattr(parent, "toolDiscovery", default_settings()),
         )
 
     def refresh(self, kind=None, selected_program=None, selected_library=None):
@@ -457,7 +459,11 @@ class ToolLibraryDialog(QDialog):
                 "JSON (*.json);;CSV (*.csv)",
             )
         if path:
-            _export_tool_library(path, kind, library)
+            try:
+                _export_tool_library(path, kind, library)
+            except (OSError, ValueError, TypeError) as exc:
+                LOGGER.warning("tool_library_export_failed path=%s kind=%s reason=%s", path, kind, exc)
+                QMessageBox.warning(self, self.tr("Export Saved Library"), str(exc))
 
     def remove_library_tool(self, kind):
         key = self._selected_key(kind, "library")

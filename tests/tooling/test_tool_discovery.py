@@ -15,6 +15,7 @@ from app.gcode.stock import TurningStockSpec, TurningStockTimeline
 from app.tools import discovery
 from app.tools.definitions import DEFAULT_MILLING_TOOL, DEFAULT_TURNING_TOOL
 from app.tools.discovery import _scan_source_python, discover_tools
+from app.tools.discovery_rules import default_profile
 from app.tools.library import ToolLibrary
 from app.tools.setup import refresh_setup
 from app.ui.windows.main_window_execution import MainWindowExecutionMixin
@@ -37,6 +38,7 @@ from app.ui.windows.main_window_execution import MainWindowExecutionMixin
         ),
         (False, "G21\nG1 X1 Y2\n; файл без инструментов\nM30\n"),
         (False, "G21\nG65 P9000 T7 X10. Y20. Z-5. F100. M8\nT3 M6\n"),
+        (True, "G020 T0101 (DRILL D.25)\nG083.0 Z-2\nG+021.000\nT0202\nG076.0 X20 Z-10\n"),
     ],
 )
 def test_native_discovery_scan_matches_python(turning, source):
@@ -191,6 +193,58 @@ def test_units_and_invalid_dimensions():
     assert tools["T7"]["diameter"] == pytest.approx(6.35)
     assert tools["T7"]["cornerRadius"] == pytest.approx(0.254)
     assert tools["T8"]["diameter"] == 10
+
+
+@pytest.mark.parametrize("python_scanner", [False, True])
+@pytest.mark.parametrize("turning", [False, True])
+@pytest.mark.parametrize("unit_code", ["G020", "G20.0", "G+020.000"])
+def test_literal_unit_code_spelling_matches_kernel_units(monkeypatch, python_scanner, turning, unit_code):
+    if python_scanner:
+        monkeypatch.setattr(discovery, "_native_scan_source", None)
+    selection = "T0101 (DRILL D=.25)" if turning else "T1 M6 (DRILL D=.25)"
+    source = f"{unit_code}\n{selection}\nG1 X1 F100"
+    result = execute(source, language="fanuc_turn" if turning else "fanuc_mill")
+    assert result.ok, result.diagnostics
+    assert result.execution_steps[-1].unit_scale == 25.4
+    tools = discover_tools(source, turning=turning)
+    assert tools["T0101" if turning else "T1"]["diameter"] == pytest.approx(6.35)
+
+
+@pytest.mark.parametrize("cycle,kind", [("G081", "drill"), ("G84.0", "tap"), ("G+083.000", "drill")])
+def test_literal_cycle_spelling_classifies_installed_tool(cycle, kind):
+    source = f"T1 M6\n{cycle} X0 Z-5 R1 F100"
+    assert execute(source, language="fanuc_mill").ok
+    assert discover_tools(source, turning=False)["T1"]["type"] == kind
+
+
+@pytest.mark.parametrize("tool,key", [("1", "T1"), ('"BALL"', "BALL")])
+@pytest.mark.parametrize("documented_first", [False, True])
+@pytest.mark.parametrize("generic_comment", ["", "ROUGHING", "ROUGHING D=-6"])
+def test_repeated_heidenhain_tool_call_retains_documented_geometry(tool, key, documented_first, generic_comment):
+    documented = f"TOOL CALL {tool} Z S1000 ; BALL END MILL D6"
+    undocumented = f"TOOL CALL {tool} Z S1200 ; {generic_comment}"
+    calls = [documented, undocumented] if documented_first else [undocumented, documented]
+    source = "BEGIN PGM TEST MM\n" + "\nL X1 F100\n".join(calls) + "\nEND PGM TEST MM"
+    tools = discover_tools(source, turning=False, source_dialect="heidenhain")
+    assert tools[key]["diameter"] == 6
+    assert tools[key]["type"] == "mill_ball"
+
+
+@pytest.mark.parametrize("documented_first", [False, True])
+@pytest.mark.parametrize("description", ["D6", "SPECIAL SIZE6"])
+def test_repeated_heidenhain_call_uses_geometry_hints_from_configured_rules(documented_first, description):
+    rules = default_profile()
+    if description.startswith("SPECIAL"):
+        rules["dimensions"]["milling_diameter"] = "SIZE"
+        for entry in rules["types"]:
+            if entry[1] == "mill_ball":
+                entry[0] = r"\bSPECIAL\b"
+    documented = f"TOOL CALL 1 Z S1000 ; {description}"
+    generic = "TOOL CALL 1 Z S1200 ; ROUGHING"
+    calls = [documented, generic] if documented_first else [generic, documented]
+    tools = discover_tools("\n".join(calls), turning=False, source_dialect="heidenhain", rules=rules)
+    assert tools["T1"]["diameter"] == 6
+    assert tools["T1"]["type"] == ("mill_ball" if description.startswith("SPECIAL") else "mill_flat")
 
 
 @pytest.mark.parametrize("dialect", ["fanuc", "sinumerik"])

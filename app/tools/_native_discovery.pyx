@@ -4,8 +4,9 @@
 import re
 
 from app.tools.discovery_patterns import is_tool_comment
+from app.gcode.kernel.frontend.lang import try_literal_int
 
-COMMENT_HINTS_VERSION = 3
+COMMENT_HINTS_VERSION = 4
 
 from cpython.bytes cimport PyBytes_AS_STRING, PyBytes_FromStringAndSize, PyBytes_GET_SIZE
 from libc.stdlib cimport free, malloc, realloc
@@ -87,6 +88,7 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
     cdef unsigned char letter
     cdef bytes expr
     cdef object key
+    cdef object code
     cdef list selected = []
     cdef bint has_words = False
     cdef bint has_t = False
@@ -122,17 +124,18 @@ cdef tuple _scan_words(unsigned char* clean, Py_ssize_t size, bint turning, doub
                         if key is not None:
                             selected.append(key)
                     elif letter == 71:
+                        code = try_literal_int(expr.decode("utf-8"))
                         if _LITERAL_G65.fullmatch(expr) is not None:
                             g65_call = True
-                        if expr == b"20":
+                        if code == 20:
                             scale = 25.4
-                        elif expr == b"21":
+                        elif code == 21:
                             scale = 1.0
-                        if expr in (b"81", b"82", b"83"):
+                        if code in (81, 82, 83):
                             operation = "drill"
-                        elif expr == b"84":
+                        elif code == 84:
                             operation = "tap"
-                        elif turning and expr in (b"32", b"33", b"76", b"92"):
+                        elif turning and code in (32, 33, 76, 92):
                             operation = "thread"
                     elif letter == 88 or letter == 89 or letter == 90:
                         has_xyz = True

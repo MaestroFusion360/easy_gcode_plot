@@ -1,6 +1,7 @@
 """Main application window."""
 
 import logging
+import sqlite3
 from time import perf_counter
 
 from PyQt6.QtCore import QBasicTimer, QCoreApplication, QEvent, QSize, Qt, QTimer
@@ -144,6 +145,11 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self.toolbarSettings = ToolbarSettings(self)
         self.applyToolbarIconSize(self.toolbarIconSize)
         self.restoreToolbarState()
+        if self.snippetsDlg is None:
+            self.snippetsDock.setEnabled(False)
+            snippets_toggle.setEnabled(False)
+            self.snippetsDock.hide()
+            self.ui.statusbar.showMessage(self._snippets_load_error, 10000)
 
     def _initialize_window_state(self):
         """Declare shared Python state before settings, dialogs or signals use it.
@@ -605,11 +611,22 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self.stockDlg = StockDialog(self)
         self.holeCalculatorDlg = HoleCalculatorDialog(self)
         self.pocketCalculatorDlg = PocketCalculatorDialog(self)
-        self.snippetsDlg = SnippetsDialog(self)
+        self.snippetsDlg = None
+        self._snippets_load_error = None
+        try:
+            self.snippetsDlg = SnippetsDialog(self)
+        except (sqlite3.Error, OSError, RuntimeError, ValueError) as exc:
+            LOGGER.exception("snippets_initialization_failed")
+            self._snippets_load_error = QCoreApplication.translate(
+                "MainWindow", "Snippets are unavailable because snippets.db could not be read"
+            )
+            self.ui.actionSnippets.setEnabled(False)
+            self.ui.actionSnippets.setToolTip(f"{self._snippets_load_error}: {exc}")
         self.compareDlg = CompareDialog(self)
         getattr(self.ui, "actionHoleCalculator").triggered.connect(self.holeCalculatorDlg.show)
         getattr(self.ui, "actionPocketCalculator").triggered.connect(self.pocketCalculatorDlg.show)
-        getattr(self.ui, "actionSnippets").triggered.connect(self.snippetsDlg.show)
+        if self.snippetsDlg is not None:
+            self.ui.actionSnippets.triggered.connect(self.snippetsDlg.show)
         self.ui.actionCompare.triggered.connect(self.compareDlg.show)
         self.timer = QBasicTimer()
         self.ui.playbackSpeedSlider.valueChanged.connect(self.setPlaybackSpeed)

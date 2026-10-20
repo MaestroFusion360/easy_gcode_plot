@@ -6,14 +6,14 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>700</width>
-    <height>430</height>
+    <width>1100</width>
+    <height>650</height>
    </rect>
   </property>
   <property name="minimumSize">
    <size>
-    <width>700</width>
-    <height>430</height>
+    <width>900</width>
+    <height>560</height>
    </size>
   </property>
   <property name="windowTitle">
@@ -101,7 +101,7 @@
       </property>
      </widget>
      <widget class="QWidget" name="templatePane">
-      <layout class="QVBoxLayout" name="templateLayout">
+      <layout class="QVBoxLayout" name="templateLayout" stretch="0,1">
        <property name="spacing">
         <number>6</number>
        </property>
@@ -170,16 +170,50 @@ QPushButton#pictureButton::menu-indicator {
         </layout>
        </item>
        <item>
-        <widget class="ZoomableSnippetEditor" name="snippetEditor">
-         <property name="font">
-          <font>
-           <family>Courier New</family>
-           <pointsize>9</pointsize>
-          </font>
+        <widget class="QSplitter" name="previewSplitter">
+         <property name="orientation">
+          <enum>Qt::Orientation::Horizontal</enum>
          </property>
-         <property name="lineWrapMode">
-          <enum>QPlainTextEdit::LineWrapMode::WidgetWidth</enum>
+         <property name="childrenCollapsible">
+          <bool>false</bool>
          </property>
+         <widget class="ZoomableSnippetEditor" name="snippetEditor">
+          <property name="font">
+           <font>
+            <family>Courier New</family>
+            <pointsize>9</pointsize>
+           </font>
+          </property>
+          <property name="lineWrapMode">
+           <enum>QPlainTextEdit::LineWrapMode::WidgetWidth</enum>
+          </property>
+         </widget>
+         <widget class="PictureLabel" name="picturePreview">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>320</width>
+            <height>260</height>
+           </size>
+          </property>
+          <property name="maximumSize">
+           <size>
+            <width>16777215</width>
+            <height>16777215</height>
+           </size>
+          </property>
+          <property name="styleSheet">
+           <string notr="true">QLabel#picturePreview { background: palette(base); border: 1px solid palette(mid); }</string>
+          </property>
+          <property name="visible">
+           <bool>false</bool>
+          </property>
+         </widget>
         </widget>
        </item>
       </layout>
@@ -343,6 +377,11 @@ QPushButton#pictureButton::menu-indicator {
   </layout>
  </widget>
  <customwidgets>
+  <customwidget>
+   <class>PictureLabel</class>
+   <extends>QLabel</extends>
+   <header>app.ui.support.snippet_preview</header>
+  </customwidget>
   <customwidget>
    <class>ZoomableSnippetEditor</class>
    <extends>QPlainTextEdit</extends>

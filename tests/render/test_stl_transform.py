@@ -110,6 +110,19 @@ def test_arrays_have_expected_copy_positions_without_360_duplicate():
     assert len(rectangular_array(2, 3, 1, 10.0, 20.0, 0.0)) == 6
 
 
+@pytest.mark.parametrize("circular", [False, True])
+def test_arrays_reject_unbounded_allocations_before_building_any_matrix(monkeypatch, circular):
+    def forbidden(*_args, **_kwargs):
+        pytest.fail("Excessive arrays must be rejected before matrix construction")
+
+    monkeypatch.setattr(stl_transform, "translation", forbidden)
+    with pytest.raises(ValueError, match="limit"):
+        if circular:
+            circular_array(10_000)
+        else:
+            rectangular_array(10_000, 10_000, 10_000, 1, 1, 1)
+
+
 def test_axis_section_of_cube_has_perimeter_40_and_outside_is_empty():
     triangles = StlObject(_cube()).world_triangles()
     middle = section(triangles, "Z", 5.0)

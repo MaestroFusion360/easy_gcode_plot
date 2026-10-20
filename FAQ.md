@@ -1834,6 +1834,8 @@ On **Transform**, select an axis and angle to rotate around the current base poi
 
 **Rectangular array** creates copies along X, Y and Z. Set the copy count and step for each axis; the resulting array includes the original object. Array creation is one STL history action and can be undone.
 
+Array creation is rejected if the resulting scene would exceed **1,000 objects** or **2,000,000 triangles**, including objects already in the scene. The limit is checked before copies are built; rejection leaves the scene and its undo history unchanged.
+
 #### How do I make a 3D section through an STL model?
 
 On **Section**, choose X, Y or Z for the cutting plane, enter its coordinate and choose which side to keep. The initial coordinate is the midpoint of the selected model's world-space bounding box along that axis. **Apply section** clips the solid in 3D and closes the cut where the mesh produces a closed contour; the cut model remains visible over the source toolpath. **Clear section** restores the full STL. Applying and clearing a section are undoable STL scene actions.
@@ -1849,6 +1851,8 @@ STL files do not encode a unit system, so these labels are display units and do 
 Use **Edit → Uppercase** (`Ctrl+Shift+U`) or **Edit → Lowercase** (`Ctrl+U`), or their optional toolbar buttons enabled in Customize Toolbars, to convert selected text. With no selection, they convert the entire editor document. Their shortcuts can be changed in Options.
 
 Select one or more blocks and press **Ctrl+/** to add `/` at the start of each selected nonempty block. Press **Ctrl+Shift+/** to remove one leading `/` from each selected block. Without a selection, these commands do nothing. Both shortcuts are fixed and cannot be assigned to another command. The slash is the FANUC optional block skip marker; whether such blocks execute depends on the Block Skip setting.
+
+The editor's **Renumber** command adds or replaces block prefixes in the selected lines, or the entire document without a selection. It skips `%` delimiters, `O` program headers and dialect-specific variable lines: `#` for FANUC, `R` for SINUMERIK and `Q` for iTNC. Jump and contour references remain unchanged; their presence does not block the command. **Remove Numbers** removes block prefixes without rejecting programs or rewriting references, preserves optional `/` markers and accepts indented or lowercase `N` prefixes. Klartext block prefixes are handled separately from `LBL` labels.
 
 ### How do I print the plot?
 
@@ -1928,6 +1932,8 @@ Hole and Pocket Calculator are milling-only. Snippets is available in both machi
 ### What does Hole Calculator generate?
 
 It generates coordinate blocks for circular or rectangular/grid hole patterns. It does not invent the complete surrounding drilling-cycle safety logic.
+
+Patterns are limited to **20,000 points** in both the preview and generated fragment; for a grid, the limit applies to the product of the X and Y counts. An excessive pattern clears the preview and disables **Insert**, with the reason in the button's tooltip. Reduce the counts to continue. With no selection, insertion inside an existing block places the fragment before that whole block, preserving its commands.
 
 ### What does Pocket Calculator generate?
 

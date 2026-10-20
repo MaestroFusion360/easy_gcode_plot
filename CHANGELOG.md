@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.9.1 - 2026-10-20
+
+- Embed all 15 drilling-cycle SVG diagrams in Qt resources, package the Snippets SVG sources, and verify embedded resources against the originals.
+- Add a self-contained drilling-cycle SVG generator based on the approved single-drill drawing. Preserve geometry and arrows, changing only controller-specific parameter labels without numeric defaults.
+- Refactor Snippets into controller-specific catalogs, separating default templates from SQLite persistence and rendering. Restore missing FANUC and SINUMERIK templates for dwell, threading, turning cycles, plane selection, and controller-specific home return.
+- Restore FANUC G-code System B templates with automatic catalog selection based on the active lathe configuration. Seed new defaults without overwriting user-modified snippets or recreating deleted entries. Add catalog, rendering, and GUI regression tests.
+- Include Snippets packages in setuptools distributions, correct FANUC Type B program initialization and turning-cycle classification, and migrate Type B illustrations into existing libraries without replacing user images or restoring removed ones.
+- Preserve the active Tool Library SQLite connection when database switching fails, close connections after failed schema initialization, and test switching failures and incompatible schemas.
+- Keep the editor operational when the Snippets database is corrupted, locked, or incompatible. Disable unavailable Snippets actions and cover startup failures with regression tests.
+- Publish execution results, tool setup, playback indices, and plot geometry atomically after cancellable preparation. Preserve the previous consistent scene when preparation is cancelled or its source becomes outdated, including worker cancellation, Stop, window closing, and trace resampling. Display the current execution duration.
+- Simplify block numbering: insert, replace, and remove block prefixes while respecting program delimiters, headers, dialect-specific variables, indentation, and optional-block prefixes. Preserve jump and contour references.
+- Apply configured tool-recognition rules in the Tool Library dialog, report export failures, and pass the document's actual encoding to the CLI after legacy-encoding fallback.
+- Normalize equivalent literal G-code spellings consistently across Python and native tool discovery, including `G020`, `G20.0`, and `G081`. Preserve recognized tool geometry across repeated Heidenhain `TOOL CALL` statements, allowing later explicit descriptions to refine unspecified tools.
+- Insert calculator output without splitting the current editor block. Limit hole patterns to 20,000 points before allocation, report invalid previews, and enable insertion only when input and document state are valid.
+- Correct mirrored STL wireframe edges and ruler picking using shared transformed geometry. Reject arrays exceeding 1,000 objects or 2,000,000 triangles before allocation.
+- Preflight batch export and HTML report destinations against discovered inputs, other outputs, and batch manifests, resolving directory aliases while allowing safe output paths above the input directory.
+- Restore clean Pylint checks for Snippets and Tool Library tests by moving imports to module scope and isolating connection caches without modifying application state.
+- Update English and Russian documentation for calculator and STL limits, insertion behavior, and block numbering. Regenerate landing pages for the current version and remove hardcoded release versions from download-link regression tests.
+
 ## 2.9.0 - 2026-10-19
 
 - Fix Open in CLI through cmd.exe when the PowerShell executable path contains spaces by preserving cmd's command-line quoting without double escaping.

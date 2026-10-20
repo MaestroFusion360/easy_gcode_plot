@@ -223,3 +223,29 @@ def test_generated_modules_import_and_qt_resource_is_registered():
         "assert QFile(':/resource/icons/open.png').exists()"
     )
     subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, check=True, timeout=30)
+
+
+def test_locked_project_version_matches_release_version():
+    with (ROOT / "pyproject.toml").open("rb") as stream:
+        project = tomllib.load(stream)["project"]
+    with (ROOT / "uv.lock").open("rb") as stream:
+        lock = tomllib.load(stream)
+    package = next(package for package in lock["package"] if package["name"] == project["name"])
+    assert package["version"] == project["version"], "Run uv lock after changing the release version"
+
+
+def test_drilling_cycle_diagrams_are_embedded_and_match_sources():
+    from PyQt6.QtCore import QFile, QIODevice  # pylint: disable=import-outside-toplevel
+
+    import app.resources.files_res  # noqa: F401  # pylint: disable=import-outside-toplevel,unused-import
+
+    sources = sorted((ROOT / RESOURCE_DIR / "snippets/drilling_cycles").glob("*.svg"))
+    assert len(sources) == 15
+    for source in sources:
+        ET.parse(source)
+        resource = QFile(f":/resource/snippets/drilling_cycles/{source.name}")
+        assert resource.open(QIODevice.OpenModeFlag.ReadOnly), source.name
+        try:
+            assert bytes(resource.readAll()) == source.read_bytes(), source.name
+        finally:
+            resource.close()

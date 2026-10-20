@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import QApplication
 
 from app import settings as app_settings
 from app.main_window import MainWindow
+from app.tools import library as tool_library_module
 from app.tools.definitions import AUTO_TIP_ORIENTATIONS, DEFAULT_MILLING_TOOL, default_turning_library
 from app.tools.library import KIND_MILLING, KIND_TURNING, STARTER_TOOLS_META_KEY, ToolLibrary
 from app.ui.dialogs.tool_dialogs import _export_tool_library
@@ -284,3 +285,56 @@ def test_generator_cli_defaults_to_the_database_used_by_the_application(tmp_path
     with ToolLibrary(str(database)) as library:
         assert library.tools_by_kind(KIND_TURNING) == default_turning_library()
     assert str(database) in capsys.readouterr().out
+
+
+def test_failed_catalogue_switch_preserves_previous_connection(tmp_path, monkeypatch):
+    first = tmp_path / "first.db"
+    second = tmp_path / "second.db"
+    selected = {"path": str(first)}
+    monkeypatch.setattr(app_settings, "tool_library_path", lambda: selected["path"])
+    cache = {"library": None, "path": None}
+    monkeypatch.setattr(app_settings, "_TOOL_LIBRARY_CACHE", cache)
+    try:
+        previous = app_settings.get_tool_library()
+        selected["path"] = str(second)
+        with monkeypatch.context() as patch:
+
+            def fail_seed(_library):
+                raise RuntimeError("seed failed")
+
+            patch.setattr(app_settings, "_seed_tool_library", fail_seed)
+            with pytest.raises(RuntimeError, match="seed failed"):
+                app_settings.get_tool_library()
+        assert previous.get_meta("schema_version") == "1"
+        selected["path"] = str(first)
+        assert app_settings.get_tool_library() is previous
+    finally:
+        active = cache["library"]
+        if active is not None:
+            active.close()
+
+
+def test_invalid_schema_closes_connection(tmp_path, monkeypatch):
+    database = tmp_path / "future.db"
+    with ToolLibrary(str(database)) as library:
+        library.set_meta("schema_version", "999")
+    original_connect = tool_library_module.sqlite3.connect
+    connections = []
+
+    class TrackedConnection(sqlite3.Connection):
+        closed_by_library = False
+
+        def close(self):
+            self.closed_by_library = True
+            super().close()
+
+    def tracked_connect(*args, **kwargs):
+        connection = original_connect(*args, factory=TrackedConnection, **kwargs)
+        connections.append(connection)
+        return connection
+
+    monkeypatch.setattr(tool_library_module.sqlite3, "connect", tracked_connect)
+    with pytest.raises(RuntimeError, match="Unsupported tool-library schema"):
+        ToolLibrary(str(database))
+    assert len(connections) == 1
+    assert connections[0].closed_by_library

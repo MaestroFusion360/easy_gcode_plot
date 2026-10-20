@@ -78,8 +78,12 @@ class ToolLibrary:
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.executescript(_SCHEMA)
-        self._ensure_schema_version()
+        try:
+            self._conn.executescript(_SCHEMA)
+            self._ensure_schema_version()
+        except Exception:
+            self._conn.close()
+            raise
 
     def _ensure_schema_version(self) -> None:
         with self._lock, self._conn:

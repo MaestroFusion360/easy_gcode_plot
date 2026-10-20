@@ -16,7 +16,7 @@ from app.gcode.batch.analysis import DEFAULT_BATCH_EXTENSIONS, _normalize_extens
 from app.gcode.execution.source import language_for_path, source_dialect_for_path
 from app.gcode.export.common import is_export_limitation
 from app.gcode.export.service import ExportRequest, export_file, request_document
-from app.gcode.file_io import atomic_write_text
+from app.gcode.file_io import atomic_write_text, validate_batch_output_paths
 from app.gcode.post_profiles import export_file_suffix
 from app.gcode.reports.kinematics import kinematics_report_fields
 
@@ -134,6 +134,10 @@ def export_directory(
     ]
     if duplicates:
         raise ValueError(f"Multiple inputs map to the same output: {duplicates[0]}")
+    validate_batch_output_paths(
+        paths,
+        [*destinations, *(destination_root / f"{REPORT_BASENAME}.{suffix}" for suffix in ("json", "csv"))],
+    )
     files = []
     for path, destination in zip(paths, destinations, strict=True):
         relative = path.relative_to(directory).as_posix()

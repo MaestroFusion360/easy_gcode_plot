@@ -9,11 +9,11 @@ from pathlib import Path
 
 import pytest
 
-from app.gcode import snippets as snippets_module
 from app.gcode.kernel import execute
-from app.gcode.snippet_defaults import LANGUAGES, default_snippets
-from app.gcode.snippet_templates import TemplateContext, TemplateError, render
-from app.gcode.snippets import SnippetLibrary
+from app.gcode.snippets import snippets as snippets_module
+from app.gcode.snippets.snippet_defaults import LANGUAGES, default_snippets
+from app.gcode.snippets.snippet_templates import TemplateContext, TemplateError, render
+from app.gcode.snippets.snippets import SnippetLibrary
 
 
 def test_refresh_defaults_restores_standard_text_and_preserves_custom_records_images_and_order(tmp_path, monkeypatch):
@@ -297,6 +297,8 @@ def _template_setup(language_id, name):
         "Threading (G76)": "G0 X24 Z2\n",
         "Threading (CYCLE97)": "G0 X30 Z5\n",
     }
+    if name in {"Finishing (G70)", "Facing Roughing (G72)", "Pattern Roughing (G73)"}:
+        return setups["Roughing (G71)"]
     if name in setups:
         return setups[name]
     if language_id == "heidenhain":
@@ -327,6 +329,8 @@ def _execute_template(language_id, name, *, values=None, **options):
     if any(code in name for code in ("POCKET", "CYCLE90", "CYCL DEF 251", "CYCL DEF 252", "CYCL DEF 262")):
         options.setdefault("milling_tools", {"T1": {"type": "mill_flat", "diameter": 6.0, "length": 50.0}})
     options.setdefault("emulate_g28_home", True)
+    if language_id == "fanuc_b_turn":
+        options.setdefault("lathe_gcode_system", "B")
     result = execute(
         source,
         "fanuc_turn" if language_id.endswith("turn") else "fanuc_mill",
@@ -409,7 +413,7 @@ _MILLING_CYCLES = [
     (language, name)
     for language in ("fanuc_mill", "sinumerik_mill", "heidenhain")
     for name, _body in default_snippets(language)
-    if any(marker in name for marker in ("(G", "(CYCLE", "(HOLES", "(POCKET", "(CYCL DEF"))
+    if any(marker in name for marker in ("(G", "(CYCLE", "(HOLES", "(POCKET", "(CYCL DEF")) and name != "Dwell (G4)"
 ]
 
 

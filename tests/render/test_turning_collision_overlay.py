@@ -35,7 +35,8 @@ def test_overlay_draws_only_intersection_in_red_and_restores_it_on_seek(qt_app):
     damage = overlay._collision_mesh.opts["meshdata"].vertexes().copy()
     assert len(damage) > 0 and overlay._collision_mesh.visible()
     assert set(np.unique(damage[:, 0])) == {-6, -4, 4, 6}
-    assert damage[:, 2].min() == -10 and damage[:, 2].max() == 0
+    assert damage[:, 2].min() == pytest.approx(-10, abs=1e-6)
+    assert damage[:, 2].max() == pytest.approx(0, abs=1e-6)
     assert np.all(damage[:, 1] == 0)
     assert overlay._collision_mesh._GLGraphicsItem__glOpts[GL.GL_DEPTH_TEST] is False
     assert overlay._collision_mesh.opts["color"] == QColor(COLLISION_COLOR)

@@ -3,17 +3,21 @@
 # pylint: disable=protected-access
 
 from pathlib import Path
+from time import monotonic, sleep
 from types import SimpleNamespace
 
 import pytest
-from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, Qt
+from PyQt6.QtCore import QCoreApplication, QEvent, QPoint, Qt, QTimer
 from PyQt6.QtGui import QVector3D
 from PyQt6.QtTest import QSignalSpy
 from PyQt6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QMenu
 
+from app.gcode.kernel import execute
 from app.gcode.kernel.types import TraceMotion
+from app.gcode.trace import render_trace
 from app.main_window import MainWindow
 from app.settings import get_settings
+from app.ui.windows import main_window_execution
 from app.ui.windows.main_window_documents import _DOCUMENT_STATE, _EXECUTION_SETTINGS
 from app.ui.windows.main_window_execution import _PlotCompletion
 
@@ -212,6 +216,146 @@ def test_late_completion_cannot_publish_into_identical_other_document(window):
     assert completion.cancelled
     assert "T99" not in window.millingTools
     assert window.execution_result is None
+
+
+@pytest.mark.parametrize("cancel_at", range(1, 9))
+@pytest.mark.parametrize("motion_count", [1, 4097])
+def test_plot_publication_cancel_keeps_one_consistent_trace_at_every_event_checkpoint(
+    window, monkeypatch, cancel_at, motion_count
+):
+    previous = execute("G1 X1 F100\nG1 X2\nG1 X3", language="fanuc_mill")
+    replacement = execute("\n".join(f"G1 X{99 + index} F100" for index in range(motion_count)), language="fanuc_mill")
+    assert window.finishDataUpdate(previous, render_trace(previous))
+    previous_points = window.render_points
+    previous_geometry = window._toolpath_item.source_segments
+    previous_index = window._motion_render_end
+    window._plot_source_stale = True
+    observations = []
+    checks = 0
+    original_checkpoint = main_window_execution._cancellation_requested
+
+    def observe():
+        observations.append(
+            (
+                window.execution_result,
+                window.ui.horizontalSlider.maximum(),
+                window._toolpath_item.source_segments,
+                tuple(window._motion_render_end),
+            )
+        )
+
+    def checkpoint(cancelled):
+        QTimer.singleShot(0, observe)
+        return original_checkpoint(cancelled)
+
+    def cancelled():
+        nonlocal checks
+        checks += 1
+        return checks >= cancel_at
+
+    monkeypatch.setattr(main_window_execution, "_cancellation_requested", checkpoint)
+    published = window.finishDataUpdate(replacement, render_trace(replacement), cancelled=cancelled)
+    assert observations
+    assert all(
+        result is previous and maximum == 3 and geometry is previous_geometry and index == tuple(previous_index)
+        for result, maximum, geometry, index in observations
+    ), "Qt callbacks must never see new execution mixed with the previous scene/controls"
+    if published:
+        assert window.execution_result is replacement
+        assert window.ui.horizontalSlider.maximum() == motion_count
+        assert window._toolpath_item.source_segments[-1].end[0] == 98 + motion_count
+    else:
+        assert window.execution_result is previous
+        assert window.render_points is previous_points
+        assert window._motion_render_end is previous_index
+        assert window._toolpath_item.source_segments is previous_geometry
+        assert window.ui.horizontalSlider.maximum() == 3
+        assert window._plot_source_stale
+
+
+def test_manual_update_displays_current_execution_duration(window):
+    window.ui.editor.setText("G1 X1 F100\nM30")
+    window.autoUpdateTimer.stop()
+    window._last_execution_ms = 123456.0
+    assert window.updateData()
+    elapsed = window._last_execution_ms
+    expected = f"Exec: {elapsed / 1000.0:.2f} s" if elapsed >= 1000.0 else f"Exec: {elapsed:.1f} ms"
+    assert window.timeStatusLabel.text() == expected
+
+
+@pytest.mark.parametrize("invalidate", ["cancel", "edit"])
+@pytest.mark.parametrize("automatic", [False, True])
+def test_publication_abort_keeps_previous_scene_and_tool_setup(window, monkeypatch, invalidate, automatic):
+    window.ui.editor.setText("T1 M6\nG1 X1 F100\nM30")
+    assert window.updateData()
+    previous_result = window.execution_result
+    previous_points = window.render_points
+    previous_geometry = window._toolpath_item.source_segments
+    previous_tools = window.millingTools
+    previous_inference = window.program_tool_inference
+    previous_elapsed = window._last_execution_ms
+    window.ui.editor.setText("T99 M6\nG1 X99 F100\nM30")
+    window.autoUpdateTimer.stop()
+    original_checkpoint = main_window_execution._cancellation_requested
+    checks = 0
+
+    def checkpoint(cancelled):
+        nonlocal checks
+        checks += 1
+        if checks == 2:
+            if invalidate == "cancel":
+                QTimer.singleShot(0, window.stop)
+            else:
+                QTimer.singleShot(0, lambda: window.ui.editor.setText("G1 X200 F100"))
+        return original_checkpoint(cancelled)
+
+    monkeypatch.setattr(main_window_execution, "_cancellation_requested", checkpoint)
+    assert not (window.autoUpdate() if automatic else window.updateData())
+    assert window.execution_result is previous_result
+    assert window.render_points is previous_points
+    assert window._toolpath_item.source_segments is previous_geometry
+    assert window.millingTools is previous_tools
+    assert window.program_tool_inference is previous_inference
+    assert window._last_execution_ms == previous_elapsed
+    assert window._plot_source_stale
+
+
+def test_worker_cancel_before_publication_keeps_previous_trace(window, monkeypatch):
+    window.ui.editor.setText("G1 X1 F100\nM30")
+    assert window.updateData()
+    previous_result = window.execution_result
+    previous_points = window.render_points
+    previous_geometry = window._toolpath_item.source_segments
+
+    def interrupted(*_args, **_kwargs):
+        raise InterruptedError("Calculation cancelled before completion")
+
+    monkeypatch.setattr(main_window_execution, "run_execution", interrupted)
+    assert not window.updateData()
+    assert window.execution_result is previous_result
+    assert window.render_points is previous_points
+    assert window._toolpath_item.source_segments is previous_geometry
+
+
+@pytest.mark.parametrize("action", ["stop", "close"])
+def test_existing_trace_render_honors_main_window_cancellation(window, monkeypatch, action):
+    result = execute("G1 X1 F100", language="fanuc_mill")
+    cancellation_seen = []
+
+    def render(_result, *, cancelled, **_kwargs):
+        deadline = monotonic() + 0.3
+        while monotonic() < deadline:
+            if cancelled():
+                cancellation_seen.append(True)
+                raise InterruptedError("Rendering cancelled")
+            sleep(0.005)
+        return []
+
+    monkeypatch.setattr(main_window_execution, "render_trace", render)
+    QTimer.singleShot(0, getattr(window, action))
+    assert window._render_existing_result(result) is None
+    assert cancellation_seen == [True]
+    assert not window._kernel_execution_active
 
 
 def test_clear_plot_clears_visual_playback_and_unit_metadata(window):

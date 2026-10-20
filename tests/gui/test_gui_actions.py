@@ -375,6 +375,138 @@ def test_klartext_renumber_omits_n_and_keeps_optional_prefix(qt_app):
         window.deleteLater()
 
 
+def test_iso_renumber_preserves_optional_blocks_and_execution(qt_app):
+    window = MainWindow()
+    try:
+        window.autoUpdateEnabled = False
+        window.seqNumStart, window.seqNumIncr, window.seqNumSpacing = 10, 10, True
+        source = "G21 G90\n/N100 G1 X10 F100\n  /n200 G1 X20 F100\nM30\n"
+        window.ui.editor.setText(source)
+        window.renumber()
+        numbered = window.ui.editor.text()
+        assert numbered == "N10 G21 G90\n/N20 G1 X10 F100\n/N30 G1 X20 F100\nN40 M30\n"
+        for text in (source, numbered):
+            result = execute(text, language="fanuc_mill", skip_optional_blocks=True)
+            assert result.ok and not result.motions
+        window.ui.editor.undo()
+        assert window.ui.editor.text() == source
+    finally:
+        window.deleteLater()
+
+
+@pytest.mark.parametrize(
+    "source,selection,expected",
+    [
+        ("GOTO100\nN100 G1 X10 F100\nM30\n", None, "N10 GOTO100\nN20 G1 X10 F100\nN30 M30\n"),
+        ("GOTO100\nN100 G1 X10 F100\nM30\n", (1, 0, 2, 0), "GOTO100\nN10 G1 X10 F100\nM30\n"),
+        ("G71 P100 Q200\nN100 G0 X20\nN200 G1 Z-10 F100\n", None, "N10 G71 P100 Q200\nN20 G0 X20\nN30 G1 Z-10 F100\n"),
+        ("G071P[50+50]Q#2\nN100 G0 X20\n", None, "N10 G071P[50+50]Q#2\nN20 G0 X20\n"),
+        ("G#1 P100 Q200\nN100 G0 X20\n", None, "N10 G#1 P100 Q200\nN20 G0 X20\n"),
+        (
+            'CYCLE95("N100:N200",1,0,0,0,0,0,9)\nN100 G0 X20\n',
+            None,
+            'N10 CYCLE95("N100:N200",1,0,0,0,0,0,9)\nN20 G0 X20\n',
+        ),
+        ("GOTOF N100\nN100 G1 X10 F100\n", None, "N10 GOTOF N100\nN20 G1 X10 F100\n"),
+    ],
+)
+def test_iso_renumber_does_not_block_or_rewrite_references(qt_app, monkeypatch, source, selection, expected):
+    window = MainWindow()
+    monkeypatch.setattr(
+        "app.ui.windows.main_window_editor_ops.QMessageBox.warning",
+        lambda *_args: pytest.fail("Block numbering must not be refused because of references"),
+    )
+    try:
+        window.autoUpdateEnabled = False
+        window.seqNumStart, window.seqNumIncr, window.seqNumSpacing = 10, 10, True
+        window.ui.editor.setText(source)
+        if selection is not None:
+            window.ui.editor.setSelection(*selection)
+        window.renumber()
+        assert window.ui.editor.text() == expected
+        window.ui.editor.undo()
+        assert window.ui.editor.text() == source
+    finally:
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("dialect,variable", [("fanuc", "#"), ("sinumerik", "R"), ("heidenhain", "Q")])
+def test_renumber_skips_program_markers_and_dialect_variables(qt_app, dialect, variable):
+    window = MainWindow()
+    try:
+        window.autoUpdateEnabled = False
+        if dialect == "heidenhain":
+            window.ui.fileTypeCombo.setCurrentIndex(2)
+        window._document_source_dialect = dialect
+        window.seqNumStart, window.seqNumIncr, window.seqNumSpacing = 10, 10, True
+        movement = "L X+10" if dialect == "heidenhain" else "G1 X10"
+        prefix = "" if dialect == "heidenhain" else "N"
+        source = f"%\nO1000\n  {variable}1=5\n/{variable}2=10\n{movement}\n/{movement}\n"
+        window.ui.editor.setText(source)
+        # The source change can autodetect another dialect; use the selected controller.
+        window._document_source_dialect = dialect
+        window.renumber()
+        expected = f"%\nO1000\n  {variable}1=5\n/{variable}2=10\n{prefix}10 {movement}\n/{prefix}20 {movement}\n"
+        assert window.ui.editor.text() == expected
+        window.ui.editor.undo()
+        assert window.ui.editor.text() == source
+    finally:
+        window.deleteLater()
+
+
+def test_iso_renumber_ignores_references_in_comments(qt_app, monkeypatch):
+    window = MainWindow()
+    monkeypatch.setattr(
+        "app.ui.windows.main_window_editor_ops.QMessageBox.warning",
+        lambda *_args: pytest.fail("Comments must not prevent renumbering"),
+    )
+    try:
+        window.autoUpdateEnabled = False
+        window.ui.editor.setText("G0 X1 (GOTO100)\nG1 X2 F100 ; G71 P100 Q200\n")
+        window.renumber()
+        assert window.ui.editor.text() == "N1G0 X1 (GOTO100)\nN2G1 X2 F100 ; G71 P100 Q200\n"
+    finally:
+        window.deleteLater()
+
+
+def test_remove_iso_numbers_keeps_optional_prefixes_and_strips_indented_lowercase_numbers(qt_app):
+    window = MainWindow()
+    try:
+        window.autoUpdateEnabled = False
+        source = "N10 G21 G90\n/N20 G1 X10 F100\n  /n30 G1 X20 F100\nN40 M30\n"
+        window.ui.editor.setText(source)
+        window.numbRemove()
+        cleaned = window.ui.editor.text()
+        assert cleaned == "G21 G90\n/G1 X10 F100\n  /G1 X20 F100\nM30\n"
+        for text in (source, cleaned):
+            result = execute(text, language="fanuc_mill", skip_optional_blocks=True)
+            assert result.ok and not result.motions
+        window.ui.editor.undo()
+        assert window.ui.editor.text() == source
+    finally:
+        window.deleteLater()
+
+
+@pytest.mark.parametrize("reference", ["GOTO100", "G71 P100 Q200"])
+def test_remove_numbers_does_not_block_or_rewrite_references(qt_app, monkeypatch, reference):
+    window = MainWindow()
+    monkeypatch.setattr(
+        "app.ui.windows.main_window_editor_ops.QMessageBox.warning",
+        lambda *_args: pytest.fail("Number removal must not be refused because of references"),
+    )
+    try:
+        window.autoUpdateEnabled = False
+        source = f"{reference}\nN100 G1 X10 F100\nN200 M30\n"
+        window.ui.editor.setText(source)
+        window.ui.editor.setSelection(1, 0, 2, 0)
+        window.numbRemove()
+        assert window.ui.editor.text() == f"{reference}\nG1 X10 F100\nN200 M30\n"
+        window.ui.editor.undo()
+        assert window.ui.editor.text() == source
+    finally:
+        window.deleteLater()
+
+
 def test_toolchange_navigation_skips_comments_and_wraps(qt_app):
     window = MainWindow()
     window.ui.editor.setText("(T9999)\nWHILE[#140 LT 6]DO1\nT0101 M6\nG0 X10\n; T8888\nN20T0202\n")

@@ -48,11 +48,19 @@ class StlOverlay:
 
     def pick_geometry(self):
         """Expose the displayed facets and feature/section edges in world coordinates."""
+        return self._render_mesh.triangles, self._edge_positions()
+
+    def _edge_positions(self):
         if self._feature_edges is None:
             self._feature_edges = stl_feature_edges(self.mesh)
         if self._wire_positions is None:
-            self._wire_positions = np.ascontiguousarray(self._vertices[self._feature_edges].reshape((-1, 2, 3)))
-        return self._render_mesh.triangles, self._wire_positions.reshape((-1, 2, 3))
+            indices = self._feature_edges
+            if np.linalg.det(self.object.matrix[:3, :3]) < 0:
+                # world_triangles swaps vertices 1 and 2 to preserve winding.
+                # Feature-edge indices still refer to the source vertex order.
+                indices = (indices // 3) * 3 + np.take((0, 2, 1), indices % 3)
+            self._wire_positions = np.ascontiguousarray(self._vertices[indices].reshape((-1, 2, 3)))
+        return self._wire_positions
 
     def _rebuild_geometry(self):
         triangles = self.object.world_triangles()
@@ -79,13 +87,9 @@ class StlOverlay:
         return self.item
 
     def _create_wireframe_item(self, base: QColor):
-        if self._feature_edges is None:
-            self._feature_edges = stl_feature_edges(self.mesh)
-        if self._wire_positions is None:
-            self._wire_positions = np.ascontiguousarray(self._vertices[self._feature_edges].reshape((-1, 3)))
         edge_color = QColor("#606060" if base.lightnessF() < 0.35 else "#383838")
         item = GLLinePlotItem(
-            pos=self._wire_positions.reshape((-1, 3)),
+            pos=self._edge_positions().reshape((-1, 3)),
             color=edge_color,
             width=1.0,
             antialias=False,

@@ -11,13 +11,74 @@ from PyQt6.QtGui import QPalette, QVector3D, QVector4D
 from PyQt6.QtWidgets import QApplication, QCheckBox, QDialog, QPlainTextEdit
 
 from app.main_window import MainWindow
-from app.ui.plot.stl import read_stl, stl_face_colors, stl_feature_edges
-from app.ui.plot.stl_transform import measure_mesh
+from app.ui.plot.stl import mesh_from_triangles, read_stl, stl_face_colors, stl_feature_edges
+from app.ui.plot.stl_overlay import StlOverlay
+from app.ui.plot.stl_transform import StlObject, measure_mesh
 from app.ui.plot.toolpath_vbo import ToolpathVboItem
 
 STL_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test.stl"
 STL_CAMERA_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test2.stl"
 STL_SECTION_FIXTURE = Path(__file__).resolve().parents[2] / "stl" / "test4.stl"
+
+
+@pytest.mark.parametrize("wire_first", [False, True])
+def test_mirrored_overlay_keeps_boundary_edges_for_wireframe_and_picking(qt_app, wire_first):
+    mesh = mesh_from_triangles([[(0, 0, 0), (1, 0, 0), (1, 1, 0)], [(0, 0, 0), (1, 1, 0), (0, 1, 0)]])
+    overlay = StlOverlay(StlObject(mesh).mirrored("X"))
+
+    def boundary_edges(segments):
+        return {tuple(sorted(tuple(point) for point in edge)) for edge in segments}
+
+    expected = {
+        ((-1, 0, 0), (0, 0, 0)),
+        ((-1, 0, 0), (-1, 1, 0)),
+        ((-1, 1, 0), (0, 1, 0)),
+        ((0, 0, 0), (0, 1, 0)),
+    }
+    if wire_first:
+        overlay.item_for("#b0b0b0", True)
+    assert boundary_edges(overlay.pick_geometry()[1]) == expected
+    wire = overlay.item_for("#b0b0b0", True)
+    assert boundary_edges(wire.pos.reshape(-1, 2, 3)) == expected
+
+
+@pytest.mark.parametrize("array_kind", ["rectangular", "circular"])
+def test_stl_array_rejects_excessive_counts_before_generating_matrices(qt_app, monkeypatch, array_kind):
+    window = MainWindow()
+    try:
+        assert window.importStl(str(STL_FIXTURE))
+        previous_history = len(window._stl_undo)
+
+        def forbidden(*_args, **_kwargs):
+            pytest.fail("Array matrices must not be allocated for an excessive request")
+
+        monkeypatch.setattr(f"app.ui.windows.main_window_plot.{array_kind}_array", forbidden)
+        if array_kind == "rectangular":
+            window._rectangular_array_selected_stl(10_000, 10_000, 10_000, 1, 1, 1)
+        else:
+            window._circular_array_selected_stl(10_000, 360, "Z", (0, 0, 0), True)
+        assert len(window._stl_entries) == 1
+        assert len(window._stl_undo) == previous_history
+        assert "limit" in window.ui.statusbar.toolTip().lower()
+    finally:
+        window.deleteLater()
+
+
+def test_stl_array_checks_total_geometry_budget_before_generating_matrices(qt_app, monkeypatch):
+    window = MainWindow()
+    try:
+        assert window.importStl(str(STL_FIXTURE))
+        monkeypatch.setattr("app.ui.windows.main_window_plot.MAX_STL_ARRAY_TRIANGLES", 2000, raising=False)
+
+        def forbidden(*_args, **_kwargs):
+            pytest.fail("Array exceeds geometry budget before allocation")
+
+        monkeypatch.setattr("app.ui.windows.main_window_plot.rectangular_array", forbidden)
+        window._rectangular_array_selected_stl(2, 1, 1, 1, 1, 1)
+        assert len(window._stl_entries) == 1
+        assert "limit" in window.ui.statusbar.toolTip().lower()
+    finally:
+        window.deleteLater()
 
 
 @pytest.fixture(scope="module")

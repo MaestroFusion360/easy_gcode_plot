@@ -25,7 +25,16 @@ def _insert_at_caret(owner, text: str) -> None:
     if not text:
         return
     editor = owner.ui.editor
-    prefix = "" if not editor.text() or editor.text().endswith(("\n", "\r")) else "\n"
+    if editor.hasSelectedText():
+        _line, column, _end_line, _end_column = editor.getSelection()
+    else:
+        line, column = editor.getCursorPosition()
+        position = editor.SendScintilla(editor.SCI_GETCURRENTPOS)
+        line_end = editor.SendScintilla(editor.SCI_GETLINEENDPOSITION, line)
+        if position < line_end:
+            editor.setCursorPosition(line, 0)
+            column = 0
+    prefix = "\n" if column else ""
     editor.replaceSelectedText(prefix + text + "\n")
 
 
@@ -45,6 +54,7 @@ class HoleCalculatorDialog(QDialog):
         self.ui.previewLayout.addWidget(self.preview)
         self.ui.insertButton.clicked.connect(self.calculate_and_insert)
         self.ui.clearButton.clicked.connect(self.restore_defaults)
+        self._insertion_allowed = True
         self._connect_preview()
         self.update_preview()
 
@@ -109,6 +119,17 @@ class HoleCalculatorDialog(QDialog):
         )
 
     def update_preview(self):
+        try:
+            self._update_preview_geometry()
+        except ValueError as exc:
+            self.preview.clear()
+            self.ui.insertButton.setEnabled(False)
+            self.ui.insertButton.setToolTip(str(exc))
+            return
+        self.ui.insertButton.setEnabled(self._insertion_allowed)
+        self.ui.insertButton.setToolTip("")
+
+    def _update_preview_geometry(self):
         if self.ui.patternTabs.currentWidget() is self.ui.gridTab:
             points = hole_grid_points(
                 start_x=self.ui.startXSpin.value(),
@@ -123,7 +144,7 @@ class HoleCalculatorDialog(QDialog):
         diameter = self.ui.diameterSpin.value()
         if diameter <= 0:
             self.preview.clear()
-            return
+            raise ValueError(QCoreApplication.translate("HoleCalculatorDialog", "Diameter must be greater than zero."))
         points = hole_circle_points(
             diameter=diameter,
             start_angle=self.ui.startAngleSpin.value(),
@@ -143,7 +164,8 @@ class HoleCalculatorDialog(QDialog):
         self.preview.set_geometry(boundary=boundary, paths=(traversal,), points=points)
 
     def set_insertion_enabled(self, enabled: bool):
-        self.ui.insertButton.setEnabled(enabled)
+        self._insertion_allowed = enabled
+        self.update_preview()
 
     def calculate_and_insert(self):
         try:

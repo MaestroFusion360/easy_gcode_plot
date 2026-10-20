@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
@@ -10,15 +11,27 @@ from pathlib import Path
 from PyQt6.QtCore import QCoreApplication, QFile, QIODevice, QSignalBlocker
 from PyQt6.QtWidgets import QApplication, QDialog, QFileDialog, QInputDialog, QMenu, QMessageBox
 
-from app.gcode.snippet_defaults import LANGUAGES, default_snippets
-from app.gcode.snippet_templates import TemplateContext
-from app.gcode.snippets import SnippetLibrary
+from app.gcode.snippets.snippet_defaults import LANGUAGES, default_snippets
+from app.gcode.snippets.snippet_templates import TemplateContext
+from app.gcode.snippets.snippets import SnippetLibrary
 from app.settings import config_path
 from app.ui.generated.dialogs.snippets import Ui_SnippetsDialog
 from app.ui.support.snippet_insertion import insert_snippet
 from app.ui.support.snippet_preview import picture_image, png_bytes
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _drilling_pictures():
+    pictures = {}
+    for language, _label in LANGUAGES:
+        for name, _body in default_snippets(language):
+            slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+            resource = QFile(f":/resource/snippets/drilling_cycles/{language}--{slug}.svg")
+            if resource.open(QIODevice.OpenModeFlag.ReadOnly):
+                pictures[(language, name)] = bytes(resource.readAll())
+                resource.close()
+    return pictures
 
 
 @dataclass(slots=True)
@@ -37,18 +50,15 @@ class SnippetsDialog(QDialog):
         self.ui.setupUi(self)
         self.ui.splitter.setStretchFactor(0, 0)
         self.ui.splitter.setStretchFactor(1, 1)
-        self.ui.splitter.setSizes([210, 560])
+        self.ui.splitter.setSizes([230, 850])
+        self.ui.previewSplitter.setStretchFactor(0, 1)
+        self.ui.previewSplitter.setStretchFactor(1, 2)
+        self.ui.previewSplitter.setSizes([300, 550])
         config_file = Path(config_path())
         self.database_path = config_file.with_name("snippets.db")
         self.legacy_directory = config_file.with_name("snippets")
-        self.library = SnippetLibrary(str(self.database_path))
+        self.library = None
         self._language_id = "fanuc_mill"
-        language_labels = {
-            "fanuc_turn": QCoreApplication.translate("SnippetsDialog", "Fanuc Lathe"),
-            "sinumerik_turn": QCoreApplication.translate("SnippetsDialog", "Sinumerik Lathe"),
-        }
-        for language_id, label in self.library.list_languages():
-            self.ui.languageCombo.addItem(language_labels.get(language_id, label), language_id)
         self.snippets: list[_Snippet] = []
         self._loading = False
         self._active_row = -1
@@ -56,6 +66,7 @@ class SnippetsDialog(QDialog):
         self._picture = None
         self._saved_picture = None
         self._picture_loaded = False
+        self._preview_picture = None
         self._picture_menu = QMenu(self)
         self._picture_menu.setObjectName("pictureMenu")
         self._picture_menu.addAction(QCoreApplication.translate("SnippetsDialog", "Load Picture..."), self.load_picture)
@@ -67,10 +78,25 @@ class SnippetsDialog(QDialog):
         )
         self._picture_menu.aboutToShow.connect(self._update_picture_menu)
         self.ui.pictureButton.setMenu(self._picture_menu)
-        self._connect()
-        self.load_snippets()
+        try:
+            self.library = SnippetLibrary(str(self.database_path))
+            language_labels = {
+                "fanuc_turn": QCoreApplication.translate("SnippetsDialog", "Fanuc Lathe"),
+                "fanuc_b_turn": QCoreApplication.translate("SnippetsDialog", "Fanuc Lathe (B)"),
+                "sinumerik_turn": QCoreApplication.translate("SnippetsDialog", "Sinumerik Lathe"),
+            }
+            for language_id, label in self.library.list_languages():
+                self.ui.languageCombo.addItem(language_labels.get(language_id, label), language_id)
+            self._connect()
+            self.load_snippets()
+        except Exception:
+            if self.library is not None:
+                self.library.close()
+            raise
 
     def _connect(self):
+        self.ui.picturePreview.dropped.connect(self._set_picture)
+        self.ui.picturePreview.failed.connect(self._picture_error)
         self.ui.languageCombo.currentIndexChanged.connect(self._language_changed)
         self.ui.snippetList.currentRowChanged.connect(self._selection_changed)
         self.ui.snippetEditor.textChanged.connect(self._editor_changed)
@@ -100,10 +126,15 @@ class SnippetsDialog(QDialog):
                 if resource.open(QIODevice.OpenModeFlag.ReadOnly):
                     pictures[(language_id, name)] = bytes(resource.readAll())
                     resource.close()
+        cycles = _drilling_pictures()
+        pictures.update(cycles)
         self._bundled_pictures = pictures
+        self.library.ensure_illustrations(cycles, key="template_drilling_illustrations_v1")
         self.library.ensure_illustrations(pictures)
         motions = {key: data for key, data in pictures.items() if key[1] in {"Rapid Move", "Linear Move"}}
         self.library.ensure_illustrations(motions, key="template_motion_illustrations_v1")
+        type_b = {key: data for key, data in pictures.items() if key[0] == "fanuc_b_turn"}
+        self.library.ensure_illustrations(type_b, key="template_illustrations_fanuc_b_turn_v1")
 
     def load_snippets(self):
         self.library.import_legacy_directory(self.legacy_directory)
@@ -143,6 +174,9 @@ class SnippetsDialog(QDialog):
             dialect = "heidenhain"
         if dialect == "heidenhain":
             return "heidenhain"
+        if dialect == "fanuc" and getattr(owner, "latheMode", False):
+            if str(getattr(owner, "latheGcodeSystem", "A")).upper() == "B":
+                return "fanuc_b_turn"
         return f"{dialect}_{'turn' if getattr(owner, 'latheMode', False) else 'mill'}"
 
     def _show_save_error(self):
@@ -223,7 +257,7 @@ class SnippetsDialog(QDialog):
             pictures = {
                 name: data for (language, name), data in self._bundled_pictures.items() if language == self._language_id
             }
-            updated, added = self.library.refresh_defaults(self._language_id, pictures)
+            updated, _added = self.library.refresh_defaults(self._language_id, pictures)
         except (sqlite3.Error, ValueError):
             LOGGER.exception("snippet_defaults_update_failed path=%s", self.database_path)
             self._show_save_error()
@@ -234,9 +268,7 @@ class SnippetsDialog(QDialog):
         QMessageBox.information(
             self,
             self.windowTitle(),
-            QCoreApplication.translate(
-                "SnippetsDialog", "Standard snippets updated: {0}. Added or restored: {1}."
-            ).format(updated, added),
+            QCoreApplication.translate("SnippetsDialog", "Updated {0}").format(updated),
         )
 
     def _set_picture(self, data):
@@ -303,6 +335,14 @@ class SnippetsDialog(QDialog):
                 else QCoreApplication.translate("SnippetsDialog", "No picture")
             )
         self.ui.pictureStatusLabel.setText(text)
+        data = self._picture if self._picture_loaded else None
+        if data != self._preview_picture:
+            try:
+                self.ui.picturePreview.set_picture(data)
+            except ValueError:
+                self.ui.picturePreview.set_picture(None)
+            self._preview_picture = data
+        self.ui.picturePreview.setVisible(not self.ui.picturePreview.image.isNull())
 
     def _update_actions(self):
         selected = 0 <= self._active_row < len(self.snippets)

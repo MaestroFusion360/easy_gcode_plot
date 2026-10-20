@@ -3,6 +3,7 @@
 # pylint: disable=protected-access
 
 import sqlite3
+from types import SimpleNamespace
 
 import pytest
 from PyQt6.QtCore import Qt
@@ -11,7 +12,33 @@ from PyQt6.QtWidgets import QApplication, QDialog, QDockWidget, QToolBar, QToolB
 
 from app.main_window import MainWindow
 from app.settings import get_settings
+from app.ui.dialogs import snippets as snippets_module
 from app.ui.dialogs.snippet_insert import SnippetInsertDialog
+from app.ui.panels.snippets_panel import _group
+
+
+@pytest.mark.parametrize("code", [70, 71, 72, 73, 74, 75, 76, 90, 92, 94])
+def test_type_a_turning_cycles_are_grouped_as_cycles(code):
+    record = SimpleNamespace(name="User cycle", body=f"G{code} X20 Z-10", language_id="fanuc_turn")
+    assert _group(record) == "cycles"
+
+
+@pytest.mark.parametrize("code", [70, 71, 72, 73, 74, 75, 76, 77, 78, 79])
+def test_type_b_turning_cycles_are_grouped_as_cycles(code):
+    record = SimpleNamespace(name="User cycle", body=f"G{code} X20 Z-10", language_id="fanuc_b_turn")
+    assert _group(record) == "cycles"
+
+
+@pytest.mark.parametrize("language", ["fanuc_mill", "sinumerik_mill", "fanuc_b_turn"])
+@pytest.mark.parametrize("code", [90, 92, 94])
+def test_non_type_a_coordinate_and_feed_modes_are_not_cycles(language, code):
+    record = SimpleNamespace(name="User move", body=f"G{code} G0 X20", language_id=language)
+    assert _group(record) == "motion"
+
+
+def test_sinumerik_inch_units_are_not_a_turning_cycle():
+    record = SimpleNamespace(name="Inch move", body="G70 G0 X20", language_id="sinumerik_turn")
+    assert _group(record) == "motion"
 
 
 @pytest.fixture(scope="module")
@@ -198,6 +225,21 @@ def test_panel_uses_only_active_controller_library(window, dialect, lathe, langu
     ] == [record.id for record in expected]
 
 
+def test_panel_selects_type_b_catalog_from_current_fanuc_gcode_system(window):
+    window._document_source_dialect = "fanuc"
+    window.latheMode = True
+    window.latheGcodeSystem = "B"
+    window.snippetsDock.refresh()
+    assert window.snippetsDlg.document_language() == "fanuc_b_turn"
+    assert window.snippetsDock._language == "fanuc_b_turn"
+    window.snippetsDlg.show()
+    assert window.snippetsDlg.ui.languageCombo.currentData() == "fanuc_b_turn"
+    window.snippetsDlg.hide()
+    window.latheGcodeSystem = "A"
+    window.snippetsDock.refresh()
+    assert window.snippetsDock._language == "fanuc_turn"
+
+
 def test_panel_load_failure_is_reported_without_inserting(window, monkeypatch):
     warnings = []
     panel = window.snippetsDock
@@ -329,3 +371,46 @@ def test_invalid_template_from_panel_reports_error_and_keeps_selection(window, m
     assert warnings
     assert editor.text() == "UNCHANGED"
     assert (editor.getSelection(), editor.getCursorPosition(), editor.isModified()) == expected
+
+
+@pytest.mark.parametrize("failure", ["invalid_database", "newer_schema", "locked_database"])
+def test_snippets_startup_failure_does_not_block_editor(qt_app, tmp_path, monkeypatch, failure):
+    """An optional snippets DB cannot prevent using the editor or document tabs."""
+    monkeypatch.setattr(snippets_module, "config_path", lambda: str(tmp_path / "config.ini"))
+    database = tmp_path / "snippets.db"
+    if failure == "invalid_database":
+        database.write_bytes(b"not a SQLite database")
+    elif failure == "newer_schema":
+        with sqlite3.connect(database) as connection:
+            connection.execute("CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+            connection.execute("INSERT INTO meta VALUES ('schema_version', '999')")
+    else:
+
+        def locked_library(_path):
+            raise sqlite3.OperationalError("database is locked")
+
+        monkeypatch.setattr(snippets_module, "SnippetLibrary", locked_library)
+
+    owner = MainWindow()
+    try:
+        assert owner.snippetsDlg is None
+        assert not owner.ui.actionSnippets.isEnabled()
+        assert "snippets.db" in owner.ui.actionSnippets.toolTip()
+        assert not owner.snippetsDock.isEnabled()
+        assert owner.snippetsDock.isHidden()
+        assert not owner.snippetsDock.toggleViewAction().isEnabled()
+        owner.snippetsDock.refresh()
+        owner.snippetsDock.insert_id(1)
+        assert owner.snippetsDock.ui.snippetList.count() == 0
+        assert not owner.snippetsDock.ui.insertButton.isEnabled()
+        assert not owner._document_dialog_open()
+        owner.ui.editor.setText("G1 X12\n")
+        owner.newFile()
+        assert owner._activate_document(0)
+        assert owner.ui.editor.text() == "G1 X12\n"
+    finally:
+        owner.autoUpdateTimer.stop()
+        owner.timer.stop()
+        owner.hide()
+        owner.deleteLater()
+        qt_app.processEvents()

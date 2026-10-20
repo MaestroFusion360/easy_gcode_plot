@@ -7,6 +7,8 @@ import math
 from .formatting import _number, _signed_number
 from .types import Point
 
+MAX_HOLE_POINTS = 20_000
+
 
 def _validate_finite(**values: float) -> None:
     for name, value in values.items():
@@ -35,6 +37,8 @@ def hole_circle_points(
         center_y=center_y,
     )
     _validate_count("count", count)
+    if count > MAX_HOLE_POINTS:
+        raise ValueError("Hole pattern exceeds the 20,000-point limit; reduce the hole count.")
     if diameter <= 0:
         raise ValueError("diameter must be positive.")
 
@@ -92,6 +96,8 @@ def hole_grid_points(
     _validate_finite(start_x=start_x, start_y=start_y, step_x=step_x, step_y=step_y)
     _validate_count("count_x", count_x)
     _validate_count("count_y", count_y)
+    if count_x * count_y > MAX_HOLE_POINTS:
+        raise ValueError("Hole pattern exceeds the 20,000-point limit; reduce the grid counts.")
 
     points: list[Point] = []
     for row in range(count_y):

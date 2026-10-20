@@ -1,9 +1,10 @@
 """Compact parameter entry, resolved text and a SQLite-backed illustration."""
 
+import re
 from pathlib import Path
 
-from PyQt6.QtCore import QBuffer, QByteArray, QCoreApplication, QIODevice, Qt, pyqtSignal
-from PyQt6.QtGui import QImage, QImageReader, QPixmap
+from PyQt6.QtCore import QBuffer, QByteArray, QCoreApplication, QEvent, QIODevice, Qt, pyqtSignal
+from PyQt6.QtGui import QImage, QImageReader, QPalette, QPixmap
 from PyQt6.QtSvg import QSvgRenderer
 from PyQt6.QtWidgets import (
     QDialog,
@@ -207,6 +208,42 @@ def png_bytes(image):
     return data
 
 
+def _svg_for_palette(data, palette):
+    base = palette.color(QPalette.ColorRole.Base)
+    text = palette.color(QPalette.ColorRole.Text).name()
+    colors = {"white": base.name(), "#202832": base.name(), "#eef4fa": text}
+    if base.lightness() < 128:
+        colors.update(
+            {
+                "#222": text,
+                "#333": text,
+                "#555": "#b0b0b0",
+                "#777": "#999999",
+                "#aaa": "#888888",
+                "#b8b8b8": "#626262",
+                "#eee": "#343438",
+                "#9a5b08": "#ffb65c",
+                "#b36b10": "#ffb65c",
+            }
+        )
+    else:
+        colors.update(
+            {
+                "#a8b8c8": "#555555",
+                "#718092": "#777777",
+                "#2b444d": "#e5eeee",
+                "#ffb65c": "#a56210",
+                "#ffc66d": "#a56210",
+                "#4ed8c5": "#127d70",
+            }
+        )
+    return re.sub(
+        rb'(fill|stroke)="([^"]+)"',
+        lambda match: match[1] + b'="' + colors.get(match[2].decode(), match[2].decode()).encode() + b'"',
+        data,
+    )
+
+
 class PictureLabel(QLabel):
     """Drop a picture, paste from clipboard, or click to open a zoomable view."""
 
@@ -216,6 +253,9 @@ class PictureLabel(QLabel):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.image = QImage()
+        self._data = None
+        self._render_key = None
+        self._rendered_image = QImage()
         self.setAcceptDrops(True)
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.setMinimumSize(160, 100)
@@ -225,7 +265,24 @@ class PictureLabel(QLabel):
 
     def set_picture(self, data):
         self.image = picture_image(data) if data else QImage()
+        self._data = data
+        self._render_key = None
         self._resize_picture()
+
+    def _display_image(self):
+        if not self._data or b"<svg" not in self._data[:1024]:
+            return self.image
+        palette = self.palette()
+        key = (palette.color(QPalette.ColorRole.Base).rgba(), palette.color(QPalette.ColorRole.Text).rgba())
+        if key != self._render_key:
+            self._rendered_image = picture_image(_svg_for_palette(self._data, palette))
+            self._render_key = key
+        return self._rendered_image
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.PaletteChange:
+            self._resize_picture()
 
     def _resize_picture(self):
         if self.image.isNull():
@@ -233,7 +290,7 @@ class PictureLabel(QLabel):
             self.setText(QCoreApplication.translate("SnippetPreview", "Drop a picture or use Picture"))
         else:
             self.setPixmap(
-                QPixmap.fromImage(self.image).scaled(
+                QPixmap.fromImage(self._display_image()).scaled(
                     self.size(), Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
                 )
             )
@@ -284,7 +341,7 @@ class PictureLabel(QLabel):
 
         def zoom(factor):
             scale[0] = min(4.0, max(0.1, scale[0] * factor))
-            pixmap = QPixmap.fromImage(self.image).scaled(
+            pixmap = QPixmap.fromImage(self._display_image()).scaled(
                 self.image.size() * scale[0],
                 Qt.AspectRatioMode.KeepAspectRatio,
                 Qt.TransformationMode.SmoothTransformation,

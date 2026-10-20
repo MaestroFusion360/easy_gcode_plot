@@ -162,12 +162,17 @@ def get_tool_library():
     if _TOOL_LIBRARY_CACHE["library"] is None or _TOOL_LIBRARY_CACHE["path"] != path:
         with _TOOL_LIBRARY_LOCK:
             if _TOOL_LIBRARY_CACHE["library"] is None or _TOOL_LIBRARY_CACHE["path"] != path:
-                if _TOOL_LIBRARY_CACHE["library"] is not None:
-                    _TOOL_LIBRARY_CACHE["library"].close()
                 library = ToolLibrary(path)
-                _seed_tool_library(library)
+                try:
+                    _seed_tool_library(library)
+                except Exception:
+                    library.close()
+                    raise
+                previous = _TOOL_LIBRARY_CACHE["library"]
                 _TOOL_LIBRARY_CACHE["library"] = library
                 _TOOL_LIBRARY_CACHE["path"] = path
+                if previous is not None:
+                    previous.close()
     return _TOOL_LIBRARY_CACHE["library"]
 
 

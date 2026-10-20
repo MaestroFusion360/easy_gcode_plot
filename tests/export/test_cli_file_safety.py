@@ -1,10 +1,15 @@
 """Read failures and output collisions never destroy a source program."""
 
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
 
 from app.cli import main
+from app.gcode.batch.analysis import analyze_directory
+from app.gcode.batch.export import export_directory
+from app.gcode.export.service import ExportRequest
 from app.gcode.file_io import atomic_write_text
 
 
@@ -74,3 +79,78 @@ def test_atomic_report_write_preserves_previous_output_on_commit_failure(tmp_pat
         atomic_write_text(output, "NEW REPORT")
     assert output.read_text() == "PREVIOUS REPORT"
     assert not list(tmp_path.glob(".report.json.*"))
+
+
+def test_batch_export_preflights_other_sources_before_any_write(tmp_path):
+    source_root = tmp_path / "source"
+    nested = source_root / "source"
+    nested.mkdir(parents=True)
+    first = source_root / "part.nc"
+    second = nested / "part.nc"
+    first.write_text("G1 X1 F100\nM30\n", encoding="utf-8")
+    second.write_text("G1 X99 F100\nM30\n", encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (first, second)}
+
+    with pytest.raises(ValueError, match="input file"):
+        export_directory(source_root, tmp_path, ExportRequest(language="fanuc_mill"))
+
+    assert {path: path.read_bytes() for path in originals} == originals
+    assert not (tmp_path / "part.nc").exists()
+
+
+def test_batch_export_rejects_resolved_destination_aliases(tmp_path):
+    source_root = tmp_path / "source"
+    for folder, position in (("a", 1), ("b", 99)):
+        directory = source_root / folder
+        directory.mkdir(parents=True)
+        (directory / "part.nc").write_text(f"G1 X{position} F100\nM30\n", encoding="utf-8")
+    output = tmp_path / "output"
+    (output / "a").mkdir(parents=True)
+    try:
+        (output / "b").symlink_to(output / "a", target_is_directory=True)
+    except OSError as error:
+        if os.name != "nt":
+            pytest.skip(f"Directory symlinks unavailable: {error}")
+        junction = subprocess.run(
+            ["cmd", "/c", "mklink", "/J", str(output / "b"), str(output / "a")],
+            capture_output=True,
+            check=False,
+        )
+        if junction.returncode:
+            pytest.skip(f"Directory aliases unavailable: {error}")
+
+    with pytest.raises(ValueError, match="same output"):
+        export_directory(source_root, output, ExportRequest(language="fanuc_mill"))
+
+    assert not (output / "a" / "part.nc").exists()
+
+
+def test_batch_html_preflights_other_sources_before_any_write(tmp_path):
+    source_root = tmp_path / "source"
+    nested = source_root / "source"
+    nested.mkdir(parents=True)
+    first = source_root / "part.nc.html"
+    second = nested / "part.nc"
+    first.write_text("G1 X1 F100\nM30\n", encoding="utf-8")
+    second.write_text("G1 X99 F100\nM30\n", encoding="utf-8")
+    originals = {path: path.read_bytes() for path in (first, second)}
+
+    with pytest.raises(ValueError, match="input file"):
+        analyze_directory(source_root, language="fanuc_mill", extensions=(".nc", ".html"), html_dir=tmp_path)
+
+    assert {path: path.read_bytes() for path in originals} == originals
+    assert not (tmp_path / "part.nc.html.html").exists()
+
+
+def test_batch_export_allows_noncolliding_ancestor_output(tmp_path):
+    source_root = tmp_path / "source"
+    source_root.mkdir()
+    source = source_root / "part.nc"
+    source.write_text("G1 X1 F100\nM30\n", encoding="utf-8")
+    original = source.read_bytes()
+
+    report = export_directory(source_root, tmp_path, ExportRequest(language="fanuc_mill"))
+
+    assert report["summary"]["exported"] == 1
+    assert (tmp_path / "part.nc").exists()
+    assert source.read_bytes() == original

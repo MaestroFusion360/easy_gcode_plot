@@ -3,7 +3,7 @@
 from PyQt6.QtCore import QCoreApplication
 from PyQt6.QtWidgets import QDialog, QMessageBox
 
-from app.gcode.snippet_templates import RenderedSnippet, TemplateError, parameters, render
+from app.gcode.snippets.snippet_templates import RenderedSnippet, TemplateError, parameters, render
 from app.ui.dialogs import snippet_insert
 from app.ui.support.snippet_preview import error_text
 

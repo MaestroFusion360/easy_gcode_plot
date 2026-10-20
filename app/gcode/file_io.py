@@ -25,6 +25,19 @@ def validate_output_paths(source, *outputs) -> None:
             raise ValueError("Output paths must differ from each other")
 
 
+def validate_batch_output_paths(sources, outputs) -> None:
+    """Protect every batch input and reject aliases before the first write."""
+    source_paths = {Path(source).resolve() for source in sources}
+    destinations = set()
+    for output in outputs:
+        destination = Path(output).resolve()
+        if destination in source_paths:
+            raise ValueError(f"Batch output would overwrite an input file: {output}")
+        if destination in destinations:
+            raise ValueError(f"Multiple inputs map to the same output: {output}")
+        destinations.add(destination)
+
+
 def atomic_export(path, write, *, cancelled=None) -> int:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)

@@ -350,6 +350,23 @@ def test_action_forwards_current_saved_document_settings(window, context, monkey
     assert args.kinematics == "5ax_table_ac" and args.lang == "fanuc_mill"
 
 
+def test_action_uses_document_encoding_after_legacy_fallback(window, tmp_path, monkeypatch):
+    source = "(Тест)\nG0 X1\nM30\n"
+    path = tmp_path / "legacy.nc"
+    path.write_bytes(source.encode("cp1251"))
+    window.fileEncoding = "utf-8"
+    assert window.loadFile(str(path))
+    assert window._document_encoding == "cp1251"  # pylint: disable=protected-access
+    calls = []
+    monkeypatch.setattr(cli_integration, "launch_cli", lambda *args: calls.append(args))
+    cli_integration.open_in_cli(window)
+    context = calls[0][0]
+    parser, _ = _parser()
+    args = parser.parse_args(["analyze", str(context.file), *context.options])
+    assert args.encoding == "cp1251"
+    assert context.file.read_text(encoding=args.encoding) == source
+
+
 @pytest.mark.parametrize(
     "answer,saved,launched",
     [

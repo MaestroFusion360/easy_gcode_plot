@@ -9,8 +9,9 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QComboBox, QMainWindow, QMessageBox
 
 from app.gcode.generators import PocketParameters, hole_circle, hole_grid, pocket_preview_geometry, pocket_program
+from app.gcode.generators.holes import hole_grid_points
 from app.ui.dialogs import snippets as snippets_module
-from app.ui.dialogs.calculators import HoleCalculatorDialog, PocketCalculatorDialog
+from app.ui.dialogs.calculators import HoleCalculatorDialog, PocketCalculatorDialog, _insert_at_caret
 from app.ui.dialogs.snippets import SnippetsDialog
 
 
@@ -102,6 +103,44 @@ def test_hole_dialog_is_compact_and_has_live_preview():
     dialog.ui.countYSpin.setValue(2)
 
     assert len(dialog.preview.points) == 6
+
+
+@pytest.mark.parametrize(
+    ("cursor", "expected"),
+    [
+        ((0, 0), "X100 Y200\nG1 X10 Y20\nM30\n"),
+        ((0, 6), "X100 Y200\nG1 X10 Y20\nM30\n"),
+        ((0, 10), "G1 X10 Y20\nX100 Y200\n\nM30\n"),
+        ((2, 0), "G1 X10 Y20\nM30\nX100 Y200\n"),
+    ],
+)
+def test_calculator_insertion_preserves_the_block_under_the_caret(cursor, expected):
+    editor = QsciScintilla()
+    editor.setText("G1 X10 Y20\nM30\n")
+    editor.setCursorPosition(*cursor)
+    _insert_at_caret(SimpleNamespace(ui=SimpleNamespace(editor=editor)), "X100 Y200")
+    assert editor.text() == expected
+
+
+def test_hole_grid_limit_is_shared_by_preview_and_generation():
+    arguments = {"start_x": 0, "start_y": 0, "step_x": 1, "step_y": 1, "count_x": 201, "count_y": 100}
+    for generate in (hole_grid_points, hole_grid):
+        with pytest.raises(ValueError, match="point limit"):
+            generate(**arguments)
+
+    dialog = HoleCalculatorDialog()
+    dialog.ui.patternTabs.setCurrentWidget(dialog.ui.gridTab)
+    dialog.ui.countXSpin.setValue(201)
+    dialog.ui.countYSpin.setValue(100)
+    assert not dialog.ui.insertButton.isEnabled()
+    assert "point limit" in dialog.ui.insertButton.toolTip()
+    assert not dialog.preview.points
+    dialog.ui.countYSpin.setValue(1)
+    assert dialog.ui.insertButton.isEnabled()
+    assert len(dialog.preview.points) == 201
+    dialog.set_insertion_enabled(False)
+    dialog.ui.countYSpin.setValue(2)
+    assert not dialog.ui.insertButton.isEnabled()
 
 
 def _xy_coordinates(program: str):
@@ -313,7 +352,9 @@ def test_snippet_order_survives_dialog_reload(tmp_path, monkeypatch):
 def test_snippet_language_switch_cancel_then_save_keeps_edits_in_original_space(tmp_path, monkeypatch):
     dialog, _directory = _snippets_dialog(tmp_path, monkeypatch)
     combo = dialog.ui.languageCombo
-    assert combo.count() == 5
+    assert [combo.itemData(index) for index in range(combo.count())] == [
+        language_id for language_id, _title in snippets_module.LANGUAGES
+    ]
     dialog.ui.snippetEditor.setPlainText("FANUC EDIT")
     monkeypatch.setattr(snippets_module.QMessageBox, "question", lambda *a, **kw: QMessageBox.StandardButton.Cancel)
     combo.setCurrentIndex(combo.findData("heidenhain"))

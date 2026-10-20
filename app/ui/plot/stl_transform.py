@@ -16,6 +16,12 @@ from .stl import StlMesh
 _EPS = 1e-9
 _FLOAT32_MAX = 3.4028234663852886e38
 _AXES = {"X": 0, "Y": 1, "Z": 2}
+MAX_STL_ARRAY_OBJECTS = 1_000
+
+
+def validate_array_count(count: int) -> None:
+    if count < 1 or count > MAX_STL_ARRAY_OBJECTS:
+        raise ValueError(f"STL array count must be between 1 and the limit of {MAX_STL_ARRAY_OBJECTS:,} objects")
 
 
 def translation(offset) -> np.ndarray:
@@ -190,8 +196,7 @@ def circular_array(
     rotate_copies=False keeps each copy's orientation and moves only its base
     point (`pivot`, world coordinates, required in that mode) along the circle.
     """
-    if count < 1:
-        raise ValueError("count must be >= 1")
+    validate_array_count(count)
     if not rotate_copies and pivot is None:
         raise ValueError("pivot is required when rotate_copies is False")
     full = abs(abs(total_angle) - 360.0) < _EPS
@@ -209,6 +214,7 @@ def circular_array(
 def rectangular_array(nx: int, ny: int, nz: int, dx: float, dy: float, dz: float):
     if min(nx, ny, nz) < 1:
         raise ValueError("counts must be >= 1")
+    validate_array_count(nx * ny * nz)
     return [translation((i * dx, j * dy, k * dz)) for k in range(nz) for j in range(ny) for i in range(nx)]
 
 

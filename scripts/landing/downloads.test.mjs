@@ -7,12 +7,19 @@ const script = fs.readFileSync(
   new URL("../../docs/downloads.js", import.meta.url),
   "utf8",
 );
-const releaseRoot =
-  "https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.0/";
+const project = fs.readFileSync(
+  new URL("../../pyproject.toml", import.meta.url),
+  "utf8",
+);
+const version = project.match(
+  /^\[project\]\s*\n(?:(?!^\[)[\s\S])*?^version\s*=\s*"([^"]+)"/m,
+)?.[1];
+assert.ok(version, "The project version must be declared in pyproject.toml");
+const releaseRoot = `https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v${version}/`;
 const files = [
-  "Easy-G-Code-Plot-2.9.0-Windows-x64.exe",
+  `Easy-G-Code-Plot-${version}-Windows-x64.exe`,
   "easy_gcode_plot_cli.exe",
-  "Easy-G-Code-Plot-2.9.0-Linux-x64.tar.gz",
+  `Easy-G-Code-Plot-${version}-Linux-x64.tar.gz`,
 ];
 
 for (const language of ["en", "ru"]) {
@@ -50,7 +57,7 @@ for (const language of ["en", "ru"]) {
       // Await the actual resolver call without starting a second request.
       await window.eval(script);
       assert.deepEqual(requests, [
-        "https://api.github.com/repos/MaestroFusion360/easy_gcode_plot/releases/tags/v2.9.0",
+        `https://api.github.com/repos/MaestroFusion360/easy_gcode_plot/releases/tags/v${version}`,
       ]);
       assert.deepEqual(
         links.map((link) => link.href),

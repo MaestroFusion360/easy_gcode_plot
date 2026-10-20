@@ -20,7 +20,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from app.gcode.snippet_templates import TemplateContext, TemplateError, parameters, render
+from app.gcode.snippets.snippet_templates import TemplateContext, TemplateError, parameters, render
 from app.ui.support.snippet_preview import PictureLabel, error_text, parameter_label
 
 LOGGER = logging.getLogger(__name__)

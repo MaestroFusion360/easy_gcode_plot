@@ -10,7 +10,7 @@ from PyQt6.QtCore import QCoreApplication, QEvent, QSignalBlocker, QSize, Qt
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QDockWidget, QListWidgetItem, QMessageBox, QSizePolicy, QWidget
 
-from app.gcode.snippet_defaults import LANGUAGES
+from app.gcode.snippets.snippet_defaults import LANGUAGES
 from app.ui.generated.panels.snippets_panel import Ui_SnippetsPanelForm
 from app.ui.support.snippet_insertion import insert_snippet
 
@@ -18,6 +18,8 @@ LOGGER = logging.getLogger(__name__)
 _PROGRAM_NAMES = {"Program Start", "Toolchange", "Program End", "Comment", "Toolchange (Drill)", "Document header"}
 _GROUPS = ("all", "program", "motion", "cycles", "formulas")
 _CYCLE = re.compile(r"\b(?:G7[1346]|G8[12345679]|CYCLE\d+|CYCL DEF\s+\d+|HOLES[12]|POCKET[34])\b", re.I)
+_TURNING_CYCLE = re.compile(r"\bG7[025789]\b", re.I)
+_TYPE_A_CYCLE = re.compile(r"\bG9[024]\b", re.I)
 
 
 def _group(record):
@@ -25,7 +27,9 @@ def _group(record):
         return "program"
     if "{{=" in record.body:
         return "formulas"
-    if _CYCLE.search(record.body):
+    if _CYCLE.search(record.body) or (record.language_id == "fanuc_turn" and _TYPE_A_CYCLE.search(record.body)):
+        return "cycles"
+    if record.language_id in {"fanuc_turn", "fanuc_b_turn"} and _TURNING_CYCLE.search(record.body):
         return "cycles"
     return "motion"
 
@@ -54,8 +58,11 @@ class SnippetsPanel(QDockWidget):
         self.ui.snippetList.currentRowChanged.connect(self._selection_changed)
         self.ui.snippetList.itemActivated.connect(self.insert_current)
         self.ui.insertButton.clicked.connect(self.insert_current)
-        self.ui.editButton.clicked.connect(window.snippetsDlg.show)
-        window.snippetsDlg.installEventFilter(self)
+        if window.snippetsDlg is not None:
+            self.ui.editButton.clicked.connect(window.snippetsDlg.show)
+            window.snippetsDlg.installEventFilter(self)
+        else:
+            self.ui.editButton.setEnabled(False)
         self.refresh()
 
     @staticmethod
@@ -79,6 +86,8 @@ class SnippetsPanel(QDockWidget):
         super().showEvent(event)
 
     def _records(self):
+        if self.window.snippetsDlg is None:
+            return []
         language = self.window.snippetsDlg.document_language() or "fanuc_mill"
         try:
             return self.window.snippetsDlg.library.list_snippets(language)
@@ -92,6 +101,11 @@ class SnippetsPanel(QDockWidget):
             return []
 
     def refresh(self, *_args):
+        if self.window.snippetsDlg is None:
+            self._cached_records = []
+            self.ui.snippetList.clear()
+            self.ui.insertButton.setEnabled(False)
+            return
         language = self.window.snippetsDlg.document_language() or "fanuc_mill"
         self._cached_records = self._records()
         label = dict(LANGUAGES).get(language, language)
@@ -139,6 +153,8 @@ class SnippetsPanel(QDockWidget):
             self._insert(record)
 
     def _insert(self, record):
+        if self.window.snippetsDlg is None:
+            return
         library = self.window.snippetsDlg.library
         try:
             picture = library.image(record.id)

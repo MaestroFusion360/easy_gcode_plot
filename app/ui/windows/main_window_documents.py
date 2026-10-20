@@ -352,7 +352,7 @@ class MainWindowDocumentsMixin:
 
     def _document_dialog_open(self):
         return QApplication.activeModalWidget() is not None or any(
-            getattr(self, name).isVisible() for name in _DOCUMENT_DIALOGS if hasattr(self, name)
+            dialog.isVisible() for name in _DOCUMENT_DIALOGS if (dialog := getattr(self, name, None)) is not None
         )
 
     def _document_reload_busy(self):

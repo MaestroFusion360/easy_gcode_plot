@@ -5,8 +5,9 @@ from datetime import datetime
 
 import pytest
 
-from app.gcode.snippet_defaults import default_snippets
-from app.gcode.snippet_templates import TemplateContext, TemplateError, formula, parameters, render
+from app.gcode.kernel import execute
+from app.gcode.snippets.snippet_defaults import default_snippets
+from app.gcode.snippets.snippet_templates import TemplateContext, TemplateError, formula, parameters, render
 
 
 def test_context_literals_share_one_instant_and_only_read_existing_document_paths(tmp_path):
@@ -171,3 +172,47 @@ def test_itnc_cycle_templates_explicitly_sign_every_numeric_q_parameter(name, so
     assignments = re.findall(r"\bQ\d+=([^\s;]+)", text)
     assert assignments, name
     assert all(value.startswith(("+", "-")) for value in assignments), (name, assignments)
+
+
+@pytest.mark.parametrize("family", ["fanuc_mill", "sinumerik_mill"])
+@pytest.mark.parametrize("plane", [17, 18, 19])
+def test_milling_circular_template_selects_plane_and_preserves_xyz(family, plane):
+    source = dict(default_snippets(family))["Circular Move"]
+    values = {"Plane": str(plane), "X": "10", "Y": "10", "Z": "10", "R": "10"}
+    text = render(source, values).text
+    assert text.startswith(f"G{plane} G3 X10 Y10 Z10 ")
+    result = execute(
+        "G21 G90 G0 X0 Y0 Z0\n" + text + "M30\n",
+        language="fanuc_mill",
+        source_dialect="sinumerik" if family == "sinumerik_mill" else "fanuc",
+    )
+    assert result.ok and result.complete, result.diagnostics
+    arc = result.motions[-1]
+    assert arc.plane == plane
+    assert (arc.end_x, arc.end_y, arc.end_z) == pytest.approx((10, 10, 10))
+
+
+@pytest.mark.parametrize("family", ["fanuc_mill", "sinumerik_mill"])
+def test_milling_circular_template_defaults_to_xy_and_rejects_other_planes(family):
+    source = dict(default_snippets(family))["Circular Move"]
+    assert render(source).text.startswith("G17 G3 ")
+    with pytest.raises(TemplateError, match="Invalid choice"):
+        render(source, {"Plane": "20"})
+
+
+@pytest.mark.parametrize("family", ["fanuc_mill", "sinumerik_mill", "heidenhain"])
+def test_milling_program_end_retracts_to_machine_home_without_safe_z_input(family):
+    snippets = dict(default_snippets(family))
+    source = snippets["Program End"]
+    assert render(source).text.startswith(render(snippets["Retract Home Z"]).text)
+    assert "SafeZ" not in {field.name for field in parameters(source)}
+
+
+@pytest.mark.parametrize("family,address", [("fanuc_mill", "X"), ("sinumerik_mill", "F")])
+def test_milling_dwell_template_uses_controller_seconds_address(family, address):
+    source = dict(default_snippets(family))["Dwell (G4)"]
+    assert render(source).text == f"G4 {address}1\n"
+    assert render(source, {"Seconds": "0.25"}).text == f"G4 {address}0.25\n"
+    assert render(source, {"Seconds": "0"}).text == f"G4 {address}0\n"
+    with pytest.raises(TemplateError, match="Value out of range"):
+        render(source, {"Seconds": "-0.1"})

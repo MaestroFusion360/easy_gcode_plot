@@ -12,7 +12,7 @@ from io import StringIO
 
 from app.gcode.kernel.frontend.heidenhain import parse_heidenhain_program
 from app.gcode.kernel.frontend.lang import lex_words, strip_comments
-from app.gcode.kernel.frontend.program import parse_program
+from app.gcode.kernel.frontend.program import literal_codes, parse_program
 from app.gcode.kernel.frontend.sinumerik import parse_sinumerik_program
 from app.gcode.kernel.frontend.sinumerik_turning import parse_sinumerik_turning_program
 from app.native import extension, native_symbol
@@ -30,15 +30,15 @@ from app.tools.discovery_rules import DEFAULT_DIMENSIONS, default_profile, valid
 from app.tools.validation import normalized_program_milling_tools, normalized_tools
 
 _native_scan_source = native_symbol("discovery", "scan_source")
-if getattr(extension("discovery").module, "COMMENT_HINTS_VERSION", 0) < 2:
+if getattr(extension("discovery").module, "COMMENT_HINTS_VERSION", 0) < 4:
     _native_scan_source = None
 
 _COMMENTS = re.compile(r"\(([^()]*)\)|;([^\r\n]*)")
 _COMMENT_TOOL = re.compile(r"\bT\s*(\d+)\b", re.IGNORECASE)
 _NUMBER = r"[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)"
-_DRILL_CYCLES = frozenset({"81", "82", "83"})
-_TAP_CYCLES = frozenset({"84"})
-_TURNING_THREAD_CYCLES = frozenset({"32", "33", "76", "92"})
+_DRILL_CYCLES = frozenset({81, 82, 83})
+_TAP_CYCLES = frozenset({84})
+_TURNING_THREAD_CYCLES = frozenset({32, 33, 76, 92})
 
 
 def _tool_key(value, turning):
@@ -242,9 +242,9 @@ def _is_g65_call(words) -> bool:
 
 
 def _block_scale(words, scale):
-    for word in words:
-        if word.letter == "G" and word.expr in {"20", "21"}:
-            scale = 25.4 if word.expr == "20" else 1.0
+    for code in literal_codes(words, "G"):
+        if code in {20, 21}:
+            scale = 25.4 if code == 20 else 1.0
     return scale
 
 
@@ -257,7 +257,7 @@ def _literal_tools(words, turning):
 
 
 def _operation_kind(words, turning):
-    codes = {word.expr for word in words if word.letter == "G"}
+    codes = set(literal_codes(words, "G"))
     if codes & _DRILL_CYCLES:
         return "drill"
     if codes & _TAP_CYCLES:
@@ -336,9 +336,9 @@ def _milling_tool_occurrences(program, default_unit_scale, cancelled, comment_te
         if _is_g65_call(node.words):
             continue
         scale = _block_scale(node.words, scale)
-        for word in node.words:
-            if word.letter == "G" and word.expr in {"700", "710"}:
-                scale = 25.4 if word.expr == "700" else 1.0
+        for code in literal_codes(node.words, "G"):
+            if code in {700, 710}:
+                scale = 25.4 if code == 700 else 1.0
         inline = " ".join(_comments(node.raw))
         syntax = node.native_syntax
         if any(word.letter == "O" for word in node.words):
@@ -427,6 +427,24 @@ def _heidenhain_call_key(syntax):
     return _tool_key(syntax.tool.source, False)
 
 
+def _has_milling_geometry_hint(description, rules):
+    if _type_hint(description, tuple(tuple(entry) for entry in rules["types"])) in MILLING_TOOL_TYPES:
+        return True
+    return any(
+        _dimension(
+            description,
+            name,
+            None,
+            1.0,
+            allow_zero=name in {"corner_radius", "tip_diameter", "body_length"},
+            dimensions=rules["dimensions"],
+        )
+        is not None
+        for name in rules["dimensions"]
+        if name not in {"nose_radius", "groove_width", "turning_diameter"}
+    )
+
+
 def _heidenhain_tools(program, scale, cancelled, rules):
     """Use native TOOL CALL ownership and nearby comments without scanning ISO words."""
     tools = {}
@@ -447,6 +465,8 @@ def _heidenhain_tools(program, scale, cancelled, rules):
                 break
             comments.append(following.native_syntax.comment or "")
         description = " ".join(comments).strip()
+        if key in tools and not _has_milling_geometry_hint(description, rules):
+            continue
         spec = _milling_spec(description, scale, None, rules)
         if description:
             spec["description"] = description

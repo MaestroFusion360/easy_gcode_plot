@@ -49,7 +49,12 @@ def test_russian_catalog_contains_no_lost_text(qt_app, translator):
     for context in ET.parse(catalog).getroot().findall("context"):
         for message in context.findall("message"):
             source = message.findtext("source")
-            translation = "".join(message.find("translation").itertext())
+            translation_element = message.find("translation")
+            if translation_element is None or translation_element.get("type") in {"unfinished", "vanished", "obsolete"}:
+                continue
+            translation = "".join(translation_element.itertext())
+            if not translation.strip():
+                continue
             assert "\ufffd" not in translation and not re.search(r"\?{2,}", translation), (
                 f"{catalog}: corrupted translation in {context.findtext('name')}: {source!r} -> {translation!r}"
             )

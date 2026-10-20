@@ -7,19 +7,20 @@ from types import SimpleNamespace
 import pytest
 from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QImage
+from PyQt6.QtGui import QColor, QImage, QPalette
 from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDialog, QMainWindow, QMenu, QPlainTextEdit, QPushButton, QScrollArea
 
-from app.gcode.snippet_defaults import LANGUAGES, default_snippets
-from app.gcode.snippet_templates import TemplateContext, render
-from app.gcode.snippets import SnippetLibrary
+from app.gcode.snippets import snippets as storage_module
+from app.gcode.snippets.snippet_defaults import LANGUAGES, default_snippets
+from app.gcode.snippets.snippet_templates import TemplateContext, render
+from app.gcode.snippets.snippets import SnippetLibrary
 from app.ui.dialogs import snippet_insert as insert_module
 from app.ui.dialogs import snippets as module
 from app.ui.dialogs.snippet_insert import SnippetInsertDialog
 from app.ui.dialogs.snippets import SnippetsDialog
 from app.ui.panels.snippets_panel import SnippetsPanel
-from app.ui.support.snippet_preview import png_bytes
+from app.ui.support.snippet_preview import PictureLabel, png_bytes
 
 
 @pytest.fixture(scope="module")
@@ -52,7 +53,7 @@ def owner_window(editor=None):
 def test_dialog_opens_with_controller_list_and_template_editor(dialog):
     dialog.show()
     QApplication.processEvents()
-    assert dialog.ui.languageCombo.count() == 5
+    assert dialog.ui.languageCombo.count() == len(LANGUAGES)
     assert dialog.ui.snippetList.count() == len(dialog.snippets)
     names = {dialog.ui.snippetList.item(index).text() for index in range(dialog.ui.snippetList.count())}
     assert {"Program Start", "Toolchange", "Drill point (formula)"} <= names
@@ -381,6 +382,53 @@ def test_missing_standard_picture_survives_reopening_and_is_restored_only_by_upd
         reopened.deleteLater()
 
 
+def test_type_b_pictures_are_added_after_older_illustration_migrations(qt_app, tmp_path, monkeypatch):
+    monkeypatch.setattr(module, "config_path", lambda: str(tmp_path / "config.ini"))
+    old_languages = tuple(item for item in LANGUAGES if item[0] != "fanuc_b_turn")
+    with monkeypatch.context() as patch:
+        patch.setattr(module, "LANGUAGES", old_languages)
+        patch.setattr(storage_module, "LANGUAGES", old_languages)
+        old = SnippetsDialog()
+        try:
+            removed = select(old, "Circular Move")
+            old.library.update_content(removed.id, removed.text, None)
+        finally:
+            old.library.close()
+            old.deleteLater()
+
+    # The Type B catalog can already contain user edits before its pictures migrate.
+    with SnippetLibrary(str(tmp_path / "snippets.db")) as library:
+        library.ensure_defaults()
+        records = {item.name: item for item in library.list_snippets("fanuc_b_turn")}
+        rapid = records["Rapid Move"]
+        linear = records["Linear Move"]
+        circular = records["Circular Move"]
+        library.update_content(rapid.id, rapid.body, b"user picture")
+        library.update_body(linear.id, "USER MOVE")
+        assert library.image(circular.id) is None
+
+    migrated = SnippetsDialog()
+    try:
+        assert migrated.library.image(circular.id)
+        assert migrated.library.image(rapid.id) == b"user picture"
+        assert migrated.library.image(linear.id) is None
+        assert migrated.library.image(removed.id) is None
+        migrated.library.update_content(circular.id, circular.body, None)
+    finally:
+        migrated.library.close()
+        migrated.deleteLater()
+
+    reopened = SnippetsDialog()
+    try:
+        assert reopened.library.image(circular.id) is None
+        assert reopened.library.image(rapid.id) == b"user picture"
+        assert reopened.library.image(removed.id) is None
+    finally:
+        reopened.library.close()
+        reopened.deleteLater()
+        qt_app.processEvents()
+
+
 @pytest.mark.parametrize("answer", ["Save", "Discard", "Cancel"])
 @pytest.mark.parametrize("change", ["replace", "remove"])
 def test_picture_only_changes_obey_selection_save_discard_cancel(dialog, picture_file, monkeypatch, answer, change):
@@ -685,3 +733,59 @@ def test_itnc_insert_form_keeps_explicit_coordinate_signs_after_editing(qt_app):
         assert form.ok_button.isEnabled()
     finally:
         form.deleteLater()
+
+
+def test_dialog_closes_database_if_seeding_fails(qt_app, tmp_path, monkeypatch):
+    """Do not keep SQLite handles after a partially initialized manager."""
+    monkeypatch.setattr(module, "config_path", lambda: str(tmp_path / "config.ini"))
+    closed = []
+    real_close = SnippetLibrary.close
+
+    def recording_close(library):
+        closed.append(library.path)
+        real_close(library)
+
+    def failing_defaults(_library):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(SnippetLibrary, "close", recording_close)
+    monkeypatch.setattr(SnippetLibrary, "ensure_defaults", failing_defaults)
+    with pytest.raises(sqlite3.OperationalError, match="database is locked"):
+        SnippetsDialog()
+    assert closed == [str(tmp_path / "snippets.db")]
+
+
+def test_drilling_cycle_diagrams_are_attached_and_shown_in_large_preview(dialog):
+    pictures = module._drilling_pictures()  # pylint: disable=protected-access
+    assert len(pictures) == 15
+    for (language, name), picture in pictures.items():
+        record = next(record for record in dialog.library.list_snippets(language) if record.name == name)
+        assert dialog.library.image(record.id) == picture
+    select(dialog, "Drilling (G81)")
+    dialog.show()
+    QApplication.processEvents()
+    assert dialog.ui.picturePreview.isVisible()
+    assert not dialog.ui.picturePreview.image.isNull()
+    assert dialog.ui.picturePreview.width() >= 320
+    assert dialog.ui.picturePreview.height() > 180
+    dialog.remove_picture()
+    assert dialog.ui.picturePreview.isHidden()
+    dialog.ui.picturePreview.set_picture(None)
+    dialog._dirty = False  # pylint: disable=protected-access
+
+
+def test_svg_preview_follows_palette_changes_without_modifying_original(qt_app):
+    label = PictureLabel()
+    data = (
+        Path(__file__).resolve().parents[2] / "app/resources/snippets/drilling_cycles/fanuc_mill--drilling-g81.svg"
+    ).read_bytes()
+    label.set_picture(data)
+    original = label.image.copy()
+    palette = QPalette(label.palette())
+    for background, foreground in (("#ffffff", "#222222"), ("#252526", "#e6e6e6"), ("#ffffff", "#222222")):
+        palette.setColor(QPalette.ColorRole.Base, QColor(background))
+        palette.setColor(QPalette.ColorRole.Text, QColor(foreground))
+        label.setPalette(palette)
+        assert label.pixmap().toImage().pixelColor(0, 0).name() == background
+        assert label.image == original
+    label.deleteLater()

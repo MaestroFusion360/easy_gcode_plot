@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from app.gcode.snippet_defaults import LANGUAGES, default_snippets
+from app.gcode.snippets.snippet_defaults import LANGUAGES, default_snippets
 
 SCHEMA_VERSION = 3
 LOGGER = logging.getLogger(__name__)
@@ -62,8 +62,8 @@ class SnippetLibrary:
         self._lock = threading.RLock()
         self._conn = sqlite3.connect(self.path, check_same_thread=False)
         self._conn.row_factory = sqlite3.Row
-        self._conn.execute("PRAGMA foreign_keys = ON")
         try:
+            self._conn.execute("PRAGMA foreign_keys = ON")
             self._ensure_schema_version()
         except Exception:
             self._conn.close()
@@ -115,10 +115,15 @@ class SnippetLibrary:
         with self._lock, self._conn:
             self._conn.execute("BEGIN IMMEDIATE")
             key = "language_defaults_v2"
-            if self._conn.execute("SELECT 1 FROM meta WHERE key = ?", (key,)).fetchone():
+            b_key = "language_defaults_fanuc_b_turn_v1"
+            seeded = self._conn.execute("SELECT 1 FROM meta WHERE key = ?", (key,)).fetchone() is not None
+            seeded_b = self._conn.execute("SELECT 1 FROM meta WHERE key = ?", (b_key,)).fetchone() is not None
+            if seeded and seeded_b:
                 return
             now = _now()
             for language_id, _label in LANGUAGES:
+                if seeded and (language_id != "fanuc_b_turn" or seeded_b):
+                    continue
                 order = self._next_order(language_id)
                 for name, body in default_snippets(language_id):
                     cursor = self._conn.execute(
@@ -127,7 +132,10 @@ class SnippetLibrary:
                         (language_id, name, body, order, now, now),
                     )
                     order += cursor.rowcount
-            self._conn.execute("INSERT INTO meta(key, value) VALUES (?, '1')", (key,))
+            if not seeded:
+                self._conn.execute("INSERT INTO meta(key, value) VALUES (?, '1')", (key,))
+            if not seeded_b and "fanuc_b_turn" in dict(LANGUAGES):
+                self._conn.execute("INSERT INTO meta(key, value) VALUES (?, '1')", (b_key,))
 
     def refresh_defaults(self, language_id: str, pictures: dict[str, bytes] | None = None) -> tuple[int, int]:
         """Restore the selected controller's standard text without deleting custom records or images."""

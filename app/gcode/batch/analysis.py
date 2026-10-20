@@ -15,7 +15,7 @@ from typing import Callable, Iterable
 
 from app.gcode.execution.program import execute_program
 from app.gcode.execution.source import language_for_path, source_dialect_for_path
-from app.gcode.file_io import atomic_write_text
+from app.gcode.file_io import atomic_write_text, validate_batch_output_paths
 from app.gcode.kernel import Diagnostic, ExecutionResult
 from app.gcode.kernel.frontend.io import read_nc_text
 from app.gcode.reports.html import export_execution_statistics
@@ -341,6 +341,11 @@ def analyze_directory(
             label="HTML output",
         )
     paths = discover_nc_files(directory, recursive=recursive, extensions=normalized_extensions)
+    if html_dir is not None:
+        validate_batch_output_paths(
+            paths,
+            ((Path(html_dir) / path.relative_to(directory)).with_name(path.name + ".html") for path in paths),
+        )
     profiles = kinematics_by_file or {}
     actual = {path.relative_to(directory).as_posix() for path in paths}
     unknown = set(profiles) - actual

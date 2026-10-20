@@ -109,5 +109,20 @@
     <file>snippets/linear.svg</file>
     <file>snippets/turning_rapid.svg</file>
     <file>snippets/turning_linear.svg</file>
+    <file>snippets/drilling_cycles/fanuc_b_turn--drilling.svg</file>
+    <file>snippets/drilling_cycles/fanuc_mill--drilling-g81.svg</file>
+    <file>snippets/drilling_cycles/fanuc_mill--drilling.svg</file>
+    <file>snippets/drilling_cycles/fanuc_mill--high-speed-peck-drilling-g73.svg</file>
+    <file>snippets/drilling_cycles/fanuc_mill--spot-drilling-g82.svg</file>
+    <file>snippets/drilling_cycles/fanuc_turn--drilling.svg</file>
+    <file>snippets/drilling_cycles/heidenhain--centering-cycl-def-240.svg</file>
+    <file>snippets/drilling_cycles/heidenhain--drilling-cycl-def-200.svg</file>
+    <file>snippets/drilling_cycles/heidenhain--drilling.svg</file>
+    <file>snippets/drilling_cycles/heidenhain--single-lip-deep-drilling-cycl-def-241.svg</file>
+    <file>snippets/drilling_cycles/heidenhain--universal-pecking-cycl-def-205.svg</file>
+    <file>snippets/drilling_cycles/sinumerik_mill--counterboring-cycle82.svg</file>
+    <file>snippets/drilling_cycles/sinumerik_mill--drilling-cycle81.svg</file>
+    <file>snippets/drilling_cycles/sinumerik_mill--drilling.svg</file>
+    <file>snippets/drilling_cycles/sinumerik_turn--drilling.svg</file>
   </qresource>
 </RCC>

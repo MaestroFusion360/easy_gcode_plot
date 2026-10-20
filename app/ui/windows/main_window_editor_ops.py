@@ -537,34 +537,23 @@ class MainWindowEditorMixin:
         native = self._native_file_type_selected()
         delim = " " if native or self.seqNumSpacing else ""
 
+        variable = "Q" if native else "R" if self._document_source_dialect == "sinumerik" else "#"
+        number_prefix = "" if native else "N"
+        label_pattern = r"^(?:N\d+|\d+)[ \t]*" if native else r"^N\d+[ \t]*"
+
         def handler(lines):
             nonlocal st
-            lst = []
+            numbered = []
             for line in lines:
-                if native:
-                    if not line.strip():
-                        lst.append(line)
-                        continue
-                    body = line.lstrip()
-                    optional = "/" if body.startswith("/") else ""
-                    if optional:
-                        body = body[1:].lstrip()
-                    body = re.sub(r"^(?:N\d+|\d+)[ \t]*", "", body, count=1, flags=re.I)
-                    lst.append(f"{optional}{st} {body}")
-                    st += incr
+                body = line.lstrip(" \t")
+                optional = re.match(r"(?:/[ \t]*)*", body).group()
+                body = re.sub(label_pattern, "", body[len(optional) :], count=1, flags=re.I)
+                if not body.strip() or body.upper().startswith(("%", "O", variable)):
+                    numbered.append(line)
                     continue
-                skipline = "".join(re.findall(r"^[%O\r\n]", line))
-                if skipline:
-                    lst.append(line)
-                    continue
-                num = "".join(re.findall(r"^N\d+", line))
-                if num:
-                    new_line = "N{}".format(st) + delim + re.sub(r"^N\d+", "", line).lstrip()
-                else:
-                    new_line = "N{}".format(st) + delim + line.lstrip()
-                lst.append(new_line)
-                st = st + incr
-            return lst
+                numbered.append(f"{optional}{number_prefix}{st}{delim}{body}")
+                st += incr
+            return numbered
 
         self._process_selected_lines(handler)
 
@@ -585,12 +574,7 @@ class MainWindowEditorMixin:
                         body = body[1:].lstrip()
                     lst.append(optional + re.sub(r"^(?:N\d+|\d+)[ \t]*", "", body, count=1, flags=re.I))
                     continue
-                num = "".join(re.findall(r"^N\d+", line))
-                if num:
-                    new_line = re.sub(r"^N\d+", "", line).lstrip()
-                else:
-                    new_line = line
-                lst.append(new_line)
+                lst.append(re.sub(r"^([ \t]*(?:/[ \t]*)*)N\d+[ \t]*", r"\1", line, count=1, flags=re.I))
             return lst
 
         self._process_selected_lines(handler)

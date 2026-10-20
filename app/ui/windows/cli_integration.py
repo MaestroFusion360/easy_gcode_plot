@@ -27,7 +27,7 @@ def open_in_cli(window):
         "--lang",
         "fanuc_turn" if window.latheMode else "fanuc_mill",
         "--encoding",
-        window.fileEncoding,
+        window._document_encoding or window.fileEncoding,  # pylint: disable=protected-access
         "--lathe-gcode-system",
         window.latheGcodeSystem,
         "--sinumerik-cycles",

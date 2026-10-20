@@ -21,6 +21,7 @@ from PyQt6.QtWidgets import (QApplication, QComboBox, QDialog, QHBoxLayout,
     QVBoxLayout, QWidget)
 
 from app.ui.support.snippet_editor import ZoomableSnippetEditor
+from app.ui.support.snippet_preview import PictureLabel
 
 import app.resources.files_res  # noqa: F401  # Registers Qt resources on import.
 
@@ -28,8 +29,8 @@ class Ui_SnippetsDialog(object):
     def setupUi(self, SnippetsDialog):
         if not SnippetsDialog.objectName():
             SnippetsDialog.setObjectName(u"SnippetsDialog")
-        SnippetsDialog.resize(700, 430)
-        SnippetsDialog.setMinimumSize(QSize(700, 430))
+        SnippetsDialog.resize(1100, 650)
+        SnippetsDialog.setMinimumSize(QSize(900, 560))
         self.verticalLayout = QVBoxLayout(SnippetsDialog)
         self.verticalLayout.setSpacing(8)
         self.verticalLayout.setObjectName(u"verticalLayout")
@@ -103,16 +104,34 @@ class Ui_SnippetsDialog(object):
 
         self.templateLayout.addLayout(self.pictureLayout)
 
-        self.snippetEditor = ZoomableSnippetEditor(self.templatePane)
+        self.previewSplitter = QSplitter(self.templatePane)
+        self.previewSplitter.setObjectName(u"previewSplitter")
+        self.previewSplitter.setOrientation(Qt.Orientation.Horizontal)
+        self.previewSplitter.setChildrenCollapsible(False)
+        self.snippetEditor = ZoomableSnippetEditor(self.previewSplitter)
         self.snippetEditor.setObjectName(u"snippetEditor")
         font = QFont()
         font.setFamilies([u"Courier New"])
         font.setPointSize(9)
         self.snippetEditor.setFont(font)
         self.snippetEditor.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
+        self.previewSplitter.addWidget(self.snippetEditor)
+        self.picturePreview = PictureLabel(self.previewSplitter)
+        self.picturePreview.setObjectName(u"picturePreview")
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        sizePolicy1.setHorizontalStretch(0)
+        sizePolicy1.setVerticalStretch(0)
+        sizePolicy1.setHeightForWidth(self.picturePreview.sizePolicy().hasHeightForWidth())
+        self.picturePreview.setSizePolicy(sizePolicy1)
+        self.picturePreview.setMinimumSize(QSize(320, 260))
+        self.picturePreview.setMaximumSize(QSize(16777215, 16777215))
+        self.picturePreview.setStyleSheet(u"QLabel#picturePreview { background: palette(base); border: 1px solid palette(mid); }")
+        self.picturePreview.setVisible(False)
+        self.previewSplitter.addWidget(self.picturePreview)
 
-        self.templateLayout.addWidget(self.snippetEditor)
+        self.templateLayout.addWidget(self.previewSplitter)
 
+        self.templateLayout.setStretch(1, 1)
         self.splitter.addWidget(self.templatePane)
 
         self.verticalLayout.addWidget(self.splitter)
