@@ -95,6 +95,14 @@ class Ui_AboutDlg(object):
 
         self.verticalLayout.addWidget(self.websiteLabel)
 
+        self.icons8Label = QLabel(AboutDlg)
+        self.icons8Label.setObjectName(u"icons8Label")
+        self.icons8Label.setText(u"Some icons by <a href=\"https://icons8.com\">Icons8</a>")
+        self.icons8Label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.icons8Label.setOpenExternalLinks(True)
+
+        self.verticalLayout.addWidget(self.icons8Label)
+
         self.dateLabel = QLabel(AboutDlg)
         self.dateLabel.setObjectName(u"dateLabel")
         self.dateLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)

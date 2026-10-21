@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.2 - 2026-10-20
+
+- Updated the About dialog with Icons8 attribution.
+- Added license files to the icons folder.
+
 ## 2.9.1 - 2026-10-20
 
 - Embed all 15 drilling-cycle SVG diagrams in Qt resources, package the Snippets SVG sources, and verify embedded resources against the originals.

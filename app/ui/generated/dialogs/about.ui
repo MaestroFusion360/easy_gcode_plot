@@ -144,6 +144,19 @@
                 </widget>
             </item>
             <item>
+                <widget class="QLabel" name="icons8Label">
+                    <property name="text">
+                        <string notr="true">Some icons by &lt;a href="https://icons8.com"&gt;Icons8&lt;/a&gt;</string>
+                    </property>
+                    <property name="alignment">
+                        <set>Qt::AlignmentFlag::AlignCenter</set>
+                    </property>
+                    <property name="openExternalLinks">
+                        <bool>true</bool>
+                    </property>
+                </widget>
+            </item>
+            <item>
                 <widget class="QLabel" name="dateLabel">
                     <property name="text">
                         <string>© 2025–2026 MaestroFusion360</string>

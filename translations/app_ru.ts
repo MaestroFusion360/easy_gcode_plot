@@ -87,7 +87,7 @@
         <translation>Свободное ПО с открытым исходным кодом под лицензией MIT.</translation>
     </message>
     <message>
-        <location filename="../app/ui/generated/dialogs/about.ui" line="149"/>
+        <location filename="../app/ui/generated/dialogs/about.ui" line="162"/>
         <source>© 2025–2026 MaestroFusion360</source>
         <translation>© 2025–2026 MaestroFusion360</translation>
     </message>
