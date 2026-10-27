@@ -2,6 +2,7 @@
 
 import logging
 import sys
+from pathlib import Path
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtWidgets import QApplication
@@ -25,16 +26,32 @@ def _fit_visible_lathe_stock(window) -> None:
     window.fitToView()
 
 
-def run() -> int:
-    """Create the Qt application, show the main window, and run the event loop."""
+def _start_cli_simulation(window: MainWindow, file: Path, language: str) -> None:
+    """Open one program and start the existing Stock Removal playback."""
+    if window.loadFile(str(file)) is not True:
+        return
+    window.autoUpdateTimer.stop()
+    turning = language == "fanuc_turn"
+    if window.latheMode != turning:
+        window.ui.actionLatheMode.setChecked(turning)
+    window.ensure_simulation_ready(turning)
+
+
+def run(*, startup_file: Path | None = None, simulate: bool = False, language: str | None = None) -> int:
+    """Create the Qt application, optionally opening an NC file for simulation."""
     require_packaged_native()
-    app = QApplication(sys.argv)
+    app = QApplication([sys.argv[0]] if simulate else sys.argv)
     theme.apply_application_theme(app, ui_theme())
     i18n.install_translator(app, ui_language())
     _decimal_separator_filter = install_decimal_separator_filter(app)
     window = MainWindow()
     LOGGER.info("application_started")
     window.show()
+    if simulate and startup_file is not None and language is not None:
+        QTimer.singleShot(
+            STARTUP_LATHE_FIT_DELAY_MS,
+            lambda: _start_cli_simulation(window, startup_file, language),
+        )
     if window.latheMode:
         # A zero-timeout fires too early when the saved window state is maximized:
         # the GL viewport can still have its pre-maximize size, so the subsequent

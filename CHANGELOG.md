@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.9.3 - 2026-10-27
+
+- Added the simulate CLI command to launch the existing GUI stock removal simulation for an NC program.
+
 ## 2.9.2 - 2026-10-20
 
 - Updated the About dialog with Icons8 attribution.

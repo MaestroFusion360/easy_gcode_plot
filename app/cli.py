@@ -5,8 +5,11 @@ from __future__ import annotations
 import argparse
 import difflib
 import json
+import os
+import subprocess
 import sys
 from dataclasses import asdict
+from importlib import import_module
 from pathlib import Path
 
 from app.gcode.batch.analysis import (
@@ -205,6 +208,19 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
                 help="Compare generated NC with a UTF-8 reference; print unified diff and exit 1 on mismatch",
             )
             _add_export_options(command)
+
+    simulate = sub.add_parser(
+        "simulate",
+        help="Open an NC program in the GUI and start stock-removal simulation",
+        formatter_class=_HelpFormatter,
+    )
+    simulate.add_argument("file", type=Path, help="NC program to simulate")
+    simulate.add_argument(
+        "--lang",
+        choices=("fanuc_turn", "fanuc_mill"),
+        default=None,
+        help=MACHINE_TYPE_HELP,
+    )
 
     batch = sub.add_parser(
         "batch",
@@ -580,6 +596,40 @@ def _native_runtime_ready() -> bool:
     return True
 
 
+def _run_simulate(args: argparse.Namespace) -> int:
+    """Use the existing GUI stock simulator, including in packaged CLI builds."""
+    path = args.file.expanduser().resolve()
+    if not path.is_file() or path.suffix.casefold() == ".stl":
+        print(f"Simulate error: NC program not found: {path}", file=sys.stderr)
+        return 2
+    if getattr(sys, "frozen", False):
+        return _run_frozen_simulate(path, args.lang)
+    return _run_source_simulate(path, args.lang)
+
+
+def _run_frozen_simulate(path: Path, language: str) -> int:
+    """Launch the companion GUI without waiting for its event loop to exit."""
+    gui_name = "easy_gcode_plot.exe" if os.name == "nt" else "easy_gcode_plot"
+    gui_path = Path(sys.executable).with_name(gui_name)
+    if not gui_path.is_file():
+        print(f"Simulate error: GUI executable not found: {gui_path}", file=sys.stderr)
+        return 2
+    try:
+        # A Popen context manager would wait for the GUI at scope exit.
+        subprocess.Popen(  # pylint: disable=consider-using-with
+            [str(gui_path), "--simulate", str(path), "--lang", language]
+        )
+    except OSError as exc:
+        print(f"Simulate error: {exc}", file=sys.stderr)
+        return 2
+    return 0
+
+
+def _run_source_simulate(path: Path, language: str) -> int:
+    """Import the Qt application only for the simulate command."""
+    return import_module("app.application").run(startup_file=path, simulate=True, language=language)
+
+
 def _run_single_safely(args) -> int:
     try:
         return _run_single(args)
@@ -623,7 +673,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_batch_export(args, request, parser)
     if args.command == "batch":
         return _run_batch(args, parser)
-    return _run_single_safely(args)
+    handler = _run_simulate if args.command == "simulate" else _run_single_safely
+    return handler(args)
 
 
 if __name__ == "__main__":

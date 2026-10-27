@@ -1,6 +1,6 @@
 [project]
 name = "easy-gcode-plot"
-version = "2.9.2"
+version = "2.9.3"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.13"

@@ -151,6 +151,29 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
             self.snippetsDock.hide()
             self.ui.statusbar.showMessage(self._snippets_load_error, 10000)
 
+    def ensure_simulation_ready(self, turning: bool) -> None:
+        """Validate the active NC program and start CLI-requested stock playback."""
+        if self.execution_result is None or self._plot_source_stale:
+            if not self.updateData():
+                self.ui.statusbar.showMessage("Simulation: could not calculate the toolpath", 10000)
+                return
+        result = self.execution_result
+        if result is None or not result.ok or not result.complete or not result.motions:
+            self.ui.statusbar.showMessage("Simulation requires a complete NC toolpath", 10000)
+            return
+        if turning:
+            # Use automatic turning-stock dimensions for an unconfigured session.
+            if not self.stockConfigured:
+                self.stockConfigured = True
+                self._stock_outline_use_configured = False
+            self.stockEnabled = True
+            if self._effective_stock_spec() is None:
+                self.ui.statusbar.showMessage("Simulation: turning stock dimensions are unavailable", 10000)
+                return
+        self.ui.actionStockPlayback.setChecked(True)
+        if self._stock_animation_active:
+            self.ui.actionPlay.setChecked(True)
+
     def _initialize_window_state(self):
         """Declare shared Python state before settings, dialogs or signals use it.
 
