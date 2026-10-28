@@ -215,6 +215,7 @@ def _parser() -> tuple[argparse.ArgumentParser, tuple[argparse.ArgumentParser, .
         formatter_class=_HelpFormatter,
     )
     simulate.add_argument("file", type=Path, help="NC program to simulate")
+    simulate.add_argument("--bundle", type=Path, help="MiniCAD simulation.json manifest")
     simulate.add_argument(
         "--lang",
         choices=("fanuc_turn", "fanuc_mill"),
@@ -602,12 +603,24 @@ def _run_simulate(args: argparse.Namespace) -> int:
     if not path.is_file() or path.suffix.casefold() == ".stl":
         print(f"Simulate error: NC program not found: {path}", file=sys.stderr)
         return 2
+    bundle = None
+    if args.bundle is not None:
+        from app.integration.minicad_bundle import read_bundle
+
+        try:
+            bundle = read_bundle(args.bundle)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            print(f"Simulate error: {exc}", file=sys.stderr)
+            return 2
+        if bundle.nc != path:
+            print("Simulate error: NC path does not match bundle", file=sys.stderr)
+            return 2
     if getattr(sys, "frozen", False):
-        return _run_frozen_simulate(path, args.lang)
-    return _run_source_simulate(path, args.lang)
+        return _run_frozen_simulate(path, args.lang, args.bundle)
+    return _run_source_simulate(path, args.lang, bundle)
 
 
-def _run_frozen_simulate(path: Path, language: str) -> int:
+def _run_frozen_simulate(path: Path, language: str, bundle_path=None) -> int:
     """Launch the companion GUI without waiting for its event loop to exit."""
     gui_name = "easy_gcode_plot.exe" if os.name == "nt" else "easy_gcode_plot"
     gui_path = Path(sys.executable).with_name(gui_name)
@@ -616,18 +629,19 @@ def _run_frozen_simulate(path: Path, language: str) -> int:
         return 2
     try:
         # A Popen context manager would wait for the GUI at scope exit.
-        subprocess.Popen(  # pylint: disable=consider-using-with
-            [str(gui_path), "--simulate", str(path), "--lang", language]
-        )
+        command = [str(gui_path), "--simulate", str(path), "--lang", language]
+        if bundle_path is not None:
+            command.extend(("--bundle", str(Path(bundle_path).resolve())))
+        subprocess.Popen(command)  # pylint: disable=consider-using-with
     except OSError as exc:
         print(f"Simulate error: {exc}", file=sys.stderr)
         return 2
     return 0
 
 
-def _run_source_simulate(path: Path, language: str) -> int:
+def _run_source_simulate(path: Path, language: str, bundle=None) -> int:
     """Import the Qt application only for the simulate command."""
-    return import_module("app.application").run(startup_file=path, simulate=True, language=language)
+    return import_module("app.application").run(startup_file=path, simulate=True, language=language, bundle=bundle)
 
 
 def _run_single_safely(args) -> int:

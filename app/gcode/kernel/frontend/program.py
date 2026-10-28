@@ -26,6 +26,16 @@ from .model import Block, CycleNode, ModalSnapshot, MotionNode, Program
 _REFERENCE_SOURCE = re.compile(r"\r(?!\n)|[\v\f\x1c-\x1e\x85\u2028\u2029]|\d{19,}")
 
 
+def _requires_reference_source(source: str) -> bool:
+    try:
+        guard = native_symbol("parser", "requires_reference_source")
+    except AttributeError:  # Source checkouts can still have an older extension.
+        guard = None
+    if guard is not None:
+        return guard(source)
+    return _REFERENCE_SOURCE.search(source) is not None
+
+
 def resolve_cycle_profile_indices(
     blocks: tuple[Block, ...] | list[Block],
     call_index: int,
@@ -201,7 +211,7 @@ def parse_program(lines: Iterable[str] | str) -> Program:
     require_packaged_native()
     if isinstance(lines, str):
         native_parse = native_symbol("parser", "parse_source")
-        if native_parse is not None and not _REFERENCE_SOURCE.search(lines):
+        if native_parse is not None and not _requires_reference_source(lines):
             return _instrument_parse(native_parse, lines)
         lines = lines.splitlines(keepends=True)
     program = _parse_program_python(lines)
@@ -214,7 +224,7 @@ def _parse_source_blocks(source: Iterable[str] | str) -> tuple[Block, ...]:
     require_packaged_native()
     if isinstance(source, str):
         native_parse = native_symbol("parser", "parse_source_blocks")
-        if native_parse is not None and not _REFERENCE_SOURCE.search(source):
+        if native_parse is not None and not _requires_reference_source(source):
             return _instrument_parse(native_parse, source)
         source = source.splitlines(keepends=True)
     blocks = tuple(_parse_blocks(source))

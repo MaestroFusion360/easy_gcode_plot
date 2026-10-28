@@ -20,6 +20,26 @@ from .lang import WordToken
 from .model import Block, CycleNode, ModalSnapshot, MotionNode, Program
 
 
+def requires_reference_source(str source):
+    """Check scanner limits in one linear pass, without regex backtracking."""
+    cdef Py_ssize_t position, size = len(source), digits = 0
+    cdef Py_UCS4 ch
+    for position in range(size):
+        ch = ord(source[position])
+        if ch == 13:
+            if position + 1 == size or source[position + 1] != "\n":
+                return True
+        elif ch in (11, 12, 28, 29, 30, 133, 8232, 8233):
+            return True
+        if 48 <= ch <= 57 or (ch >= 128 and chr(ch).isdecimal()):
+            digits += 1
+            if digits >= 19:
+                return True
+        else:
+            digits = 0
+    return False
+
+
 cdef object _ast_int_code(object expr):
     cdef double value, rounded
     if expr is None:

@@ -1,15 +1,19 @@
 """Cached native availability, missing DLL policy and parser instrumentation."""
 
+# pylint: disable=protected-access
+
 import importlib.util
 import subprocess
 import sys
 from io import StringIO
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 from app import native
 from app.cli import main
+from app.gcode.kernel.frontend import program as program_module
 from app.gcode.kernel.frontend.program import _parse_program_python, parse_program, parser_statistics
 
 
@@ -83,6 +87,26 @@ def test_native_frontend_preserves_python_reference_for_unusual_source(source):
     stats = parser_statistics()
     assert stats.native_blocks == 0
     assert stats.total_blocks == stats.fallback_blocks
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["", "G1 X1\nM30", "G1 X1\r\nM30", "G1 X1\r", "G1 X1\rM30"]
+    + [f"G1 X1{separator}M30" for separator in "\v\f\x1c\x1d\x1e\x85\u2028\u2029"]
+    + [f"N{digit * count} G1 X1" for digit in ("1", "\u0661", "\U0001d7d9") for count in (18, 19, 20)]
+    + ["N" + "1" * 10 + "." + "1" * 10, "G1 X\u00b2", "(\u65e5\u672c\u8a9e) G1 X1"],
+)
+def test_compiled_source_guard_matches_reference(source):
+    guard = native.native_symbol("parser", "requires_reference_source")
+    if guard is None:
+        pytest.skip("Compiled source guard is not installed")
+    assert guard(source) == (program_module._REFERENCE_SOURCE.search(source) is not None)
+
+
+def test_source_guard_works_with_older_native_extension(monkeypatch):
+    monkeypatch.setitem(native._extensions, "parser", native.NativeExtension(ModuleType("older_parser"), None))
+    assert program_module._requires_reference_source("N" + "1" * 19)
+    assert not program_module._requires_reference_source("G1 X1\r\nM30")
 
 
 @pytest.mark.parametrize("script", ["scripts/ps1/build.ps1", "scripts/sh/build.sh"])
