@@ -11,6 +11,7 @@ from app import i18n, theme
 from app.main_window import MainWindow
 from app.native import require_packaged_native
 from app.settings import ui_language, ui_theme
+from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.ui.support.numeric_input import install_decimal_separator_filter
 
 LOGGER = logging.getLogger(__name__)
@@ -32,8 +33,6 @@ def _start_cli_simulation(window: MainWindow, file: Path, language: str, bundle=
         return
     window.autoUpdateTimer.stop()
     if bundle is not None:
-        from app.tools.definitions import DEFAULT_MILLING_TOOL
-
         stock = bundle.bounds
         ox, oy, oz = bundle.origin
         window.millingStockManual = True

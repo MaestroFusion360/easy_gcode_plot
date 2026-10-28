@@ -1,5 +1,6 @@
 """Custom widgets referenced by Qt Designer forms."""
 
+import sys
 from math import atan, cos, degrees, radians, sin, tan
 
 import numpy as np
@@ -8,6 +9,8 @@ from PyQt6.Qsci import QsciScintilla
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QLinearGradient, QMatrix4x4, QPainter, QQuaternion, QSurfaceFormat, QVector3D
 from pyqtgraph.opengl import GLViewWidget
+
+from app.ui.support.readback_plot_view import ReadbackPlotView
 
 
 class Editor(QsciScintilla):
@@ -233,3 +236,17 @@ class PlotView(GLViewWidget):
                 self.pan(diff.x(), diff.y(), 0, relative="view")
             else:
                 self.orbit(-diff.x(), diff.y())
+
+
+def _windows_plot_view_class(opengl_view_class):
+    class PlotView(ReadbackPlotView):
+        """Windows viewport with raster presentation and hardware GL rendering."""
+
+        def __init__(self, parent=None):
+            super().__init__(opengl_view_class, parent)
+
+    return PlotView
+
+
+if sys.platform == "win32":
+    PlotView = _windows_plot_view_class(PlotView)

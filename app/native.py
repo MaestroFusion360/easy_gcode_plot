@@ -48,7 +48,7 @@ def extension(name: str) -> NativeExtension:
 
 def native_symbol(name: str, symbol: str):
     module = extension(name).module
-    return getattr(module, symbol) if module is not None else None
+    return getattr(module, symbol, None) if module is not None else None
 
 
 def native_status() -> dict[str, dict[str, object]]:

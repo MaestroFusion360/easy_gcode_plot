@@ -20,6 +20,16 @@ class MiniCadBundle:
     origin: tuple[float, float, float]
 
 
+def _bundle_file_path(manifest: Path, data: dict, key: str, suffix: str) -> Path:
+    name = data.get(key)
+    if not isinstance(name, str) or Path(name).name != name or not name:
+        raise ValueError(f"Invalid bundle file name: {key}")
+    result = (manifest.parent / name).resolve(strict=True)
+    if result.parent != manifest.parent or result.suffix.lower() != suffix or not result.is_file():
+        raise ValueError(f"Invalid bundle file: {key}")
+    return result
+
+
 def read_bundle(path: str | Path) -> MiniCadBundle:
     """Read only local, explicitly named files from a versioned bundle."""
     manifest = Path(path).expanduser().resolve(strict=True)
@@ -28,15 +38,6 @@ def read_bundle(path: str | Path) -> MiniCadBundle:
         raise ValueError("Unsupported MiniCAD simulation bundle version")
     if data.get("units") != "mm":
         raise ValueError("MiniCAD simulation bundle must use millimetres")
-
-    def file_path(key: str, suffix: str) -> Path:
-        name = data.get(key)
-        if not isinstance(name, str) or Path(name).name != name or not name:
-            raise ValueError(f"Invalid bundle file name: {key}")
-        result = (manifest.parent / name).resolve(strict=True)
-        if result.parent != manifest.parent or result.suffix.lower() != suffix or not result.is_file():
-            raise ValueError(f"Invalid bundle file: {key}")
-        return result
 
     stock = data.get("stock")
     tool = data.get("tool")
@@ -58,8 +59,8 @@ def read_bundle(path: str | Path) -> MiniCadBundle:
     if wcs not in {f"G{i}" for i in range(54, 60)}:
         raise ValueError("Invalid WCS")
     return MiniCadBundle(
-        file_path("nc", ".nc"),
-        file_path("stl", ".stl"),
+        _bundle_file_path(manifest, data, "nc", ".nc"),
+        _bundle_file_path(manifest, data, "stl", ".stl"),
         bounds,
         number,
         diameter,

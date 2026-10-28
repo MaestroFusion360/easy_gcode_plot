@@ -3,6 +3,11 @@
 ## 2.9.3 - 2026-10-27
 
 - Added the simulate CLI command to launch the existing GUI stock removal simulation for an NC program.
+- Present the Windows plot through a raster widget backed by hardware OpenGL rendering to avoid native child-window stacking artifacts, forwarding input to the renderer.
+- Synchronize the internal renderer size before camera and projection calculations, keeping milling and turning Fit to View correct even when the viewport is resized while hidden.
+- Preserve Python fallback when an older native extension lacks an optional parser function, and add a regression check for missing native symbols.
+- Restore clean lint checks by moving simulation imports to module scope, extracting MiniCAD bundle file validation, and avoiding duplicate PlotView class definitions in the same scope.
+- Regenerate Qt resource metadata.
 
 ## 2.9.2 - 2026-10-20
 

@@ -27,10 +27,7 @@ _REFERENCE_SOURCE = re.compile(r"\r(?!\n)|[\v\f\x1c-\x1e\x85\u2028\u2029]|\d{19,
 
 
 def _requires_reference_source(source: str) -> bool:
-    try:
-        guard = native_symbol("parser", "requires_reference_source")
-    except AttributeError:  # Source checkouts can still have an older extension.
-        guard = None
+    guard = native_symbol("parser", "requires_reference_source")
     if guard is not None:
         return guard(source)
     return _REFERENCE_SOURCE.search(source) is not None

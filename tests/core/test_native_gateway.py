@@ -105,6 +105,7 @@ def test_compiled_source_guard_matches_reference(source):
 
 def test_source_guard_works_with_older_native_extension(monkeypatch):
     monkeypatch.setitem(native._extensions, "parser", native.NativeExtension(ModuleType("older_parser"), None))
+    assert native.native_symbol("parser", "requires_reference_source") is None
     assert program_module._requires_reference_source("N" + "1" * 19)
     assert not program_module._requires_reference_source("G1 X1\r\nM30")
 

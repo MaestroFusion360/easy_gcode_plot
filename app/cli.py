@@ -33,6 +33,7 @@ from app.gcode.kernel.frontend.io import SUPPORTED_NC_ENCODINGS, read_nc_text
 from app.gcode.reports.html import export_execution_statistics
 from app.gcode.reports.kinematics import kinematics_report_fields
 from app.gcode.trace import format_trace_statistics, trace_statistics
+from app.integration.minicad_bundle import read_bundle
 from app.native import NativeRuntimeError, require_packaged_native
 
 MACHINE_TYPE_HELP = (
@@ -605,8 +606,6 @@ def _run_simulate(args: argparse.Namespace) -> int:
         return 2
     bundle = None
     if args.bundle is not None:
-        from app.integration.minicad_bundle import read_bundle
-
         try:
             bundle = read_bundle(args.bundle)
         except (OSError, ValueError, KeyError, TypeError) as exc:
