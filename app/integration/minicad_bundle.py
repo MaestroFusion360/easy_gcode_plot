@@ -7,17 +7,20 @@ import math
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.tools.definitions import DEFAULT_MILLING_TOOL
+
 
 @dataclass(frozen=True)
 class MiniCadBundle:
     nc: Path
-    stl: Path
+    stl: Path | None
     bounds: tuple[float, float, float, float, float, float]
     tool_number: int
     tool_diameter: float
     tool_type: str
     wcs: str
     origin: tuple[float, float, float]
+    manifest: Path | None = None
 
 
 def _bundle_file_path(manifest: Path, data: dict, key: str, suffix: str) -> Path:
@@ -60,11 +63,32 @@ def read_bundle(path: str | Path) -> MiniCadBundle:
         raise ValueError("Invalid WCS")
     return MiniCadBundle(
         _bundle_file_path(manifest, data, "nc", ".nc"),
-        _bundle_file_path(manifest, data, "stl", ".stl"),
+        _bundle_file_path(manifest, data, "stl", ".stl") if "stl" in data else None,
         bounds,
         number,
         diameter,
         str(tool.get("type", "mill_flat")),
         wcs,
         origin,
+        manifest,
     )
+
+
+def apply_bundle(window, bundle, *, import_reference=False):
+    """Apply exchange stock and tool to the active program, including disk reloads."""
+    stock = bundle.bounds
+    ox, oy, oz = bundle.origin
+    window.millingStockManual = True
+    for attr, value in zip(
+        ("XMinus", "XPlus", "YMinus", "YPlus", "ZMinus", "ZPlus"),
+        (stock[0] - ox, stock[1] - ox, stock[2] - oy, stock[3] - oy, stock[4] - oz, stock[5] - oz),
+    ):
+        setattr(window, "millingStock" + attr, value)
+    window.millingTools[f"T{bundle.tool_number}"] = {
+        **DEFAULT_MILLING_TOOL,
+        "diameter": bundle.tool_diameter,
+        "type": bundle.tool_type,
+    }
+    window._simulation_bundle_path = getattr(bundle, "manifest", None)
+    if import_reference and bundle.stl is not None:
+        window.importStl(str(bundle.stl))

@@ -56,6 +56,7 @@ class OpenDocument:
 # Computed data belongs to the program, not to the main window.  The result
 # and its sampled points are restored through the existing publication path.
 _DOCUMENT_STATE = (
+    "_simulation_bundle_path",
     "execution_result",
     "render_points",
     "_plot_source_stale",
@@ -283,6 +284,7 @@ class MainWindowDocumentsMixin:
     def _fresh_document_state(self):
         state = {name: getattr(self, name) for name in _DOCUMENT_STATE}
         state.update(
+            _simulation_bundle_path=None,
             execution_result=None,
             render_points=[],
             tools={},

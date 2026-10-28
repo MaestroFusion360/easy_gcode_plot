@@ -542,3 +542,80 @@ def test_switch_restores_editor_scroll_and_caret(window, selected):
         editor.firstVisibleLine(),
         editor.horizontalScrollBar().value(),
     ) == expected
+
+
+def test_simulation_bundle_survives_reload_and_document_switch(window, tmp_path, monkeypatch):
+    import json
+
+    from app.application import _start_cli_simulation
+    from app.integration.minicad_bundle import read_bundle
+
+    path = tmp_path / "program.nc"
+    path.write_text("G90 G17 G21\nT1 M6\nG0 X0 Y0 Z5\nG1 Z-1 F100\nG1 X20\nM30\n")
+    manifest = tmp_path / "simulation.json"
+    data = {
+        "version": 1,
+        "units": "mm",
+        "nc": path.name,
+        "stock": dict(zip(("xmin", "xmax", "ymin", "ymax", "zmin", "zmax"), (-5, 105, -5, 105, -10, 0))),
+        "tool": {"number": 1, "diameter": 10, "type": "mill_flat"},
+        "coordinates": {"wcs": "G54", "x": 0, "y": 0, "z": 0},
+    }
+    manifest.write_text(json.dumps(data))
+    monkeypatch.setattr(window, "ensure_simulation_ready", lambda _turning: None)
+    _start_cli_simulation(window, path, "fanuc_mill", read_bundle(manifest))
+    assert window.millingTools["T1"]["diameter"] == 10
+    assert window._simulation_bundle_path == manifest
+    assert window.loadFile(str(path), reload=True)
+    assert window.millingTools["T1"]["diameter"] == 10
+    data["tool"]["diameter"] = 6
+    manifest.write_text(json.dumps(data))
+    path.write_text(path.read_text().replace("X20", "X30"))
+    assert window.loadFile(str(path), reload=True)
+    assert window.millingTools["T1"]["diameter"] == 6
+    assert "X30" in window.ui.editor.text()
+    assert window.updateData()
+    assert window.millingTools["T1"]["diameter"] == 6
+    other = tmp_path / "other.nc"
+    other.write_text("G21\nT2 M6\nM30\n")
+    assert window.loadFile(str(other))
+    assert window._simulation_bundle_path is None
+    assert window._activate_document(0)
+    assert window._simulation_bundle_path == manifest
+    assert window.millingTools["T1"]["diameter"] == 6
+
+
+def test_repeated_simulation_refreshes_inactive_document_without_duplicating_tabs(window, tmp_path, monkeypatch):
+    import json
+
+    from app.application import _start_cli_simulation
+    from app.integration.minicad_bundle import read_bundle
+
+    path = tmp_path / "program.nc"
+    path.write_text("G90 G17 G21\nT1 M6\nG0 X0 Y0 Z5\nM30\n")
+    manifest = tmp_path / "simulation.json"
+    data = {
+        "version": 1,
+        "units": "mm",
+        "nc": path.name,
+        "stock": dict(zip(("xmin", "xmax", "ymin", "ymax", "zmin", "zmax"), (-5, 105, -5, 105, -10, 0))),
+        "tool": {"number": 1, "diameter": 10, "type": "mill_flat"},
+        "coordinates": {"wcs": "G54", "x": 0, "y": 0, "z": 0},
+    }
+    manifest.write_text(json.dumps(data))
+    monkeypatch.setattr(window, "ensure_simulation_ready", lambda _turning: None)
+    _start_cli_simulation(window, path, "fanuc_mill", read_bundle(manifest))
+    other = tmp_path / "other.nc"
+    other.write_text("G21\nT2 M6\nM30\n")
+    assert window.loadFile(str(other))
+    path.write_text(path.read_text().replace("X0", "X30"))
+    data["tool"]["diameter"] = 6
+    manifest.write_text(json.dumps(data))
+    _start_cli_simulation(window, path, "fanuc_mill", read_bundle(manifest))
+    assert len(window._documents) == 2
+    assert "X30" in window.ui.editor.text()
+    assert window.millingTools["T1"]["diameter"] == 6
+    _start_cli_simulation(window, other, "fanuc_mill")
+    assert len(window._documents) == 2
+    assert window._simulation_bundle_path is None
+    assert "T2" in window.ui.editor.text()

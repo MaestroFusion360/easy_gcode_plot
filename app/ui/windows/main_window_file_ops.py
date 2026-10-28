@@ -32,6 +32,7 @@ from app.gcode.file_io import protect_source
 from app.gcode.kernel.frontend.io import NCTextDecodeError, read_nc_text
 from app.gcode.post_profiles import POST_TARGETS, export_file_suffix, target_post_for_index
 from app.gcode.trace import format_tool_list, trace_statistics
+from app.integration.minicad_bundle import apply_bundle, read_bundle
 from app.post_profile_library import PostProfileLibrary
 from app.settings import normalized_recent_files as _normalized_recent_files
 from app.tools.setup import reset_program_setup
@@ -744,8 +745,12 @@ class MainWindowFileMixin:
         if handled is not None:
             return handled
         try:
+            bundle_path = getattr(self, "_simulation_bundle_path", None) if reload else None
+            bundle = read_bundle(bundle_path) if bundle_path else None
+            if bundle is not None and bundle.nc != Path(fileName).resolve():
+                raise ValueError("NC file must match bundle manifest")
             content, document_encoding = _read_editor_text(fileName, getattr(self, "fileEncoding", "utf-8"))
-        except (OSError, UnicodeError) as exc:
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
             LOGGER.exception("file_open_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))
             QMessageBox.warning(
                 self,
@@ -756,11 +761,13 @@ class MainWindowFileMixin:
 
         if not self._create_document_for_open(fileName):
             return False
-        reset_program_setup(self)
+        if not reload:
+            reset_program_setup(self)
+        self._parsed_program_cache = None
         self._manual_arc_type_override = False
         _configure_document_source_mode(self, fileName, content)
         LOGGER.info("file_opened path=%s encoding=%s", fileName, document_encoding)
-        if hasattr(self, "resetStockToAuto"):
+        if not reload and hasattr(self, "resetStockToAuto"):
             self.resetStockToAuto(refresh=False)
         # Opening another program invalidates the previous trajectory immediately.
         # Do not force an unbounded manual Update here: large programs must keep
@@ -788,6 +795,8 @@ class MainWindowFileMixin:
         # above, then hand recalculation back to the normal Auto Update path so
         # the user's setting is respected instead of forcing a synchronous
         # trajectory build for every Open.
+        if bundle is not None:
+            apply_bundle(self, bundle)
         self.scheduleAutoUpdate(show_dialog=True)
         if hasattr(self, "_documents"):
             self._capture_active_document()
@@ -826,7 +835,7 @@ class MainWindowFileMixin:
                 self.ui.editor.text(),
                 encoding=encoding,
             )
-        except (OSError, UnicodeError) as exc:
+        except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
             LOGGER.exception("file_save_failed path=%s encoding=%s", fileName, encoding)
             QMessageBox.warning(
                 self,

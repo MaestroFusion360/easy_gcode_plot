@@ -1,6 +1,8 @@
 # MiniCAD simulation bundle
 
-The `simulate` command accepts an optional `--bundle output/simulation.json` alongside the NC path. The manifest is local and contains:
+The `simulate` command accepts an optional `--bundle output/simulation.json` alongside the NC path. The manifest is local and contains the NC file, stock bounds, tool and coordinates.
+The `stl` reference model is optional; when omitted, simulation uses the JSON stock bounds.
+Fields:
 
 ```json
 {
@@ -19,3 +21,9 @@ The NC and STL paths must be filenames in the same directory as the manifest. Al
 CLI example:
 
 `easy_gcode_plot_cli.exe simulate output/program.nc --lang fanuc_mill --bundle output/simulation.json`
+
+Repeated GUI simulation requests are forwarded through a user-local Qt socket
+to the running GUI. The active exchange document retains its manifest association
+across document switches. Reloading it from disk rereads the manifest stock and
+tool parameters before recalculation. Unsaved editor changes still require the
+normal Save/Discard/Cancel decision before an incoming simulation replaces them.

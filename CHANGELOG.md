@@ -1,6 +1,6 @@
 # Changelog
 
-## 2.9.3 - 2026-10-27
+## 2.9.3 - 2026-10-27 - 2026-10-28
 
 - Added the simulate CLI command to launch the existing GUI stock removal simulation for an NC program.
 - Present the Windows plot through a raster widget backed by hardware OpenGL rendering to avoid native child-window stacking artifacts, forwarding input to the renderer.
@@ -8,6 +8,10 @@
 - Preserve Python fallback when an older native extension lacks an optional parser function, and add a regression check for missing native symbols.
 - Restore clean lint checks by moving simulation imports to module scope, extracting MiniCAD bundle file validation, and avoiding duplicate PlotView class definitions in the same scope.
 - Regenerate Qt resource metadata.
+- Forward repeated simulation requests to the running GUI via a local Qt socket, reusing existing windows and document tabs.
+- Support MiniCAD simulation bundles without STL, using JSON stock bounds and tool parameters.
+- Preserve simulation bundle settings across document switches and reloads, refreshing stock and tool data from the manifest.
+- Handle incoming simulation requests safely during document reloads and unsaved editor changes.
 
 ## 2.9.2 - 2026-10-20
 
