@@ -30,12 +30,12 @@ def _fit_visible_lathe_stock(window) -> None:
 
 def _start_cli_simulation(window: MainWindow, file: Path, language: str, bundle=None) -> None:
     """Open one program and start the existing Stock Removal playback."""
-    if window._document_reload_busy():
+    if window._document_reload_busy():  # pylint: disable=protected-access
         QTimer.singleShot(100, lambda: _start_cli_simulation(window, file, language, bundle))
         return
-    existing = window._document_index_for_path(str(file))
-    if existing is not None and existing != window._active_document_index:
-        if not window._activate_document(existing):
+    existing = window._document_index_for_path(str(file))  # pylint: disable=protected-access
+    if existing is not None and existing != window._active_document_index:  # pylint: disable=protected-access
+        if not window._activate_document(existing):  # pylint: disable=protected-access
             return
     if existing is not None and window.ui.editor.isModified() and not window.maybeSave():
         return
@@ -68,7 +68,7 @@ def run(*, startup_file: Path | None = None, simulate: bool = False, language: s
     window.show()
     session = SimulationSession(lambda file, language, bundle: _start_cli_simulation(window, file, language, bundle))
     session.listen()
-    window._simulation_session = session
+    window._simulation_session = session  # pylint: disable=protected-access
     if simulate and startup_file is not None and language is not None:
         QTimer.singleShot(
             STARTUP_LATHE_FIT_DELAY_MS,

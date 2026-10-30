@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.4 - 2026-10-30
+
+- Fix error handling: upon failure, the texture is released, and a message is displayed indicating the reason and the required memory.
+- Fix: moved the reading and validation of the bundle out of `loadFile` into a separate function, while preserving the existing behavior.
+
 ## 2.9.3 - 2026-10-27 - 2026-10-28
 
 - Added the simulate CLI command to launch the existing GUI stock removal simulation for an NC program.

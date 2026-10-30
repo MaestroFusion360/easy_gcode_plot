@@ -118,6 +118,14 @@ def _file_signature(path):
     return stat.st_mtime_ns, stat.st_size
 
 
+def _read_reload_bundle(bundle_path, file_name):
+    """Validate the simulation manifest before reloading its NC file."""
+    bundle = read_bundle(bundle_path) if bundle_path else None
+    if bundle is not None and bundle.nc != Path(file_name).resolve():
+        raise ValueError("NC file must match bundle manifest")
+    return bundle
+
+
 def _same_file_path(first, second):
     """Compare local paths using the current platform's case semantics."""
     left = os.path.normcase(os.path.normpath(QFileInfo(str(first)).absoluteFilePath()))
@@ -746,9 +754,7 @@ class MainWindowFileMixin:
             return handled
         try:
             bundle_path = getattr(self, "_simulation_bundle_path", None) if reload else None
-            bundle = read_bundle(bundle_path) if bundle_path else None
-            if bundle is not None and bundle.nc != Path(fileName).resolve():
-                raise ValueError("NC file must match bundle manifest")
+            bundle = _read_reload_bundle(bundle_path, fileName)
             content, document_encoding = _read_editor_text(fileName, getattr(self, "fileEncoding", "utf-8"))
         except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
             LOGGER.exception("file_open_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))

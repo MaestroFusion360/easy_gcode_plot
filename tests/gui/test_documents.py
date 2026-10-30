@@ -3,6 +3,7 @@
 # Regression assertions inspect buffer snapshots and document-switch guards.
 # pylint: disable=protected-access
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -12,6 +13,8 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDialog, QMessageBox
 
 from app import settings
+from app.application import _start_cli_simulation
+from app.integration.minicad_bundle import read_bundle
 from app.main_window import MainWindow
 from app.ui.plot.stl import mesh_from_triangles
 
@@ -545,10 +548,6 @@ def test_switch_restores_editor_scroll_and_caret(window, selected):
 
 
 def test_simulation_bundle_survives_reload_and_document_switch(window, tmp_path, monkeypatch):
-    import json
-
-    from app.application import _start_cli_simulation
-    from app.integration.minicad_bundle import read_bundle
 
     path = tmp_path / "program.nc"
     path.write_text("G90 G17 G21\nT1 M6\nG0 X0 Y0 Z5\nG1 Z-1 F100\nG1 X20\nM30\n")
@@ -586,10 +585,6 @@ def test_simulation_bundle_survives_reload_and_document_switch(window, tmp_path,
 
 
 def test_repeated_simulation_refreshes_inactive_document_without_duplicating_tabs(window, tmp_path, monkeypatch):
-    import json
-
-    from app.application import _start_cli_simulation
-    from app.integration.minicad_bundle import read_bundle
 
     path = tmp_path / "program.nc"
     path.write_text("G90 G17 G21\nT1 M6\nG0 X0 Y0 Z5\nM30\n")

@@ -89,6 +89,6 @@ def apply_bundle(window, bundle, *, import_reference=False):
         "diameter": bundle.tool_diameter,
         "type": bundle.tool_type,
     }
-    window._simulation_bundle_path = getattr(bundle, "manifest", None)
+    window._simulation_bundle_path = getattr(bundle, "manifest", None)  # pylint: disable=protected-access
     if import_reference and bundle.stl is not None:
         window.importStl(str(bundle.stl))

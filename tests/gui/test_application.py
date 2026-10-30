@@ -1,3 +1,6 @@
+# pylint: disable=protected-access
+
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -6,6 +9,7 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDoubleSpinBox
 
 from app import application
+from app.integration.minicad_bundle import read_bundle
 from app.ui.support.numeric_input import install_decimal_separator_filter
 
 
@@ -189,9 +193,6 @@ def test_bundle_tool_replaces_program_tool_before_simulation(tmp_path, diameter,
 
 @pytest.mark.parametrize("include_stl", [False, True])
 def test_read_simulation_bundle_with_optional_stl(tmp_path, include_stl):
-    import json
-
-    from app.integration.minicad_bundle import read_bundle
 
     (tmp_path / "program.nc").write_text("G21\nG54\nT1 M6\nM30\n", encoding="ascii")
     data = {

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from OpenGL import GL
+from OpenGL.error import GLError
 from OpenGL.GL.shaders import compileProgram, compileShader
 
 from app.gcode.stock.milling_stock_sweep import CutterSweep, compact_profile
@@ -127,7 +128,20 @@ class GpuStock:
             GL.glDeleteTextures([self.texture])
         self.texture = GL.glGenTextures(1)
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
-        GL.glTexStorage2D(GL.GL_TEXTURE_2D, self.levels, GL.GL_RG32F, *self.shape)
+        try:
+            GL.glTexStorage2D(GL.GL_TEXTURE_2D, self.levels, GL.GL_RG32F, *self.shape)
+        except GLError as exc:
+            GL.glDeleteTextures([self.texture])
+            self.texture = 0
+            if exc.err != GL.GL_OUT_OF_MEMORY:
+                raise
+            required = sum(max(1, shape[0] >> level) * max(1, shape[1] >> level) * 8 for level in range(levels))
+            raise ValueError(
+                f"Not enough GPU memory for Stock Accuracy: {shape[0]} x {shape[1]} "
+                f"texture needs {required / 1024**2:.1f} MiB. "
+                "The configured budget does not guarantee available GPU memory. "
+                "Choose a lower Stock Accuracy or smaller stock. Accuracy was not reduced."
+            ) from exc
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_NEAREST_MIPMAP_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_NEAREST)
         GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)

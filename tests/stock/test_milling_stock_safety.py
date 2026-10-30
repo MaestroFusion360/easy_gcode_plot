@@ -7,12 +7,38 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from OpenGL import GL
+from OpenGL.error import GLError
 
 from app.gcode.stock import MillingStockSpec, write_milling_stock_stl
 from app.gcode.stock.milling_stock_stl import StockStlOptions
 from app.gcode.stock.milling_stock_types import MillingStockSnapshot
 from app.ui.plot import milling_stock_overlay as overlay
 from app.ui.plot.milling_stock_gpu import GpuStock
+
+
+@pytest.mark.parametrize("code", [GL.GL_OUT_OF_MEMORY, GL.GL_INVALID_OPERATION])
+def test_failed_texture_allocation_releases_texture(monkeypatch, code):
+    gpu = GpuStock()
+    frame = SimpleNamespace(timeline=SimpleNamespace(spec=MillingStockSpec(0, 300, 0, 300, -5, 0)), edge_error=0.05)
+    deleted = []
+    monkeypatch.setattr(GL, "glGetIntegerv", lambda _: 32768)
+    monkeypatch.setattr(GL, "glGenTextures", lambda _: 42)
+    monkeypatch.setattr(GL, "glBindTexture", lambda *_: None)
+    monkeypatch.setattr(GL, "glDeleteTextures", lambda textures: deleted.extend(textures))
+
+    def fail(*_):
+        raise GLError(err=code)
+
+    monkeypatch.setattr(GL, "glTexStorage2D", fail)
+    if code == GL.GL_OUT_OF_MEMORY:
+        with pytest.raises(ValueError, match="2730.7 MiB"):
+            gpu._allocate(frame)
+    else:
+        with pytest.raises(GLError):
+            gpu._allocate(frame)
+    assert deleted == [42]
+    assert gpu.texture == 0
 
 
 @pytest.mark.parametrize("options", [None, StockStlOptions(edge_length=0.8)])

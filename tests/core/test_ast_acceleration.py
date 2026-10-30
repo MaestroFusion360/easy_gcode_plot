@@ -14,7 +14,14 @@ from app.gcode.kernel.api.resources import ExecutionBudget, SemanticError, activ
 from app.gcode.kernel.frontend import model as model_module
 from app.gcode.kernel.frontend.ast import _build_program_ast_python, build_ast_node, build_program_ast
 from app.gcode.kernel.frontend.model import Program
-from app.gcode.kernel.frontend.program import _parse_fallback_block, _parse_program_python, parse_program
+from app.gcode.kernel.frontend.program import (
+    _instrument_parse,
+    _parse_fallback_block,
+    _parse_program_python,
+    _requires_reference_source,
+    parse_program,
+)
+from app.native import require_packaged_native
 
 MIXED_SOURCE = """%
 O100
@@ -137,9 +144,15 @@ def _paired_medians(first, second, repeats=5):
 
 
 def _parse_with_portable_ast(native, source):
-    """Same tokenizer and final graph, replacing only compiled AST construction."""
-    blocks = native._parse_source_blocks(source, _parse_fallback_block, checkpoint)
-    return Program._from_canonical_ast(blocks, _build_program_ast_python(blocks))
+    """Match public parsing guards/statistics, replacing only AST construction."""
+    require_packaged_native()
+    assert not _requires_reference_source(source)
+
+    def parse(text, fallback, check):
+        blocks = native._parse_source_blocks(text, fallback, check)
+        return Program._from_canonical_ast(blocks, _build_program_ast_python(blocks))
+
+    return _instrument_parse(parse, source)
 
 
 @pytest.mark.performance

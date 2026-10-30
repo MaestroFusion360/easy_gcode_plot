@@ -38,13 +38,13 @@ def test_repeated_simulation_requests_reuse_listener_and_read_new_tool(tmp_path)
             results = []
             failures = []
 
-            def send(bundle=bundle):
+            def send(bundle, results, failures):
                 try:
                     results.append(forward_simulation(path, "fanuc_mill", bundle, name=name))
                 except Exception as exc:  # report client-thread failures in the test thread
                     failures.append(exc)
 
-            worker = Thread(target=send)
+            worker = Thread(target=send, args=(bundle, results, failures))
             worker.start()
             for _ in range(600):
                 app.processEvents()
