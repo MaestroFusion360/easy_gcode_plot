@@ -49,7 +49,8 @@ class ReadbackPlotView(QWidget):
         return getattr(renderer, name)
 
     def eventFilter(self, watched, event):
-        if watched is self._renderer and event.type() == QEvent.Type.UpdateRequest:
+        renderer = self.__dict__.get("_renderer")
+        if renderer is not None and watched is renderer and event.type() == QEvent.Type.UpdateRequest:
             self.update()
         return super().eventFilter(watched, event)
 
