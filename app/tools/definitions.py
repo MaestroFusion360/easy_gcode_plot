@@ -41,6 +41,7 @@ MILLING_TOOL_LABELS = {
     "chamfer_mill": "Chamfer Mill",
     "drill": "Drill",
     "tap": "Tap",
+    "thread_mill": "Thread mill",
 }
 MILLING_TOOL_TYPES = frozenset(MILLING_TOOL_LABELS)
 

@@ -18,6 +18,7 @@ def execute_program(
     default_unit_scale=1.0,
     cancelled=None,
     discovery_rules=None,
+    authoritative_tools=False,
     **kernel_options,
 ):
     """Resolve temporary tools from the kernel's single parsed Program, then execute."""
@@ -27,6 +28,8 @@ def execute_program(
 
     def resolve_tools(program):
         nonlocal inferred
+        if authoritative_tools and not turning:
+            return deepcopy(tools)
         try:
             inferred = refresh_setup(
                 source,

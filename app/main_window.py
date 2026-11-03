@@ -194,6 +194,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
 
     def _initialize_document_state(self):
         self._simulation_bundle_path = None
+        self._simulation_bundle_version = None
         self.exportToolNumbers = {}
         self._documents = []
         self._active_document_index = None

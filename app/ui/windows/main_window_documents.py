@@ -57,6 +57,7 @@ class OpenDocument:
 # and its sampled points are restored through the existing publication path.
 _DOCUMENT_STATE = (
     "_simulation_bundle_path",
+    "_simulation_bundle_version",
     "execution_result",
     "render_points",
     "_plot_source_stale",
@@ -285,6 +286,7 @@ class MainWindowDocumentsMixin:
         state = {name: getattr(self, name) for name in _DOCUMENT_STATE}
         state.update(
             _simulation_bundle_path=None,
+            _simulation_bundle_version=None,
             execution_result=None,
             render_points=[],
             tools={},

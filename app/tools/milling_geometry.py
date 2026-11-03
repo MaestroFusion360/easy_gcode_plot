@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import math
 
+from app.tools.definitions import MILLING_TOOL_TYPES
 from app.tools.milling_lengths import milling_lengths
 
-SUPPORTED_MILLING_GEOMETRIES = frozenset(
-    {"mill_flat", "mill_bull", "mill_ball", "taper_ball_mill", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
-)
+SUPPORTED_MILLING_GEOMETRIES = MILLING_TOOL_TYPES
 
 
 def default_cutting_height(tool_type: str, diameter: float, length: float) -> float:
@@ -46,7 +45,10 @@ def _stepped_geometry(spec, lengths, tool_type, diameter):
         return None
     if "fluteLength" not in lengths:
         cutting_height = min(max(cutting_height, 0.1), length)
-    return {"cuttingHeight": cutting_height, "shankDiameter": min(max(shank_diameter, 0.1), diameter)}
+    return {
+        "cuttingHeight": cutting_height,
+        "shankDiameter": shank_diameter if 0 < shank_diameter < diameter else min(max(shank_diameter, 0.1), diameter),
+    }
 
 
 def _chamfer_geometry(spec, diameter):
@@ -85,6 +87,8 @@ def _taper_ball_geometry(spec):
 
 def _type_specific_geometry(spec, lengths, tool_type, diameter):
     """Return the fields only one tool family has, or ``None`` when they are invalid."""
+    if tool_type == "thread_mill":
+        return _thread_mill_geometry(spec, diameter, lengths["length"])
     if tool_type in {"face_mill", "slot_mill"}:
         return _stepped_geometry(spec, lengths, tool_type, diameter)
     if tool_type == "chamfer_mill":
@@ -134,6 +138,14 @@ def milling_geometry(  # pylint: disable=too-many-return-statements
     if extras is None:
         return None
     result.update(extras)
+    if "shankDiameter" in spec and tool_type not in {"face_mill", "slot_mill"}:
+        try:
+            shank = float(spec["shankDiameter"])
+        except (ValueError, TypeError):
+            return None
+        if not math.isfinite(shank) or shank <= 0:
+            return None
+        result["shankDiameter"] = shank
     return result
 
 
@@ -157,6 +169,10 @@ def milling_geometry_key(spec: dict[str, object] | None) -> tuple | None:
         key.append(float(geometry["tipAngle"]))
     elif tool_type == "taper_ball_mill":
         key.append(float(geometry["taperAngle"]))
+    if tool_type == "thread_mill":
+        key.extend((geometry["threadRootDiameter"], geometry["threadAngle"], geometry["threadTipWidth"]))
+    if "shankDiameter" in geometry and tool_type not in {"face_mill", "slot_mill"}:
+        key.append(("shankDiameter", geometry["shankDiameter"]))
     if "fluteLength" in geometry:
         key.append((float(geometry["fluteLength"]), float(geometry["bodyLength"])))
     return tuple(key)
@@ -176,7 +192,8 @@ def milling_tool_profile(
     geometry["length"] = geometry["fluteLength"]
     profile = _cutting_tool_profile(geometry)
     if float(geometry["bodyLength"]) > 0:
-        profile += ((total, profile[-1][1]),)
+        shank = float(geometry.get("shankDiameter", profile[-1][1] * 2)) / 2
+        profile += ((float(geometry["fluteLength"]), shank), (total, shank))
     return profile
 
 
@@ -238,10 +255,19 @@ def _cutting_tool_profile(geometry):
     corner_radius = float(geometry["cornerRadius"])
     radius = diameter * 0.5
 
+    if tool_type == "thread_mill":
+        root = float(geometry["threadRootDiameter"]) / 2
+        flank = (radius - root) * math.tan(math.radians(float(geometry["threadAngle"]) / 2))
+        crest = float(geometry["threadTipWidth"])
+        return ((0, root), (flank, radius), (flank + crest, radius), (2 * flank + crest, root), (length, root))
     if tool_type in {"drill", "tap", "chamfer_mill"}:
         return _axial_tool_profile(geometry, tool_type, length, radius)
     if tool_type in {"face_mill", "slot_mill"}:
         return _stepped_tool_profile(geometry, tool_type, length, diameter, radius)
+    return _rounded_or_flat_profile(geometry, tool_type, length, radius, corner_radius)
+
+
+def _rounded_or_flat_profile(geometry, tool_type, length, radius, corner_radius):
     if tool_type == "mill_ball":
         return _ball_tool_profile(length, radius)
     if tool_type == "taper_ball_mill":
@@ -291,3 +317,72 @@ def _stepped_tool_profile(geometry, tool_type, length, diameter, radius):
         (cutting_height, shank_radius),
         (length, shank_radius),
     )
+
+
+def _thread_mill_geometry(spec, diameter, length):
+    """Single annular tooth; no turning-tool geometry or cylindrical fallback."""
+    if spec.get("threadProfile") != "single_form":
+        return None
+    try:
+        root, angle, crest = (float(spec[key]) for key in ("threadRootDiameter", "threadAngle", "threadTipWidth"))
+    except (KeyError, ValueError, TypeError):
+        return None
+    if not all(math.isfinite(v) for v in (root, angle, crest)):
+        return None
+    if not 0 < root < diameter or not 1 <= angle < 180 or crest <= 0:
+        return None
+    if (diameter - root) * math.tan(math.radians(angle / 2)) + crest > float(spec.get("fluteLength", length)):
+        return None
+    return {"threadProfile": "single_form", "threadRootDiameter": root, "threadAngle": angle, "threadTipWidth": crest}
+
+
+def strict_bundle_geometry(spec):
+    """Validate explicit v2 dimensions without filling, clipping or coercing fields."""
+    required = {"type", "diameter", "length", "fluteLength", "bodyLength", "shankDiameter", "cornerRadius"}
+    extras = {
+        "chamfer_mill": {"tipDiameter", "chamferAngle"},
+        "drill": {"tipAngle"},
+        "taper_ball_mill": {"taperAngle"},
+        "thread_mill": {"threadProfile", "threadRootDiameter", "threadAngle", "threadTipWidth"},
+    }
+    if not isinstance(spec, dict) or spec.get("type") not in SUPPORTED_MILLING_GEOMETRIES:
+        raise ValueError("Unknown bundle tool type")
+    required |= extras.get(spec["type"], set())
+    if not required <= spec.keys():
+        raise ValueError("Incomplete bundle tool geometry")
+    if spec.keys() - required - {"number", "name", "h", "d"}:
+        raise ValueError("Unexpected bundle tool fields")
+    _explicit_bundle_dimensions(spec, required)
+    geometry = milling_geometry(spec)
+    if geometry is None or any(geometry.get(key) != spec[key] for key in required):
+        raise ValueError("Unsupported or inconsistent bundle tool geometry")
+    if spec["type"] in {"face_mill", "slot_mill"} and spec["shankDiameter"] >= spec["diameter"]:
+        raise ValueError("Head diameter must exceed shank diameter")
+    _validate_bundle_profile(spec)
+    return geometry
+
+
+def _explicit_bundle_dimensions(spec, required):
+    numeric = required - {"type", "threadProfile"}
+    for key in numeric:
+        value = spec[key]
+        if isinstance(value, bool) or not isinstance(value, (float, int)) or not math.isfinite(value):
+            raise ValueError(f"Invalid bundle dimension: {key}")
+    if any(spec[k] <= 0 for k in ("diameter", "length", "fluteLength", "shankDiameter")) or spec["bodyLength"] < 0:
+        raise ValueError("Invalid bundle tool lengths")
+    if abs(spec["length"] - spec["fluteLength"] - spec["bodyLength"]) > 1e-9:
+        raise ValueError("Inconsistent bundle tool lengths")
+
+
+def _validate_bundle_profile(spec):
+    if spec["type"] == "taper_ball_mill" and spec["taperAngle"] < 1:
+        raise ValueError("Invalid bundle taper angle")
+    minimum_flute = {"mill_ball": spec["diameter"] / 2, "mill_bull": spec["cornerRadius"]}
+    if spec["type"] == "drill":
+        minimum_flute["drill"] = spec["diameter"] / (2 * math.tan(math.radians(spec["tipAngle"] / 2)))
+    if spec["type"] in minimum_flute and spec["fluteLength"] < minimum_flute[spec["type"]]:
+        raise ValueError("Cutting profile exceeds flute length")
+    if spec["type"] == "chamfer_mill":
+        height = (spec["diameter"] - spec["tipDiameter"]) / (2 * math.tan(math.radians(spec["chamferAngle"] / 2)))
+        if spec["tipDiameter"] >= spec["diameter"] or height > spec["fluteLength"]:
+            raise ValueError("Chamfer profile exceeds flute length")

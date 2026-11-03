@@ -1,5 +1,17 @@
 # Changelog
 
+## 2.9.5 - 2026-11-03
+
+- Add MiniCAD simulation bundle v2 with complete program-local tool tables, explicit physical geometry, stock bounds, work coordinates and SHA-256 integrity verification for NC and optional STL files.
+- Validate bundle tool identities, H/D registers, dimensions, cutting profiles, file references and NC tool usage. Reject incomplete or inconsistent data without substituting default geometry. Preserve compatibility with v1 bundles.
+- Automatically detect `simulation.json` when opening a matching NC file. Restore bundle geometry on reload and document switching without modifying the persistent Tool Library.
+- Preserve imported tool definitions during execution instead of replacing them through automatic tool discovery. Keep simulation work offsets local to the document and independent of saved machine settings; reject nonzero bundle origins until coordinate alignment is supported.
+- Add single-form thread mills with configurable root diameter, profile angle and crest width. Support their physical cutting profiles in the Tool Library editor, 3D preview and milling cutter compensation.
+- Preserve explicit cutting lengths, body lengths and shank diameters in milling tool geometry and visualization, including stepped transitions between cutting heads and shanks.
+- Extend milling tool validation and geometry caching for thread mills and explicit shank dimensions. Reject unsupported thread profiles and inconsistent physical dimensions.
+- Keep tool and trajectory previews available for slot mills and thread mills, but refuse GPU stock removal for these tools because the height-field model cannot represent undercuts.
+- Add Thread mill to Tool Discovery with migration of existing recognition settings. Update tool editor controls and Russian translations.
+
 ## 2.9.4 - 2026-10-30
 
 - Fix error handling: upon failure, the texture is released, and a message is displayed indicating the reason and the required memory.

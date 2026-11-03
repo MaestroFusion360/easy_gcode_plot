@@ -30,7 +30,7 @@ DEFAULT_DIMENSIONS = {
 def default_profile():
     hints = [list(item) for item in DEFAULT_TYPE_HINTS]
     # Insert shapes had no text heuristic in 2.1.0. Keep them disabled by default.
-    hints.extend(["", kind] for kind in sorted(TURNING_TOOL_TYPES - {kind for _, kind in hints}))
+    hints.extend(["", kind] for kind in sorted((TURNING_TOOL_TYPES | MILLING_TOOL_TYPES) - {kind for _, kind in hints}))
     return {"types": hints, "dimensions": dict(DEFAULT_DIMENSIONS)}
 
 
@@ -90,6 +90,7 @@ def load_settings(settings):
         document = json.loads(stored)
         if isinstance(document, dict) and isinstance(document.get("profiles"), dict):
             document = document["profiles"].get("Default", default_profile())
+        _migrate_thread_mill_rule(document)
         _remove_legacy_cyrillic(document)
         result = validate_settings(document)
         if json.loads(stored) != result:
@@ -109,3 +110,13 @@ def _remove_legacy_cyrillic(document):
             continue
         pattern = re.sub(r"\|\\b[\u0400-\u052f]+\\b", "", entry[0])
         entry[0] = defaults.get(entry[1], "") if _CYRILLIC.search(pattern) else pattern
+
+
+def _migrate_thread_mill_rule(document):
+    if not isinstance(document, dict) or not isinstance(document.get("types"), list):
+        return
+    rules = document["types"]
+    known = {entry[1] for entry in rules if isinstance(entry, list) and len(entry) == 2 and isinstance(entry[1], str)}
+    previous = (TURNING_TOOL_TYPES | MILLING_TOOL_TYPES) - {"thread_mill"}
+    if len(rules) == len(previous) and known == previous:
+        rules.append(["", "thread_mill"])

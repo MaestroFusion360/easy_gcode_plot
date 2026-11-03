@@ -438,6 +438,8 @@ class MainWindowExecutionMixin:
         default_unit_scale = 25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0
         home_x = self.xPosMach * 2.0 if turning else self.xPosMach
         wcs_offsets = deepcopy(getattr(self, "wcsOffsets", None))
+        if not turning and getattr(self, "_simulation_bundle_version", None) == 2:
+            wcs_offsets = {i: (0.0, 0.0, 0.0) for i in range(54, 60)}
         if turning and wcs_offsets is not None:
             wcs_offsets = {code: (values[0] * 2.0, *values[1:]) for code, values in wcs_offsets.items()}
 
@@ -462,6 +464,7 @@ class MainWindowExecutionMixin:
             {
                 "language": language,
                 "discovery_rules": getattr(self, "toolDiscovery", default_settings()),
+                "authoritative_tools": not turning and getattr(self, "_simulation_bundle_version", None) == 2,
                 "library_tools": getattr(self, "turningToolLibrary" if turning else "millingToolLibrary", {}) or {},
                 "lathe_gcode_system": getattr(self, "latheGcodeSystem", "A"),
                 "sinumerik_840d_sl": getattr(self, "sinumerik840dSl", True),

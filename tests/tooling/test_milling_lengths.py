@@ -15,10 +15,13 @@ from app.tools.validation import normalized_milling_tools, normalized_program_mi
 @pytest.mark.parametrize("tool_type", sorted(MILLING_TOOL_TYPES))
 def test_catalogue_without_lengths_uses_unsplit_application_default(tool_type):
     raw = {"type": tool_type, "diameter": 10}
+    if tool_type == "thread_mill":
+        raw.update(threadProfile="single_form", threadRootDiameter=8, threadAngle=60, threadTipWidth=0.1)
+    original = raw.copy()
     spec = normalized_milling_tools({"T01": raw})["T1"]
     assert spec["length"] == DEFAULT_MILLING_TOOL["length"]
     assert "fluteLength" not in spec and "bodyLength" not in spec
-    assert raw == {"type": tool_type, "diameter": 10}
+    assert raw == original
     assert normalized_milling_tools({"T1": spec}) == {"T1": spec}
     assert normalized_program_milling_tools({"T1": raw}) == {}
 
@@ -31,6 +34,8 @@ def test_catalogue_explicit_invalid_length_is_not_replaced_by_default(length):
 @pytest.mark.parametrize("tool_type", sorted(MILLING_TOOL_TYPES))
 def test_split_lengths_are_authoritative_for_every_milling_type(tool_type):
     raw = {"type": tool_type, "diameter": 10, "fluteLength": 25, "bodyLength": 15, "length": 999}
+    if tool_type == "thread_mill":
+        raw.update(threadProfile="single_form", threadRootDiameter=8, threadAngle=60, threadTipWidth=0.1)
     spec = normalized_milling_tools({"T1": raw})["T1"]
     assert spec["fluteLength"] == 25
     assert spec["bodyLength"] == 15

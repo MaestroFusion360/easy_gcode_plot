@@ -3,6 +3,7 @@
 # Regression assertions inspect buffer snapshots and document-switch guards.
 # pylint: disable=protected-access
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -614,3 +615,88 @@ def test_repeated_simulation_refreshes_inactive_document_without_duplicating_tab
     assert len(window._documents) == 2
     assert window._simulation_bundle_path is None
     assert "T2" in window.ui.editor.text()
+
+
+def _physical_bundle(tmp_path):
+    source = (
+        "G21 G90 G17 G54\nT1 M6\nS1000 M3\nG0 X0 Y0 Z5\nG1 Z-1 F100\nG1 X10\nG0 Z5\nM5\n"
+        "T2 M6\nS1000 M3\nG0 X15 Y0 Z5\nG1 Z-1 F100\nG1 X20\nG0 Z5\nM5\nM30\n"
+    )
+    path = tmp_path / "program.nc"
+    path.write_bytes(source.encode("ascii"))
+    tools = [
+        {
+            "number": number,
+            "name": f"Tool {number}",
+            "h": number,
+            "d": number,
+            "type": "mill_flat",
+            "diameter": 10,
+            "length": 50,
+            "fluteLength": 30,
+            "bodyLength": 20,
+            "shankDiameter": 8,
+            "cornerRadius": 0,
+        }
+        for number in (1, 2)
+    ]
+    tools[1].update(
+        type="thread_mill",
+        diameter=6,
+        shankDiameter=6,
+        threadProfile="single_form",
+        threadRootDiameter=4,
+        threadAngle=60,
+        threadTipWidth=0.1,
+    )
+    data = {
+        "version": 2,
+        "units": "mm",
+        "dialect": "fanuc_mill",
+        "nc": "program.nc",
+        "tools": tools,
+        "stock": {"xmin": -5, "xmax": 30, "ymin": -5, "ymax": 5, "zmin": -5, "zmax": 0},
+        "coordinates": {"wcs": "G54", "x": 0, "y": 0, "z": 0},
+        "sha256": {"program.nc": hashlib.sha256(path.read_bytes()).hexdigest()},
+    }
+    manifest = tmp_path / "simulation.json"
+    manifest.write_text(json.dumps(data), encoding="utf-8")
+    return path, manifest
+
+
+def test_v2_reopen_reload_document_switch_and_wcs_are_program_local(window, tmp_path):
+    path, manifest = _physical_bundle(tmp_path)
+    offsets = {54: (100, 200, 300)}
+    window.wcsOffsets = offsets.copy()
+    library = window.millingToolLibrary.copy()
+    assert window.loadFile(str(path))
+    assert window._simulation_bundle_version == 2
+    assert window.millingTools["T2"]["type"] == "thread_mill"
+    assert window.updateData(), tuple((d.code, d.message) for d in window.execution_result.diagnostics)
+    assert window.millingStockOrigin() == (0, 0, 0)
+    assert window.wcsOffsets == offsets
+    assert {motion.tool for motion in window.execution_result.motions} == {"T1", "T2"}
+    assert window.loadFile(str(path), reload=True)
+    assert window.millingTools == read_bundle(manifest).tools
+    other = tmp_path / "other.nc"
+    other.write_text("G21\nT3 M6\nM30\n")
+    assert window.loadFile(str(other))
+    assert window._simulation_bundle_version is None
+    assert window._activate_document(0)
+    assert window._simulation_bundle_version == 2
+    assert window.millingTools == read_bundle(manifest).tools
+    assert window.millingToolLibrary == library
+    assert window.wcsOffsets == offsets
+
+
+@pytest.mark.parametrize("kind", ("thread_mill", "slot_mill"))
+def test_v2_undercut_preview_is_available_but_stock_removal_is_refused(window, tmp_path, monkeypatch, kind):
+    path, _manifest = _physical_bundle(tmp_path)
+    assert window.loadFile(str(path))
+    window.millingTools["T2"]["type"] = kind
+    assert window.updateData(), tuple((d.code, d.message) for d in window.execution_result.diagnostics)
+    messages = []
+    monkeypatch.setattr(window, "_notify_milling_stock_failure", lambda exc: messages.append(str(exc)))
+    assert not window._start_milling_stock_animation()
+    assert len(messages) == 1 and "undercuts" in messages[0]
+    assert window.millingTools["T2"]["type"] == kind

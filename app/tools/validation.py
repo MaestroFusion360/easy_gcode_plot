@@ -14,6 +14,7 @@ from app.tools.definitions import (
     normalized_applications,
 )
 from app.tools.milling_geometry import (
+    _thread_mill_geometry,
     default_cutting_height,
     default_drill_tip_angle,
     default_shank_diameter,
@@ -249,6 +250,17 @@ def _normalize_milling_extras(raw_spec, spec, tool_type, diameter, length):
         return False
     if not _normalize_chamfer_extras(raw_spec, spec, tool_type, diameter):
         return False
+    if not _normalize_explicit_shank(raw_spec, spec, tool_type):
+        return False
+    return _normalize_milling_variant(raw_spec, spec, tool_type, diameter, length)
+
+
+def _normalize_milling_variant(raw_spec, spec, tool_type, diameter, length):
+    if tool_type == "thread_mill":
+        geometry = _thread_mill_geometry(raw_spec, diameter, spec.get("fluteLength", length))
+        if geometry is None:
+            return False
+        spec.update(geometry)
     if tool_type == "drill":
         return _normalize_milling_drill_tip(raw_spec, spec)
     if tool_type == "taper_ball_mill":
@@ -374,3 +386,15 @@ def _normalized_milling_tools(raw, *, program):
             spec["description"] = " ".join(description.split())
         tools[key] = spec
     return tools
+
+
+def _normalize_explicit_shank(raw_spec, spec, tool_type):
+    if "shankDiameter" in raw_spec and tool_type not in {"face_mill", "slot_mill"}:
+        try:
+            shank = float(raw_spec["shankDiameter"])
+        except (ValueError, TypeError):
+            return False
+        if not math.isfinite(shank) or shank <= 0:
+            return False
+        spec["shankDiameter"] = shank
+    return True

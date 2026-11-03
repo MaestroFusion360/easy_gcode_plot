@@ -43,6 +43,7 @@ def refresh_setup(
 def reset_program_setup(window):
     """Start a fresh setup only when New/Open successfully changes the document."""
     window._simulation_bundle_path = None  # pylint: disable=protected-access
+    window._simulation_bundle_version = None  # pylint: disable=protected-access
     window.tools = {}
     window.millingTools = {}
     window.program_tool_inference = {}

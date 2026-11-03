@@ -37,6 +37,10 @@ def test_all_existing_types_can_be_configured(turning, types):
         rules = custom_profile(kind)
         source = "T0101 (SPECIAL)\nG1 X20 F100" if turning else "T1 M6 (SPECIAL SIZE=8)\nG1 X2 F100"
         tools = discover_tools(source, turning=turning, rules=rules)
+        if not turning and kind == "thread_mill":
+            # A diameter-only comment cannot specify the physical tooth profile.
+            assert tools == {}
+            continue
         spec = tools["T0101" if turning else "T1"]
         assert spec["type"] == kind
         if not turning:

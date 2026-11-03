@@ -123,7 +123,7 @@ def test_generated_ui_has_one_mode_combo_and_no_presets(window):
     assert not dialog.ui.toolDiscoveryTab.findChildren(QGroupBox)
     assert len(dialog.ui.toolDiscoveryTab.findChildren(QComboBox)) == 1
     assert not hasattr(page, "profileCombo") and not hasattr(page, "toolCombo")
-    assert page.typesList.count() == 9
+    assert page.typesList.count() == 10
     page.typesList.setCurrentRow(2)
     page.namesEdit.setPlainText("CUSTOM\nSPECIAL")
     page.sample.setText("SPECIAL D8")

@@ -4,9 +4,9 @@ import csv
 import json
 from pathlib import Path
 
-from PyQt6.QtCore import QCoreApplication, QSignalBlocker
+from PyQt6.QtCore import QT_TRANSLATE_NOOP, QCoreApplication, QSignalBlocker
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QButtonGroup, QComboBox, QDialog, QMessageBox
+from PyQt6.QtWidgets import QButtonGroup, QComboBox, QDialog, QDoubleSpinBox, QMessageBox
 
 from app.tools.definitions import (
     AUTO_TIP_ORIENTATIONS,
@@ -21,6 +21,7 @@ from app.tools.definitions import (
     tool_applications,
 )
 from app.tools.milling_geometry import (
+    _thread_mill_geometry,
     default_cutting_height,
     default_drill_tip_angle,
     default_shank_diameter,
@@ -490,7 +491,7 @@ class _MillingToolEditor(QDialog):
 
         self.toolCode.setText(tool_code or "T1")
         for key, label in _MILLING_TOOL_TYPES.items():
-            self.toolType.addItem(label, key)
+            self.toolType.addItem(QCoreApplication.translate("ToolLibraryDialog", label), key)
         type_index = self.toolType.findData(str(spec.get("type", "mill_flat")))
         self.toolType.setCurrentIndex(max(0, type_index))
         self.diameter.setValue(float(spec.get("diameter", 10.0)))
@@ -508,15 +509,7 @@ class _MillingToolEditor(QDialog):
         tool_type = str(spec.get("type", "mill_flat"))
         diameter = self.diameter.value()
         length = self.length.value()
-        self.cuttingHeight.setValue(
-            float(spec.get("cuttingHeight", default_cutting_height(tool_type, diameter, length)))
-        )
-        self.shankDiameter.setValue(float(spec.get("shankDiameter", default_shank_diameter(diameter))))
-        self.tipDiameter.setValue(float(spec.get("tipDiameter", default_tip_diameter(diameter))))
-        self.chamferAngle.setValue(
-            float(spec.get("taperAngle", 6.0) if tool_type == "taper_ball_mill" else spec.get("chamferAngle", 90.0))
-        )
-        self.tipAngle.setValue(float(spec.get("tipAngle", default_drill_tip_angle())))
+        self._set_shape_values(spec, tool_type, diameter, length)
         self.description.setText(str(spec.get("description", "")))
         self._shapeRows = {
             self.cuttingHeight: self.ui.cuttingHeightLabel,
@@ -525,6 +518,7 @@ class _MillingToolEditor(QDialog):
             self.chamferAngle: self.ui.chamferAngleLabel,
             self.tipAngle: self.ui.tipAngleLabel,
         }
+        self._add_thread_mill_fields(spec)
         self.inches.toggled.connect(self._set_units)
         self.buttonBox.accepted.connect(self.validateAndAccept)
         self.buttonBox.rejected.connect(self.reject)
@@ -536,6 +530,38 @@ class _MillingToolEditor(QDialog):
         self.updateRadiusField()
         self.toolCode.selectAll()
         self.toolCode.setFocus()
+
+    def _set_shape_values(self, spec, tool_type, diameter, length):
+        self.cuttingHeight.setValue(
+            float(spec.get("cuttingHeight", default_cutting_height(tool_type, diameter, length)))
+        )
+        self.shankDiameter.setValue(float(spec.get("shankDiameter", default_shank_diameter(diameter))))
+        self.tipDiameter.setValue(float(spec.get("tipDiameter", default_tip_diameter(diameter))))
+        self.chamferAngle.setValue(
+            float(spec.get("taperAngle", 6.0) if tool_type == "taper_ball_mill" else spec.get("chamferAngle", 90.0))
+        )
+        self.tipAngle.setValue(float(spec.get("tipAngle", default_drill_tip_angle())))
+
+    def _add_thread_mill_fields(self, spec):
+        self._thread_fields = {}
+        fields = (
+            ("threadRootDiameter", "Thread root diameter", self.diameter.value() * 0.8),
+            ("threadAngle", "Thread profile angle", 60),
+            ("threadTipWidth", "Thread crest width", 0.1),
+        )
+        for key, title, default in fields:
+            control = QDoubleSpinBox(self)
+            control.setDecimals(6)
+            control.setRange(0.000001, 1e6 if key != "threadAngle" else 179)
+            control.setValue(float(spec.get(key, default)))
+            self.ui.formLayout.insertRow(
+                self.ui.formLayout.rowCount() - 1, QCoreApplication.translate("MillingToolEditor", title), control
+            )
+            self._thread_fields[key] = control
+        lengths = tuple(self._thread_fields[key] for key in ("threadRootDiameter", "threadTipWidth"))
+        register_length_spinboxes(lengths)
+        self._length_controls += lengths
+        self._explicit_shank = "shankDiameter" in spec
 
     def _set_units(self, inches: bool):
         set_length_units(self._length_controls, bool(inches), suffix=False)
@@ -576,7 +602,9 @@ class _MillingToolEditor(QDialog):
         elif tool_type != "mill_bull":
             self.cornerRadius.setValue(0.0)
 
-        stepped = tool_type in {"face_mill", "slot_mill"}
+        for control in self._thread_fields.values():
+            self.ui.formLayout.setRowVisible(control, tool_type == "thread_mill")
+        stepped = tool_type in {"face_mill", "slot_mill"} or self._explicit_shank
         chamfer = tool_type == "chamfer_mill"
         taper_ball = tool_type == "taper_ball_mill"
         self.shankDiameter.setVisible(stepped)
@@ -652,6 +680,21 @@ class _MillingToolEditor(QDialog):
             )
             return
         tool_type = self.currentType()
+        if (
+            tool_type == "thread_mill"
+            and _thread_mill_geometry(
+                self.value()[1],
+                metric_value(self.diameter),
+                metric_value(self.fluteLength) if self._uses_split_lengths() else metric_value(self.length),
+            )
+            is None
+        ):
+            QMessageBox.warning(
+                self,
+                QCoreApplication.translate("ToolLibraryDialog", "Tool Library"),
+                QCoreApplication.translate("MillingToolEditor", "Invalid single-form thread mill profile"),
+            )
+            return
         if not self._valid_shape_dimensions(tool_type):
             return
         _accept_unique_tool(self)
@@ -690,7 +733,26 @@ class _MillingToolEditor(QDialog):
             spec["taperAngle"] = self.chamferAngle.value()
         elif tool_type == "drill":
             spec["tipAngle"] = self.tipAngle.value()
+        self._physical_tool_extras(spec, tool_type)
         description = " ".join(self.description.text().split())
         if description:
             spec["description"] = description
         return key, spec
+
+    def _physical_tool_extras(self, spec, tool_type):
+        if tool_type == "thread_mill":
+            spec.update(
+                threadProfile="single_form",
+                **{
+                    field: control.value() if field == "threadAngle" else metric_value(control)
+                    for field, control in self._thread_fields.items()
+                },
+            )
+        if self._explicit_shank:
+            spec["shankDiameter"] = metric_value(self.shankDiameter)
+
+
+QT_TRANSLATE_NOOP("ToolLibraryDialog", "Thread mill")
+QT_TRANSLATE_NOOP("MillingToolEditor", "Thread root diameter")
+QT_TRANSLATE_NOOP("MillingToolEditor", "Thread profile angle")
+QT_TRANSLATE_NOOP("MillingToolEditor", "Thread crest width")

@@ -195,6 +195,12 @@ class MainWindowMillingStockMixin:
             )
             return False
         try:
+            if getattr(self, "_simulation_bundle_version", None) == 2 and any(
+                tool.get("type") in {"slot_mill", "thread_mill"} for tool in self.millingTools.values()
+            ):
+                raise ValueError(
+                    "Stock removal does not support undercuts of slot or thread mills; tool preview remains available"
+                )
             if any(abs(angle) > 1e-10 for _, angle in result.rotary_angles):
                 raise ValueError("3-axis stock only: rotary axes are not supported")
             for step in getattr(result, "execution_steps", ()):

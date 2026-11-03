@@ -14,7 +14,15 @@ def _tool_radius(tool: dict[str, object] | None) -> float | None:
     if not isinstance(tool, dict):
         return None
     tool_type = str(tool.get("type", "")).lower()
-    if tool_type not in {"mill_flat", "mill_bull", "mill_ball", "face_mill", "slot_mill", "chamfer_mill"}:
+    if tool_type not in {
+        "mill_flat",
+        "mill_bull",
+        "mill_ball",
+        "face_mill",
+        "slot_mill",
+        "chamfer_mill",
+        "thread_mill",
+    }:
         return None
     try:
         diameter = float(tool.get("diameter", 0.0))

@@ -1,5 +1,6 @@
 """File, recent-file, drag-and-drop, and export helpers for the main window."""
 
+import json
 import logging
 import os
 import time
@@ -116,6 +117,24 @@ def _file_signature(path):
     except OSError:
         return None
     return stat.st_mtime_ns, stat.st_size
+
+
+def _bundle_for_file(owner, file_name, reload):
+    bundle_path = getattr(owner, "_simulation_bundle_path", None) if reload else None
+    if bundle_path is not None:
+        return _read_reload_bundle(bundle_path, file_name)
+    candidate = Path(file_name).resolve().parent / "simulation.json"
+    if not candidate.is_file():
+        return None
+    try:
+        data = json.loads(candidate.read_text(encoding="utf-8"))
+    except (ValueError, UnicodeError):
+        if Path(file_name).name == "program.nc":
+            raise
+        return None
+    if isinstance(data, dict) and data.get("nc") == Path(file_name).name:
+        return _read_reload_bundle(candidate, file_name)
+    return None
 
 
 def _read_reload_bundle(bundle_path, file_name):
@@ -753,8 +772,7 @@ class MainWindowFileMixin:
         if handled is not None:
             return handled
         try:
-            bundle_path = getattr(self, "_simulation_bundle_path", None) if reload else None
-            bundle = _read_reload_bundle(bundle_path, fileName)
+            bundle = _bundle_for_file(self, fileName, reload)
             content, document_encoding = _read_editor_text(fileName, getattr(self, "fileEncoding", "utf-8"))
         except (OSError, UnicodeError, ValueError, KeyError, TypeError) as exc:
             LOGGER.exception("file_open_failed path=%s encoding=%s", fileName, getattr(self, "fileEncoding", "utf-8"))

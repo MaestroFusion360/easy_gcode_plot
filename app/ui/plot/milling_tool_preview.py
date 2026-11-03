@@ -10,7 +10,7 @@ from PyQt6.QtGui import QColor, QMatrix4x4
 from pyqtgraph.opengl import GLMeshItem, MeshData
 from pyqtgraph.opengl.GLGraphicsItem import GLGraphicsItem
 
-from app.tools.milling_geometry import milling_geometry_key, milling_tool_profile
+from app.tools.milling_geometry import SUPPORTED_MILLING_GEOMETRIES, milling_geometry_key, milling_tool_profile
 
 TOOL_ALPHA = 0.45
 TOOL_GL_OPTIONS = {
@@ -25,9 +25,7 @@ TOOL_GL_OPTIONS = {
         GL.GL_ONE_MINUS_SRC_ALPHA,
     ),
 }
-SUPPORTED_TOOL_TYPES = frozenset(
-    {"mill_flat", "mill_bull", "mill_ball", "taper_ball_mill", "face_mill", "slot_mill", "chamfer_mill", "drill", "tap"}
-)
+SUPPORTED_TOOL_TYPES = SUPPORTED_MILLING_GEOMETRIES
 
 
 def _tool_color(value) -> QColor:
@@ -149,8 +147,14 @@ class MillingToolPreviewItem(GLGraphicsItem):
             "length": length,
             "cornerRadius": corner_radius,
         }
-        if extra and isinstance(extra[-1], tuple):
+        if extra and isinstance(extra[-1], tuple) and not isinstance(extra[-1][0], str):
             spec["fluteLength"], spec["bodyLength"] = extra.pop()
+        if extra and isinstance(extra[-1], tuple) and extra[-1][0] == "shankDiameter":
+            spec["shankDiameter"] = extra.pop()[1]
+        if tool_type == "thread_mill":
+            spec.update(
+                threadProfile="single_form", threadRootDiameter=extra[0], threadAngle=extra[1], threadTipWidth=extra[2]
+            )
         if tool_type in {"face_mill", "slot_mill"}:
             spec.update(cuttingHeight=extra[0], shankDiameter=extra[1])
         elif tool_type == "chamfer_mill":
