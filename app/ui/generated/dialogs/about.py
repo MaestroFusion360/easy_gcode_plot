@@ -83,6 +83,7 @@ class Ui_AboutDlg(object):
 
         self.licenseLabel = QLabel(AboutDlg)
         self.licenseLabel.setObjectName(u"licenseLabel")
+        self.licenseLabel.setWordWrap(True)
         self.licenseLabel.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.verticalLayout.addWidget(self.licenseLabel)
@@ -133,6 +134,6 @@ class Ui_AboutDlg(object):
         self.titleLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot", None))
         self.versionLabel.setText(QCoreApplication.translate("AboutDlg", u"Version", None))
         self.descriptionLabel.setText(QCoreApplication.translate("AboutDlg", u"Easy G-code Plot is a FANUC/ISO G-code viewer, editor, analyzer and verifier for turning and milling.", None))
-        self.licenseLabel.setText(QCoreApplication.translate("AboutDlg", u"Free and open-source software distributed under the MIT License.", None))
+        self.licenseLabel.setText(QCoreApplication.translate("AboutDlg", u"Free software, GPL-3.0-only. No warranty; see Help \u2192 FAQ \u2192 License.", None))
         self.dateLabel.setText(QCoreApplication.translate("AboutDlg", u"\u00a9 2025\u20132026 MaestroFusion360", None))
     # retranslateUi

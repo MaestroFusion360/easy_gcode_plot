@@ -305,7 +305,7 @@ class LicenseDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle(QCoreApplication.translate("HelpDialog", "MIT License"))
+        self.setWindowTitle(QCoreApplication.translate("HelpDialog", "GNU General Public License v3.0"))
         self.setWindowFlags(
             Qt.WindowType.Window
             | Qt.WindowType.WindowMinimizeButtonHint

@@ -225,8 +225,8 @@ def test_faq_license_link_opens_packaged_license_dialog(qt_app):
 
     assert dialog.license_dialog is not None
     assert dialog.license_dialog.isVisible()
-    assert "MIT License" in dialog.license_dialog.browser.toPlainText()
-    assert "Permission is hereby granted" in dialog.license_dialog.browser.toPlainText()
+    assert "GNU GENERAL PUBLIC LICENSE" in dialog.license_dialog.browser.toPlainText()
+    assert "Version 3, 29 June 2007" in dialog.license_dialog.browser.toPlainText()
 
     dialog.navigate_to_anchor(QUrl("#development-and-architecture"))
     assert dialog.browser.textCursor().block().text() == "Development and architecture"

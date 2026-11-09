@@ -1,10 +1,11 @@
 [project]
 name = "easy-gcode-plot"
-version = "2.9.5"
+version = "2.9.6"
 description = "Desktop application for viewing, editing, analyzing, and exporting G-code."
 readme = "README.md"
 requires-python = ">=3.13"
-license = { file = "LICENSE.md" }
+license = "GPL-3.0-only"
+license-files = ["LICENSE.md"]
 
 dependencies = [
     "ezdxf>=1.4.4,<2",

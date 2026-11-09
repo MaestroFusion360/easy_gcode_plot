@@ -123,7 +123,10 @@
             <item>
                 <widget class="QLabel" name="licenseLabel">
                     <property name="text">
-                        <string>Free and open-source software distributed under the MIT License.</string>
+                        <string>Free software, GPL-3.0-only. No warranty; see Help → FAQ → License.</string>
+                    </property>
+                    <property name="wordWrap">
+                        <bool>true</bool>
                     </property>
                     <property name="alignment">
                         <set>Qt::AlignmentFlag::AlignCenter</set>

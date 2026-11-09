@@ -45,6 +45,7 @@ from app.ui.plot.stl_transform import (
 )
 from app.ui.plot.toolpath_vbo import ToolpathVboItem, segments_from_render_points
 from app.ui.plot.trace_picking import TracePicker
+from app.ui.plot.view_cube import ViewCube
 from app.ui.plot.view_rotation import camera_plane, rotate_camera
 
 PICK_DISTANCE_PX = 8.0
@@ -1507,8 +1508,79 @@ class MainWindowPlotMixin:
         else:
             self._update_milling_grid()
 
+    def _initialize_view_cube(self):
+        """Create the orientation cube over the plot viewport."""
+        if getattr(self, "_view_cube", None) is not None:
+            return
+        self._view_cube = ViewCube(self.ui.graphicsView)
+        self._view_cube.viewRequested.connect(self._view_cube_requested)
+        self.ui.graphicsView.installEventFilter(self)
+        self._sync_view_cube()
+
+    def _position_view_cube(self):
+        """Keep the cube in the viewport's top-right corner after layout changes."""
+        cube = getattr(self, "_view_cube", None)
+        if cube is None:
+            return
+        margin = 12
+        cube.move(max(0, self.ui.graphicsView.width() - cube.width() - margin), margin)
+        cube.raise_()
+
+    def _camera_orientation(self):
+        """Return yaw/pitch and the actual screen basis for the current camera."""
+        view = self.ui.graphicsView
+        if view.opts.get("rotationMethod") == "euler":
+            return float(view.opts["azimuth"]), float(view.opts["elevation"]), None, None
+        try:
+            inverse = view.viewMatrix().inverted()[0]
+        except (ValueError, ZeroDivisionError):
+            return None
+        origin = inverse * QVector4D(0.0, 0.0, 0.0, 1.0)
+        right = inverse * QVector4D(1.0, 0.0, 0.0, 0.0)
+        up = inverse * QVector4D(0.0, 1.0, 0.0, 0.0)
+        center = view.opts["center"]
+        dx, dy, dz = origin.x() - center.x(), origin.y() - center.y(), origin.z() - center.z()
+        length = math.sqrt(dx * dx + dy * dy + dz * dz)
+        if length <= 1e-9:
+            return None
+        yaw = math.degrees(math.atan2(dy, dx))
+        pitch = math.degrees(math.asin(max(-1.0, min(1.0, dz / length))))
+        return yaw, pitch, right.toVector3D(), up.toVector3D()
+
+    def _sync_view_cube(self):
+        """Mirror the current camera orientation onto the cube."""
+        cube = getattr(self, "_view_cube", None)
+        if cube is None:
+            return
+        if self.latheMode:
+            cube.hide()
+            return
+        cube.show()
+        self._position_view_cube()
+        orientation = self._camera_orientation()
+        if orientation is not None:
+            cube.set_orientation(*orientation)
+
+    def _view_cube_requested(self, yaw, pitch):
+        """Apply a face, edge or corner picked on the orientation cube."""
+        if self.latheMode:
+            return
+        view = self.ui.graphicsView
+        view.opts["rotationMethod"] = "euler"
+        view.setCameraPosition(elevation=float(pitch), azimuth=float(yaw))
+        self._view_mode = "3d"
+        self._fixed_view_rotated = False
+        self._set_active_view_action("3d")
+        self._sync_grid_view_state()
+        self._orient_milling_grid()
+        self._sync_view_cube()
+        self._plot_camera_changed()
+        view.update()
+        LOGGER.info("plot_view_changed mode=view_cube yaw=%.3f pitch=%.3f", yaw, pitch)
+
     def _plot_camera_changed(self):
         """Keep grid and orthographic depth clipping aligned with camera movement."""
+        self._sync_view_cube()
         self._update_adaptive_grid()
         view = self.ui.graphicsView
         if not view.isOrthographic():
@@ -1667,6 +1739,7 @@ class MainWindowPlotMixin:
         self._orient_milling_grid()
         self._sync_grid_view_state()
         self.fitToView()
+        self._sync_view_cube()
 
     def _ensure_milling_grid(self):
         if self.latheMode or not self.plotGrid or self._milling_view_plane() is None:

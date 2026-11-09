@@ -84,6 +84,7 @@ PICK_DISTANCE_PX = _PICK_DISTANCE_PX
 CURSOR_SIZE_PX = _CURSOR_SIZE_PX
 RAPID_COLOR = _RAPID_COLOR
 LOGGER = logging.getLogger(__name__)
+_PLOT_ORBIT_KEYS = frozenset((Qt.Key.Key_Left, Qt.Key.Key_Right, Qt.Key.Key_Up, Qt.Key.Key_Down))
 
 
 class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins compose one Qt window.
@@ -138,6 +139,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         self.changeLathe()
         self._ruler = PlotRuler(self)
         self._plot_navigation.measure = self._ruler
+        self._initialize_view_cube()
         self._initialize_documents()
         self._editor_file_drop = FileDropTarget(
             (self.ui.editor, self.ui.editor.viewport()), self.openFiles, parent=self
@@ -150,6 +152,22 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
             snippets_toggle.setEnabled(False)
             self.snippetsDock.hide()
             self.ui.statusbar.showMessage(self._snippets_load_error, 10000)
+
+    def eventFilter(self, watched, event):
+        """Reposition the plot overlay and block camera keys in lathe mode."""
+        if watched is self.ui.graphicsView:
+            if event.type() == QEvent.Type.Resize:
+                self._position_view_cube()
+            elif (
+                self.latheMode
+                and event.type() in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease)
+                and event.key() in _PLOT_ORBIT_KEYS
+            ):
+                # pyqtgraph orbits on arrow keys regardless of Ctrl. Turning is
+                # a fixed XZ view; keep those keys out of the plot camera.
+                event.accept()
+                return True
+        return super().eventFilter(watched, event)
 
     def ensure_simulation_ready(self, turning: bool) -> None:
         """Validate the active NC program and start CLI-requested stock playback."""
@@ -875,6 +893,16 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
         LOGGER.info("arc_type_changed value=%d lathe=%s", self.arc_type, self.latheMode)
         self.updateData()
 
+    def _stop_keyboard_orbit(self):
+        """Drop held arrow keys so pyqtgraph cannot keep orbiting the plot."""
+        view = self.ui.graphicsView
+        keys = getattr(view, "keysPressed", None)
+        if keys is not None:
+            keys.clear()
+        timer = getattr(view, "keyTimer", None)
+        if timer is not None:
+            timer.stop()
+
     def changeLathe(self):
         """Toggle lathe visualization mode and refresh plot accordingly."""
         started = perf_counter()
@@ -884,6 +912,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
             self._leave_stock_animation()
         if self.ui.actionLatheMode.isChecked():
             self.latheMode = True
+            self._stop_keyboard_orbit()
             self._view_mode = "lathe"
             self.ui.graphicsView.setProjectionMode("perspective")
             self.ui.graphicsView.setPerspectiveZoomMode("distance")
@@ -914,6 +943,7 @@ class MainWindow(  # pylint: disable=too-many-ancestors  # Focused UI mixins com
             self.view3d()
 
         self.syncGuiCapabilities()
+        self._sync_view_cube()
         if hasattr(self, "wcsDlg"):
             self.wcsDlg.loadValues()
         if hasattr(self, "exportDlg"):

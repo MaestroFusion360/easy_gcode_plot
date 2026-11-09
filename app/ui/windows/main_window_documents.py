@@ -393,6 +393,8 @@ class MainWindowDocumentsMixin:
         with QSignalBlocker(self.ui.actionLatheMode):
             self.ui.actionLatheMode.setChecked(turning)
         self.latheMode = turning
+        if turning:
+            self._stop_keyboard_orbit()
         view = self.ui.graphicsView
         view.setPerspectiveZoomMode("distance" if turning else "fov")
         for action in (self.ui.action3D, self.ui.actionTop, self.ui.actionFront, self.ui.actionLeft):

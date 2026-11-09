@@ -92,7 +92,8 @@ jobs:
           archive="Easy-G-Code-Plot-$version-Linux-x64.tar.gz"
           test -x dist/easy_gcode_plot
           test -x dist/easy_gcode_plot_cli
-          tar -C dist -czf "dist/$archive" easy_gcode_plot easy_gcode_plot_cli
+          cp LICENSE.md dist/LICENSE.md
+          tar -C dist -czf "dist/$archive" easy_gcode_plot easy_gcode_plot_cli LICENSE.md
           (cd dist && sha256sum "$archive" > "$archive.sha256")
           (cd dist && sha256sum -c "$archive.sha256")
           tar -tzf "dist/$archive"
@@ -169,7 +170,8 @@ jobs:
           $releaseExe = "dist/Easy-G-Code-Plot-$version-Windows-x64.exe"
           $releaseCli = "dist/easy_gcode_plot_cli.exe"
           Copy-Item dist/easy_gcode_plot.exe $releaseExe
-          @($releaseExe, $releaseCli) | ForEach-Object {
+          Copy-Item LICENSE.md dist/LICENSE.md
+          @($releaseExe, $releaseCli, (Resolve-Path dist/LICENSE.md).Path) | ForEach-Object {
             $hash = (Get-FileHash $_ -Algorithm SHA256).Hash.ToLower()
             "$hash  $(Split-Path $_ -Leaf)"
           } | Set-Content dist/SHA256SUMS.txt -Encoding ascii
@@ -181,6 +183,7 @@ jobs:
           path: |
             dist/Easy-G-Code-Plot-*-Windows-x64.exe
             dist/easy_gcode_plot_cli.exe
+            dist/LICENSE.md
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 14
@@ -220,7 +223,8 @@ jobs:
 
           $assets = @(
             $guiAsset[0].FullName,
-            (Resolve-Path dist/easy_gcode_plot_cli.exe).Path
+            (Resolve-Path dist/easy_gcode_plot_cli.exe).Path,
+            (Resolve-Path dist/LICENSE.md).Path
           )
 
           $checksum = (Resolve-Path dist/SHA256SUMS.txt).Path

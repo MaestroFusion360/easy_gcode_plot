@@ -337,6 +337,7 @@ The same FAQ can be packaged for offline use in **Help → FAQ**.
     - [How do I build on Linux?](#how-do-i-build-on-linux)
     - [Does the project use a separate build environment?](#does-the-project-use-a-separate-build-environment)
     - [How are releases validated in CI?](#how-are-releases-validated-in-ci)
+    - [Where is the corresponding source code for a binary release?](#where-is-the-corresponding-source-code-for-a-binary-release)
     - [Does a Linux executable run as a Windows `.exe`?](#does-a-linux-executable-run-as-a-windows-exe)
   - [License](#license)
 
@@ -3427,6 +3428,10 @@ The native build checks tracked `.pyx` and dependency state and can reuse the bu
 
 The release workflow runs the full tests and static checks on Linux and Windows before packaging. Both packaged CLIs are smoke-tested with `--help`; Linux is archived with a SHA-256 sidecar, Windows publishes GUI/CLI hashes, and the release job downloads both artifacts before creating or updating the tagged GitHub Release.
 
+### Where is the corresponding source code for a binary release?
+
+Every release is built by `.github/workflows/release.yml` from its `v<version>` tag with `scripts/ps1/build.ps1` on Windows or `scripts/sh/build.sh` on Linux. That tag contains the complete source for the project's own code, including the Python/Cython sources, Qt `.ui`/`.qrc` files, translations, build scripts and lock files. GitHub also attaches source archives to each release, and the release includes `LICENSE.md`; no registration or payment is required. Dependencies are pinned in `uv.lock` and obtained from their upstream releases; PyQt6 and PyQt6-QScintilla are GPLv3.
+
 ### Does a Linux executable run as a Windows `.exe`?
 
 No. Windows and Linux artifacts are platform-specific builds even though they share the same Python/kernel implementation and CLI contract.
@@ -3435,4 +3440,6 @@ No. Windows and Linux artifacts are platform-specific builds even though they sh
 
 ## License
 
-Easy G-Code Plot is distributed under the MIT License. See `LICENSE.md` for the full text.
+Easy G-Code Plot is free software distributed under the GNU General Public License, version 3 only (`GPL-3.0-only`). The verbatim license text is included in `LICENSE.md` and in the application under **Help → FAQ → License**.
+
+Each binary release is built from its matching Git tag; see [Where is the corresponding source code for a binary release?](#where-is-the-corresponding-source-code-for-a-binary-release). Releases published before the license change remain available under the MIT License, and that grant is not revoked. PyQt6 and PyQt6-QScintilla are GPLv3; bundled icons, the font and other third-party assets keep their own notices.

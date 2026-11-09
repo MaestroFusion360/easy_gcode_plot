@@ -1,6 +1,7 @@
 {
   "name": "easy-gcode-plot-landing",
   "private": true,
+  "license": "GPL-3.0-only",
   "engines": {
     "node": ">=22.13.0"
   },

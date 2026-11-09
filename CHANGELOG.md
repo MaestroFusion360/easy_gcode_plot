@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.6 - 2026-11-09
+
+- Relicense the project under GPL-3.0-only; update package metadata, the About and License dialogs, documentation and binary release assets, and document how to obtain the corresponding source. Releases published under MIT retain their previous grants.
+- Add a screen-sized orientation cube to the 3D plot with face, edge and corner camera views, preserving zoom and pan.
+- Disable arrow-key and Ctrl+arrow camera orbit in lathe mode, including held-key orbit when switching to turning.
+
 ## 2.9.5 - 2026-11-03
 
 - Add MiniCAD simulation bundle v2 with complete program-local tool tables, explicit physical geometry, stock bounds, work coordinates and SHA-256 integrity verification for NC and optional STL files.

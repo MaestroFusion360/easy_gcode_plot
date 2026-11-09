@@ -222,7 +222,11 @@ See the [FAQ](FAQ.md#which-native-components-exist) for native-extension require
 
 ## License
 
-MIT License — see [LICENSE.md](LICENSE.md).
+Easy G-Code Plot is free software licensed under the **GNU General Public License, version 3 only** (`GPL-3.0-only`). The complete license text is in [LICENSE.md](LICENSE.md) and is also available in the application under **Help → FAQ → License**.
+
+The complete source for the project's own code is the source tree at the matching Git release tag; it includes the Python/Cython sources, Qt `.ui`/`.qrc` files, translations, build scripts and dependency lock files. Dependency versions and upstream source locations are pinned in `uv.lock`; PyQt6 and PyQt6-QScintilla are GPLv3. Release assets include `LICENSE.md`, and the source can be obtained, modified and rebuilt without registration or payment.
+
+Releases published before this license change were distributed under the MIT License, and the rights granted by those releases remain in effect. Third-party components retain their own licenses and notices: bundled Icons8 icons are covered by [app/resources/icons/](app/resources/icons/), and the bundled font by [docs/assets/fonts/OFL.txt](docs/assets/fonts/OFL.txt).
 
 ---
 
