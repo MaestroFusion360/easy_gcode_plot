@@ -438,7 +438,7 @@ class MainWindowExecutionMixin:
         default_unit_scale = 25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0
         home_x = self.xPosMach * 2.0 if turning else self.xPosMach
         wcs_offsets = deepcopy(getattr(self, "wcsOffsets", None))
-        if not turning and getattr(self, "_simulation_bundle_version", None) == 2:
+        if getattr(self, "_simulation_bundle_version", None) == 2:
             wcs_offsets = {i: (0.0, 0.0, 0.0) for i in range(54, 60)}
         if turning and wcs_offsets is not None:
             wcs_offsets = {code: (values[0] * 2.0, *values[1:]) for code, values in wcs_offsets.items()}

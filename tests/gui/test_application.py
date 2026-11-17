@@ -9,7 +9,7 @@ from PyQt6.QtTest import QTest
 from PyQt6.QtWidgets import QApplication, QDoubleSpinBox
 
 from app import application
-from app.integration.minicad_bundle import read_bundle
+from app.integration.minicad_bundle import MiniCadBundle, read_bundle
 from app.ui.support.numeric_input import install_decimal_separator_filter
 
 
@@ -160,8 +160,10 @@ def test_run_does_not_force_fit_for_milling_mode(monkeypatch):
 @pytest.mark.parametrize("include_stl", [False, True])
 def test_bundle_tool_replaces_program_tool_before_simulation(tmp_path, diameter, include_stl):
     tools = {"T1": {"type": "mill_flat", "diameter": 80.0}}
-    bundle = SimpleNamespace(
+    bundle = MiniCadBundle(
+        nc=tmp_path / "program.nc",
         bounds=(-5, 105, -5, 105, -10, 0),
+        wcs="G54",
         origin=(0, 0, 0),
         tool_number=1,
         tool_diameter=diameter,

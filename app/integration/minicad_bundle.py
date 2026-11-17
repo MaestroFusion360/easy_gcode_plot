@@ -10,8 +10,10 @@ from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.gcode.stock import TurningStockSpec
 from app.tools.definitions import DEFAULT_MILLING_TOOL
 from app.tools.milling_geometry import strict_bundle_geometry
+from app.tools.validation import normalized_tools
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,8 @@ class MiniCadBundle:
     manifest: Path | None = None
     version: int = 1
     tools: dict | None = None
+    dialect: str = "fanuc_mill"
+    turning_stock: tuple[float, float, float, float] | None = None
 
 
 def _bundle_file_path(manifest: Path, data: dict, key: str, suffix: str) -> Path:
@@ -90,6 +94,16 @@ def read_bundle(path: str | Path) -> MiniCadBundle:
 
 def apply_bundle(window, bundle, *, import_reference=False):
     """Apply exchange stock and tool to the active program, including disk reloads."""
+    if bundle.dialect == "fanuc_turn":
+        outer, inner, length, front = bundle.turning_stock
+        window.turnStockDiameter, window.turnStockInnerDiameter = outer, inner
+        window.turnStockLength, window.turnStockFrontZ = length, front
+        window.stockEnabled = window.stockConfigured = True
+        window.tools = deepcopy(bundle.tools)
+        window.program_tool_inference = {}
+        window._simulation_bundle_version = 2  # pylint: disable=protected-access
+        window._simulation_bundle_path = bundle.manifest  # pylint: disable=protected-access
+        return
     stock = bundle.bounds
     ox, oy, oz = bundle.origin
     window.millingStockManual = True
@@ -130,7 +144,19 @@ def _finite_number(value):
     return float(value)
 
 
-def _v2_tools(records):
+def _turning_tool_geometry(key, record):
+    for field in ("diameter", "length", "insertLength", "width", "noseRadius", "threadCornerRadius"):
+        if field in record and _finite_number(record[field]) < (
+            0 if field in ("noseRadius", "threadCornerRadius") else 1e-9
+        ):
+            raise ValueError(f"Invalid turning tool geometry: {field}")
+    normalized = normalized_tools({key: record})
+    if len(normalized) != 1:
+        raise ValueError("Invalid turning tool geometry")
+    return next(iter(normalized.values()))
+
+
+def _v2_tools(records, *, turning=False):
     if not isinstance(records, list) or not records:
         raise ValueError("Missing bundle tool table")
     tools = {}
@@ -141,10 +167,10 @@ def _v2_tools(records):
             value = record.get(key)
             if isinstance(value, bool) or not isinstance(value, int) or not minimum <= value <= 9999:
                 raise ValueError(f"Invalid bundle register: {key}")
-        key = f"T{record['number']}"
+        key = f"T{record['number']:04d}" if turning else f"T{record['number']}"
         if key in tools or not isinstance(record.get("name"), str) or not record["name"].strip():
             raise ValueError("Invalid or duplicate bundle tool identity")
-        geometry = strict_bundle_geometry(record)
+        geometry = _turning_tool_geometry(key, record) if turning else strict_bundle_geometry(record)
         tools[key] = {**geometry, "description": record["name"], "h": record["h"], "d": record["d"]}
     return tools
 
@@ -162,11 +188,13 @@ def _verify_v2_files(manifest, data):
     return files
 
 
-def _verify_v2_nc(nc, tools, wcs):
+def _verify_v2_nc(nc, tools, wcs, *, turning=False):
     source = nc.read_text(encoding="ascii")
     source = re.sub(r"\([^)]*\)|;[^\n]*", "", source)
     words = re.findall(r"([A-Za-z])([+-]?\d+(?:\.\d*)?)", source)
-    numbers = {f"T{int(value)}" for letter, value in words if letter.upper() == "T"}
+    numbers = {
+        f"T{int(value):04d}" if turning else f"T{int(value)}" for letter, value in words if letter.upper() == "T"
+    }
     codes = {float(value) for letter, value in words if letter.upper() == "G"}
     if numbers != tools.keys():
         raise ValueError("Bundle tool table does not match NC tool changes")
@@ -174,10 +202,31 @@ def _verify_v2_nc(nc, tools, wcs):
         raise ValueError("Bundle NC must use G21 and the declared WCS")
 
 
+def _turning_stock(data, bounds, nc):
+    if "stl" in data or not isinstance(data.get("turningStock"), dict):
+        raise ValueError("Turning bundle requires a cylinder, not stock STL")
+    stock_spec = data["turningStock"]
+    cylinder = tuple(
+        _finite_number(stock_spec.get(key)) for key in ("outerDiameter", "innerDiameter", "length", "frontZ")
+    )
+    outer, inner, length, front = cylinder
+    TurningStockSpec(outer_diameter=outer, inner_diameter=inner, length=length, front_z=front).validate()
+    expected = (-outer / 2, outer / 2, -outer / 2, outer / 2, front - length, front)
+    if bounds != expected:
+        raise ValueError("Turning cylinder and stock envelope differ")
+    source = nc.read_text(encoding="ascii")
+    source = re.sub(r"\([^)]*\)|;[^\n]*", "", source)
+    codes = {float(value) for value in re.findall(r"[Gg]([+-]?\d+(?:\.\d*)?)", source)}
+    if 18 not in codes or 17 in codes:
+        raise ValueError("Turning bundle requires G18 NC")
+    return cylinder
+
+
 def _read_v2(manifest, data):
-    if data.get("units") != "mm" or data.get("dialect") != "fanuc_mill":
-        raise ValueError("Bundle v2 requires millimetres and Fanuc Mill")
-    tools = _v2_tools(data.get("tools"))
+    if data.get("units") != "mm" or data.get("dialect") not in ("fanuc_mill", "fanuc_turn"):
+        raise ValueError("Bundle v2 requires millimetres and Fanuc Mill or Turn")
+    turning = data["dialect"] == "fanuc_turn"
+    tools = _v2_tools(data.get("tools"), turning=turning)
     stock, coords = data.get("stock"), data.get("coordinates")
     if not isinstance(stock, dict) or not isinstance(coords, dict):
         raise ValueError("Missing bundle stock or coordinates")
@@ -196,9 +245,23 @@ def _read_v2(manifest, data):
     if wcs not in {f"G{i}" for i in range(54, 60)}:
         raise ValueError("Invalid bundle WCS")
     files = _verify_v2_files(manifest, data)
-    _verify_v2_nc(files["nc"], tools, wcs)
-    number = int(next(iter(tools))[1:])
-    tool = tools[f"T{number}"]
+    _verify_v2_nc(files["nc"], tools, wcs, turning=turning)
+    cylinder = _turning_stock(data, bounds, files["nc"]) if turning else None
+    first_key = next(iter(tools))
+    number = int(first_key[1:])
+    tool = tools[first_key]
     return MiniCadBundle(
-        files["nc"], files.get("stl"), bounds, number, tool["diameter"], tool["type"], wcs, origin, manifest, 2, tools
+        files["nc"],
+        files.get("stl"),
+        bounds,
+        number,
+        tool.get("diameter", 0.0),
+        tool["type"],
+        wcs,
+        origin,
+        manifest,
+        2,
+        tools,
+        data["dialect"],
+        cylinder,
     )

@@ -96,6 +96,8 @@ class SimulationSession(QObject):
             bundle = read_bundle(request["bundle"]) if request.get("bundle") else None
             if bundle is not None and bundle.nc != file:
                 raise ValueError("NC file must match bundle manifest")
+            if bundle is not None and bundle.dialect != language:
+                raise ValueError("Simulation language must match bundle dialect")
         except (ValueError, OSError, KeyError, TypeError) as exc:
             socket.write((str(exc) + "\n").encode())
         else:

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.7 - 2026-11-17
+
+- Add MiniCAD turning simulation bundles with cylindrical stock, pilot bores and program-local tools.
+- Validate simulation dialects and keep turning work offsets local to the document.
+- Update integration documentation, fix bundle tests and refresh release metadata and dependencies.
+
 ## 2.9.6 - 2026-11-09
 
 - Relicense the project under GPL-3.0-only; update package metadata, the About and License dialogs, documentation and binary release assets, and document how to obtain the corresponding source. Releases published under MIT retain their previous grants.

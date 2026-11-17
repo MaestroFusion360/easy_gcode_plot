@@ -42,11 +42,13 @@ def _start_cli_simulation(window: MainWindow, file: Path, language: str, bundle=
     if window.loadFile(str(file), reload=existing is not None) is not True:
         return
     window.autoUpdateTimer.stop()
-    if bundle is not None:
-        apply_bundle(window, bundle, import_reference=True)
     turning = language == "fanuc_turn"
+    if bundle is not None and bundle.dialect != language:
+        raise ValueError("Simulation language must match bundle dialect")
     if window.latheMode != turning:
         window.ui.actionLatheMode.setChecked(turning)
+    if bundle is not None:
+        apply_bundle(window, bundle, import_reference=True)
     window.ensure_simulation_ready(turning)
     if window.isMinimized():
         window.showNormal()
