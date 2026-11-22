@@ -192,6 +192,12 @@ class DocumentControlButton(QToolButton):
 
 
 class MainWindowDocumentsMixin:
+    def active_document(self):
+        """Return the active document by identity, or None if none is active."""
+        index = self._active_document_index
+        documents = self._documents
+        return documents[index] if index is not None and 0 <= index < len(documents) else None
+
     def _initialize_documents(self):
         """Install the controls without editing generated Designer source."""
         self._documents = [OpenDocument(self.ui.editor.document())]

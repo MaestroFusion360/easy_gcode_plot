@@ -2,6 +2,10 @@
 
 Numeric controller policy calls these checks before the shared milling core.
 Native mode shares basic ISO operations but does not use ISO-M aliases/cycles.
+
+``ISO_M_EXECUTABLE_G_CODES`` must stay a subset of the shared core's
+``MILLING_RECOGNIZED_G_CODES`` apart from ``_ISO_M_UNIT_ALIASES``; the guard is
+tests/dialects/test_controller_capabilities.py.
 """
 
 from __future__ import annotations

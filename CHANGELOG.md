@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.9.8 - 2026-11-22
+
+- Rework the landing page copy in both languages: remove decorative section labels and step numbering, drop figure captions that repeated the image description, and replace slogan headings with plain descriptions of the section.
+- Trim the hero, export, statistics and comparison sections: remove narration of dialog controls from the postprocessor instructions and reduce chained status lines to the single fact each section needs.
+- Remove the CSS left behind by the deleted elements and regenerate both landing pages for the new version.
+- Validate execution option names at the kernel facade so a misspelled or renamed option fails immediately instead of surfacing as an `EXECUTION_ERROR` diagnostic on a valid program; cover the contract with tests.
+- Guard the per-dialect capability tables with subset tests so ISO-M executable codes and native ISO M codes cannot drift from the shared milling core.
+- Split the execution worker's blocking wait into documented helpers and record its re-entrancy invariant next to the event pump.
+- Run the test suite through `pytest-xdist`: four workers with `--dist loadfile` by default, `-Workers 0` / `--workers 0` for serial runs, with updated runner contract tests and contributing notes.
+
 ## 2.9.7 - 2026-11-17
 
 - Add MiniCAD turning simulation bundles with cylindrical stock, pilot bores and program-local tools.

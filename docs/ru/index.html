@@ -2,7 +2,7 @@
 <html lang="ru">
   <head>
     <meta charset="utf-8" />
-    <meta name="app-version" content="2.9.7" />
+    <meta name="app-version" content="2.9.8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
@@ -18,7 +18,7 @@
       content="Редактируйте G-код, изучайте траектории в 3D, создавайте геометрию, анализируйте программы и экспортируйте исполнение."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:title" content="Easy G-Code Plot 2.9.7" />
+    <meta property="og:title" content="Easy G-Code Plot 2.9.8" />
     <meta
       property="og:url"
       content="https://maestrofusion360.github.io/easy_gcode_plot/ru/"
@@ -44,7 +44,7 @@
     <a class="brand" href="../index.html"
       ><img src="../assets/logo.svg" width="36" height="36" alt="" /><span
         >Easy G-Code Plot</span
-      ><span class="version">2.9.7</span></a
+      ><span class="version">2.9.8</span></a
     >
     <button
       class="nav-toggle"
@@ -73,10 +73,6 @@
     <main id="main" class="container">
 <section class="hero" aria-labelledby="hero-title">
   <div class="hero-copy">
-    <p class="eyebrow">
-      <span class="status-dot" aria-hidden="true"></span>ОТКРЫТЫЙ ИСХОДНЫЙ КОД ·
-      ЧПУ
-    </p>
     <h1 id="hero-title">
       Редактор управляющих программ<br /><span>и визуализатор траекторий</span>
     </h1>
@@ -85,22 +81,17 @@
       документов, 3D-визуализация траектории инструмента, анализ и экспорт
       результатов расчёта.
     </p>
-    <p class="note">
-      Новое в 2.9.7: лицензия GPL-3.0-only и куб видов для выбора
-      граней, рёбер и углов камеры.
-      <a href="#capabilities">Поддерживаемые команды и ограничения</a>.
-    </p>
     <div class="actions" id="download">
       <a
         class="button primary"
         data-windows-download="gui"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.7/Easy-G-Code-Plot-2.9.7-Windows-x64.exe"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.8/Easy-G-Code-Plot-2.9.8-Windows-x64.exe"
         >Скачать для Windows <span aria-hidden="true">↗</span></a
       >
       <a
         class="button"
         data-linux-download="archive"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.7/Easy-G-Code-Plot-2.9.7-Linux-x64.tar.gz"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.8/Easy-G-Code-Plot-2.9.8-Linux-x64.tar.gz"
         >Скачать для Linux (.tar.gz)</a
       ><a class="button" href="#visualization"
         >Посмотреть возможности <span aria-hidden="true">↓</span></a
@@ -108,7 +99,7 @@
       <a
         class="button"
         data-windows-download="cli"
-        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.7/easy_gcode_plot_cli.exe"
+        href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.8/easy_gcode_plot_cli.exe"
         >Скачать CLI для Windows</a
       >
       <a
@@ -123,7 +114,6 @@
       >
     </div>
     <p class="platform-note">
-      Windows &amp; Linux <span>·</span> GPL-3.0-only <span>·</span>
       <a href="https://github.com/MaestroFusion360/easy_gcode_plot/releases"
         >Все релизы</a
       >
@@ -145,16 +135,16 @@
         loop
         playsinline
         controls
-        poster="../assets-optimized/easy_gcode_plot-poster.webp?v=2.9.7-demo2"
+        poster="../assets-optimized/easy_gcode_plot-poster.webp?v=2.9.8-demo2"
         preload="none"
         aria-label="Демонстрация траектории в Easy G-Code Plot"
       >
         <source
-          src="../assets-optimized/easy_gcode_plot.mp4?v=2.9.7-demo2"
+          src="../assets-optimized/easy_gcode_plot.mp4?v=2.9.8-demo2"
           type="video/mp4"
         />
         <a
-          href="../assets-optimized/easy_gcode_plot.mp4?v=2.9.7-demo2"
+          href="../assets-optimized/easy_gcode_plot.mp4?v=2.9.8-demo2"
           >Открыть видео</a
         >
       </video>
@@ -169,24 +159,22 @@
       </button>
     </div>
     <figcaption>
-      Управляющая программа и траектория инструмента.
       <a
         data-video-viewer
-        href="../assets-optimized/easy_gcode_plot.mp4?v=2.9.7-demo2"
+        href="../assets-optimized/easy_gcode_plot.mp4?v=2.9.8-demo2"
         >Смотреть видео ↗</a
       >
     </figcaption>
   </figure>
 </section>
 <div class="intro-strip" aria-label="Рабочий процесс">
-  <p><span>01</span>Редактирование и просмотр</p>
-  <p><span>02</span>Расчёт и визуализация траектории</p>
-  <p><span>03</span>Анализ и экспорт</p>
+  <p>Редактирование и просмотр</p>
+  <p>Расчёт и визуализация траектории</p>
+  <p>Анализ и экспорт</p>
 </div>
 <section id="milling-stock" class="section">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ОТ ЗАГОТОВКИ К ДЕТАЛИ</p>
       <h2>Снятие материала при фрезеровании и точении</h2>
     </div>
     <p class="section-intro">
@@ -257,7 +245,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Снятие материала при точении</figcaption>
       </figure>
       <details class="reference-panel">
         <summary>Примеры токарной траектории и заготовки</summary>
@@ -275,7 +262,6 @@
                 loading="lazy"
                 decoding="async"
             /></a>
-            <figcaption>Траектории токарных циклов</figcaption>
           </figure>
           <figure class="screenshot-card">
             <a
@@ -290,7 +276,6 @@
                 loading="lazy"
                 decoding="async"
             /></a>
-            <figcaption>Профиль токарной заготовки</figcaption>
           </figure>
         </div>
       </details>
@@ -306,16 +291,11 @@
 <section id="visualization" class="section">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ОТ G-КОДА К 3D-ВИЗУАЛИЗАЦИИ</p>
       <h2>Наглядная проверка управляющих программ</h2>
     </div>
-    <p class="section-intro">
-      Визуализация траектории инструмента и проверка управляющих программ ЧПУ.
-    </p>
   </div>
   <article class="story">
     <div class="story-copy">
-      <p class="eyebrow">01 / ПРОСМОТР ТРАЕКТОРИИ</p>
       <h3>Пошаговый просмотр траектории инструмента</h3>
       <p>
         Просматривайте перемещения инструмента в 3D с привязкой к строкам
@@ -365,7 +345,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Пошаговый просмотр траектории инструмента</figcaption>
       </figure>
       <details class="reference-panel">
         <summary>Размещение STL-модели и визуализация обработки</summary>
@@ -383,7 +362,6 @@
                 loading="lazy"
                 decoding="async"
             /></a>
-            <figcaption>STL-модели в сцене</figcaption>
           </figure>
           <figure class="screenshot-card">
             <a
@@ -398,7 +376,6 @@
                 loading="lazy"
                 decoding="async"
             /></a>
-            <figcaption>Проверка фрезерной траектории</figcaption>
           </figure>
         </div>
       </details>
@@ -406,7 +383,6 @@
   </article>
   <article class="story">
     <div class="story-copy">
-      <p class="eyebrow">02 / ПРОСМОТР ТРАЕКТОРИИ</p>
       <h3>Обработка с поворотными осями</h3>
       <p>
         Просматривайте индексную обработку и поддерживаемые непрерывные движения
@@ -428,12 +404,10 @@
           loading="lazy"
           decoding="async"
       /></a>
-      <figcaption>Обработка с поворотными осями</figcaption>
     </figure>
   </article>
   <article class="story">
     <div class="story-copy">
-      <p class="eyebrow">03 / ПРОСМОТР ТРАЕКТОРИИ</p>
       <h3>Измерения прямо в сцене</h3>
       <p>
         Выбирайте две точки на траектории или STL-модели в видах сверху,
@@ -466,7 +440,6 @@
 <section class="section" id="tools">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ИНСТРУМЕНТЫ И РЕДАКТОР</p>
       <h2>Библиотека инструментов и настройки редактора</h2>
     </div>
     <p class="section-intro">
@@ -516,7 +489,6 @@
           loading="lazy"
           decoding="async"
       /></a>
-      <figcaption>Библиотека фрезерного инструмента</figcaption>
     </figure>
     <figure class="screenshot-card">
       <a
@@ -531,11 +503,10 @@
           loading="lazy"
           decoding="async"
       /></a>
-      <figcaption>Библиотека токарного инструмента</figcaption>
     </figure>
   </div>
   <details class="reference-panel">
-    <summary>Типы фрезерного инструмента — 9 вариантов</summary>
+    <summary>Типы фрезерного инструмента</summary>
     <div class="reference-body">
       <p>
         На вкладке фрезерного инструмента выберите добавление в библиотеку,
@@ -615,7 +586,7 @@
     </div>
   </details>
   <details class="reference-panel">
-    <summary>Типы токарного инструмента — 9 вариантов</summary>
+    <summary>Типы токарного инструмента</summary>
     <div class="reference-body">
       <p>
         В токарном редакторе выберите категорию, направление обработки и
@@ -717,7 +688,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Настройки редактора и расчёта</figcaption>
       </figure>
     </div>
   </details>
@@ -725,7 +695,6 @@
 <section class="section" id="snippets">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ШАБЛОНЫ G-КОДА</p>
       <h2>Сниппеты</h2>
     </div>
     <p class="section-intro">
@@ -767,13 +736,8 @@
 <section class="section" id="generators">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">РАСЧЁТ КООРДИНАТ И ТРАЕКТОРИЙ</p>
       <h2>Генераторы отверстий и карманов</h2>
     </div>
-    <p class="section-intro">
-      Просматривайте координаты отверстий и траектории карманов, меняйте размеры
-      и вставляйте результат в редактор.
-    </p>
   </div>
   <div class="generator-group">
     <div>
@@ -799,7 +763,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Отверстия по окружности</figcaption>
       </figure>
       <figure class="screenshot-card">
         <a
@@ -814,7 +777,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Прямоугольная сетка отверстий</figcaption>
       </figure>
     </div>
   </div>
@@ -840,7 +802,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Круглый карман</figcaption>
       </figure>
       <figure class="screenshot-card">
         <a
@@ -855,7 +816,6 @@
             loading="lazy"
             decoding="async"
         /></a>
-        <figcaption>Прямоугольный карман</figcaption>
       </figure>
     </div>
   </div>
@@ -863,7 +823,6 @@
 <section id="execution" class="section kernel-section">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ЕДИНОЕ РАСЧЁТНОЕ ЯДРО</p>
       <h2>Расчёт траектории управляющей программы</h2>
     </div>
     <p class="section-intro">
@@ -874,7 +833,6 @@
   </div>
   <div class="feature-grid">
     <article>
-      <span class="feature-index">01</span>
       <h3>Выполнение управляющей программы</h3>
       <p>
         Расчёт траектории с учётом переменных, циклов, подпрограмм и систем
@@ -882,7 +840,6 @@
       </p>
     </article>
     <article>
-      <span class="feature-index">02</span>
       <h3>Диагностика управляющей программы</h3>
       <p>
         Статус выполнения, предупреждения, ошибки геометрии и неподдерживаемые
@@ -891,7 +848,6 @@
       </p>
     </article>
     <article>
-      <span class="feature-index">03</span>
       <h3>Геометрия инструмента</h3>
       <p>
         Геометрия из библиотеки и настроек текущей программы используется для
@@ -904,7 +860,6 @@
 <section id="tokens" class="section">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ТОКЕНЫ И СОСТОЯНИЕ ПЕРЕМЕННЫХ</p>
       <h2>Проверяйте кадры и переменные разных стоек</h2>
     </div>
     <p class="section-intro">
@@ -984,7 +939,6 @@
 <section class="section" id="export-dialog">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">NC И DXF</p>
       <h2>Экспорт программ и траекторий</h2>
     </div>
     <p class="section-intro">
@@ -1005,8 +959,8 @@
       </p>
       <p>
         В EXPANDED EXECUTION выберите встроенный или сохранённый
-        пользовательский пост в Target CNC. Кнопка + импортирует готовый
-        JSON-профиль для текущего типа станка, не меняя исходный файл.
+        пользовательский пост либо импортируйте JSON-профиль для текущего типа
+        станка; исходный файл при этом не меняется.
       </p>
       <a class="text-link" href="#dialect-conversion"
         >Подробнее о конвертации стоек →</a
@@ -1027,7 +981,6 @@
           decoding="async"
         />
       </a>
-      <figcaption>Настройки экспорта</figcaption>
     </figure>
   </article>
   <article class="story story-reverse">
@@ -1047,16 +1000,10 @@
         и циклы сверления в EXPANDED.
       </p>
       <p>
-        Настраивайте посты в «Настройки → Параметры → Постпроцессоры». Слева
-        выбирается профиль, справа редактируются его параметры. Кнопки под
-        списком создают копию, сохраняют, переименовывают и удаляют
-        пользовательские профили; встроенные посты доступны только для чтения.
-      </p>
-      <p>
-        Сохраните новую копию кнопкой «Сохранить» или OK. Перед сохранением
-        профиль проверяется; «Отмена» отбрасывает несохранённые правки.
-        Пользовательские профили появляются в экспорте рядом со встроенными
-        постами.
+        Настраивайте посты в «Настройки → Параметры → Постпроцессоры».
+        Встроенные посты доступны только для чтения: сохраните копию, чтобы
+        изменить её, и копия появится в экспорте рядом с ними. Перед сохранением
+        профиль проверяется.
       </p>
     </div>
     <figure class="screenshot-card">
@@ -1074,7 +1021,6 @@
           decoding="async"
         />
       </a>
-      <figcaption>Библиотека постпроцессоров и встроенный редактор</figcaption>
     </figure>
   </article>
   <p class="note">
@@ -1105,7 +1051,6 @@
           loading="lazy"
           decoding="async"
       /></a>
-      <figcaption>Статистика программы и каждого инструмента</figcaption>
     </figure>
     <div>
       <h3>HTML-отчёт по управляющей программе</h3>
@@ -2753,7 +2698,7 @@ X17.0
   <h3>HEIDENHAIN iTNC 530 — программы на Klartext</h3>
   <p class="prose">
     Трёхосевое фрезерование, индексирование 3+2 и TCP столов AC/BC на Klartext в
-    версии 2.9.7. Файлы .h/.H выбирают язык автоматически; iTNC-code
+    версии 2.9.8. Файлы .h/.H выбирают язык автоматически; iTNC-code
     позволяет выбрать его вручную. Неподдерживаемая операция останавливает
     расчёт с диагностикой исходного блока.
   </p>
@@ -2974,22 +2919,16 @@ X17.0
 <section class="section" id="comparison">
   <div class="section-heading">
     <div>
-      <p class="eyebrow">ПОДРОБНОЕ СРАВНЕНИЕ</p>
       <h2>CIMCO Edit 8 и Easy G-Code Plot</h2>
     </div>
     <p class="section-intro">
       Сравнение MDI, текстового Compare и команд FANUC Milling, FANUC Turning,
       SINUMERIK 840D и HEIDENHAIN iTNC 530. Актуально для версии
-      2.9.7. Указаны возможности, ограничения и источники данных.
+      2.9.8. Указаны возможности, ограничения и источники данных.
     </p>
   </div>
   <details class="reference-panel comparison-panel">
-    <summary>
-      <span>Развернуть таблицу сравнения</span
-      ><span class="summary-meta"
-        >FANUC Mill · FANUC Lathe · 840D · iTNC 530</span
-      >
-    </summary>
+    <summary>Развернуть таблицу сравнения</summary>
     <div class="reference-body comparison-content">
       <p><strong>Обозначения:</strong> ✅ — подтверждённая функция в указанном объёме; ⚠️ — частичная поддержка / ограниченная семантика; ❌ — явно отсутствует; <strong>?</strong> — точное поведение CIMCO Edit 8 не подтверждено. <strong>Отсутствие данных о поддержке функции не означает её отсутствие.</strong> «≈» — сопоставимо только в указанном объёме. Сравниваются <strong>редактор и Backplot CIMCO Edit 8</strong>, не CIMCO Edit 2022–2026 и не отдельная CIMCO Machine Simulation. Easy описан по рабочей версии 2.9.0. Обновление MDI/Compare относится к редактору; для строк команд стоек сохранены ранее указанные основания. Для CIMCO статусы по SINUMERIK и HEIDENHAIN, отсутствующие в руководстве, основаны на сравнительных заметках <span class="source-ref">[N]</span>. «Есть команда в фильтре» не означает правильное моделирование геометрии.</p>
 <p><a href="../COMPARISON.md">Версия на английском</a>.</p>
@@ -3016,11 +2955,10 @@ X17.0
     </div>
   </details>
   <p class="note">
+    Отсутствие данных о поддержке функции не означает её отсутствие.
     <a href="../COMPARISON_RU.md" download
       >Скачать сравнительную таблицу (Markdown) ↗</a
     >
-    <span>·</span> Сравниваются редактор и Backplot в CIMCO Edit 8. Отсутствие
-    данных о поддержке функции не означает её отсутствие.
   </p>
 </section>
 <section id="documentation" class="download">
@@ -3034,20 +2972,20 @@ X17.0
     <a
       class="button"
       data-windows-download="cli"
-      href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.7/easy_gcode_plot_cli.exe"
+      href="https://github.com/MaestroFusion360/easy_gcode_plot/releases/download/v2.9.8/easy_gcode_plot_cli.exe"
       >Скачать CLI для Windows ↗</a
     >
     <a
       class="text-link"
       href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ.md"
       lang="en"
-      >FAQ — English</a
+      >FAQ (English)</a
     >
     <a
       class="text-link"
       href="https://github.com/MaestroFusion360/easy_gcode_plot/blob/main/FAQ_RU.md"
       lang="ru"
-      >FAQ — Русский</a
+      >FAQ (Русский)</a
     >
   </div>
 </section>
@@ -3061,7 +2999,6 @@ X17.0
             >Easy G-Code Plot</span
           ></a
         >
-        <p>Редактор и визуализатор программ ЧПУ.</p>
       </div>
       <div class="footer-links">
         <a href="https://github.com/MaestroFusion360/easy_gcode_plot">GitHub</a>

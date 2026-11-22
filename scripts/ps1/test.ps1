@@ -5,6 +5,9 @@ param(
 
     [switch]$NoSync,
 
+    [ValidateRange(0, 64)]
+    [int]$Workers = 4,
+
     [Parameter(ValueFromRemainingArguments = $true)]
     [string[]]$ExtraPytestArgs
 )
@@ -25,6 +28,13 @@ try {
     }
 
     $uvArguments += @('pytest', '-q', $Path)
+
+    if ($Workers -gt 0) {
+        # Whole files stay on one worker: module-scoped Qt fixtures and the qt-codegen
+        # subprocess tests must not interleave with other workers.
+        $uvArguments += @('-n', "$Workers", '--dist', 'loadfile')
+    }
+
     $uvArguments += $ExtraPytestArgs
 
     if ($VerbosePreference -ne 'SilentlyContinue') {

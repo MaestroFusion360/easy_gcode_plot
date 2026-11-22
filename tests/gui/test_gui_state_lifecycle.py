@@ -207,6 +207,19 @@ def test_program_containers_do_not_alias_saved_document(window, attribute):
     assert window._documents[0].state[attribute]["item"]["value"] == 2
 
 
+def test_cancelled_completion_does_not_enter_scene_publication(window, monkeypatch):
+    completion = _PlotCompletion(window)
+
+    def must_not_publish(*_args, **_kwargs):
+        raise AssertionError("cancelled result reached the plot")
+
+    monkeypatch.setattr(window, "finishDataUpdate", must_not_publish)
+    payload = (SimpleNamespace(motions=(object(),)), [object()], {}, {}, 0.0, False)
+    completion.calculation(payload, lambda: True)
+    assert completion.cancelled
+    assert not completion.finished
+
+
 def test_late_completion_cannot_publish_into_identical_other_document(window):
     window.ui.editor.setText("G0 X1")
     completion = _PlotCompletion(window)

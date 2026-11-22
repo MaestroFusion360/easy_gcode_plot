@@ -195,21 +195,6 @@ nav a[aria-current] {
 .hero-copy {
   max-width: 980px;
 }
-.eyebrow {
-  margin: 0 0 20px;
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 550;
-  letter-spacing: 0.13em;
-}
-.status-dot {
-  display: inline-block;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--accent);
-  margin-right: 10px;
-}
 h1 {
   font-size: clamp(38px, 4.2vw, 62px);
   line-height: 1.12;
@@ -239,9 +224,6 @@ h1 span {
   color: var(--muted);
   font-size: 14px;
   margin: 18px 0 30px;
-}
-.platform-note span {
-  padding: 0 7px;
 }
 .platform-note a {
   color: var(--muted);
@@ -335,13 +317,6 @@ figcaption {
   padding-left: 0;
   border: 0;
 }
-.intro-strip span {
-  color: var(--accent);
-  font:
-    14px ui-monospace,
-    monospace;
-  margin-right: 14px;
-}
 .section {
   padding: 88px 0;
   border-bottom: 1px solid var(--line);
@@ -352,9 +327,6 @@ figcaption {
   align-items: end;
   gap: 60px;
   margin-bottom: 40px;
-}
-.section-heading .eyebrow {
-  margin-bottom: 16px;
 }
 h2 {
   margin: 0;
@@ -426,9 +398,6 @@ p {
 }
 .story-reverse .screenshot-card {
   order: 1;
-}
-.story .eyebrow {
-  font-size: 14px;
 }
 .text-link {
   display: inline-flex;
@@ -538,14 +507,6 @@ p {
 .feature-grid p {
   margin-bottom: 0;
 }
-.feature-index {
-  display: block;
-  color: var(--accent);
-  margin-bottom: 22px;
-  font:
-    14px ui-monospace,
-    monospace;
-}
 .report-preview {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.8fr);
@@ -650,13 +611,6 @@ summary:focus-visible {
 }
 .reference-body > :last-child {
   margin-bottom: 0;
-}
-.summary-meta {
-  float: right;
-  font:
-    14px/2 ui-monospace,
-    monospace;
-  color: var(--muted);
 }
 .comparison-content {
   font-size: 16px;
@@ -1022,11 +976,6 @@ footer {
     grid-template-columns: 1fr;
     gap: 28px;
   }
-  .summary-meta {
-    float: none;
-    display: block;
-    padding-top: 8px;
-  }
   .download {
     padding: 32px;
     flex-direction: column;
@@ -1125,9 +1074,6 @@ footer {
   th,
   td {
     padding: 14px;
-  }
-  .summary-meta {
-    font-size: 14px;
   }
   .download {
     margin-block: 40px;

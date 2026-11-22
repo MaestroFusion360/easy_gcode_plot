@@ -98,6 +98,47 @@ def test_execution_worker_can_run_without_modal_feedback_while_processing_gui_ev
     assert observations == [True]
 
 
+def test_worker_finishing_during_event_pump_does_not_open_dialog(qt_app, monkeypatch):
+    owner = QWidget()
+
+    class Worker:
+        running = True
+        waits = 0
+
+        def isRunning(self):
+            return self.running
+
+        def wait(self, *_args):
+            self.waits += 1
+
+    worker = Worker()
+    monkeypatch.setattr(
+        execution_worker,
+        "QCoreApplication",
+        SimpleNamespace(processEvents=lambda *_args: setattr(worker, "running", False)),
+    )
+
+    def unexpected_dialog(*_args):
+        raise AssertionError("worker already finished; dialog must not appear")
+
+    monkeypatch.setattr(execution_worker, "_create_dialog", unexpected_dialog)
+    try:
+        dialog = execution_worker._wait_for_worker(
+            worker,
+            owner,
+            cancel=lambda: None,
+            show_dialog=True,
+            delay_ms=0,
+            title="Execution",
+            status_text="Working",
+            cancelling_text="Cancelling",
+        )
+        assert dialog is None
+        assert worker.waits == 1
+    finally:
+        owner.close()
+
+
 def test_execution_dialog_stays_visible_through_gui_completion(qt_app):
     owner = QWidget()
     worker_released = Event()
@@ -297,6 +338,30 @@ def test_gui_forwards_xyz_wcs_tools_and_g28_configuration_to_kernel(monkeypatch)
     assert captured["emulate_g28_home"] is False
     assert captured["limits"].generated_motions == 345678
     assert callable(captured["cancelled"])
+
+
+def test_completed_execution_does_not_write_tools_into_another_document(monkeypatch):
+    window = _gui_execution_harness("G0 X1", lathe_mode=False)
+    window._documents = [object(), object()]
+    window._active_document_index = 0
+    old_tools = {"T1": {"diameter": 1.0}}
+    window.millingTools = old_tools
+
+    def switch_while_waiting(owner, *_args, **_kwargs):
+        # Ordinary MDI switching is blocked while the kernel runs; this guards
+        # the publication seam if an event handler changes ownership anyway.
+        owner._active_document_index = 1
+        return (SimpleNamespace(ok=True, motions=(), diagnostics=()), None, {"T99": {"diameter": 99.0}}, {}, 1.0, False)
+
+    monkeypatch.setattr(main_window_execution, "run_execution", switch_while_waiting)
+    result, points, limited = main_window.MainWindow._calculate_editor_source(
+        window,
+        show_errors=False,
+        require_current_source=True,
+    )
+    assert (result, points, limited) == (None, None, False)
+    assert window.millingTools is old_tools
+    assert window._kernel_execution_active is False
 
 
 def test_reentrant_gui_execution_requests_cancellation():

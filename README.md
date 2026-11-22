@@ -2,17 +2,7 @@
 
 Desktop G-code editor, analyzer, backplotter and NC/DXF exporter for FANUC turning/milling, SINUMERIK 840D milling (native and ISO-M), native SINUMERIK XZ turning with bounded ISO-T input, and HEIDENHAIN iTNC 530 Klartext milling. Controller coverage and configured kinematics are described in the [FAQ](FAQ.md).
 
-**New in 2.9.0: Open in CLI.** Launch the existing CLI in a separate terminal directly from the current document, with commands for analysis, DXF export, conversion and batch processing.
-
 **Write NC programs with parameterized snippets.** Browse controller templates by group and name in the Snippets side panel, or edit them in the manager. Templates support input fields, formulas and attached diagrams; insertion is one undo action. See the [snippet guide](FAQ.md#where-are-snippets-stored) for editing and restoring defaults.
-
-**Native milling cycles introduced in 2.8.0.** HEIDENHAIN iTNC 530 executes documented subsets of position patterns **220/221**, pockets **251/252** and thread milling **262**. Native SINUMERIK executes classic **POCKET3/4**, **HOLES1/2** with modal drilling, and **CYCLE90**. Cutter geometry and, for iTNC helical/reciprocating pocket entry, an explicit tool entry angle are required. Unsupported variants stop with diagnostics. See the [FAQ](FAQ.md#heidenhain-itnc-530-input) for parameters and limits; these additions do not establish controller-identical internal passes or expand the output-post contract.
-
-**New in 2.7.0: native HEIDENHAIN iTNC 530 indexed 3+2 and continuous five-axis input.** Execute `PLANE SPATIAL/RESET` and rotary positioning with configured kinematics; use `M128/M129` or the supported `FUNCTION TCPM` form for continuous `L` motion on AC/BC tables. Opening `.h`/`.H` selects native Klartext milling automatically. Regression tests compare the supplied FANUC, SINUMERIK and HEIDENHAIN CAM programs across 1182 normalized cutting segments, including arc geometry and tool-axis directions. See the [iTNC input coverage and limits](FAQ.md#heidenhain-itnc-530-input). GPU milling stock removal remains three-axis.
-
-2.7.0 also adds [native SINUMERIK XZ turning and bounded ISO-T input](FAQ.md#is-sinumerik-lathe-supported): G290/G291 switching, diameter modes and supported CYCLE93/95/97 subsets. CYCLE95 uses nominal-contour geometry and reports unverified automatic nose compensation when applicable; completion is not full controller-equivalence validation. Save As includes the HEIDENHAIN `.h/.H` filter.
-
-**New in 2.6.0: fixed-view rotation, Tokens/Variables and native Klartext contour improvements.** Use **View → Rotate view**, the plot context menu or the View toolbar to rotate Top/Front/Left milling views around model X/Y/Z while preserving the camera center and scale. **Tokens/Variables** inspects FANUC, SINUMERIK and HEIDENHAIN execution state with diagnostic filters and search. Native `RND`/`CHF` construct rounding/chamfers before cutter compensation; a persistent notice helps select missing rotary kinematics.
 
 [3D milling stock removal on the GPU](#3d-milling-stock-removal) follows the remaining material through a three-axis program, lets you inspect the machined surface and saves the current stock as STL. Turning stock removal remains available separately.
 

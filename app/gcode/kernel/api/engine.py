@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from inspect import signature as _signature
 
 from ..frontend.turning_dialect import validate_system
 from ..geometry.coordinates import WcsOffset, WcsOffsets
@@ -40,6 +41,19 @@ __all__ = [
     "SUPPORTED_SOURCE_DIALECTS",
 ]
 
+# Options accepted by the implementation, plus the ones this facade consumes
+# itself.  geometry_tolerance is supplied explicitly by this facade from
+# arc_tolerance; forwarding it through **options would pass it twice.
+_IMPLEMENTATION_OPTIONS = frozenset(_signature(_execute_impl).parameters) - {"source", "language", "geometry_tolerance"}
+_FACADE_OPTIONS = frozenset({"milling_tools", "milling_correction_enabled", "tool_resolver"})
+
+
+def _validate_options(options):
+    """Reject unknown execution options before any NC work starts."""
+    unknown = set(options) - _IMPLEMENTATION_OPTIONS - _FACADE_OPTIONS
+    if unknown:
+        raise TypeError("execute() got unexpected execution option(s): " + ", ".join(sorted(unknown)))
+
 
 def _capture_tool_resolver(resolver, resolved_tools):
     if resolver is None and resolved_tools["milling_tools"] is None:
@@ -75,7 +89,10 @@ def execute(
     An optional tool_resolver receives the parsed Program once, before motion
     execution, and returns the tool geometry used by execution/compensation.
     Parsing and tool preparation share execution cancellation checkpoints.
+    Remaining keywords name implementation options; unknown names raise
+    ``TypeError`` here rather than surfacing as an NC diagnostic.
     """
+    _validate_options(options)
     arc_tolerance = _execution_arc_tolerance(arc_tolerance, language)
     token = active_budget.set(ExecutionBudget(limits or ExecutionLimits(), cancelled))
     resolved_tools = {"milling_tools": options.pop("milling_tools", None)}

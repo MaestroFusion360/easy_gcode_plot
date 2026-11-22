@@ -1,4 +1,11 @@
-"""Controller-specific milling capability and modal compatibility checks."""
+"""Controller-specific milling capability and modal compatibility checks.
+
+``MILLING_RECOGNIZED_G_CODES`` is the shared core's view of what fanuc_mill
+executes. Per-dialect executable subsets live with their dialect (for example
+``sinumerik_iso.ISO_M_EXECUTABLE_G_CODES``); tests/dialects/test_controller_capabilities.py
+guards the relation between them, so a code added on one side cannot silently
+diverge from the other.
+"""
 
 from __future__ import annotations
 

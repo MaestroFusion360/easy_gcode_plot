@@ -5,6 +5,9 @@ from dataclasses import replace
 from app.gcode.execution.source import source_dialect_for_path
 from app.gcode.kernel.api.engine import execute
 from app.gcode.kernel.frontend.program import parse_program
+from app.gcode.kernel.milling.controller import COMMON_ISO_M_CODES
+from app.gcode.kernel.milling.policy import MILLING_RECOGNIZED_G_CODES, MILLING_RECOGNIZED_M_CODES
+from app.gcode.kernel.milling.sinumerik_iso import ISO_M_EXECUTABLE_G_CODES
 from app.gcode.kernel.milling.state import MillState
 from app.gcode.kernel.runtime.capabilities import controller_capability_gate
 from app.gcode.kernel.runtime.execution import ProgramRuntime
@@ -112,3 +115,19 @@ def test_native_rejects_iso_only_cycles_and_tcp_before_state_changes():
         assert result.diagnostics[0].status == "unsupported"
         assert not result.motions
         assert not any(event.kind == "TOOL_CHANGE" for event in result.events)
+
+
+# The ISO-M dialect hands blocks to the shared milling core, so everything it
+# executes must also be recognized there.  G70/G71 are unit aliases normalized
+# before dispatch and are the only expected exception; widening this set means
+# the dialects have drifted apart and needs an explicit decision.
+_ISO_M_UNIT_ALIASES = frozenset({70, 71})
+
+
+def test_iso_m_executable_codes_stay_inside_the_shared_milling_core():
+    missing = ISO_M_EXECUTABLE_G_CODES - MILLING_RECOGNIZED_G_CODES - _ISO_M_UNIT_ALIASES
+    assert not missing, f"ISO-M executes codes the shared core rejects: {sorted(missing)}"
+
+
+def test_native_iso_m_codes_never_exceed_the_fanuc_milling_set():
+    assert COMMON_ISO_M_CODES <= MILLING_RECOGNIZED_M_CODES

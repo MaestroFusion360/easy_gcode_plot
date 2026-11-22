@@ -10,6 +10,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_WORKERS = ["-n", "4", "--dist", "loadfile"]
 
 
 def _invoke(shell, arguments, tmp_path, active=False, exit_code=0):
@@ -53,9 +54,31 @@ def test_test_runners_preserve_arguments_working_directory_and_exit_code(shell, 
     assert result.returncode == 23, result.stderr
     report = json.loads(result.stdout)
     expected = (
-        ["run", "--no-sync", "--active", "pytest", "-q", "tests/a test.py", "-k", "alpha or beta", "-v"]
+        [
+            "run",
+            "--no-sync",
+            "--active",
+            "pytest",
+            "-q",
+            "tests/a test.py",
+            *DEFAULT_WORKERS,
+            "-k",
+            "alpha or beta",
+            "-v",
+        ]
         if configured
-        else ["run", "pytest", "-q", "tests"]
+        else ["run", "pytest", "-q", "tests", *DEFAULT_WORKERS]
     )
     assert report["args"] == expected
     assert Path(report["cwd"]).resolve() == ROOT
+
+
+@pytest.mark.parametrize("shell", ["powershell", "bash"])
+@pytest.mark.parametrize(("workers", "expected_parallel"), [("0", []), ("2", ["-n", "2", "--dist", "loadfile"])])
+def test_test_runners_honor_requested_worker_count(shell, workers, expected_parallel, tmp_path):
+    flag = "-Workers" if shell == "powershell" else "--workers"
+    no_sync = "-NoSync" if shell == "powershell" else "--no-sync"
+    result = _invoke(shell, [no_sync, flag, workers], tmp_path)
+    assert result.returncode == 0, result.stderr
+    report = json.loads(result.stdout)
+    assert report["args"] == ["run", "--no-sync", "pytest", "-q", "tests", *expected_parallel]

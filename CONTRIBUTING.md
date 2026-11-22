@@ -119,10 +119,14 @@ bash scripts/sh/test.sh
 bash scripts/sh/lint.sh
 ```
 
-Both test runners default to quiet pytest output and preserve its exit code. Use
-`-NoSync` on Windows or `--no-sync` on POSIX to reuse installed dependencies;
-`-Verbose` / `--verbose` enables verbose test names. A test path and additional
-pytest arguments can follow, for example:
+Both test runners run pytest through `pytest-xdist` with four workers and
+`--dist loadfile`, so one test file always stays on one worker: module-scoped Qt
+fixtures and the Qt codegen subprocess tests rely on that. Pass `-Workers 0` on
+Windows or `--workers 0` on POSIX to run serially, or a different count when the
+machine has more cores. Output defaults to quiet and the exit code is preserved.
+Use `-NoSync` on Windows or `--no-sync` on POSIX to reuse installed
+dependencies; `-Verbose` / `--verbose` enables verbose test names. A test path
+and additional pytest arguments can follow, for example:
 
 ```powershell
 .\scripts\ps1\test.ps1 -NoSync tests/gui/test_compare.py -k refresh

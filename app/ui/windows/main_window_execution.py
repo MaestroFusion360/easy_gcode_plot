@@ -24,6 +24,7 @@ from app.ui.plot.playback import (
     build_playback_movements,
 )
 from app.ui.windows.execution_worker import run_execution
+from app.ui.windows.main_window_documents import MainWindowDocumentsMixin
 
 AUTO_REFRESH_MAX_POINTS = AUTO_UPDATE_SEGMENTS_MAX
 AUTO_REFRESH_DELAY_MS = 500
@@ -50,6 +51,11 @@ class _PlotUpdateCancelledError(Exception):
     """Stop an in-progress GUI publication at a cooperative checkpoint."""
 
 
+def _active_document(owner):
+    """Return the current document by identity, including during close/replace."""
+    return MainWindowDocumentsMixin.active_document(owner)
+
+
 class _PlotCompletion:
     """Publish worker output while retaining completion/cancellation state."""
 
@@ -57,19 +63,17 @@ class _PlotCompletion:
         self.owner = owner
         self.deferred_result = deferred_result
         self.expected_source = owner.ui.editor.text() if expected_source is None else expected_source
-        self.document = owner._documents[owner._active_document_index] if owner._documents else None
+        self.document = _active_document(owner)
         self.auto_fit = expected_source is not None
         self.finished = False
         self.cancelled = False
 
     def is_current(self):
         # pylint: disable=protected-access
-        index = self.owner._active_document_index
-        document = self.owner._documents[index] if index is not None else None
-        return document is self.document and self.owner.ui.editor.text() == self.expected_source
+        return _active_document(self.owner) is self.document and self.owner.ui.editor.text() == self.expected_source
 
     def _finish(self, result, points, cancelled, publication_state=None):
-        if not self.is_current():
+        if cancelled() or not self.is_current():
             self.cancelled = True
             return
         if result is not None and result.motions and points is not None:
@@ -433,6 +437,7 @@ class MainWindowExecutionMixin:
 
         source = self.ui.editor.text()
         _apply_native_source_dialect(self, source)
+        document = _active_document(self)
         language = "fanuc_turn" if self.latheMode else "fanuc_mill"
         turning = bool(self.latheMode)
         default_unit_scale = 25.4 if getattr(self, "defaultUnits", "mm") == "inch" else 1.0
@@ -528,7 +533,13 @@ class MainWindowExecutionMixin:
         finally:
             self._kernel_execution_active = False
 
-        if cancelled() or (require_current_source and self.ui.editor.text() != source):
+        # Completion guards the plotted scene.  Guard the tool/inference
+        # updates as well, including an identical source in another document.
+        if (
+            cancelled()
+            or _active_document(self) is not document
+            or (require_current_source and self.ui.editor.text() != source)
+        ):
             return None, None, False
 
         setattr(self, attribute, updated_tools)
